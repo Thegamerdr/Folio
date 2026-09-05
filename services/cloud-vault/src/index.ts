@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 
 export { SyncWorkspaceDurableObject } from './sync-workspace';
+export { BackupWorkspaceDurableObject } from './backup-workspace';
 
 const LATEST_NAME = 'latest.melo-backup';
 const PREVIOUS_NAME = 'previous.melo-backup';
@@ -12,6 +13,7 @@ const SYNC_WORKSPACE_MARKER = 'sync-workspaces';
 
 type CloudVaultEnv = Omit<Env, 'PUBLIC_ACCOUNT_DELETION_URL'> & {
   SYNC_WORKSPACES: DurableObjectNamespace;
+  BACKUP_WORKSPACES: DurableObjectNamespace;
   PUBLIC_ACCOUNT_DELETION_URL?: string;
 };
 
@@ -77,11 +79,20 @@ export default {
 
     try {
       const store = kvStore(env.VAULTS);
+      if (env.BACKUP_WORKSPACES === undefined) {
+        return json(
+          { error: 'The authoritative cloud storage binding is unavailable.' },
+          503,
+          request,
+          env,
+        );
+      }
       if (url.pathname.startsWith('/v1/sync/')) {
         return await handleSyncRequest(request, env, store, auth.userId);
       }
       if (request.method === 'DELETE' && url.pathname === '/v1/account') {
         await purgeSyncAccount(env, store, auth.userId);
+        await purgeBackupAccount(env, store, auth.userId);
       }
       return await handleAuthenticatedRequest(
         request,
@@ -89,6 +100,7 @@ export default {
         auth.userId,
         positiveInt(env.MAX_BACKUP_BYTES, DEFAULT_MAX_BACKUP_BYTES),
         env,
+        env.BACKUP_WORKSPACES,
       );
     } catch (error: unknown) {
       console.error(
@@ -115,8 +127,23 @@ export async function handleAuthenticatedRequest(
   userId: string,
   maxBackupBytes: number,
   env?: Pick<Env, 'ALLOWED_ORIGINS'>,
+  backupAuthority?: DurableObjectNamespace,
 ): Promise<Response> {
   const url = new URL(request.url);
+
+  if (backupAuthority !== undefined && request.method === 'GET' && url.pathname === '/v1/backups') {
+    const personalRef = await workspaceStorageId(PERSONAL_WORKSPACE_ID);
+    const prefix = `${await userStoragePrefix(userId)}/workspaces/`;
+    const refs = new Set([personalRef]);
+    for (const key of await store.list(prefix)) {
+      const match = /^([a-f0-9]{64})\/latest\.melo-backup$/.exec(key.slice(prefix.length));
+      if (match?.[1]) refs.add(match[1]);
+    }
+    for (const ref of refs) await adoptLegacyBackupIfNeeded(backupAuthority, userId, ref, store);
+    const stub = backupAuthority.getByName(await userStorageId(userId));
+    const upstream = await stub.fetch('https://backup.internal/internal/backup/catalog');
+    return withCors(upstream, request, env ?? { ALLOWED_ORIGINS: '' });
+  }
 
   if (request.method === 'DELETE' && url.pathname === '/v1/account') {
     const prefix = `${await userStoragePrefix(userId)}/`;
@@ -133,7 +160,67 @@ export async function handleAuthenticatedRequest(
   const personalRef = await workspaceStorageId(PERSONAL_WORKSPACE_ID);
   const legacyKeys =
     workspaceRef === personalRef ? await legacyBackupObjectKeys(userId) : undefined;
-
+  if (backupAuthority !== undefined && (!workspaceScope.legacyClient || request.method === 'GET')) {
+    const path =
+      request.method === 'GET' && url.pathname === '/v1/backup'
+        ? '/internal/backup/status'
+        : request.method === 'GET' && url.pathname === '/v1/backup/content'
+          ? '/internal/backup/content'
+          : request.method === 'PUT' && url.pathname === '/v1/backup'
+            ? '/internal/backup'
+            : request.method === 'DELETE' && url.pathname === '/v1/backup'
+              ? '/internal/backup'
+              : null;
+    if (path !== null) {
+      const internal = new URL(`https://backup.internal${path}`);
+      internal.searchParams.set('workspaceRef', workspaceRef);
+      const generation = url.searchParams.get('generation');
+      if (generation !== null) internal.searchParams.set('generation', generation);
+      const headers = new Headers(request.headers);
+      headers.delete('Authorization');
+      if (request.method !== 'DELETE')
+        await adoptLegacyBackupIfNeeded(backupAuthority, userId, workspaceRef, store);
+      const bodyBytes =
+        request.method === 'PUT'
+          ? await readBoundedRequestBody(request, maxBackupBytes)
+          : undefined;
+      if (bodyBytes === null) {
+        return json(
+          { error: `Encrypted backup must be between 1 and ${maxBackupBytes} bytes.` },
+          413,
+          request,
+          env,
+        );
+      }
+      const upstream = await backupAuthority.getByName(await userStorageId(userId)).fetch(
+        new Request(internal, {
+          method: request.method,
+          headers,
+          ...(bodyBytes === undefined ? {} : { body: bodyBytes }),
+        }),
+      );
+      if (request.method === 'DELETE' && upstream.ok) {
+        await store.delete([
+          keys.latest,
+          keys.previous,
+          ...(legacyKeys ? [legacyKeys.latest, legacyKeys.previous] : []),
+        ]);
+      }
+      return withCors(upstream, request, env ?? { ALLOWED_ORIGINS: '' });
+    }
+  }
+  if (
+    backupAuthority !== undefined &&
+    workspaceScope.legacyClient &&
+    (request.method === 'PUT' || request.method === 'DELETE')
+  ) {
+    return json(
+      { error: 'This older client must upgrade before changing encrypted backups.' },
+      428,
+      request,
+      env,
+    );
+  }
   if (request.method === 'GET' && url.pathname === '/v1/backup') {
     const resolved = workspaceScope.legacyClient
       ? legacyKeys === undefined
@@ -195,8 +282,8 @@ export async function handleAuthenticatedRequest(
     if (expectedChecksum === undefined || !/^[a-f0-9]{64}$/.test(expectedChecksum)) {
       return json({ error: 'A SHA-256 checksum is required.' }, 400, request, env);
     }
-    const bytes = new Uint8Array(await request.arrayBuffer());
-    if (bytes.byteLength !== declaredSize || bytes.byteLength > maxBackupBytes) {
+    const bytes = await readBoundedRequestBody(request, maxBackupBytes);
+    if (bytes === null || bytes.byteLength !== declaredSize || bytes.byteLength > maxBackupBytes) {
       return json(
         { error: 'Encrypted backup size did not match the declared size.' },
         400,
@@ -243,6 +330,99 @@ export async function handleAuthenticatedRequest(
   return json({ error: 'Route not found.' }, 404, request, env);
 }
 
+async function readBoundedRequestBody(
+  request: Pick<Request, 'body'>,
+  limit: number,
+): Promise<Uint8Array | null> {
+  if (request.body === null) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      total += next.value.byteLength;
+      if (total > limit) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(next.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+/** One-time migration bridge: legacy KV is read, adopted into the account DO, then removed. */
+async function adoptLegacyBackupIfNeeded(
+  authority: DurableObjectNamespace,
+  userId: string,
+  workspaceRef: string,
+  store: BackupStore,
+): Promise<boolean> {
+  const stub = authority.getByName(await userStorageId(userId));
+  const statusUrl = new URL('https://backup.internal/internal/backup/status');
+  statusUrl.searchParams.set('workspaceRef', workspaceRef);
+  const current = await stub.fetch(statusUrl);
+  if (!current.ok) throw new Error('backup authority status failed');
+  const status = (await current.json().catch(() => null)) as Record<string, unknown> | null;
+  if (
+    status?.['exists'] === true ||
+    (typeof status?.['revision'] === 'number' && status['revision'] > 0)
+  )
+    return false;
+  const keys = await backupObjectKeys(userId, workspaceRef);
+  const legacyKeys =
+    workspaceRef === (await workspaceStorageId(PERSONAL_WORKSPACE_ID))
+      ? await legacyBackupObjectKeys(userId)
+      : undefined;
+  const resolved = await resolveBackupObject(store, keys, legacyKeys);
+  if (resolved === null) return false;
+  const latest = await readLegacyGeneration(resolved.latest);
+  const prior = await store.get(resolved.keys.previous);
+  const previous = prior === null ? null : await readLegacyGeneration(prior);
+  const adopted = await stub.fetch(
+    new Request(`https://backup.internal/internal/backup/adopt?workspaceRef=${workspaceRef}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([...(previous === null ? [] : [previous]), latest]),
+    }),
+  );
+  // A concurrent delete wins permanently; its old KV copy must not block status/creation.
+  if (adopted.status === 412 || adopted.status === 410) return false;
+  if (!adopted.ok) throw new Error('legacy backup adoption failed');
+  await store.delete([
+    keys.latest,
+    keys.previous,
+    ...(legacyKeys ? [legacyKeys.latest, legacyKeys.previous] : []),
+  ]);
+  return true;
+}
+
+async function readLegacyGeneration(
+  object: BackupObject,
+): Promise<{ body: string; checksum: string; createdAt: string; deviceId: string }> {
+  const body = await readBoundedRequestBody({ body: object.body }, DEFAULT_MAX_BACKUP_BYTES);
+  if (body === null || body.byteLength === 0) throw new Error('legacy backup size is invalid');
+  const checksum = hex(await crypto.subtle.digest('SHA-256', body));
+  if (object.customMetadata?.['checksum'] && object.customMetadata['checksum'] !== checksum)
+    throw new Error('legacy backup checksum failed');
+  return {
+    body: new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(body),
+    checksum,
+    createdAt: object.customMetadata?.['createdAt'] ?? object.uploaded.toISOString(),
+    deviceId: object.customMetadata?.['deviceId'] ?? 'legacy-migration',
+  };
+}
+
 async function handleSyncRequest(
   request: Request,
   env: CloudVaultEnv,
@@ -271,7 +451,10 @@ async function handleSyncRequest(
       .json()
       .catch(() => null)) as Record<string, unknown> | null;
     const checksum = typeof body?.['backupChecksum'] === 'string' ? body['backupChecksum'] : '';
-    const backup = await store.head((await backupObjectKeys(userId, workspaceRef)).latest);
+    const backup =
+      env.BACKUP_WORKSPACES === undefined
+        ? await store.head((await backupObjectKeys(userId, workspaceRef)).latest)
+        : await backupAuthorityStatus(env.BACKUP_WORKSPACES, userId, workspaceRef);
     if (backup === null || backup.customMetadata?.['checksum'] !== checksum) {
       return json(
         { error: 'Snapshot checkpoint must reference the current verified encrypted backup.' },
@@ -318,6 +501,50 @@ async function purgeSyncAccount(
       if (!response.ok) throw new Error('sync workspace purge failed');
     }),
   );
+}
+
+async function purgeBackupAccount(
+  env: CloudVaultEnv,
+  _store: BackupStore,
+  userId: string,
+): Promise<void> {
+  if (env.BACKUP_WORKSPACES === undefined) return;
+  const stub = env.BACKUP_WORKSPACES.getByName(await userStorageId(userId));
+  const response = await stub.fetch('https://backup.internal/internal/backup/account', {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error('backup authority purge failed');
+}
+
+async function backupAuthorityStatus(
+  namespace: DurableObjectNamespace,
+  userId: string,
+  workspaceRef: string,
+): Promise<Omit<BackupObject, 'body'> | null> {
+  const url = new URL('https://backup.internal/internal/backup/status');
+  url.searchParams.set('workspaceRef', workspaceRef);
+  const response = await namespace.getByName(await userStorageId(userId)).fetch(url);
+  if (!response.ok) throw new Error('backup authority status failed');
+  const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+  if (payload?.['exists'] !== true) return null;
+  const createdAt = typeof payload['createdAt'] === 'string' ? payload['createdAt'] : '';
+  const checksum = typeof payload['checksum'] === 'string' ? payload['checksum'] : '';
+  const size = typeof payload['size'] === 'number' ? payload['size'] : -1;
+  const deviceId = typeof payload['deviceId'] === 'string' ? payload['deviceId'] : 'unknown';
+  if (
+    !/^[a-f0-9]{64}$/.test(checksum) ||
+    !Number.isSafeInteger(size) ||
+    size <= 0 ||
+    !Number.isFinite(Date.parse(createdAt))
+  ) {
+    throw new Error('backup authority status is invalid');
+  }
+  return {
+    size,
+    etag: `"${checksum}"`,
+    uploaded: new Date(createdAt),
+    customMetadata: { checksum, createdAt, deviceId },
+  };
 }
 
 function withCors(
@@ -619,7 +846,7 @@ function corsHeaders(request: Request, env?: Pick<Env, 'ALLOWED_ORIGINS'>): Reco
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers':
-      'Authorization, Content-Type, Content-Length, X-Melo-Checksum, X-Melo-Created-At, X-Melo-Device, X-Melo-Workspace-Ref, X-Melo-Signature-Version, X-Melo-Signed-At, X-Melo-Nonce, X-Melo-Request-Sequence, X-Melo-Body-Sha256, X-Melo-Signature',
+      'Authorization, Content-Type, Content-Length, If-Match, If-None-Match, X-Melo-Key-Rotation, X-Melo-Backup-Revision, X-Melo-Checksum, X-Melo-Created-At, X-Melo-Device, X-Melo-Workspace-Ref, X-Melo-Signature-Version, X-Melo-Signed-At, X-Melo-Nonce, X-Melo-Request-Sequence, X-Melo-Body-Sha256, X-Melo-Signature',
     'Access-Control-Expose-Headers': 'ETag, X-Melo-Checksum',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',

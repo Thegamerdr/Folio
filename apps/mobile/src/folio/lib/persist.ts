@@ -65,12 +65,14 @@ import {
   createWorkspaceManifest,
   deriveWorkspacePartitionKey,
   parseWorkspaceManifest,
+  assertValidWorkspaceRoot,
   workspacePartitionAssociatedData,
   workspaceEvidenceFilename,
   workspacePartitionRef,
   workspacePartitionFilenames,
   type WorkspaceManifest,
 } from './workspacePartition';
+import { validateRestoreJson } from './restore';
 import {
   createBusinessWorkspace,
   createPersonalWorkspaceRoot,
@@ -1274,6 +1276,122 @@ export async function createPersistedBusinessWorkspace(name: string): Promise<Pe
       throw reason;
     }
     return business;
+  });
+}
+
+/** Restore one provisioned partition durably while retaining the device's other workspace registry. */
+export async function restorePersistedWorkspacePayload(
+  raw: string,
+  workspaceId: WorkspaceId,
+): Promise<{ degraded: boolean }> {
+  return runWithQuiescedPersistence(async () => {
+    const checked = requirePersistWorkspace(workspaceId);
+    const validation = validateRestoreJson(raw, checked);
+    if (!validation.ok) throw new Error('This backup cannot replace the selected Melo workspace.');
+    const before = getState();
+    const beforeRaw = getPersistBlob(before.activeWorkspaceId);
+    await persistCurrentStateNow(before.activeWorkspaceId);
+    try {
+      // A partition restore never imports a registry pointing at missing or unrelated local vaults.
+      // Clean Business discovery uses the separate stage-before-activation path below.
+      hydrateFromBlob(
+        JSON.stringify({
+          ...validation.parsed,
+          workspaces: before.workspaces,
+          activeWorkspaceId: checked,
+          dataWorkspaceId: checked,
+        }),
+        checked,
+      );
+      if (consumeLoadDegraded()) {
+        hydrateFromBlob(beforeRaw, before.activeWorkspaceId);
+        return { degraded: true };
+      }
+      await persistCurrentStateNow(checked);
+      return { degraded: false };
+    } catch (reason: unknown) {
+      hydrateFromBlob(beforeRaw, before.activeWorkspaceId);
+      throw reason;
+    }
+  });
+}
+
+/** Stage a recovered Business vault before its Personal-rooted registry can make it addressable. */
+export async function recoverAndActivatePersistedBusinessWorkspace(
+  raw: string,
+  workspaceId: WorkspaceId,
+): Promise<void> {
+  return runWithQuiescedPersistence(async () => {
+    const checked = createWorkspaceId(String(workspaceId));
+    const validation = validateRestoreJson(raw, checked);
+    if (!validation.ok) {
+      throw new Error('This backup cannot be used to recover the selected Business workspace.');
+    }
+    const parsed = validation.parsed;
+    if (!Array.isArray(parsed.workspaces)) {
+      throw new Error('The Business backup does not contain a workspace registry.');
+    }
+    const backupRoot: WorkspaceRoot = {
+      workspaces: parsed.workspaces as readonly PersistedWorkspace[],
+      activeWorkspaceId: checked,
+      dataWorkspaceId: checked,
+    };
+    assertValidWorkspaceRoot(backupRoot);
+    const recovered = parsed.workspaces.find(
+      (candidate) =>
+        candidate !== null &&
+        typeof candidate === 'object' &&
+        !Array.isArray(candidate) &&
+        String((candidate as { id?: unknown }).id ?? '') === String(checked),
+    ) as PersistedWorkspace | undefined;
+    if (recovered === undefined || recovered.kind !== 'business') {
+      throw new Error('The backup does not contain the requested Business workspace.');
+    }
+
+    const current = getState();
+    if (current.activeWorkspaceId !== PERSONAL_WORKSPACE_ID) {
+      throw new Error('Business recovery must start from the Personal workspace.');
+    }
+    const personal = current.workspaces.find((workspace) => workspace.id === PERSONAL_WORKSPACE_ID);
+    if (personal === undefined) throw new Error('The local Personal workspace is unavailable.');
+    const existingBusiness = current.workspaces.find((workspace) => workspace.kind === 'business');
+    if (existingBusiness !== undefined && existingBusiness.id !== checked) {
+      throw new Error('A different Business workspace is already present on this device.');
+    }
+    const root: WorkspaceRoot = {
+      workspaces: [personal, recovered],
+      activeWorkspaceId: checked,
+      dataWorkspaceId: checked,
+    };
+    assertValidWorkspaceRoot(root);
+
+    const previousWorkspaces = current.workspaces;
+    // Flush any Personal edits before the registry transaction so a crash cannot leave the
+    // manifest pointing at a newer Business partition while Personal is only in memory.
+    await persistCurrentStateNow(PERSONAL_WORKSPACE_ID);
+    let manifestCommitted = false;
+    try {
+      // The exact cloud payload is written to the target partition before registry activation.
+      await writePartitionState(recovered, raw);
+      setPartial({ workspaces: [personal, recovered] });
+      await commitWorkspaceManifest();
+      manifestCommitted = true;
+      await switchPersistedWorkspace(checked);
+    } catch (reason: unknown) {
+      // Once the manifest is durable, retain the staged vault and registry so the next launch can
+      // recover it; deleting bytes here would leave durable metadata pointing at nothing. Before
+      // that commit point, roll memory back and discard only a newly-created vault.
+      if (!manifestCommitted) {
+        setPartial({ workspaces: previousWorkspaces });
+      }
+      if (!manifestCommitted && existingBusiness === undefined) {
+        await Promise.allSettled([
+          deletePartitionStateFiles(checked),
+          clearLocalLedgerStorage(recovered),
+        ]);
+      }
+      throw reason;
+    }
   });
 }
 

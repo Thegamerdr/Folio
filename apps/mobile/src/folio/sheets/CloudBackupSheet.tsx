@@ -9,9 +9,12 @@ import {
   applyCloudRestore,
   createCloudBackup,
   deleteCloudBackup,
+  fetchCloudBackupCatalog,
   fetchCloudBackupStatus,
   hasCloudRecoveryCode,
   stageCloudRestore,
+  stageDiscoveredCloudRestore,
+  type CloudBackupCatalogEntry,
   type CloudBackupStatus,
   type StagedCloudRestore,
 } from '@/folio/lib/cloudBackupNative';
@@ -33,6 +36,7 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
   const [busy, setBusy] = useState<'loading' | 'backup' | 'restore' | 'delete' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<readonly CloudBackupCatalogEntry[]>([]);
 
   useEffect(() => {
     if (!visible) return;
@@ -41,6 +45,7 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
     setError(null);
     setNotice(null);
     setNewRecoveryCode(null);
+    setCatalog([]);
     void Promise.all([tokenOrThrow(getToken), hasCloudRecoveryCode(activeWorkspaceId)])
       .then(async ([token, localCode]) => {
         const remote = await fetchCloudBackupStatus(activeWorkspaceId, token);
@@ -76,7 +81,7 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
       setNewRecoveryCode(result.newRecoveryCode);
       setNotice(
         result.newRecoveryCode === null
-          ? 'Encrypted backup updated. Your money stayed readable only on this device.'
+          ? 'Backup updated. Your data was encrypted before leaving this device.'
           : null,
       );
     } catch (reason: unknown) {
@@ -86,7 +91,7 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
     }
   };
 
-  const prepareRestore = async () => {
+  const prepareRestore = async (generation: 'current' | 'previous' | 'anchor' = 'current') => {
     if (busy !== null) return;
     setBusy('restore');
     setError(null);
@@ -97,6 +102,7 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
         activeWorkspaceId,
         await tokenOrThrow(getToken),
         supplied,
+        { generation },
       );
       setBusy(null);
       confirmRestore(staged, async () => {
@@ -107,6 +113,58 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
             setError(
               'The backup opened, but its data could not be loaded safely. Nothing was claimed as restored.',
             );
+            return;
+          }
+          showStatusDialog('dialog.cloud-backup-restore-succeeded', { onDone: onClose });
+        } catch (reason: unknown) {
+          setError(messageFor(reason));
+        } finally {
+          setBusy(null);
+        }
+      });
+    } catch (reason: unknown) {
+      setError(messageFor(reason));
+      setBusy(null);
+    }
+  };
+
+  const findBackups = async () => {
+    if (busy !== null) return;
+    setBusy('loading');
+    setError(null);
+    try {
+      setCatalog(await fetchCloudBackupCatalog(await tokenOrThrow(getToken)));
+      setNotice('Only encrypted references are listed. Workspace names stay inside each backup.');
+    } catch (reason: unknown) {
+      setError(messageFor(reason));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const prepareDiscoveredRestore = async (
+    entry: CloudBackupCatalogEntry,
+    generation: 'current' | 'previous' | 'anchor' = 'current',
+  ) => {
+    if (busy !== null) return;
+    setBusy('restore');
+    setError(null);
+    try {
+      const code = enteredCode.trim();
+      if (code.length === 0) throw new Error('Enter the recovery code for this backup first.');
+      const staged = await stageDiscoveredCloudRestore(
+        entry.workspaceRef,
+        await tokenOrThrow(getToken),
+        code,
+        { generation },
+      );
+      setBusy(null);
+      confirmRestore(staged, async () => {
+        setBusy('restore');
+        try {
+          const applied = await applyCloudRestore(staged.workspaceId, staged);
+          if (applied.degraded) {
+            setError('The backup opened, but its data could not be loaded safely.');
             return;
           }
           showStatusDialog('dialog.cloud-backup-restore-succeeded', { onDone: onClose });
@@ -269,6 +327,33 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
               </Text>
             </Pressable>
 
+            {status.previousGeneration !== null && status.previousGeneration !== undefined ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy !== null }}
+                disabled={busy !== null}
+                onPress={() => void prepareRestore('previous')}
+                style={styles.textButton}
+              >
+                <Text style={[styles.textButtonLabel, { color: t.muted }]}>
+                  Review previous backup generation
+                </Text>
+              </Pressable>
+            ) : null}
+            {status.anchorGeneration !== null && status.anchorGeneration !== undefined ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy !== null }}
+                disabled={busy !== null}
+                onPress={() => void prepareRestore('anchor')}
+                style={styles.textButton}
+              >
+                <Text style={[styles.textButtonLabel, { color: t.muted }]}>
+                  Review old-key backup anchor
+                </Text>
+              </Pressable>
+            ) : null}
+
             {hasLocalCode && !showCodeEntry ? (
               <Pressable
                 accessibilityRole="button"
@@ -321,6 +406,88 @@ export function CloudBackupSheet({ visible, onClose }: CloudBackupSheetProps) {
           </View>
         ) : null}
 
+        <View style={styles.discoverySection}>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>Recover another workspace</Text>
+          <Text style={[styles.sectionBody, { color: t.muted }]}>
+            On a clean phone, find encrypted backups linked to this account, then open one with its
+            recovery code.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: busy !== null }}
+            disabled={busy !== null}
+            onPress={() => void findBackups()}
+            style={[styles.secondaryButton, { borderColor: t.hairlineStrong }]}
+          >
+            <Text style={[styles.secondaryLabel, { color: t.ink }]}>
+              {busy === 'loading' ? 'Finding encrypted backups…' : 'Find encrypted backups'}
+            </Text>
+          </Pressable>
+          {catalog.length > 0 ? (
+            <>
+              <TextInput
+                accessibilityLabel="Recovery code for discovered cloud backup"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                multiline
+                onChangeText={setEnteredCode}
+                placeholder="Recovery code"
+                placeholderTextColor={t.muted}
+                style={[
+                  styles.codeInput,
+                  { color: t.ink, backgroundColor: t.inset, borderColor: t.hairline },
+                ]}
+                value={enteredCode}
+              />
+              {catalog.map((entry) => (
+                <View key={`${entry.workspaceRef}:${entry.generation}`} style={styles.catalogRow}>
+                  <Text style={[styles.catalogLabel, { color: t.ink }]}>
+                    Encrypted workspace · {formatBackupDate(entry.createdAt)} · generation{' '}
+                    {entry.generation}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: busy !== null }}
+                    disabled={busy !== null}
+                    onPress={() => void prepareDiscoveredRestore(entry)}
+                    style={[styles.textButton, styles.catalogAction]}
+                  >
+                    <Text style={[styles.textButtonLabel, { color: t.calm }]}>
+                      Review this backup
+                    </Text>
+                  </Pressable>
+                  {entry.previousGeneration !== null ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: busy !== null }}
+                      disabled={busy !== null}
+                      onPress={() => void prepareDiscoveredRestore(entry, 'previous')}
+                      style={[styles.textButton, styles.catalogAction]}
+                    >
+                      <Text style={[styles.textButtonLabel, { color: t.muted }]}>
+                        Review previous generation
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  {entry.anchorGeneration !== null ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: busy !== null }}
+                      disabled={busy !== null}
+                      onPress={() => void prepareDiscoveredRestore(entry, 'anchor')}
+                      style={[styles.textButton, styles.catalogAction]}
+                    >
+                      <Text style={[styles.textButtonLabel, { color: t.muted }]}>
+                        Review old-key anchor
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+            </>
+          ) : null}
+        </View>
+
         <Pressable accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
           <Text style={[styles.closeLabel, { color: t.muted }]}>Close</Text>
         </Pressable>
@@ -338,9 +505,14 @@ async function tokenOrThrow(getToken: () => Promise<string | null>): Promise<str
 
 function confirmRestore(staged: StagedCloudRestore, apply: () => void) {
   const owner = staged.summary.name === null ? '' : ` for ${staged.summary.name}`;
+  const parsed = JSON.parse(staged.rawState) as { workspaces?: { id?: unknown; name?: unknown }[] };
+  const recovered = Array.isArray(parsed.workspaces)
+    ? parsed.workspaces.find((item) => item?.id === staged.workspaceId)
+    : undefined;
+  const label = typeof recovered?.name === 'string' ? recovered.name : 'this workspace';
   Alert.alert(
-    'Replace this device’s Melo data?',
-    `Backup${owner} from ${formatBackupDate(staged.createdAt)}. ${staged.summary.transactions} transactions, ${staged.summary.subs} subscriptions and ${staged.summary.pots} pots. Your current local state will be replaced.`,
+    `Restore ${label}?`,
+    `Backup${owner} from ${formatBackupDate(staged.createdAt)}. ${staged.summary.transactions} transactions, ${staged.summary.subs} subscriptions and ${staged.summary.pots} pots. Existing data for this workspace will be replaced. Your other workspace stays unchanged.`,
     [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Restore backup', style: 'destructive', onPress: apply },
@@ -411,6 +583,7 @@ const styles = StyleSheet.create({
   },
   primaryLabel: { fontSize: 14, fontWeight: '600' },
   restoreSection: { marginTop: gap.xl },
+  discoverySection: { marginTop: gap.xl },
   sectionTitle: { fontFamily: serif.display, fontSize: 18 },
   sectionBody: { fontSize: 12, lineHeight: 17, marginTop: gap.xs },
   codeInput: {
@@ -442,4 +615,12 @@ const styles = StyleSheet.create({
   textButtonLabel: { fontSize: 12.5, textAlign: 'center' },
   closeButton: { alignItems: 'center', marginTop: gap.md, paddingVertical: gap.sm },
   closeLabel: { fontSize: 13 },
+  catalogRow: {
+    borderTopColor: '#00000014',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: gap.md,
+    paddingTop: gap.md,
+  },
+  catalogLabel: { fontSize: 12, lineHeight: 17 },
+  catalogAction: { paddingTop: gap.sm },
 });

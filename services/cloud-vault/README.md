@@ -1,7 +1,10 @@
 # Melo Cloud Vault
 
-This Worker stores opaque, client-encrypted Melo backup snapshots in Workers KV. It never receives a
-plaintext money record or an unwrapped recovery key.
+This Worker stores opaque, client-encrypted Melo backup snapshots in an account-scoped SQLite
+Durable Object. It never receives a plaintext money record or an unwrapped recovery key. KV is only
+used as a one-time migration source for existing Personal and Business backups. Both retained
+generations are adopted atomically, then removed from KV. Old clients cannot mutate either authority;
+the production entry point fails closed if its Durable Object binding is missing.
 
 ## Routes
 
@@ -10,9 +13,13 @@ plaintext money record or an unwrapped recovery key.
   HTTPS support/deletion route when one exists and otherwise says browser self-service is not
   configured; visiting the page never deletes an account.
 - `GET /v1/backup` — metadata for the signed-in user's latest snapshot.
-- `PUT /v1/backup` — upload one bounded encrypted snapshot and rotate the previous generation.
-- `GET /v1/backup/content` — download the latest encrypted snapshot.
-- `DELETE /v1/backup` — delete both retained generations for the signed-in user.
+- `GET /v1/backups` — list ciphertext-only workspace references for clean-device discovery.
+- `PUT /v1/backup` — upload one bounded encrypted snapshot with `If-None-Match: *` or an exact
+  `If-Match` generation. Retries of the current ciphertext are idempotent.
+  After deletion, create-only uploads must also carry the `X-Melo-Backup-Revision` returned by
+  status. A delayed pre-delete upload cannot recreate the backup.
+- `GET /v1/backup/content` — download the current, previous, or explicit old-key anchor generation.
+- `DELETE /v1/backup` — delete all retained generations for the selected workspace.
 - `DELETE /v1/account` — purge every retained generation across every workspace for the signed-in
   account; this is the route used before Clerk identity deletion.
 - `GET|POST /v1/sync/devices` — list/register opaque public-key device records.
@@ -30,8 +37,10 @@ SHA-256 digest of the Clerk user ID, so the provider object key does not expose 
 
 ## Provisioning
 
-1. Create and bind the `VAULTS` Workers KV namespace. Melo's 4 MiB cap is below KV's 25 MiB value limit.
-2. Apply the checked-in `SyncWorkspaceDurableObject` migration. The Durable Object serialises
+1. Create and bind the `VAULTS` Workers KV namespace for legacy migration only. New backup
+   generations are stored by the `BACKUP_WORKSPACES` SQLite Durable Object binding.
+2. Apply the checked-in `SyncWorkspaceDurableObject` and `BackupWorkspaceDurableObject` migrations.
+   The Durable Objects serialise
    device, operation cursor, acknowledgement, rotation and compaction changes per account/workspace.
 3. Run `pnpm --filter @melo/cloud-vault types` after any binding change.
 4. Confirm `CLERK_ISSUER` and `CLERK_JWKS_URL` match the Clerk environment used by the app.
@@ -46,6 +55,12 @@ Account deletion is idempotent: a missing backup still returns `{ "deleted": tru
 failure returns a service error and the client keeps the identity so deletion can be retried. Local
 encrypted state and recovery secrets are intentionally separate; the mobile flow clears those only
 after the remote purge is confirmed.
+
+An explicit recovery-key replacement retains the old-key generation as an anchor until the next
+explicit replacement or deletion; ordinary backups never evict it. Native key material is saved
+before upload, and a lost-response retry checks the current ciphertext before promoting a pending
+key. Merely previewing an older generation does not replace the active recovery key. Account deletion
+leaves a minimal permanent fence for that identity so late writes cannot resurrect its cloud data.
 
 The repository proves the coordinator and authenticated client contracts locally. It does not prove
 production Clerk configuration, deployed bindings, clean-device replay, lost-device rotation on

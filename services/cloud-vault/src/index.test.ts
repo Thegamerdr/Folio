@@ -93,6 +93,83 @@ function request(
 }
 
 describe('Melo cloud vault', () => {
+  it('discovers scoped Business KV backups and migrates both generations without authorizing overwrite', async () => {
+    const { store, objects } = memoryStore();
+    const keys = await backupObjectKeys('migration-user', WORKSPACE_B);
+    for (const [key, body] of [
+      [keys.previous, 'encrypted-prior'],
+      [keys.latest, 'encrypted-current'],
+    ] as const) {
+      await store.put(key, new TextEncoder().encode(body), {
+        customMetadata: {
+          checksum: await checksum(body),
+          createdAt: '2026-09-05T12:00:00.000Z',
+          deviceId: 'old-device',
+        },
+      });
+    }
+    const adopted = new Map<string, Array<{ body: string }>>();
+    const forwarded: Request[] = [];
+    const authority = {
+      getByName: () => ({
+        fetch: async (input: string | Request | URL) => {
+          const req = input instanceof Request ? input : new Request(input);
+          const url = new URL(req.url),
+            ref = url.searchParams.get('workspaceRef')!;
+          if (url.pathname.endsWith('/status'))
+            return Response.json({ exists: adopted.has(ref), revision: 0 });
+          if (url.pathname.endsWith('/adopt')) {
+            adopted.set(ref, await req.json());
+            return Response.json({ ok: true }, { status: 201 });
+          }
+          if (url.pathname.endsWith('/catalog'))
+            return Response.json({ workspaces: [...adopted.keys()] });
+          forwarded.push(req);
+          return Response.json({ error: 'Generation changed' }, { status: 412 });
+        },
+      }),
+    } as unknown as DurableObjectNamespace;
+    const catalog = await handleAuthenticatedRequest(
+      request('GET', '/v1/backups'),
+      store,
+      'migration-user',
+      4096,
+      undefined,
+      authority,
+    );
+    await expect(catalog.json()).resolves.toEqual({ workspaces: [WORKSPACE_B] });
+    expect(adopted.get(WORKSPACE_B)?.map((row) => row.body)).toEqual([
+      'encrypted-prior',
+      'encrypted-current',
+    ]);
+    expect(objects.size).toBe(0);
+    const first = request(
+      'PUT',
+      '/v1/backup',
+      'new-ciphertext',
+      await checksum('new-ciphertext'),
+      WORKSPACE_B,
+    );
+    first.headers.set('If-None-Match', '*');
+    expect(
+      (await handleAuthenticatedRequest(first, store, 'migration-user', 4096, undefined, authority))
+        .status,
+    ).toBe(412);
+    expect(forwarded[0]?.headers.get('If-None-Match')).toBe('*');
+    expect(forwarded[0]?.headers.has('If-Match')).toBe(false);
+    expect(
+      (
+        await handleAuthenticatedRequest(
+          request('PUT', '/v1/backup', 'legacy', undefined, null),
+          store,
+          'migration-user',
+          4096,
+          undefined,
+          authority,
+        )
+      ).status,
+    ).toBe(428);
+  });
   it('publishes an honest account-deletion readiness page without inventing a public URL', async () => {
     const unconfigured = accountDeletionReadinessPage(request('GET', '/delete-account'));
     expect(unconfigured.status).toBe(200);

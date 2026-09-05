@@ -36,6 +36,7 @@
 // `getHydrationOutcome()` and the map's resulting shape.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createWorkspaceId } from '@folio/domain';
 
 import type {
   NativeCanonicalSnapshotLoad,
@@ -206,6 +207,7 @@ vi.mock('./notifyRuntimeState', () => ({
 import {
   addEvidenceDocument,
   addTransaction,
+  createEmptyWorkspacePartition,
   getPersistBlob,
   getState,
   resetAll,
@@ -225,15 +227,17 @@ import {
   persistCurrentStateNow,
   quiescePersistenceWrites,
   readWorkspaceManifest,
+  recoverAndActivatePersistedBusinessWorkspace,
   reconcileEvidenceFilesystem,
   reconcileMissingEvidenceFiles,
   renamePersistedBusinessWorkspace,
   restorePersistedBusinessWorkspace,
+  restorePersistedWorkspacePayload,
   startPersisting,
   switchPersistedWorkspace,
 } from './persist';
 import { workspaceEvidenceFilename, workspacePartitionFilenames } from './workspacePartition';
-import { PERSONAL_WORKSPACE_ID } from './workspaceRoot';
+import { createBusinessWorkspace, PERSONAL_WORKSPACE_ID } from './workspaceRoot';
 import {
   classifyPersistenceDiagnostic,
   getPersistenceRuntimeState,
@@ -1099,9 +1103,7 @@ describe('save failure visibility and retry', () => {
   });
 
   it('reduces native persistence failures to value-free diagnostic codes', () => {
-    expect(classifyPersistenceDiagnostic(new Error('database is locked'))).toBe(
-      'database-locked',
-    );
+    expect(classifyPersistenceDiagnostic(new Error('database is locked'))).toBe('database-locked');
     expect(classifyPersistenceDiagnostic(new Error('no such column: private_value'))).toBe(
       'database-schema',
     );
@@ -1115,6 +1117,72 @@ describe('save failure visibility and retry', () => {
 });
 
 describe('workspace partition migration', () => {
+  function businessRecoveryFixture() {
+    const business = createBusinessWorkspace({
+      id: createWorkspaceId('workspace_business_recovery_test'),
+      name: 'Recovered Studio',
+      encryptedSubkeyId: 'workspace-subkey-business-recovery-test-v1',
+    });
+    const partition = createEmptyWorkspacePartition(
+      {
+        workspaces: [getState().workspaces[0]!, business],
+        activeWorkspaceId: business.id,
+        dataWorkspaceId: business.id,
+      },
+      business.id,
+      '2026-09-05T12:00:00.000Z',
+    );
+    return {
+      business,
+      raw: JSON.stringify({ ...partition, nextYouNote: 'Recovered Business only' }),
+    };
+  }
+
+  it('clean Business recovery activates durable data without replacing existing Personal', async () => {
+    resetToEmpty();
+    setPartial({ nextYouNote: 'Keep Personal' });
+    const { business, raw } = businessRecoveryFixture();
+    await recoverAndActivatePersistedBusinessWorkspace(raw, business.id);
+    expect(getState().activeWorkspaceId).toBe(business.id);
+    expect(getState().nextYouNote).toBe('Recovered Business only');
+    expect(getHydrationOutcome()).not.toBe('unreadable');
+    await switchPersistedWorkspace(PERSONAL_WORKSPACE_ID);
+    expect(getState().nextYouNote).toBe('Keep Personal');
+    expect(getState().workspaces).toHaveLength(2);
+    const personalBackup = JSON.parse(getPersistBlob(PERSONAL_WORKSPACE_ID));
+    personalBackup.workspaces = [getState().workspaces[0]!];
+    personalBackup.nextYouNote = 'Restored Personal';
+    await restorePersistedWorkspacePayload(JSON.stringify(personalBackup), PERSONAL_WORKSPACE_ID);
+    expect(getState().workspaces).toHaveLength(2);
+    await switchPersistedWorkspace(business.id);
+    expect(getState().nextYouNote).toBe('Recovered Business only');
+    await switchPersistedWorkspace(PERSONAL_WORKSPACE_ID);
+    expect(getState().nextYouNote).toBe('Restored Personal');
+  });
+
+  it('clean Business recovery retains staged bytes after a post-manifest switch failure', async () => {
+    resetToEmpty();
+    setPartial({ nextYouNote: 'Keep Personal' });
+    const { business, raw } = businessRecoveryFixture();
+    saveNativeWorkspaceStateGeneration
+      .mockResolvedValueOnce({ generation: 1 })
+      .mockResolvedValueOnce({ generation: 1 })
+      .mockRejectedValueOnce(new Error('synthetic disk failure after manifest'));
+    await expect(recoverAndActivatePersistedBusinessWorkspace(raw, business.id)).rejects.toThrow(
+      /disk failure/,
+    );
+    expect(getState().activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    expect(getState().nextYouNote).toBe('Keep Personal');
+    expect(fsState.get(`${DOC_DIR}${workspacePartitionFilenames(business.id).main}`)).toMatch(
+      /^FVE1:/,
+    );
+    expect(clearLocalLedgerStorage).not.toHaveBeenCalled();
+    await expect(readWorkspaceManifest()).resolves.toMatchObject({
+      workspaces: [{ kind: 'personal' }, { id: business.id }],
+    });
+    await switchPersistedWorkspace(business.id);
+    expect(getState().nextYouNote).toBe('Recovered Business only');
+  });
   it('migrates a complete legacy Personal generation only after encrypted partition readback', async () => {
     resetToEmpty();
     setPartial({

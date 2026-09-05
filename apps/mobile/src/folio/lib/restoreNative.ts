@@ -18,11 +18,16 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import type { WorkspaceId } from '@folio/domain';
 
-import { consumeLoadDegraded, hydrateFromBlob } from '@/folio/store';
+import { getState } from '@/folio/store';
 import { reconcileEntitlements } from '@/folio/lib/billing/entitlements';
-import { reconcileMissingEvidenceFiles } from '@/folio/lib/persist';
+import {
+  recoverAndActivatePersistedBusinessWorkspace,
+  reconcileMissingEvidenceFiles,
+  restorePersistedWorkspacePayload,
+} from '@/folio/lib/persist';
 
 import { summarizeRestore, validateRestoreJson } from './restore';
+import { PERSONAL_WORKSPACE_ID } from './workspaceRoot';
 import type { RestoreRejection, RestoreSummary } from './restore';
 
 /** Outcome of the pick-and-validate stage (nothing is replaced yet). */
@@ -84,9 +89,28 @@ export async function applyRestore(
 ): Promise<ApplyRestoreResult> {
   const validation = validateRestoreJson(raw, workspaceId);
   if (!validation.ok) throw new Error('This backup cannot replace the selected Melo workspace.');
-  hydrateFromBlob(raw, workspaceId);
-  const degraded = consumeLoadDegraded();
+  const { degraded } = await restorePersistedWorkspacePayload(raw, workspaceId);
   if (!degraded) await reconcileMissingEvidenceFiles(workspaceId);
   await reconcileEntitlements();
   return { degraded };
+}
+
+/**
+ * Apply a cloud restore without conflating a clean-phone Business recovery with a Personal
+ * partition replacement. The persistence adapter stages the Business vault and commits its
+ * manifest before switching; an existing workspace keeps the established restore path.
+ */
+export async function applyBusinessCloudRestore(
+  raw: string,
+  workspaceId: WorkspaceId,
+): Promise<ApplyRestoreResult> {
+  const hasBusiness = getState().workspaces.some(
+    (workspace) => workspace.kind === 'business' && workspace.id === workspaceId,
+  );
+  if (!hasBusiness && String(workspaceId) !== String(PERSONAL_WORKSPACE_ID)) {
+    await recoverAndActivatePersistedBusinessWorkspace(raw, workspaceId);
+    await reconcileEntitlements();
+    return { degraded: false };
+  }
+  return applyRestore(raw, workspaceId);
 }

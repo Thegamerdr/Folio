@@ -23,12 +23,20 @@
         "name": "SYNC_WORKSPACES",
         "class_name": "SyncWorkspaceDurableObject",
       },
+      {
+        "name": "BACKUP_WORKSPACES",
+        "class_name": "BackupWorkspaceDurableObject",
+      },
     ],
   },
   "migrations": [
     {
       "tag": "v1-sync-workspaces",
       "new_sqlite_classes": ["SyncWorkspaceDurableObject"],
+    },
+    {
+      "tag": "v2-backup-workspaces",
+      "new_sqlite_classes": ["BackupWorkspaceDurableObject"],
     },
   ],
   "observability": {
