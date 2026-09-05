@@ -321,16 +321,16 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: t.canvas }]}>
+    <View style={[styles.root, { backgroundColor: t.canvas, paddingTop: insets.top }]}>
       <ScrollView
         accessibilityLabel="More"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.content,
           {
-            // The shell begins behind Android's status bar. Source product content starts 8px
-            // below the status area, so the physical inset and mt-2 are both owned here.
-            paddingTop: insets.top + gap.sm,
+            // Keep the inset on the fixed viewport wrapper so it cannot scroll away beneath the
+            // Android status bar. The content's own breathing room remains scrollable.
+            paddingTop: gap.sm,
             paddingBottom: gap.xl,
           },
         ]}

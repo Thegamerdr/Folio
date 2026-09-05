@@ -23,8 +23,13 @@ the production entry point fails closed if its Durable Object binding is missing
 - `DELETE /v1/account` — purge every retained generation across every workspace for the signed-in
   account; this is the route used before Clerk identity deletion.
 - `GET|POST /v1/sync/devices` — list/register opaque public-key device records.
+- `POST /v1/sync/enrollment` — signed first-phone discovery or this phone's own registration
+  status. An unapproved phone cannot list other device identifiers, labels or key boxes.
 - `POST /v1/sync/devices/:deviceId/revoke` — revoke a device while advancing the sync-key epoch;
-  the client supplies an opaque wrapped next key for every remaining active device.
+  the client supplies an opaque wrapped next key for every remaining active device and the opaque
+  backward key transition in the SAME atomic request. A separate later key-history write is not
+  sufficient. Registered device history is bounded to 32 device identities per workspace.
+- `GET /v1/sync/key-transitions?afterEpoch=N` — bounded pages of 64 opaque backward key boxes.
 - `GET|POST /v1/sync/operations` — page or append checksum-verified encrypted operation envelopes.
 - `POST /v1/sync/acknowledgements` — advance the current device's monotonic replay cursor.
 - `GET|PUT /v1/sync/snapshot` — read/register an encrypted-backup checkpoint whose checksum must
@@ -56,6 +61,21 @@ failure returns a service error and the client keeps the identity so deletion ca
 encrypted state and recovery secrets are intentionally separate; the mobile flow clears those only
 after the remote purge is confirmed.
 
+Sync admission is recorded in the account SQLite authority before the workspace coordinator is
+reached. Account deletion fences admission first. Each coordinator removes its device/key metadata,
+purges ciphertext/idempotency/history rows in resumable bounded batches, and retains only a minimal
+permanent tombstone. Every normal mutation rechecks this fence inside its transaction, including
+requests that finished signature verification before deletion. Legacy KV sync markers are drained
+alongside the durable inventory and removed only after acknowledged purges; new requests no longer
+create KV markers. Production activation must account for the old deployment's KV consistency and
+drain outstanding legacy writers before claiming a migration/deletion audit complete.
+
+Native wrapping binds key material to the account, workspace, recipient device/fingerprint and
+epoch. First enrollment and device removal retain exact pending requests across lost responses;
+the actual registered key box is opened before caching a key. Key rotation and backward history
+commit together. Native calls use a 20-second per-API-instance deadline and a 2 MiB streamed response
+limit; operation pages are bounded below that limit and requests are limited to 128 KiB.
+
 An explicit recovery-key replacement retains the old-key generation as an anchor until the next
 explicit replacement or deletion; ordinary backups never evict it. Native key material is saved
 before upload, and a lost-response retry checks the current ciphertext before promoting a pending
@@ -65,3 +85,23 @@ leaves a minimal permanent fence for that identity so late writes cannot resurre
 The repository proves the coordinator and authenticated client contracts locally. It does not prove
 production Clerk configuration, deployed bindings, clean-device replay, lost-device rotation on
 physical devices, browser identity deletion, or external security/privacy approval.
+
+Current local evidence: `tooling/tests/cloud-sync-enrollment.test.ts` exercises native signing,
+wrapping, transport and the coordinator for two synthetic phones, first-enrollment response loss,
+account key separation, and lost revocation responses with old-key recovery. The small
+`tooling/scripts/check-sync-coordinator-runtime.mjs` check verifies actual SQLite transactions,
+atomic rotation/history, ciphertext purge and deletion fences in workerd.
+
+The integrated mobile runner captures never-sent intent with ordinary SQLCipher saves, coalesces it
+without rewriting sent ciphertext, and binds its journal to one explicit account/workspace.
+Download progress is separate from the contiguous replay/acknowledgement cursor. Large changes are
+reassembled and checked as one atomic money patch; signed key history permits old-epoch replay.
+Both conflict alternatives remain available for a deliberate whole-workspace choice and export.
+Original attachments, bank credentials, purchases and device settings are not portable sync data.
+Pausing preserves the journal; re-enabling captures edits made while paused.
+
+Four runner cases use real patch generation and authenticated ciphertext for lost responses,
+second-phone adoption, edits during upload, prior remote replay, split-group restart and scope
+cancellation. Four selected native persistence cases cover transactional capture, restart/CAS,
+coalescing and an edit during replay commit. This is reviewed local integration, not a physical
+two-phone, deployed migration, or external security/privacy sign-off.

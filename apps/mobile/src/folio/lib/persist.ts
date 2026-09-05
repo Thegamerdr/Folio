@@ -46,6 +46,19 @@ import { getVaultKey } from '@/folio/lib/vaultKey';
 import { EXPORT_CSV_FILES } from '@/folio/lib/export';
 import { assertCanonicalAppStateMoneyProjectionParity } from './canonicalAppStateReadProjection';
 import { createCanonicalAppStateProjectionFromPayload } from './canonicalStateProjection';
+import { workspaceBackupRef } from './cloudBackup';
+import { createCloudSyncPatches, projectionHash } from './cloudSyncPatch';
+import {
+  createShareableCloudSyncProjection,
+  mergeShareableCloudSyncProjection,
+  stableCloudSyncJson,
+} from './cloudSyncProjection';
+import {
+  parseCloudSyncLocalState,
+  queueCloudSyncDelta,
+  serializeCloudSyncLocalState,
+  type CloudSyncLocalState,
+} from './cloudSyncLocal';
 import {
   acknowledgePendingAppStateCommands,
   snapshotPendingAppStateCommands,
@@ -59,6 +72,7 @@ import {
   quarantineNativeWorkspaceVault,
   saveNativeWorkspaceManifestGeneration,
   saveNativeWorkspaceStateGeneration,
+  type NativeWorkspaceSyncStateBuilder,
   type NativeWorkspaceVaultGeneration,
 } from '@/local/nativeWorkspaceStateStore';
 import {
@@ -252,7 +266,7 @@ async function vaultKey(): Promise<Uint8Array> {
   return cachedVaultKey;
 }
 
-function workspaceMetadata(workspaceId: WorkspaceId): PersistedWorkspace {
+export function workspaceMetadata(workspaceId: WorkspaceId): PersistedWorkspace {
   const workspace = getState().workspaces.find(
     (candidate) => String(candidate.id) === String(workspaceId),
   );
@@ -915,10 +929,14 @@ export async function clearPersistedLocalUserDataArtifacts(
 }
 
 /** Persist the current in-memory state immediately, using the same encrypted staged write as boot. */
-export async function persistCurrentStateNow(workspaceId: WorkspaceId): Promise<void> {
+export async function persistCurrentStateNow(
+  workspaceId: WorkspaceId,
+  syncStatePayload?: string,
+  options?: Readonly<{ expectedSyncRevision?: number; plaintextOverride?: string }>,
+): Promise<void> {
   const files = partitionFileUris(workspaceId);
   const workspace = workspaceMetadata(workspaceId);
-  const plaintext = getPersistBlob(workspaceId);
+  const plaintext = options?.plaintextOverride ?? getPersistBlob(workspaceId);
   const persistedAt = new Date().toISOString();
   const canonicalProjection = createCanonicalAppStateProjectionFromPayload(
     plaintext,
@@ -940,6 +958,11 @@ export async function persistCurrentStateNow(workspaceId: WorkspaceId): Promise<
       plaintext,
       canonicalProjection.repositorySnapshot,
       pendingCommands,
+      syncStatePayload,
+      syncStatePayload === undefined
+        ? createCloudSyncStateBuilder(workspaceId, workspaceBackupRef(workspaceId))
+        : undefined,
+      options?.expectedSyncRevision,
     );
     // The exact state, canonical mirror, and typed audits are now one read-verified SQL commit.
     // A later manifest/rollback-copy failure must not cause these IDs to be inserted twice.
@@ -977,6 +1000,148 @@ export async function persistCurrentStateNow(workspaceId: WorkspaceId): Promise<
     markPersistenceFailed(workspaceId, reason, new Date().toISOString());
     throw reason;
   }
+}
+
+/** Commit a verified remote projection before hydrating it into the live store. This is the
+ * replay boundary: an edit captured after the caller's snapshot makes the operation fail closed,
+ * leaving that newer in-memory edit available for the ordinary save/builder path. */
+export async function commitCloudSyncProjection(
+  workspaceId: WorkspaceId,
+  nextProjection: string,
+  state: CloudSyncLocalState,
+  isCurrent: () => boolean,
+): Promise<CloudSyncLocalState> {
+  return runWithQuiescedPersistence(async () => {
+    const currentProjection = createShareableCloudSyncProjection(
+      getPersistBlob(workspaceId),
+      workspaceId,
+    );
+    if (currentProjection !== state.lastCapturedProjection) {
+      throw new Error('Cloud sync replay is stale because local workspace data changed.');
+    }
+    if (!isCurrent()) throw new Error('Cloud sync replay was cancelled by a workspace switch.');
+    // Merge and canonicalize before touching the store. The native save then verifies the exact
+    // payload/canonical mirror and sync revision atomically; only after that durable commit do we
+    // publish the merged state to React subscribers.
+    const mergedPayload = mergeShareableCloudSyncProjection(
+      getPersistBlob(workspaceId),
+      nextProjection,
+      workspaceId,
+    );
+    const validation = validateRestoreJson(mergedPayload, workspaceId);
+    if (!validation.ok) throw new Error('Cloud sync replay produced an invalid workspace payload.');
+    // The restore envelope is only the first gate. Reuse the canonical persisted-state decoder
+    // for field/row ownership, dates, money ranges and workspace binding before any native write.
+    createCanonicalAppStateProjectionFromPayload(
+      mergedPayload,
+      workspaceMetadata(workspaceId),
+      new Date().toISOString(),
+    );
+    const expectedCurrentProjection = currentProjection;
+    const nextState: CloudSyncLocalState = {
+      ...state,
+      revision: state.revision + 1,
+      lastCapturedProjection: nextProjection,
+      lastLocalProjection: nextProjection,
+    };
+    await persistCurrentStateNow(workspaceId, serializeCloudSyncLocalState(nextState), {
+      expectedSyncRevision: state.revision,
+      plaintextOverride: mergedPayload,
+    });
+    const afterCommitProjection = createShareableCloudSyncProjection(
+      getPersistBlob(workspaceId),
+      workspaceId,
+    );
+    if (!isCurrent())
+      throw new Error(
+        'Cloud sync replay was cancelled after durable commit; local state was left untouched.',
+      );
+    if (afterCommitProjection !== expectedCurrentProjection) {
+      // The durable remote commit won, but a newer local edit arrived while it was in flight.
+      // Persist that live edit with a visible remote alternative instead of hydrating over it.
+      const conflictId = `replay-${projectionHash(nextProjection).slice(0, 48)}`;
+      const conflictState: CloudSyncLocalState = {
+        ...nextState,
+        revision: nextState.revision + 1,
+        lastCapturedProjection: afterCommitProjection,
+        lastLocalProjection: afterCommitProjection,
+        conflicts: nextState.conflicts.includes(conflictId)
+          ? nextState.conflicts
+          : [...nextState.conflicts, conflictId],
+        conflictRecords: nextState.conflictRecords.some((item) => item.id === conflictId)
+          ? nextState.conflictRecords
+          : [
+              ...nextState.conflictRecords,
+              {
+                id: conflictId,
+                remoteState: JSON.stringify(JSON.parse(nextState.baselineProjection).state),
+                remoteProjectionHash: projectionHash(nextState.baselineProjection),
+              },
+            ],
+      };
+      await persistCurrentStateNow(workspaceId, serializeCloudSyncLocalState(conflictState), {
+        expectedSyncRevision: nextState.revision,
+        plaintextOverride: getPersistBlob(workspaceId),
+      });
+      return conflictState;
+    }
+    hydrateFromBlob(mergedPayload, workspaceId);
+    return nextState;
+  });
+}
+
+/**
+ * Captures sync intent at the SQLCipher transaction boundary.  This callback receives the last
+ * committed exact payload, rather than a stale in-memory baseline, so a restart or a save racing
+ * the foreground runner cannot absorb a money edit into an already-uploaded envelope.
+ */
+function createCloudSyncStateBuilder(
+  workspaceId: WorkspaceId,
+  workspaceRef: string,
+): NativeWorkspaceSyncStateBuilder {
+  return ({ previousPayload, previousSyncStatePayload, nextPayload }) => {
+    if (previousSyncStatePayload === null || previousPayload === null) return undefined;
+    const local = parseCloudSyncLocalState(previousSyncStatePayload, workspaceRef);
+    if (!local.enabled || local.accountRef === null) return undefined;
+    const previousProjection = createShareableCloudSyncProjection(previousPayload, workspaceId);
+    const nextProjection = createShareableCloudSyncProjection(nextPayload, workspaceId);
+    if (previousProjection === nextProjection) return previousSyncStatePayload;
+    // Coalesce only never-sent intents. Once an envelope is in outbox it is immutable; later
+    // saves capture a new intent after it, while pending plaintext is rebuilt from its original
+    // durable base so repeated saves do not retain full transaction snapshots per keystroke.
+    const baseProjection = local.pendingBaseProjection ?? previousProjection;
+    const firstPendingSequence = local.pendingDeltas[0]?.deviceSequence ?? local.nextSequence;
+    const patches = createCloudSyncPatches(workspaceRef, baseProjection, nextProjection);
+    let next: CloudSyncLocalState = {
+      ...local,
+      pendingDeltas: [],
+      pendingBaseProjection: null,
+      nextSequence: firstPendingSequence,
+    };
+    for (const [index, patch] of patches.entries()) {
+      const patchText = stableCloudSyncJson({
+        version: 1,
+        workspaceRef,
+        entityGroup: 'workspace',
+        patch,
+      });
+      // Sequence is part of identity as well as the content digest: repeating the same edit
+      // after an earlier envelope is settled must still produce a new replayable intent.
+      const id = `intent-${next.nextSequence}-${projectionHash(patchText).slice(0, 40)}-${index}`;
+      next = queueCloudSyncDelta(next, {
+        id,
+        plaintext: patchText,
+        entityGroup: patch.chunkSetId ?? 'workspace',
+      });
+    }
+    return serializeCloudSyncLocalState({
+      ...next,
+      pendingBaseProjection: baseProjection,
+      revision: local.revision + 1,
+      lastCapturedProjection: nextProjection,
+      lastLocalProjection: nextProjection,
+    });
+  };
 }
 
 /** Remove complete pre-partition generations only after the just-written scoped main decrypts back

@@ -37,6 +37,7 @@ import { OpSqliteDatabaseDriver } from './nativeSqliteDriver.js';
 
 const TABLE_NAME = 'folio_workspace_vault_generations';
 const CANONICAL_BINDING_TABLE_NAME = 'folio_workspace_vault_canonical_bindings';
+const SYNC_STATE_TABLE_NAME = 'folio_workspace_sync_state';
 const STATE_RECORD_KIND = 'workspace-state';
 const MANIFEST_RECORD_KIND = 'workspace-manifest';
 const MANIFEST_RECORD_ID = 'workspace-root';
@@ -86,6 +87,52 @@ export type NativeCanonicalSnapshotLoad =
       snapshot: CanonicalRepositorySnapshot;
     }>
   | Readonly<{ status: 'unavailable' | 'unbound' | 'mismatch' | 'unreadable' }>;
+
+export type NativeWorkspaceSyncState = Readonly<{
+  payload: string;
+  payloadSha256: string;
+  updatedAt: string;
+}>;
+
+/** Built inside the same SQL transaction as the exact state generation. */
+export type NativeWorkspaceSyncStateBuilder = (
+  input: Readonly<{
+    previousPayload: string | null;
+    previousSyncStatePayload: string | null;
+    nextPayload: string;
+  }>,
+) => string | undefined | Promise<string | undefined>;
+
+export async function loadNativeWorkspaceSyncState(
+  workspace: PersistedWorkspace,
+): Promise<NativeWorkspaceSyncState | null> {
+  requireLedgerWorkspaceIdentity(workspace);
+  if (Platform.OS === 'web') return null;
+  const encryptionKey = await resolveLocalLedgerWorkspaceEncryptionKey(workspace);
+  if (getLastLocalDatabaseKeyState() === 'secure_store_unavailable_fallback') throw new Error('Secure storage is unavailable; the sync journal was not opened.');
+  const db = open({ name: workspaceLedgerDatabaseName(workspace.id), encryptionKey });
+  try {
+    await ensureVaultTables(db);
+    const result = await db.execute(
+      `SELECT payload, payload_sha256, updated_at FROM ${SYNC_STATE_TABLE_NAME} WHERE workspace_id = ?`,
+      [String(workspace.id)],
+    );
+    const row = result.rows[0] as
+      | { payload?: unknown; payload_sha256?: unknown; updated_at?: unknown }
+      | undefined;
+    if (row === undefined) return null;
+    if (
+      typeof row?.payload !== 'string' ||
+      typeof row.payload_sha256 !== 'string' ||
+      typeof row.updated_at !== 'string'
+    )
+      throw new Error('The saved sync journal is unreadable. It was not reset.');
+    if ((await sha256(row.payload)) !== row.payload_sha256) throw new Error('The saved sync journal failed its integrity check. It was not reset.');
+    return { payload: row.payload, payloadSha256: row.payload_sha256, updatedAt: row.updated_at };
+  } finally {
+    db.close();
+  }
+}
 
 /**
  * Load the lossless Folio workspace partition stored inside the workspace's SQLCipher database.
@@ -180,6 +227,9 @@ export async function saveNativeWorkspaceStateGeneration(
   payload: string,
   canonicalSnapshot: CanonicalRepositorySnapshot,
   pendingCommands: readonly PendingAppStateCommand[] = [],
+  syncStatePayload?: string,
+  syncStateBuilder?: NativeWorkspaceSyncStateBuilder,
+  expectedSyncRevision?: number,
 ): Promise<NativeWorkspaceVaultGeneration> {
   const schemaVersion = stateSchemaVersion(payload, workspace);
   requireCanonicalSnapshotWorkspace(canonicalSnapshot, workspace);
@@ -192,6 +242,9 @@ export async function saveNativeWorkspaceStateGeneration(
     payload,
     canonicalSnapshot,
     pendingCommands,
+    syncStatePayload,
+    syncStateBuilder,
+    expectedSyncRevision,
   );
 }
 
@@ -362,6 +415,9 @@ async function saveRecord(
   payload: string,
   canonicalSnapshot?: CanonicalRepositorySnapshot,
   pendingCommands: readonly PendingAppStateCommand[] = [],
+  syncStatePayload?: string,
+  syncStateBuilder?: NativeWorkspaceSyncStateBuilder,
+  expectedSyncRevision?: number,
 ): Promise<NativeWorkspaceVaultGeneration> {
   requireUsableWorkspace(workspace);
   if (Platform.OS === 'web') {
@@ -389,6 +445,52 @@ async function saveRecord(
         `,
         [recordKind, recordId],
       );
+      let previousPayload: string | null = null;
+      if (syncStateBuilder !== undefined) {
+        const previous = await transaction.execute<NativeVaultRow>(
+          `
+            SELECT payload
+            FROM ${TABLE_NAME}
+            WHERE record_kind = ? AND record_id = ?
+            ORDER BY generation DESC
+            LIMIT 1
+          `,
+          [recordKind, recordId],
+        );
+        previousPayload =
+          typeof previous.rows[0]?.payload === 'string' ? previous.rows[0].payload : null;
+      }
+      let effectiveSyncStatePayload = syncStatePayload;
+      const existingSync = await transaction.execute<{ payload?: unknown }>(
+        `SELECT payload FROM ${SYNC_STATE_TABLE_NAME} WHERE workspace_id = ?`,
+        [String(workspace.id)],
+      );
+      const previousSyncStatePayload =
+        typeof existingSync.rows[0]?.payload === 'string' ? existingSync.rows[0].payload : null;
+      if (expectedSyncRevision !== undefined) {
+        let actualRevision: unknown = null;
+        try {
+          actualRevision =
+            previousSyncStatePayload === null
+              ? null
+              : (JSON.parse(previousSyncStatePayload) as { revision?: unknown }).revision;
+        } catch {
+          throw new Error('SQLCipher sync metadata is unreadable.');
+        }
+        if (
+          expectedSyncRevision === 0
+            ? actualRevision !== null
+            : actualRevision !== expectedSyncRevision
+        )
+          throw new Error('Cloud sync metadata changed while a network operation was in flight.');
+      }
+      if (syncStateBuilder !== undefined) {
+        effectiveSyncStatePayload = await syncStateBuilder({
+          previousPayload,
+          previousSyncStatePayload,
+          nextPayload: payload,
+        });
+      }
       const generation = safeGeneration(maximum.rows[0]?.max_generation) + 1;
       writeStage = 'generation-insert';
       await transaction.execute(
@@ -458,6 +560,17 @@ async function saveRecord(
       }
       writeStage = 'typed-command-audit';
       await commitPendingAppStateCommands(transaction, pendingCommands);
+      if (effectiveSyncStatePayload !== undefined) {
+        await transaction.execute(
+          `INSERT OR REPLACE INTO ${SYNC_STATE_TABLE_NAME} (workspace_id, payload, payload_sha256, updated_at) VALUES (?, ?, ?, ?)`,
+          [
+            String(workspace.id),
+            effectiveSyncStatePayload,
+            await sha256(effectiveSyncStatePayload),
+            committedAt,
+          ],
+        );
+      }
       const oldestRetainedGeneration = Math.max(1, generation - RETAINED_GENERATIONS + 1);
       writeStage = 'generation-prune';
       await transaction.execute(
@@ -639,6 +752,16 @@ async function ensureVaultTables(db: ReturnType<typeof open>): Promise<void> {
         generation INTEGER NOT NULL,
         canonical_snapshot_sha256 TEXT NOT NULL,
         PRIMARY KEY (record_kind, record_id, generation)
+      )
+    `,
+  );
+  await db.execute(
+    `
+      CREATE TABLE IF NOT EXISTS ${SYNC_STATE_TABLE_NAME} (
+        workspace_id TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        payload_sha256 TEXT NOT NULL,
+        updated_at TEXT NOT NULL
       )
     `,
   );

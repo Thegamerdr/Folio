@@ -432,6 +432,36 @@ export type CloudSyncSnapshotCheckpoint = Readonly<{
   deviceId: string;
 }>;
 
+/** Device-local replay state. The exact AppState remains the source of truth; this metadata is
+ * persisted beside that state in SQLCipher and never sent as a render-only snapshot. */
+export type CloudSyncLocalState = Readonly<{
+  version: 1;
+  enabled: boolean;
+  workspaceRef: string;
+  baselineProjection: string;
+  lastLocalProjection: string;
+  cursor: number;
+  nextSequence: number;
+  keyEpoch: number;
+  outbox: readonly Readonly<{
+    id: string;
+    deviceSequence: number;
+    baseCursor: number;
+    sealedDelta: string;
+    entityGroup: string;
+  }>[];
+  /** Plaintext intent committed locally before its exact encrypted upload is made. */
+  pendingDeltas: readonly Readonly<{
+    id: string;
+    deviceSequence: number;
+    baseCursor: number;
+    plaintext: string;
+    entityGroup: string;
+  }>[];
+  partialGroups: readonly string[];
+  conflicts: readonly string[];
+}>;
+
 export type CloudSyncOperationPage = Readonly<{
   operations: readonly CloudSyncOperation[];
   nextCursor: number;
@@ -440,6 +470,13 @@ export type CloudSyncOperationPage = Readonly<{
 }>;
 
 export type CloudSyncApi = Readonly<{
+  enrollmentStatus(publicKey: string): Promise<{
+    status: 'new' | 'pending' | 'active' | 'revoked';
+    device: CloudSyncDevice | null;
+    currentKeyEpoch: number;
+    headCursor: number;
+    compactedThrough: number;
+  }>;
   listDevices(): Promise<{
     devices: readonly CloudSyncDevice[];
     currentKeyEpoch: number;
@@ -449,7 +486,8 @@ export type CloudSyncApi = Readonly<{
   registerDevice(input: RegisterCloudSyncDeviceInput): Promise<{ device: CloudSyncDevice }>;
   revokeDevice(
     deviceId: string,
-    input: { newKeyEpoch: number; wrappedKeys: Readonly<Record<string, string>> },
+    input: { newKeyEpoch: number; wrappedKeys: Readonly<Record<string, string>>;
+      keyTransition: { fromKeyEpoch: number; toKeyEpoch: number; sealedKey: string } },
   ): Promise<{ revokedDeviceId: string; revokedAt: string; currentKeyEpoch: number }>;
   uploadOperation(input: EncryptedOperationUpload): Promise<{
     duplicate: boolean;
@@ -463,6 +501,8 @@ export type CloudSyncApi = Readonly<{
   ): Promise<{ snapshot: CloudSyncSnapshotCheckpoint }>;
   getSnapshot(): Promise<{ exists: boolean; snapshot: CloudSyncSnapshotCheckpoint | null }>;
   compact(throughCursor: number): Promise<{ compactedThrough: number; deletedCount: number }>;
+  putKeyTransition(input: { fromKeyEpoch: number; toKeyEpoch: number; sealedKey: string }): Promise<{ ok: true }>;
+  getKeyTransitions(afterEpoch?: number): Promise<{ transitions: readonly { fromKeyEpoch: number; toKeyEpoch: number; sealedKey: string }[]; hasMore: boolean; nextAfterEpoch: number }>;
 }>;
 
 export type CloudSyncApiInput = Readonly<{
@@ -604,6 +644,7 @@ export function createCloudSyncApi(input: CloudSyncApiInput): CloudSyncApi {
       : performRequest<T>(method, path, body);
 
   return {
+    enrollmentStatus: (publicKey) => request('POST', '/v1/sync/enrollment', { deviceId: input.deviceId, publicKey }),
     listDevices: () => request('GET', '/v1/sync/devices'),
     registerDevice: (device) => request('POST', '/v1/sync/devices', device),
     revokeDevice: (deviceId, rotation) => {
@@ -629,6 +670,8 @@ export function createCloudSyncApi(input: CloudSyncApiInput): CloudSyncApi {
     putSnapshot: (snapshot) => request('PUT', '/v1/sync/snapshot', snapshot),
     getSnapshot: () => request('GET', '/v1/sync/snapshot'),
     compact: (throughCursor) => request('POST', '/v1/sync/compaction', { throughCursor }),
+    putKeyTransition: (input) => request('POST', '/v1/sync/key-transitions', input),
+    getKeyTransitions: (afterEpoch = 0) => request('GET', `/v1/sync/key-transitions?afterEpoch=${afterEpoch}`),
   };
 }
 

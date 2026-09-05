@@ -50,6 +50,7 @@ const {
   databases,
   canonicalBindingsByDatabase,
   auditRowsByDatabase,
+  syncStatesByDatabase,
   open,
   keyState,
   tamperExactReadback,
@@ -66,6 +67,10 @@ const {
   const databases = new Map<string, StoredRow[]>();
   const canonicalBindingsByDatabase = new Map<string, CanonicalBindingRow[]>();
   const auditRowsByDatabase = new Map<string, AuditRow[]>();
+  const syncStatesByDatabase = new Map<
+    string,
+    { payload: string; payload_sha256: string; updated_at: string }
+  >();
   const fsFiles = new Map<string, string>();
   const keyState = { value: 'secure_store_reused' };
   const tamperExactReadback = { next: false };
@@ -118,12 +123,14 @@ const {
     const rows = databases.get(name) ?? [];
     const canonicalBindings = canonicalBindingsByDatabase.get(name) ?? [];
     const auditRows = auditRowsByDatabase.get(name) ?? [];
+    const syncState = syncStatesByDatabase.get(name);
     let transactionBackup: StoredRow[] | null = null;
     let canonicalBindingTransactionBackup: CanonicalBindingRow[] | null = null;
     let auditTransactionBackup: AuditRow[] | null = null;
     databases.set(name, rows);
     canonicalBindingsByDatabase.set(name, canonicalBindings);
     auditRowsByDatabase.set(name, auditRows);
+    if (syncState !== undefined) syncStatesByDatabase.set(name, syncState);
     return {
       close: vi.fn(),
       getDbPath: () => `/data/user/0/com.folio.v2.greenfield/databases/${name}`,
@@ -182,6 +189,38 @@ const {
             rowsAffected: 0,
           };
         }
+        if (normalized.startsWith('SELECT payload FROM folio_workspace_sync_state')) {
+          return syncState === undefined
+            ? { rows: [], rowsAffected: 0 }
+            : { rows: [{ payload: syncState.payload }], rowsAffected: 0 };
+        }
+        if (
+          normalized.startsWith(
+            'SELECT payload, payload_sha256, updated_at FROM folio_workspace_sync_state',
+          )
+        ) {
+          return syncState === undefined
+            ? { rows: [], rowsAffected: 0 }
+            : {
+                rows: [
+                  {
+                    payload: syncState.payload,
+                    payload_sha256: syncState.payload_sha256,
+                    updated_at: syncState.updated_at,
+                  },
+                ],
+                rowsAffected: 0,
+              };
+        }
+        if (normalized.startsWith('SELECT payload FROM folio_workspace_vault_generations')) {
+          const [recordKind, recordId] = params as [string, string];
+          const matching = rows
+            .filter((row) => row.record_kind === recordKind && row.record_id === recordId)
+            .sort((left, right) => right.generation - left.generation);
+          return matching.length === 0
+            ? { rows: [], rowsAffected: 0 }
+            : { rows: [{ payload: matching[0]!.payload }], rowsAffected: 0 };
+        }
         if (normalized.startsWith('INSERT INTO folio_workspace_vault_generations')) {
           const [
             recordKind,
@@ -202,6 +241,15 @@ const {
             payload,
             payload_sha256: payloadSha256,
             committed_at: committedAt,
+          });
+          return { rows: [], rowsAffected: 1 };
+        }
+        if (normalized.startsWith('INSERT OR REPLACE INTO folio_workspace_sync_state')) {
+          const [, payload, payloadSha256, updatedAt] = params as [string, string, string, string];
+          syncStatesByDatabase.set(name, {
+            payload,
+            payload_sha256: payloadSha256,
+            updated_at: updatedAt,
           });
           return { rows: [], rowsAffected: 1 };
         }
@@ -374,6 +422,7 @@ const {
     databases,
     canonicalBindingsByDatabase,
     auditRowsByDatabase,
+    syncStatesByDatabase,
     open,
     keyState,
     tamperExactReadback,
@@ -437,6 +486,7 @@ vi.mock('./nativeLocalSecurity', () => ({
 import {
   clearQuarantinedNativeWorkspaceVaults,
   loadNativeCanonicalSnapshotForGeneration,
+  loadNativeWorkspaceSyncState,
   loadNativeWorkspaceManifestGenerations,
   loadNativeWorkspaceStateGenerations,
   quarantineNativeWorkspaceVault,
@@ -492,6 +542,7 @@ beforeEach(() => {
   databases.clear();
   canonicalBindingsByDatabase.clear();
   auditRowsByDatabase.clear();
+  syncStatesByDatabase.clear();
   fsFiles.clear();
   vi.clearAllMocks();
   keyState.value = 'secure_store_reused';
@@ -503,6 +554,101 @@ beforeEach(() => {
 });
 
 describe('lossless SQLCipher workspace generations', () => {
+  it('builds sync metadata from the prior exact generation inside the state transaction', async () => {
+    const workspace = businessWorkspace();
+    const firstSync = JSON.stringify({
+      version: 2,
+      revision: 1,
+      enabled: true,
+      accountRef: 'a'.repeat(64),
+    });
+    await saveNativeWorkspaceStateGeneration(
+      workspace,
+      statePayload(workspace, 'before'),
+      canonicalSnapshot(workspace),
+      [],
+      firstSync,
+    );
+    let seen: {
+      previousPayload: string | null;
+      previousSyncStatePayload: string | null;
+      nextPayload: string;
+    } | null = null;
+    await saveNativeWorkspaceStateGeneration(
+      workspace,
+      statePayload(workspace, 'after'),
+      canonicalSnapshot(workspace),
+      [],
+      undefined,
+      (input) => {
+        seen = input;
+        return JSON.stringify({ ...JSON.parse(input.previousSyncStatePayload!), revision: 2 });
+      },
+    );
+    expect(JSON.parse(seen!.previousPayload!).marker).toBe('before');
+    expect(JSON.parse(seen!.previousSyncStatePayload!).revision).toBe(1);
+    expect(
+      JSON.parse(syncStatesByDatabase.get(workspaceLedgerDatabaseName(workspace.id))!.payload)
+        .revision,
+    ).toBe(2);
+  });
+
+  it('keeps the exact outbox payload after a restart and rejects a stale metadata revision', async () => {
+    const workspace = businessWorkspace();
+    const firstSync = JSON.stringify({
+      version: 2,
+      revision: 1,
+      enabled: true,
+      accountRef: 'a'.repeat(64),
+      outbox: [],
+    });
+    await saveNativeWorkspaceStateGeneration(
+      workspace,
+      statePayload(workspace, 'before'),
+      canonicalSnapshot(workspace),
+      [],
+      firstSync,
+    );
+    const outboxSync = JSON.stringify({
+      version: 2,
+      revision: 2,
+      enabled: true,
+      accountRef: 'a'.repeat(64),
+      outbox: [
+        {
+          id: 'intent-1',
+          deviceSequence: 1,
+          baseCursor: 0,
+          sealedDelta: 'sealed',
+          entityGroup: 'money',
+        },
+      ],
+    });
+    await saveNativeWorkspaceStateGeneration(
+      workspace,
+      statePayload(workspace, 'after'),
+      canonicalSnapshot(workspace),
+      [],
+      outboxSync,
+      undefined,
+      1,
+    );
+    const reloaded = await loadNativeWorkspaceSyncState(workspace);
+    expect(reloaded?.payload).toBe(outboxSync);
+    await expect(
+      saveNativeWorkspaceStateGeneration(
+        workspace,
+        statePayload(workspace, 'stale'),
+        canonicalSnapshot(workspace),
+        [],
+        JSON.stringify({ ...JSON.parse(outboxSync), revision: 3 }),
+        undefined,
+        1,
+      ),
+    ).rejects.toThrow('metadata changed');
+    expect((await loadNativeWorkspaceSyncState(workspace))?.payload).toBe(outboxSync);
+  });
+
   it('repairs a stale canonical binding while committing its exact generation', async () => {
     const workspace = businessWorkspace();
     const databaseName = workspaceLedgerDatabaseName(workspace.id);

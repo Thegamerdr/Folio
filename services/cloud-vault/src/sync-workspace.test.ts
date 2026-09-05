@@ -192,6 +192,84 @@ async function operation(
 }
 
 describe('sync workspace coordinator', () => {
+  it('lets a new phone discover approval without revealing another phone registry', async () => {
+    const handler = new SyncWorkspace(new MemoryStorage());
+    const initial = await call(
+      handler,
+      'POST',
+      '/v1/sync/enrollment',
+      registration(DEVICE_A),
+      DEVICE_A,
+    );
+    await expect(initial.json()).resolves.toMatchObject({
+      status: 'new',
+      device: null,
+      headCursor: 0,
+    });
+    await call(handler, 'POST', '/v1/sync/devices', registration(DEVICE_A), DEVICE_A);
+    const pending = await call(
+      handler,
+      'POST',
+      '/v1/sync/enrollment',
+      registration(DEVICE_B),
+      DEVICE_B,
+    );
+    const payload = await pending.json();
+    expect(payload).toMatchObject({ status: 'pending', device: null });
+    expect(JSON.stringify(payload)).not.toContain(DEVICE_A);
+    expect((await call(handler, 'GET', '/v1/sync/devices', undefined, DEVICE_B)).status).toBe(401);
+    await call(handler, 'POST', '/v1/sync/devices', registration(DEVICE_B), DEVICE_A);
+    await expect(
+      (await call(handler, 'POST', '/v1/sync/enrollment', registration(DEVICE_B), DEVICE_B)).json(),
+    ).resolves.toMatchObject({
+      status: 'active',
+      device: { deviceId: DEVICE_B },
+    });
+  });
+
+  it('deletion wins after a request verifies but before its write transaction', async () => {
+    let entered!: () => void;
+    let release!: () => void;
+    const atTransaction = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const resume = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    class PausingStorage extends MemoryStorage {
+      pause = false;
+      override async transaction<T>(
+        work: (storage: SyncWorkspaceStorage) => Promise<T>,
+      ): Promise<T> {
+        if (this.pause) {
+          this.pause = false;
+          entered();
+          await resume;
+        }
+        return super.transaction(work);
+      }
+    }
+    const storage = new PausingStorage();
+    const handler = new SyncWorkspace(storage);
+    await call(handler, 'POST', '/v1/sync/devices', registration(DEVICE_A), DEVICE_A);
+    storage.pause = true;
+    const upload = call(handler, 'POST', '/v1/sync/operations', await operation(), DEVICE_A);
+    await atTransaction;
+    expect((await call(handler, 'DELETE', '/v1/sync/account')).status).toBe(200);
+    release();
+    expect((await upload).status).toBe(410);
+    expect([...storage.values.keys()]).toEqual(['workspace-state-v1']);
+  });
+
+  it('keeps a permanent tombstone so a queued request cannot revive deleted sync data', async () => {
+    const handler = new SyncWorkspace(new MemoryStorage());
+    expect((await call(handler, 'DELETE', '/v1/sync/account')).status).toBe(200);
+    expect(
+      (await call(handler, 'POST', '/v1/sync/devices', registration(DEVICE_A), DEVICE_A)).status,
+    ).toBe(410);
+    expect((await call(handler, 'DELETE', '/v1/sync/account')).status).toBe(200);
+  });
+
   it('replays opaque operations idempotently, acknowledges and compacts only after a snapshot', async () => {
     const storage = new MemoryStorage();
     const handler = new SyncWorkspace(storage);
@@ -277,11 +355,13 @@ describe('sync workspace coordinator', () => {
     await call(handler, 'POST', '/v1/sync/devices', registration(DEVICE_A), DEVICE_A);
     await call(handler, 'POST', '/v1/sync/devices', registration(DEVICE_B), DEVICE_A);
 
+    const transition = 'FVE1:000000000000000000000000:00000000000000000000000000000000';
+    const keyTransition = { fromKeyEpoch: 1, toKeyEpoch: 2, sealedKey: transition };
     const incomplete = await call(
       handler,
       'POST',
       `/v1/sync/devices/${DEVICE_B}/revoke`,
-      { newKeyEpoch: 2, wrappedKeys: {} },
+      { newKeyEpoch: 2, wrappedKeys: {}, keyTransition },
       DEVICE_A,
     );
     expect(incomplete.status).toBe(409);
@@ -290,7 +370,7 @@ describe('sync workspace coordinator', () => {
       handler,
       'POST',
       `/v1/sync/devices/${DEVICE_B}/revoke`,
-      { newKeyEpoch: 2, wrappedKeys: { [DEVICE_A]: 'next-opaque-wrapped-key' } },
+      { newKeyEpoch: 2, wrappedKeys: { [DEVICE_A]: 'next-opaque-wrapped-key' }, keyTransition },
       DEVICE_A,
     );
     await expect(revoked.json()).resolves.toMatchObject({
@@ -305,6 +385,35 @@ describe('sync workspace coordinator', () => {
     expect(devices.devices.find((device) => device.deviceId === DEVICE_A)).toMatchObject({
       keyEpoch: 2,
       wrappedSyncKey: 'next-opaque-wrapped-key',
+    });
+
+    // History must already be present without a second client write.
+    await expect(
+      (await call(handler, 'GET', '/v1/sync/key-transitions', undefined, DEVICE_A)).json(),
+    ).resolves.toMatchObject({
+      transitions: [keyTransition],
+      hasMore: false,
+      nextAfterEpoch: 2,
+    });
+    expect(
+      (
+        await call(
+          handler,
+          'POST',
+          '/v1/sync/key-transitions',
+          {
+            fromKeyEpoch: 1,
+            toKeyEpoch: 2,
+            sealedKey: transition,
+          },
+          DEVICE_A,
+        )
+      ).status,
+    ).toBe(200);
+    await expect(
+      (await call(handler, 'GET', '/v1/sync/key-transitions', undefined, DEVICE_A)).json(),
+    ).resolves.toMatchObject({
+      transitions: [{ fromKeyEpoch: 1, toKeyEpoch: 2, sealedKey: transition }],
     });
 
     expect(
@@ -323,8 +432,17 @@ describe('sync workspace coordinator', () => {
     expect((await call(handler, 'POST', '/v1/sync/operations', tampered, DEVICE_A)).status).toBe(
       400,
     );
+    await call(handler, 'POST', '/v1/sync/operations', await operation(), DEVICE_A);
     expect((await call(handler, 'DELETE', '/v1/sync/account')).status).toBe(200);
-    expect(storage.values.size).toBe(0);
+    expect([...storage.values.keys()]).toEqual(['workspace-state-v1']);
+    expect(storage.values.get('workspace-state-v1')).toEqual({
+      version: 1,
+      deleted: true,
+      headCursor: 0,
+      compactedThrough: 0,
+      currentKeyEpoch: 1,
+      devices: {},
+    });
     expect((await call(handler, 'DELETE', '/v1/sync/account')).status).toBe(200);
   });
 

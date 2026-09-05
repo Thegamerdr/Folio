@@ -23,4 +23,9 @@ describe('manual money entry', () => {
       expect(parseManualMoney(value)).toBeUndefined();
     }
   });
+  it('allows an explicitly configured zero or signed balance without weakening default entry', () => {
+    expect(parseManualMoney('0', { allowZero: true })).toBe(0);
+    expect(parseManualMoney('-12.50', { allowNegative: true })).toBe(-12.5);
+    expect(parseManualMoney('-12.50')).toBeUndefined();
+  });
 });

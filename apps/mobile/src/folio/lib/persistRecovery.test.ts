@@ -217,6 +217,7 @@ import {
 import {
   archivePersistedBusinessWorkspace,
   clearPersistedLocalUserDataArtifacts,
+  commitCloudSyncProjection,
   createAndActivatePersistedBusinessWorkspace,
   createPersistedBusinessWorkspace,
   getHydrationOutcome,
@@ -236,6 +237,10 @@ import {
   startPersisting,
   switchPersistedWorkspace,
 } from './persist';
+import { createCloudSyncLocalState } from './cloudSyncLocal';
+import { createShareableCloudSyncProjection } from './cloudSyncProjection';
+import { serializeCloudSyncLocalState } from './cloudSyncLocal';
+import { workspaceBackupRef } from './cloudBackup';
 import { workspaceEvidenceFilename, workspacePartitionFilenames } from './workspacePartition';
 import { createBusinessWorkspace, PERSONAL_WORKSPACE_ID } from './workspaceRoot';
 import {
@@ -304,6 +309,102 @@ describe('SQLCipher workspace authority', () => {
       committedAt: '2026-07-16T04:00:00.000Z',
     };
   }
+
+  it('preserves a newer local edit that arrives during a remote projection commit', async () => {
+    setPartial({
+      onboarding: { done: true, name: 'Replay race', payday: 23, monthlyIncome: 2400 },
+      nextYouNote: 'local before replay',
+    });
+    const before = getPersistBlob(PERSONAL_WORKSPACE_ID);
+    const beforeProjection = createShareableCloudSyncProjection(before, PERSONAL_WORKSPACE_ID);
+    const nextProjection = createShareableCloudSyncProjection(
+      JSON.stringify({ ...JSON.parse(before), nextYouNote: 'remote replay' }),
+      PERSONAL_WORKSPACE_ID,
+    );
+    const local = {
+      ...createCloudSyncLocalState('a'.repeat(64), beforeProjection, 1, 'b'.repeat(64)),
+      enabled: true,
+      baselineProjection: nextProjection,
+    };
+    let release!: () => void;
+    const saveGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    saveNativeWorkspaceStateGeneration.mockImplementationOnce(async () => {
+      await saveGate;
+      return { generation: 2 };
+    });
+    const commit = commitCloudSyncProjection(
+      PERSONAL_WORKSPACE_ID,
+      nextProjection,
+      local,
+      () => true,
+    );
+    await vi.waitFor(() => expect(saveNativeWorkspaceStateGeneration).toHaveBeenCalled());
+    setPartial({ nextYouNote: 'newer local edit' });
+    release();
+    const result = await commit;
+    expect(getState().nextYouNote).toBe('newer local edit');
+    expect(result.conflictRecords).toHaveLength(1);
+    expect(result.conflictRecords[0]?.remoteState).toContain('remote replay');
+    expect(saveNativeWorkspaceStateGeneration).toHaveBeenCalledTimes(2);
+  });
+
+  it('coalesces never-sent ordinary-save intents from the first durable base', async () => {
+    setPartial({
+      onboarding: { done: true, name: 'Coalesce', payday: 23, monthlyIncome: 2400 },
+      nextYouNote: 'base',
+    });
+    const workspaceRef = workspaceBackupRef(PERSONAL_WORKSPACE_ID);
+    const basePayload = getPersistBlob(PERSONAL_WORKSPACE_ID);
+    const baseProjection = createShareableCloudSyncProjection(basePayload, PERSONAL_WORKSPACE_ID);
+    let durablePayload = basePayload;
+    let durableSync = serializeCloudSyncLocalState({
+      ...createCloudSyncLocalState(workspaceRef, baseProjection, 1, 'b'.repeat(64)),
+      enabled: true,
+    });
+    saveNativeWorkspaceStateGeneration.mockImplementation(async (...args: any[]) => {
+      const builder = args[5] as
+        | ((input: {
+            previousPayload: string;
+            previousSyncStatePayload: string;
+            nextPayload: string;
+          }) => string | undefined)
+        | undefined;
+      if (builder !== undefined) {
+        const nextSync = builder({
+          previousPayload: durablePayload,
+          previousSyncStatePayload: durableSync,
+          nextPayload: args[1],
+        });
+        if (nextSync !== undefined) durableSync = nextSync;
+      }
+      durablePayload = args[1] as string;
+      return { generation: 1 };
+    });
+    setPartial({ nextYouNote: 'first edit' });
+    await persistCurrentStateNow(PERSONAL_WORKSPACE_ID);
+    const first = JSON.parse(durableSync) as {
+      pendingDeltas: Array<{ deviceSequence: number }>;
+      pendingBaseProjection: string | null;
+      nextSequence: number;
+    };
+    expect(first.pendingDeltas).toHaveLength(1);
+    expect(first.pendingBaseProjection).toBe(baseProjection);
+    expect(first.pendingDeltas[0]?.deviceSequence).toBe(1);
+    setPartial({ nextYouNote: 'second edit' });
+    await persistCurrentStateNow(PERSONAL_WORKSPACE_ID);
+    const second = JSON.parse(durableSync) as {
+      pendingDeltas: Array<{ deviceSequence: number; plaintext: string }>;
+      pendingBaseProjection: string | null;
+      nextSequence: number;
+    };
+    expect(second.pendingDeltas).toHaveLength(1);
+    expect(second.pendingDeltas[0]?.deviceSequence).toBe(1);
+    expect(second.nextSequence).toBe(2);
+    expect(second.pendingBaseProjection).toBe(baseProjection);
+    expect(second.pendingDeltas[0]?.plaintext).toContain('second edit');
+  });
 
   it('hydrates the newest verified SQLCipher generation without consulting a stale file', async () => {
     setPartial({

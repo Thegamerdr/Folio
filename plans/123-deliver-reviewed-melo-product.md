@@ -10,6 +10,7 @@ Repository: `C:/dev/melo-native-today-batch1-2026-08-24`. Audit: [21 findings](C
 
 ## Execution contract
 
+- Owner direction, 2026-09-05: finish implementation first, then send ONE complete current screenshot + source/behavior context package to the existing Lovable project `d8323aca-d14c-4f6d-bb89-6d41bcefab7b` for UI/UX judgment, then fix its findings. Do not submit per-screen reviews or spend review credits on intermediate drafts. Lovable is the design authority; the controller does not self-approve visual regressions based on code checks. Local interim evidence is not visual approval. No Lovable review request has been sent at this checkpoint.
 - Target three Luna workers, no nested workers and no workers reviewing workers. The app currently retains two completed audit-agent slots and refuses new workers after one Luna dispatch; until capacity changes, the same Luna executes lanes sequentially. Do not substitute a more expensive model. The controller reads every diff and its callers, tests the integration, and checks the actual S9 build.
 - Use the existing checkout and installed dependencies with exclusive file ownership. This avoids rebuilding dependency environments; no overlapping edits without controller approval. Never revert another worker's changes. Source is clean at the starting SHA; existing dirty design evidence, OPEN_BANKING_PLAN.md and plans/README.md belong to the owner.
 - Read before editing; use `rg` and `apply_patch`; reuse existing domain/store/native patterns. No new framework, generic abstraction layer, mass refactor, dependency upgrade or visual redesign.
@@ -73,12 +74,29 @@ Reconcile audit IDs as VERIFIED, IMPLEMENTED-EXTERNAL-PROOF-REQUIRED, IN-PROGRES
 | Android/Apple billing/runtime | SOURCE REVIEWED — `de18d8da`, `7309b3f` | Lifecycle, exact store terms, verified Apple API/JWS and bounded transport. Local Worker/packaging pass; real store/iOS evidence open |
 | Cloud protocol A04/A05 | SOURCE REVIEWED — controller corrections integrated | Atomic coordinator and real native-signature integration checks pass; no deployment or shipping sync claim |
 | Backup/Business recovery A03/A13 | SOURCE REVIEWED — `025ee05` | Actual SQLite authority plus 6 named native/migration/activation cases pass; deployment/device recovery proof remains open |
-| Banking durable delivery | LUNA REVISING AFTER CONTROLLER REVIEW | Durable inbox committed `3572a36`; routed service/retry/pagination acceptance pending |
+| Banking durable delivery | SOURCE REVIEWED — `c25640e` | Real routed SQLite delivery/replay/ack, multi-account pagination, failed-read resume, disconnect and account deletion checks pass; local inbox auth-independent mount reviewed |
 | Mobile UI/voice and financial actions | SOURCE REVIEWED — `2ab349cf`, `80f03835` | Real transfer/refund routes, metadata persistence, safe Undo and manual-money parsing; S9 checks pending |
-| Shipping sync wiring | QUEUED | After protocol/recovery checkpoint |
-| Integration, candidate, S9 | QUEUED | After reviewed code |
+| Shipping sync wiring | CONTROLLER INTEGRATION REVIEWED — device proof pending | Root rewrote replay/conflict UI after rejecting worker checkpoints; native-save/CAS and real ciphertext runner boundaries pass; deployed and physical-device proofs remain open |
+| Integration, candidate, S9 | PREVIEW RUNNING; release candidate pending | Separate emulator debug preview loads current source; signed final APK/AAB and S9 update await reviewed integration |
 
 The controller maintains this file; workers do not change the index. The broader audit is not repeated. Scope changes require an explicit controller decision with the reason recorded.
+
+Controller integration checkpoint: banking saved as `c25640e`. Root owns the final sync replay
+runner, encrypted enrollment/rotation, transport and conflict Sheet; Luna supplied transactional
+local intent capture/coalescing, revision CAS and lifecycle changes, each reviewed and corrected.
+Four shipping-runner cases use real patches and authenticated ciphertext. The bounded combined pass
+ran 36 selected cases across runner/key/projection/journal/coordinator/native-persistence files;
+mobile and cloud no-emit passed. A real workerd/SQLite exercise passed enrollment, concurrent
+cursors, atomic backward key history, byte purge and permanent deletion fencing. No production
+service, store purchase, real bank connection or physical multi-phone sync was exercised.
+
+Account now uses strict signed money parsing, a synchronous duplicate-save guard and verified Live
+entitlement display. Today's payday caption and amount now use the route's actual payday instead of
+a hard-coded 28-day date and invented lowest-plus-income amount. Its existing crowded chrome,
+signature chart geometry, oversized composition and contradictory mode wording remain explicit
+Lovable review concerns; code acceptance is not UI acceptance. One final screenshot/source review
+request is still pending. A separate data-preserving emulator preview is running; the S9 still needs
+the final signed reviewed candidate. No OTA, store upload, service deployment or owner-data reset.
 
 Backup checkpoint `025ee05`: controller corrected deletion resurrection, lost-response rotation,
 old-generation key preview, missing native streaming support, missing scoped Business migration,
@@ -96,6 +114,37 @@ secrets were not migrated/purged, pagination over 500 rows could never finish, c
 revision check and a new empty-array selector could loop rendering. Controller sent concrete fixes;
 subsequent review identified partial-page job identity and multi-account starvation. Existing legacy
 tests passing do not close the new authority path. One actual local Worker delivery exercise is required.
+
+That routed exercise now passes (`tooling/scripts/check-bank-delivery-runtime.mjs`), including an
+unacknowledged encrypted response replay with no provider I/O, exact revision acknowledgement,
+500/500/150-row two-account pagination, preserving a newly created job after a failed first read,
+disconnect during provider I/O, and a permanent account deletion fence. Controller also bounded
+refreshes to one account page and a 20-second provider/OAuth/body budget, added native Expo streamed
+response limits, removed the Clerk dependency from the local receipt UI, and preserved the actual
+saved mappings on delivery retry. Three named transport/pagination checks passed after corrections;
+mobile and service no-emit checks passed at that checkpoint. No real bank authorization or deployed
+migration is implied. Account integration shares the in-progress sync UI and remains uncommitted
+until the reviewed integration checkpoint.
+
+### Visible development preview (requested by owner)
+
+`Melo_Mainstream_4G` is running on `emulator-5554`. The current source is served locally on port
+8081 to a separate `com.folio.v2.greenfield.preview` debug install. The existing emulator release
+app and S9 data were not cleared or overwritten. This is a live development preview, not the
+signed release candidate or acceptance evidence for configured remote providers.
+
+The optional Gradle init script `tooling/scripts/emulator-preview.init.gradle` adds `.preview`
+only for that invocation's debug variant. It does not change release package identity. Build from
+`apps/mobile/android` with the invocation documented in that script. From `apps/mobile`, start:
+
+```sh
+node --dns-result-order=ipv4first ../../node_modules/expo/bin/cli start --dev-client --localhost --port 8081
+```
+
+IPv4-first is necessary on this host: default `localhost` bound only `::1`, while ADB reverse
+connected through IPv4. ADB reverse `tcp:8081 tcp:8081` and the development-client URL
+`folio://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081` open the current local bundle.
+The first x86_64 native build passed; subsequent UI changes use Metro rather than repeated builds.
 
 ### Bounded shipping sync implementation contract (A06)
 

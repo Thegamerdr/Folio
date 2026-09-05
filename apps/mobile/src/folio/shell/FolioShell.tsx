@@ -41,6 +41,7 @@ import {
 // captureException helper, so componentDidCatch below imports the SDK directly.
 import * as Sentry from '@sentry/react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useBillingLifecycle } from '@/folio/lib/billing/billingLifecycle';
 
 import {
@@ -141,7 +142,7 @@ import { UndoToast } from '@/folio/ui/UndoToast';
 import { AppLockGate } from '@/folio/ui/AppLockGate';
 import { RootErrorFallback } from '@/folio/ui/RootErrorFallback';
 import { ShellMeloCompanion } from '@/folio/ui/ShellMeloCompanion';
-import { reanchorSubRenewals, useAppStore } from '@/folio/store';
+import { getState, reanchorSubRenewals, subscribeStore, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { endLensTrialIfExpired, useLens } from '@/folio/lib/lens';
 import {
@@ -164,6 +165,8 @@ import {
 } from '@/folio/parity/parityHarness';
 import { getParityDecisionDialog } from '@/folio/parity/decisionDialogs';
 import { getParityStatusDialog } from '@/folio/ui/statusDialogs';
+import { isClerkConfigured } from '@/folio/lib/clerkAuth';
+import { syncCloudWorkspace } from '@/folio/lib/cloudSyncNative';
 
 // The shell's landing pressure. The web showcase let a design tool flip Melo through her five moods
 // (web-only chrome, not ported); the real web app derives pressure from state and defaults to `calm`
@@ -368,6 +371,63 @@ function useReducedMotion(): boolean {
 // ---------------------------------------------------------------------------
 // Shell
 // ---------------------------------------------------------------------------
+
+/** Foreground/local-save sync lifecycle. Kept behind the configured Clerk boundary so optional
+ * account mode never invokes Clerk hooks; the sync worker itself still gates Live entitlement and
+ * local opt-in before any network operation. */
+function CloudSyncLifecycle() {
+  const { isSignedIn, user } = useUser();
+  const { getToken } = useAuth();
+  const workspaceId = useAppStore((state) => state.activeWorkspaceId);
+
+  useEffect(() => {
+    if (!isSignedIn) return undefined;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let running: Promise<void> | null = null;
+    let dirty = false;
+    const run = () => {
+      if (disposed || running !== null) return;
+      dirty = false;
+      running = getToken()
+        .then((token) => {
+          if (token === null || disposed) return;
+          return syncCloudWorkspace(
+            workspaceId,
+            token,
+            () => !disposed && String(getState().activeWorkspaceId) === String(workspaceId),
+          ).then((result) => {
+            if (dirty || Boolean((result as { hasMore?: boolean }).hasMore)) schedule(2000, false);
+          });
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          running = null;
+          if (dirty && timer === null) schedule(2000, false);
+        });
+    };
+    const schedule = (delay = 900, markDirty = true) => {
+      if (markDirty) dirty = true;
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        run();
+      }, delay);
+    };
+    const unsubscribe = subscribeStore(() => schedule());
+    const appState = AppState.addEventListener('change', (status) => {
+      if (status === 'active') schedule();
+    });
+    schedule();
+    return () => {
+      disposed = true;
+      unsubscribe();
+      appState.remove();
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [getToken, isSignedIn, user?.id, workspaceId]);
+  return null;
+}
 
 export function FolioShell() {
   useBillingLifecycle();
@@ -701,6 +761,7 @@ export function FolioShell() {
     <UndoProvider>
       <SheetPortalProvider>
         <View collapsable={false} style={[shellStyles.root, { backgroundColor: t.canvas }]}>
+          {isClerkConfigured() ? <CloudSyncLifecycle /> : null}
           {/* Data-loss visibility — when hydration recovered from the backup or found the saved blob
           unreadable, say so ONCE, visibly, instead of booting an empty app that reads as a fresh
           install (silence must never look identical to success). */}

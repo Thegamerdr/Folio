@@ -54,7 +54,7 @@
 // HONEST CLAIMS: this screen asserts no privacy/security property beyond what Privacy/export actually
 // do. No banned product vocabulary appears in any visible string. Every row is a >=44px tap target.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -83,6 +83,7 @@ import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { copy } from '@/folio/copy/copy';
 import {
   addAccount,
+  getState,
   removeEvidenceDocument,
   renameAccount,
   setAccountBalance,
@@ -91,8 +92,12 @@ import {
   type AccountKind,
 } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
+import { loadActiveEntitlement } from '@/folio/lib/billing/entitlements';
+import { subscribeToBillingEntitlements } from '@/folio/lib/billing/billingLifecycle';
 import { hasStatementSourceData } from '@/folio/lib/accountSources';
+import { unsettledBankImportBatches } from '@/folio/lib/bankImportInbox';
 import { selectMonthlyIncome } from '@/folio/lib/income';
+import { parseManualMoney } from '@/folio/lib/manualMoney';
 import { isClerkConfigured } from '@/folio/lib/clerkAuth';
 import { isOpenBankingEnabled } from '@/folio/lib/openBankingConfig';
 import {
@@ -101,6 +106,7 @@ import {
 } from '@/folio/lib/remoteAccountDeletion';
 import { SignInSheet } from '@/folio/sheets/SignInSheet';
 import { CloudBackupSheet } from '@/folio/sheets/CloudBackupSheet';
+import { CloudSyncSheet } from '@/folio/sheets/CloudSyncSheet';
 import { BankConnectionSheet, type BankSourceSummary } from '@/folio/sheets/BankConnectionSheet';
 import { deleteEvidenceDocumentFile, openEvidenceDocument } from '@/folio/lib/documentVault';
 import type { Nav } from '@/folio/types';
@@ -207,6 +213,8 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const cyclesCount = useAppStore((s) => s.cycles.length);
   const transactionsCount = useAppStore((s) => s.transactions.length);
   const transactions = useAppStore((s) => s.transactions);
+  const rawBankImportInbox = useAppStore((s) => s.bankImportInbox);
+  const ignoredBankExternalIds = useAppStore((s) => s.ignoredBankExternalIds);
   const statementImportsCount = useAppStore((s) => s.statementImports?.length ?? 0);
   const evidenceDocuments = useAppStore((s) => s.evidenceDocuments);
   const readerCandidates = useAppStore((s) => s.readerCandidates);
@@ -224,6 +232,16 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const incomeSources = useAppStore((s) => s.incomeSources);
   const monthlyIncome = useAppStore((s) => selectMonthlyIncome(s));
   const quietMode = useAppStore((s) => s.melo?.quietMode ?? false);
+  const pendingBankBatches = useMemo(() => {
+    const settled = new Set([
+      ...transactions.flatMap((transaction) =>
+        transaction.externalId ? [transaction.externalId] : [],
+      ),
+      ...(ignoredBankExternalIds ?? []),
+    ]);
+    return unsettledBankImportBatches(rawBankImportInbox ?? [], settled);
+  }, [rawBankImportInbox, transactions, ignoredBankExternalIds]);
+  const hasPendingBankInbox = pendingBankBatches.length > 0;
   const [evidenceBusyId, setEvidenceBusyId] = useState<string | null>(null);
 
   const evidenceStatusById = useMemo(() => {
@@ -323,6 +341,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const openBankingEnabled = isOpenBankingEnabled();
   const [signInVisible, setSignInVisible] = useState(false);
   const [cloudBackupVisible, setCloudBackupVisible] = useState(false);
+  const [cloudSyncVisible, setCloudSyncVisible] = useState(false);
   const [bankConnectionVisible, setBankConnectionVisible] = useState(false);
   const [bankSummary, setBankSummary] = useState<BankSourceSummary | null>(null);
   const [addingAccount, setAddingAccount] = useState(false);
@@ -332,52 +351,129 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editAccountName, setEditAccountName] = useState('');
   const [editAccountBalance, setEditAccountBalance] = useState('');
-
-  const parseBalance = (value: string, kind: AccountKind): number => {
-    const parsed = Number(value.replace(/[^0-9.-]/g, ''));
-    if (!Number.isFinite(parsed)) return 0;
-    return kind === 'credit-card' ? Math.abs(parsed) : parsed;
-  };
+  const [accountFormError, setAccountFormError] = useState<string | null>(null);
+  const accountSaveInFlight = useRef(false);
+  useEffect(() => {
+    setAddingAccount(false);
+    setEditingAccountId(null);
+    setNewAccountName('');
+    setNewAccountBalance('');
+    setAccountFormError(null);
+    accountSaveInFlight.current = false;
+  }, [workspace.id]);
+  useEffect(() => {
+    // Keep the synchronous guard until the saved form has actually left the rendered tree.
+    // Resetting it at the end of the handler admits a second tap with the old form values.
+    if (!addingAccount && editingAccountId === null) accountSaveInFlight.current = false;
+  }, [addingAccount, editingAccountId]);
 
   const saveAccount = () => {
+    if (getState().activeWorkspaceId !== workspace.id) return;
+    if (accountSaveInFlight.current) return;
     const name = newAccountName.trim();
-    if (!name) return;
+    const balance =
+      newAccountBalance.trim() === ''
+        ? 0
+        : parseManualMoney(newAccountBalance, {
+            allowZero: true,
+            allowNegative: newAccountKind !== 'credit-card',
+          });
+    if (!name) {
+      setAccountFormError('Name this account before saving.');
+      return;
+    }
+    if (balance === undefined) {
+      setAccountFormError('Enter a complete amount, such as £1,234.56.');
+      return;
+    }
+    accountSaveInFlight.current = true;
     addAccount({
       name,
       kind: newAccountKind,
-      balanceMinor: parseBalance(newAccountBalance, newAccountKind),
+      balanceMinor: newAccountKind === 'credit-card' ? Math.abs(balance) : balance,
     });
     setNewAccountName('');
     setNewAccountBalance('');
     setNewAccountKind('bank');
     setAddingAccount(false);
+    setAccountFormError(null);
   };
 
   const startEditingAccount = (account: Account) => {
     setEditingAccountId(account.id);
     setEditAccountName(account.name);
     setEditAccountBalance(account.balanceMinor.toFixed(2));
+    setAccountFormError(null);
   };
 
   const saveAccountEdit = () => {
+    if (getState().activeWorkspaceId !== workspace.id) return;
+    if (accountSaveInFlight.current) return;
     const account = accounts.find((candidate) => candidate.id === editingAccountId);
     const name = editAccountName.trim();
-    if (!account || !name) return;
+    const balance =
+      account === undefined
+        ? undefined
+        : parseManualMoney(editAccountBalance, {
+            allowZero: true,
+            allowNegative: account.kind !== 'credit-card',
+          });
+    if (!account || !name) {
+      setAccountFormError('Enter an account name before saving.');
+      return;
+    }
+    if (balance === undefined) {
+      setAccountFormError('Enter a complete current balance.');
+      return;
+    }
+    accountSaveInFlight.current = true;
     renameAccount(account.id, name);
-    setAccountBalance(account.id, parseBalance(editAccountBalance, account.kind));
+    setAccountBalance(account.id, account.kind === 'credit-card' ? Math.abs(balance) : balance);
     setEditingAccountId(null);
+    setAccountFormError(null);
   };
 
-  // Tier — the real lens engine, Free/Full/Live vocabulary. (Live ownership lives in the billing
-  // entitlement record, not the lens store — this card reads lens state only, so a Live-only
-  // subscriber shows Free here until the paywall's fuller read is lifted; acceptable while Live
-  // cannot be purchased at all.)
+  // Full and Live are independent purchases. Live comes from the verified billing record,
+  // never from the lens flags; the billing lifecycle also refreshes this after purchase/expiry.
   const { fullUnlocked, trialCycleId, trialDaysLeft } = useLens();
+  const [liveActive, setLiveActive] = useState(false);
+  useEffect(() => {
+    let generation = 0;
+    let mounted = true;
+    const refresh = () => {
+      const requested = ++generation;
+      void loadActiveEntitlement('live')
+        .then((record) => {
+          if (mounted && generation === requested) setLiveActive(record?.tier === 'live');
+        })
+        .catch(() => {
+          if (mounted && generation === requested) setLiveActive(false);
+        });
+    };
+    const unsubscribe = subscribeToBillingEntitlements(refresh);
+    refresh();
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
   const tier: 'full' | 'trial' | 'free' = fullUnlocked ? 'full' : trialCycleId ? 'trial' : 'free';
-  const tierLabel =
-    tier === 'full' ? 'Melo Full' : tier === 'trial' ? 'All lenses · trial' : 'Free';
-  const tierHint =
-    tier === 'full'
+  const tierLabel = liveActive
+    ? fullUnlocked
+      ? 'Melo Full + Live'
+      : trialCycleId
+        ? 'Melo Live · Full trial'
+        : 'Melo Live'
+    : tier === 'full'
+      ? 'Melo Full'
+      : tier === 'trial'
+        ? 'All lenses · trial'
+        : 'Free';
+  const tierHint = liveActive
+    ? fullUnlocked
+      ? 'Full lenses are yours for good. Live is your active subscription.'
+      : 'Live subscription active. Full lenses are a separate one-time purchase.'
+    : tier === 'full'
       ? 'Every lens, one payment — nothing renews.'
       : tier === 'trial'
         ? 'Trying every Full lens for one cycle.'
@@ -401,6 +497,29 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   // Sources — honest rows. Statements use real intake, optional bank connection opens the
   // provider-isolated sheet, and payday/income opens onboarding.
   const sources = useMemo(() => {
+    const bankSource = {
+      label: hasPendingBankInbox ? 'Bank inbox' : 'Bank connection',
+      hint: hasPendingBankInbox
+        ? `${pendingBankBatches.length} saved refresh${pendingBankBatches.length === 1 ? '' : 'es'} waiting for Review`
+        : !openBankingEnabled
+          ? 'not available in this release'
+          : !clerkConfigured
+            ? 'account service not configured'
+            : bankSummary?.active
+              ? 'connected · read-only'
+              : bankSummary?.providerConfigured === false
+                ? 'provider setup pending'
+                : 'optional · read-only',
+      state: bankSummary?.active ? ('connected' as const) : ('optional' as const),
+      action: () =>
+        hasPendingBankInbox || (openBankingEnabled && clerkConfigured)
+          ? setBankConnectionVisible(true)
+          : showStatusDialog(
+              !openBankingEnabled
+                ? 'dialog.account-bank-unavailable'
+                : 'dialog.account-bank-unconfigured',
+            ),
+    };
     if (isBusiness) {
       return [
         {
@@ -423,6 +542,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           state: 'optional' as const,
           action: () => nav.go('calendar'),
         },
+        bankSource,
       ];
     }
     return [
@@ -434,25 +554,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           : ('empty' as const),
         action: () => nav.go('intake'),
       },
-      {
-        label: 'Bank connection',
-        hint: !openBankingEnabled
-          ? 'not available in this release'
-          : !clerkConfigured
-            ? 'account service not configured'
-            : bankSummary?.active
-              ? 'connected · read-only'
-              : bankSummary?.providerConfigured === false
-                ? 'provider setup pending'
-                : 'optional · read-only',
-        state: bankSummary?.active ? ('connected' as const) : ('optional' as const),
-        action: () =>
-          !openBankingEnabled
-            ? showStatusDialog('dialog.account-bank-unavailable')
-            : clerkConfigured
-              ? setBankConnectionVisible(true)
-              : showStatusDialog('dialog.account-bank-unconfigured'),
-      },
+      bankSource,
       {
         label: 'Payday & income',
         hint:
@@ -474,6 +576,8 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
     bankSummary,
     clerkConfigured,
     openBankingEnabled,
+    hasPendingBankInbox,
+    pendingBankBatches.length,
     nav,
   ]);
 
@@ -523,12 +627,14 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
 
   // populated / offline — the real account read. offline = populated (local-first).
   return (
-    <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
+    <Animated.View
+      style={[styles.root, enterStyle, { backgroundColor: t.canvas, paddingTop: insets.top }]}
+    >
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxl },
+          { paddingTop: gap.lg, paddingBottom: insets.bottom + gap.xxl },
         ]}
       >
         {/* Header — back glyph · "Account" eyebrow · spacer. */}
@@ -733,7 +839,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                   accessibilityLabel={
                     newAccountKind === 'credit-card' ? 'Amount owed' : 'Opening balance'
                   }
-                  keyboardType="decimal-pad"
+                  keyboardType={newAccountKind === 'credit-card' ? 'decimal-pad' : 'numeric'}
                   onChangeText={setNewAccountBalance}
                   placeholder="0.00"
                   placeholderTextColor={t.muted}
@@ -744,6 +850,11 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                   {newAccountKind === 'credit-card' ? 'owed' : 'opening balance'}
                 </Text>
               </View>
+              {accountFormError ? (
+                <Text style={[styles.accountFormError, { color: t.repair }]}>
+                  {accountFormError}
+                </Text>
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: newAccountName.trim().length === 0 }}
@@ -779,7 +890,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                 <Text style={[styles.addAccountCurrency, { color: t.ink }]}>£</Text>
                 <TextInput
                   accessibilityLabel="Current account balance"
-                  keyboardType="decimal-pad"
+                  keyboardType="numeric"
                   onChangeText={setEditAccountBalance}
                   placeholder="0.00"
                   placeholderTextColor={t.muted}
@@ -788,6 +899,11 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                 />
                 <Text style={[styles.addAccountBalanceHint, { color: t.muted }]}>current</Text>
               </View>
+              {accountFormError ? (
+                <Text style={[styles.accountFormError, { color: t.repair }]}>
+                  {accountFormError}
+                </Text>
+              ) : null}
               <View style={styles.accountEditActions}>
                 <Pressable
                   accessibilityRole="button"
@@ -973,7 +1089,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                   ]}
                 >
                   <Text style={[styles.tierCtaLabel, { color: t.inverse }]}>
-                    {tier === 'free' ? 'See plans' : 'Manage plan'}
+                    {tier === 'free' && !liveActive ? 'See plans' : 'Manage plan'}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -993,7 +1109,11 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             <View style={styles.tiersGrid}>
               {TIERS.map((p) => {
                 const isCurrent =
-                  p.key === 'full' ? tier === 'full' || tier === 'trial' : p.key === tier;
+                  p.key === 'full'
+                    ? tier === 'full' || tier === 'trial'
+                    : p.key === 'live'
+                      ? liveActive
+                      : tier === 'free' && !liveActive;
                 const priceAria =
                   p.key === 'free' ? p.price : 'See current store price on plan details';
                 return (
@@ -1083,6 +1203,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           {!isBusiness && clerkConfigured ? (
             <ClerkAccountRows
               onPressCloudBackup={() => setCloudBackupVisible(true)}
+              onPressCloudSync={() => setCloudSyncVisible(true)}
               onPressSignIn={() => setSignInVisible(true)}
             />
           ) : !isBusiness ? (
@@ -1124,17 +1245,16 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             visible={cloudBackupVisible}
             onClose={() => setCloudBackupVisible(false)}
           />
-          {openBankingEnabled ? (
-            <BankConnectionSheet
-              visible={bankConnectionVisible}
-              onClose={() => setBankConnectionVisible(false)}
-              onRequestSignIn={() => setSignInVisible(true)}
-              onReview={() => nav.go('review')}
-              onStatusChange={setBankSummary}
-            />
-          ) : null}
+          <CloudSyncSheet visible={cloudSyncVisible} onClose={() => setCloudSyncVisible(false)} />
         </>
       ) : null}
+      <BankConnectionSheet
+        visible={bankConnectionVisible}
+        onClose={() => setBankConnectionVisible(false)}
+        onRequestSignIn={() => setSignInVisible(true)}
+        onReview={() => nav.go('review')}
+        onStatusChange={setBankSummary}
+      />
     </Animated.View>
   );
 }
@@ -1145,9 +1265,11 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
 function ClerkAccountRows({
   onPressSignIn,
   onPressCloudBackup,
+  onPressCloudSync,
 }: {
   onPressSignIn: () => void;
   onPressCloudBackup: () => void;
+  onPressCloudSync: () => void;
 }) {
   const { isSignedIn, user } = useUser();
   const { getToken, signOut } = useAuth();
@@ -1239,6 +1361,12 @@ function ClerkAccountRows({
           label="Encrypted backup"
           hint="back up or restore this device"
           onPress={onPressCloudBackup}
+        />
+        <Hairline />
+        <AccountRow
+          label="Cloud sync"
+          hint="signed changes, trusted devices and conflicts"
+          onPress={onPressCloudSync}
         />
         <Hairline />
         <AccountRow
@@ -1594,6 +1722,10 @@ const styles = StyleSheet.create({
   addAccountBalanceHint: {
     fontSize: 10,
     textTransform: 'uppercase',
+  },
+  accountFormError: {
+    fontSize: 12,
+    marginTop: gap.sm,
   },
   addAccountSave: {
     alignItems: 'center',

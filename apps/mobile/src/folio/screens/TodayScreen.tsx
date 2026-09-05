@@ -365,9 +365,9 @@ export function TodayScreen({
         todayAmount: currentBalance.amount,
         tightAmount: routeTightestAmount,
         tightDate: tight.tightestDate,
-        paydayAmount: routeTightestAmount + Math.round(onboarding.monthlyIncome),
+        paydayAmount: route?.spare ?? currentBalance.amount,
       }),
-    [now, currentBalance.amount, routeTightestAmount, tight.tightestDate, onboarding.monthlyIncome],
+    [now, currentBalance.amount, routeTightestAmount, tight.tightestDate, route?.spare],
   );
   const pathEvents = useMemo(
     () =>
@@ -787,8 +787,8 @@ export function TodayScreen({
         <View style={[styles.pathCard, { borderTopColor: t.hairline }]}>
           <View style={styles.pathHead}>
             <Text style={[styles.pathEyebrow, { color: t.muted }]}>
-              {now
-                ? `Today → payday · ${new Date(now.getTime() + 28 * 86_400_000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+              {paydayIso
+                ? `Today → payday · ${new Date(`${paydayIso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
                 : 'Today → payday'}
             </Text>
             <Pressable
@@ -801,11 +801,7 @@ export function TodayScreen({
             </Pressable>
           </View>
 
-          <View
-            style={styles.svgWrap}
-            onLayout={onCardLayout}
-            {...panResponder.panHandlers}
-          >
+          <View style={styles.svgWrap} onLayout={onCardLayout} {...panResponder.panHandlers}>
             <MoneyPathChart
               points={points}
               events={pathEvents}
@@ -848,8 +844,8 @@ export function TodayScreen({
           <Text style={[styles.pathSummary, { color: t.muted }]}>
             <Text style={{ color: t.ink }}>{formatGBP(Math.round(cycleFlows.incoming))}</Text>{' '}
             coming in before payday,{' '}
-            <Text style={{ color: t.ink }}>{formatGBP(Math.round(cycleFlows.outgoing))}</Text>{' '}
-            going out.
+            <Text style={{ color: t.ink }}>{formatGBP(Math.round(cycleFlows.outgoing))}</Text> going
+            out.
           </Text>
         </View>
 

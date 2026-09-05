@@ -60,7 +60,7 @@ export function cloudSyncRequestSigner(
 ): CloudSyncRequestSigner {
   return {
     sign: async ({ method, path, body }): Promise<SyncRequestSignature> => {
-      const privateKey = await readPrivateKey(identity.deviceId);
+      const privateKey = await readCloudSyncPrivateKey(identity.deviceId);
       const bodySha256 = hex(sha256(utf8ToBytes(body ?? '')));
       const url = new URL(path, 'https://melo.sync.internal');
       const query = [...url.searchParams.entries()]
@@ -122,7 +122,7 @@ async function createPrivateKey(keyId: string): Promise<Uint8Array> {
   return privateKey;
 }
 
-async function readPrivateKey(deviceId: string): Promise<Uint8Array> {
+export async function readCloudSyncPrivateKey(deviceId: string): Promise<Uint8Array> {
   const raw = await SecureStore.getItemAsync(`${PRIVATE_KEY_PREFIX}${deviceId}`);
   if (raw === null) throw new Error('Cloud sync signing key is unavailable.');
   const privateKey = decodeBase64Url(raw);

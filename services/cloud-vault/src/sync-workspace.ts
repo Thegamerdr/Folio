@@ -1,6 +1,7 @@
 const STATE_KEY = 'workspace-state-v1';
 const OPERATION_PREFIX = 'operation:';
 const IDEMPOTENCY_PREFIX = 'idempotency:';
+const TRANSITION_PREFIX = 'key-transition:';
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 250;
 const DEVICE_ID_PATTERN = /^[a-f0-9]{32}$/;
@@ -48,12 +49,16 @@ export type SyncSnapshot = Readonly<{
 
 type WorkspaceState = {
   version: 1;
+  /** Permanent workspace tombstone. Account deletion must not allow a queued request to revive it. */
+  deleted?: boolean;
   headCursor: number;
   compactedThrough: number;
   currentKeyEpoch: number;
   devices: Record<string, SyncDevice>;
   latestSnapshot?: SyncSnapshot;
   previousSnapshot?: SyncSnapshot;
+  /** Opaque old-key boxes, each sealed by the client under its successor epoch. */
+  keyTransitions?: Record<string, { fromKeyEpoch: number; toKeyEpoch: number; sealedKey: string }>;
 };
 
 type RequestAuth = Readonly<{ requestSequence: number; publicKey: string }>;
@@ -77,22 +82,92 @@ export class SyncWorkspace {
   constructor(private readonly storage: SyncWorkspaceStorage) {}
 
   async fetch(request: Request): Promise<Response> {
+    if (request.body !== null) {
+      const bytes = await boundedRequestBody(request.body);
+      if (bytes === null)
+        return response({ error: 'Sync request exceeds the safe body limit.' }, 413);
+      request = new Request(request, { body: bytes });
+    }
     const url = new URL(request.url);
     const now = request.headers.get('x-melo-internal-now') ?? new Date().toISOString();
     if (!isIso(now)) return response({ error: 'Invalid service time.' }, 500);
 
     if (request.method === 'DELETE' && url.pathname === '/v1/sync/account') {
-      await this.storage.deleteAll();
+      // Fence first, dropping wrapped keys/device metadata immediately. Purge bounded batches
+      // afterwards; a lost response/restart can resume without ever reopening this authority.
+      await this.storage.transaction(async (storage) => {
+        await this.save(
+          {
+            version: 1,
+            deleted: true,
+            headCursor: 0,
+            compactedThrough: 0,
+            currentKeyEpoch: 1,
+            devices: {},
+          },
+          storage,
+        );
+      });
+      for (;;) {
+        const removed = await this.storage.transaction(async (storage) => {
+          const keys = [...(await storage.list<unknown>({ prefix: '', limit: 128 })).keys()].filter(
+            (key) => key !== STATE_KEY,
+          );
+          for (const key of keys) await storage.delete(key);
+          return keys.length;
+        });
+        if (removed === 0) break;
+      }
       return response({ ok: true, deleted: true, scope: 'workspace-sync-data' });
     }
 
     const state = await this.state();
+    if (state.deleted) {
+      return response({ error: 'This workspace sync authority has been deleted.' }, 410);
+    }
     const requestAuth = await verifySignedRequest(request, state, now);
     if (requestAuth === null) {
       return response(
         { error: 'A fresh device signature is required for this sync request.' },
         401,
       );
+    }
+
+    if (url.pathname === '/v1/sync/enrollment' && request.method === 'POST') {
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const deviceId = deviceHeader(request)!;
+        const device = current.devices[deviceId];
+        if (device !== undefined && device.publicKey !== requestAuth.publicKey) {
+          return response({ error: 'The registered device key changed.' }, 403);
+        }
+        if (device !== undefined && requestAuth.requestSequence <= device.lastRequestSequence) {
+          return response({ error: 'This signed sync request was already used.' }, 409);
+        }
+        if (device !== undefined) {
+          current.devices[deviceId] = {
+            ...device,
+            lastRequestSequence: requestAuth.requestSequence,
+          };
+          await this.save(current, storage);
+        }
+        // An account-authenticated new phone may discover approval requirements, not other
+        // phones' identifiers, public keys, labels, or key boxes.
+        return response({
+          status:
+            device?.revokedAt !== undefined
+              ? 'revoked'
+              : device !== undefined
+                ? 'active'
+                : Object.keys(current.devices).length === 0
+                  ? 'new'
+                  : 'pending',
+          device: device?.revokedAt === undefined ? (device ?? null) : null,
+          currentKeyEpoch: current.currentKeyEpoch,
+          headCursor: current.headCursor,
+          compactedThrough: current.compactedThrough,
+        });
+      });
     }
 
     if (url.pathname === '/v1/sync/devices' && request.method === 'GET') {
@@ -132,6 +207,9 @@ export class SyncWorkspace {
         const current = await this.state(storage);
         const actorId = deviceHeader(request)!;
         const existing = current.devices[body.deviceId];
+        if (existing === undefined && Object.keys(current.devices).length >= 32) {
+          return response({ error: 'This workspace has reached its device limit.' }, 409);
+        }
         if (
           actorId === body.deviceId &&
           existing !== undefined &&
@@ -274,6 +352,9 @@ export class SyncWorkspace {
           lastSeenAt: now,
         };
         current.currentKeyEpoch = body.newKeyEpoch;
+        // Publishing key history separately from revocation leaves an unrecoverable crash
+        // window. The next-epoch boxes and backward key bridge commit together.
+        await storage.put(transitionKey(body.newKeyEpoch), body.keyTransition);
         await this.save(current, storage);
         return response({
           ok: true,
@@ -308,6 +389,8 @@ export class SyncWorkspace {
           const replay = await storage.get<StoredOperation>(operationKey(replayCursor));
           if (
             replay === undefined ||
+            replay.id !== body.id ||
+            replay.createdAt !== body.createdAt ||
             replay.deviceId !== body.deviceId ||
             replay.deviceSequence !== body.deviceSequence ||
             replay.keyEpoch !== body.keyEpoch ||
@@ -392,9 +475,15 @@ export class SyncWorkspace {
           startAfter: operationKey(after),
           limit: limit + 1,
         });
-        const operations = [...listed.values()].sort((a, b) => a.cursor - b.cursor);
-        const hasMore = operations.length > limit;
-        if (hasMore) operations.pop();
+        const operations: StoredOperation[] = [];
+        let responseBytes = 1024;
+        for (const operation of [...listed.values()].sort((a, b) => a.cursor - b.cursor)) {
+          const size = new TextEncoder().encode(JSON.stringify(operation)).byteLength;
+          if (operations.length >= limit || responseBytes + size > 1536 * 1024) break;
+          responseBytes += size;
+          operations.push(operation);
+        }
+        const hasMore = listed.size > operations.length;
         const nextCursor = operations.at(-1)?.cursor ?? after;
         await this.save(current, storage);
         return response({ operations, nextCursor, headCursor: current.headCursor, hasMore });
@@ -493,6 +582,81 @@ export class SyncWorkspace {
       });
     }
 
+    if (url.pathname === '/v1/sync/key-transitions' && request.method === 'POST') {
+      const actorId = deviceHeader(request);
+      const body = await jsonBody(request);
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const actor =
+          actorId === null ? undefined : activeDevice(current, actorId, requestAuth.publicKey);
+        if (actor === undefined || !validKeyTransition(body, current.currentKeyEpoch))
+          return response({ error: 'Sync key transition is invalid.' }, 400);
+        if (requestAuth.requestSequence <= actor.lastRequestSequence)
+          return response({ error: 'This signed sync request was already used.' }, 409);
+        const key = transitionKey(body.toKeyEpoch);
+        const existing =
+          (await storage.get<{ sealedKey: string }>(key)) ??
+          current.keyTransitions?.[`${body.fromKeyEpoch}:${body.toKeyEpoch}`];
+        if (existing !== undefined && existing.sealedKey !== body.sealedKey)
+          return response({ error: 'A sync key transition cannot be replaced.' }, 409);
+        await storage.put(key, {
+          fromKeyEpoch: body.fromKeyEpoch,
+          toKeyEpoch: body.toKeyEpoch,
+          sealedKey: body.sealedKey,
+        });
+        current.devices[actor.deviceId] = {
+          ...actor,
+          lastRequestSequence: requestAuth.requestSequence,
+          lastSeenAt: now,
+        };
+        await this.save(current, storage);
+        return response({ ok: true });
+      });
+    }
+
+    if (url.pathname === '/v1/sync/key-transitions' && request.method === 'GET') {
+      const actorId = deviceHeader(request);
+      const after = queryCursor(url.searchParams.get('afterEpoch'));
+      if (after === null) return response({ error: 'Key history cursor is invalid.' }, 400);
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const actor =
+          actorId === null ? undefined : activeDevice(current, actorId, requestAuth.publicKey);
+        if (actor === undefined)
+          return response({ error: 'An active registered device is required.' }, 403);
+        if (requestAuth.requestSequence <= actor.lastRequestSequence)
+          return response({ error: 'This signed sync request was already used.' }, 409);
+        current.devices[actor.deviceId] = {
+          ...actor,
+          lastRequestSequence: requestAuth.requestSequence,
+          lastSeenAt: now,
+        };
+        for (const transition of Object.values(current.keyTransitions ?? {})) {
+          if ((await storage.get(transitionKey(transition.toKeyEpoch))) === undefined) {
+            await storage.put(transitionKey(transition.toKeyEpoch), transition);
+          }
+        }
+        delete current.keyTransitions;
+        await this.save(current, storage);
+        const rows = [
+          ...(
+            await storage.list<{ fromKeyEpoch: number; toKeyEpoch: number; sealedKey: string }>({
+              prefix: TRANSITION_PREFIX,
+              startAfter: transitionKey(after),
+              limit: 65,
+            })
+          ).values(),
+        ];
+        const hasMore = rows.length > 64;
+        if (hasMore) rows.pop();
+        return response({
+          transitions: rows,
+          hasMore,
+          nextAfterEpoch: rows.at(-1)?.toKeyEpoch ?? after,
+        });
+      });
+    }
+
     if (url.pathname === '/v1/sync/compaction' && request.method === 'POST') {
       const actorId = deviceHeader(request);
       const body = await jsonBody(request);
@@ -567,8 +731,17 @@ export class SyncWorkspace {
     await storage.put(STATE_KEY, state);
   }
 
-  private async transaction<T>(work: (storage: SyncWorkspaceStorage) => Promise<T>): Promise<T> {
-    return this.storage.transaction(work);
+  private async transaction(
+    work: (storage: SyncWorkspaceStorage) => Promise<Response>,
+  ): Promise<Response> {
+    return this.storage.transaction(async (storage) => {
+      // Signature verification/body reads await outside the transaction. Deletion can win
+      // there; every normal route must recheck the fence at its actual mutation boundary.
+      if ((await this.state(storage)).deleted) {
+        return response({ error: 'This workspace sync authority has been deleted.' }, 410);
+      }
+      return work(storage);
+    });
   }
 }
 
@@ -580,7 +753,12 @@ export function storageAdapter(
     put: (key, value) => storage.put(key, value),
     delete: (key) => storage.delete(key),
     list: (options) => storage.list(options),
-    deleteAll: 'deleteAll' in storage ? () => storage.deleteAll() : async () => undefined,
+    deleteAll:
+      'deleteAll' in storage
+        ? () => storage.deleteAll()
+        : async () => {
+            throw new Error('deleteAll is unavailable inside a Durable Object transaction.');
+          },
     transaction:
       'transaction' in storage
         ? (work) => storage.transaction((transaction) => work(storageAdapter(transaction)))
@@ -643,12 +821,32 @@ function validRotation(
 ): value is {
   newKeyEpoch: number;
   wrappedKeys: Record<string, string>;
+  keyTransition: { fromKeyEpoch: number; toKeyEpoch: number; sealedKey: string };
 } {
-  if (!record(value) || value['newKeyEpoch'] !== expectedEpoch || !record(value['wrappedKeys'])) {
+  if (
+    !record(value) ||
+    value['newKeyEpoch'] !== expectedEpoch ||
+    !record(value['wrappedKeys']) ||
+    !validKeyTransition(value['keyTransition'], expectedEpoch)
+  ) {
     return false;
   }
   return Object.entries(value['wrappedKeys']).every(
     ([deviceId, wrapped]) => DEVICE_ID_PATTERN.test(deviceId) && safeOpaque(wrapped, 2048),
+  );
+}
+
+function validKeyTransition(
+  value: unknown,
+  currentEpoch: number,
+): value is { fromKeyEpoch: number; toKeyEpoch: number; sealedKey: string } {
+  return (
+    record(value) &&
+    safePositiveInt(value['fromKeyEpoch']) &&
+    safePositiveInt(value['toKeyEpoch']) &&
+    value['toKeyEpoch'] === currentEpoch &&
+    value['fromKeyEpoch'] === currentEpoch - 1 &&
+    safeOpaque(value['sealedKey'], 4096)
   );
 }
 
@@ -712,6 +910,10 @@ function idempotencyKey(value: string): string {
   return `${IDEMPOTENCY_PREFIX}${value}`;
 }
 
+function transitionKey(epoch: number): string {
+  return `${TRANSITION_PREFIX}${String(epoch).padStart(16, '0')}`;
+}
+
 function queryCursor(value: string | null): number | null {
   if (value === null) return 0;
   if (!/^\d+$/.test(value)) return null;
@@ -728,6 +930,33 @@ function pageSize(value: string | null): number | null {
 
 async function jsonBody(request: Request): Promise<unknown> {
   return request.json().catch(() => null);
+}
+
+async function boundedRequestBody(stream: ReadableStream<Uint8Array>): Promise<Uint8Array | null> {
+  const reader = stream.getReader();
+  const parts: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      total += part.value.byteLength;
+      if (total > 128 * 1024) {
+        await reader.cancel();
+        return null;
+      }
+      parts.push(part.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    bytes.set(part, offset);
+    offset += part.byteLength;
+  }
+  return bytes;
 }
 
 function response(payload: unknown, status = 200): Response {
@@ -808,17 +1037,22 @@ async function verifySignedRequest(
   if (actualBodyHash !== expectedBodyHash) return null;
 
   let publicKeyValue: string | undefined;
+  const isEnrollment =
+    new URL(request.url).pathname === '/v1/sync/enrollment' && request.method === 'POST';
   if (state.devices[actorId] !== undefined) {
-    const actor = activeDevice(state, actorId);
+    const actor = isEnrollment ? state.devices[actorId] : activeDevice(state, actorId);
     if (actor === undefined || requestSequence <= actor.lastRequestSequence) return null;
     publicKeyValue = actor.publicKey;
-  } else if (new URL(request.url).pathname === '/v1/sync/devices' && request.method === 'POST') {
+  } else if (
+    isEnrollment ||
+    (new URL(request.url).pathname === '/v1/sync/devices' && request.method === 'POST')
+  ) {
     const body = (await request
       .clone()
       .json()
       .catch(() => null)) as Record<string, unknown> | null;
     if (
-      Object.keys(state.devices).length !== 0 ||
+      (!isEnrollment && Object.keys(state.devices).length !== 0) ||
       typeof body?.['deviceId'] !== 'string' ||
       body['deviceId'] !== actorId
     ) {

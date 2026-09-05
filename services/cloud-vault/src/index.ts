@@ -91,8 +91,8 @@ export default {
         return await handleSyncRequest(request, env, store, auth.userId);
       }
       if (request.method === 'DELETE' && url.pathname === '/v1/account') {
-        await purgeSyncAccount(env, store, auth.userId);
         await purgeBackupAccount(env, store, auth.userId);
+        await purgeSyncAccount(env, store, auth.userId);
       }
       return await handleAuthenticatedRequest(
         request,
@@ -445,6 +445,12 @@ async function handleSyncRequest(
     );
   }
 
+  // The account-scoped SQLite authority admits sync workspaces before a per-workspace DO is
+  // reached. This is the durable deletion fence; the KV marker below is only a compatibility
+  // hint for account purge and is never used as the authority.
+  const admission = await admitSyncWorkspace(env.BACKUP_WORKSPACES, userId, workspaceRef);
+  if (!admission.ok) return withCors(admission, request, env);
+
   if (request.method === 'PUT' && new URL(request.url).pathname === '/v1/sync/snapshot') {
     const body = (await request
       .clone()
@@ -466,10 +472,7 @@ async function handleSyncRequest(
   }
 
   const userRef = await userStorageId(userId);
-  const markerKey = `${await userStoragePrefix(userId)}/${SYNC_WORKSPACE_MARKER}/${workspaceRef}`;
-  await env.VAULTS.put(markerKey, new Uint8Array([1]), {
-    metadata: { workspaceRef, updatedAt: new Date().toISOString() },
-  });
+  // New admissions are durable in SQLite; stop creating eventually consistent KV markers.
   const stub = env.SYNC_WORKSPACES.getByName(`${userRef}:${workspaceRef}`);
   const headers = new Headers(request.headers);
   headers.delete('authorization');
@@ -487,13 +490,20 @@ async function purgeSyncAccount(
   store: BackupStore,
   userId: string,
 ): Promise<void> {
-  const prefix = `${await userStoragePrefix(userId)}/${SYNC_WORKSPACE_MARKER}/`;
   const userRef = await userStorageId(userId);
-  const markers = await store.list(prefix);
+  const catalog = await syncAuthorityCatalog(env.BACKUP_WORKSPACES, userId);
+  // Drain old pre-inventory objects too. Keep their markers until every purge acknowledges,
+  // so an interrupted deletion can retry. New traffic never creates these legacy markers.
+  const prefix = `${await userStoragePrefix(userId)}/${SYNC_WORKSPACE_MARKER}/`;
+  const legacyMarkers = await store.list(prefix);
+  const legacyRefs = legacyMarkers.map((key) => {
+    const ref = normalizeWorkspaceRef(key.slice(prefix.length));
+    if (ref === null) throw new Error('Invalid legacy sync workspace marker.');
+    return ref;
+  });
+  const workspaces = [...new Set([...catalog, ...legacyRefs])];
   await Promise.all(
-    markers.map(async (key) => {
-      const workspaceRef = normalizeWorkspaceRef(key.slice(prefix.length));
-      if (workspaceRef === null) throw new Error('invalid sync workspace marker');
+    workspaces.map(async (workspaceRef) => {
       const stub = env.SYNC_WORKSPACES.getByName(`${userRef}:${workspaceRef}`);
       const response = await stub.fetch('https://sync.internal/v1/sync/account', {
         method: 'DELETE',
@@ -501,6 +511,40 @@ async function purgeSyncAccount(
       if (!response.ok) throw new Error('sync workspace purge failed');
     }),
   );
+  // Markers are compatibility hints only; deleting them is safe after the authoritative DO
+  // inventory has fenced the account and all workspace objects have been tombstoned.
+  await store.delete(legacyMarkers);
+}
+
+async function admitSyncWorkspace(
+  namespace: DurableObjectNamespace,
+  userId: string,
+  workspaceRef: string,
+): Promise<Response> {
+  const url = new URL('https://backup.internal/internal/sync/admit');
+  url.searchParams.set('workspaceRef', workspaceRef);
+  return namespace.getByName(await userStorageId(userId)).fetch(url, { method: 'POST' });
+}
+
+async function syncAuthorityCatalog(
+  namespace: DurableObjectNamespace,
+  userId: string,
+): Promise<readonly string[]> {
+  const response = await namespace
+    .getByName(await userStorageId(userId))
+    .fetch('https://backup.internal/internal/sync/catalog');
+  if (!response.ok) throw new Error('sync authority catalog failed');
+  const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!Array.isArray(payload?.['workspaces']) || payload['accountDeleted'] !== true) {
+    throw new Error('Account must be durably fenced before sync data is purged.');
+  }
+  return payload['workspaces'].map((row: unknown) => {
+    if (typeof row !== 'object' || row === null) throw new Error('Invalid sync authority catalog.');
+    const ref = (row as Record<string, unknown>)['workspaceRef'];
+    if (typeof ref !== 'string' || normalizeWorkspaceRef(ref) === null)
+      throw new Error('Invalid sync authority catalog.');
+    return ref;
+  });
 }
 
 async function purgeBackupAccount(

@@ -80,6 +80,11 @@ export class BackupWorkspaceDurableObject implements DurableObject {
           deleted INTEGER NOT NULL,
           revision INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS sync_workspace_inventory (
+          workspace_ref TEXT PRIMARY KEY,
+          revision INTEGER NOT NULL,
+          deleted INTEGER NOT NULL DEFAULT 0
+        );
         INSERT OR IGNORE INTO backup_account_guard (id, deleted, revision) VALUES (1, 0, 0);
       `);
       try {
@@ -105,6 +110,21 @@ export class BackupWorkspaceDurableObject implements DurableObject {
       }
       if (request.method === 'DELETE' && url.pathname === '/internal/backup/account') {
         return this.deleteAccount();
+      }
+      if (request.method === 'GET' && url.pathname === '/internal/sync/catalog') {
+        return this.syncCatalog();
+      }
+      if (request.method === 'POST' && url.pathname === '/internal/sync/admit') {
+        const workspaceRef = normalizeWorkspaceRef(url.searchParams.get('workspaceRef'));
+        if (workspaceRef === null)
+          return json({ error: 'A valid workspace reference is required.' }, 400);
+        return this.admitSyncWorkspace(workspaceRef);
+      }
+      if (request.method === 'DELETE' && url.pathname === '/internal/sync') {
+        const workspaceRef = normalizeWorkspaceRef(url.searchParams.get('workspaceRef'));
+        if (workspaceRef === null)
+          return json({ error: 'A valid workspace reference is required.' }, 400);
+        return this.deleteSyncWorkspace(workspaceRef);
       }
       if (request.method === 'POST' && url.pathname === '/internal/backup/adopt') {
         const workspaceRef = normalizeWorkspaceRef(url.searchParams.get('workspaceRef'));
@@ -210,6 +230,77 @@ export class BackupWorkspaceDurableObject implements DurableObject {
         checksum: row.checksum,
       })),
     });
+  }
+
+  /** Sync admission is serialized with account deletion in this account-scoped SQLite DO. */
+  private syncCatalog(): Response {
+    const guard = this.state.storage.sql
+      .exec<{ deleted: number; revision: number }>(
+        'SELECT deleted, revision FROM backup_account_guard WHERE id = 1',
+      )
+      .toArray()[0];
+    const rows = this.state.storage.sql
+      .exec<{ workspace_ref: string; revision: number; deleted: number }>(
+        'SELECT workspace_ref, revision, deleted FROM sync_workspace_inventory ORDER BY workspace_ref',
+      )
+      .toArray();
+    return json({
+      accountDeleted: guard?.deleted === 1,
+      accountRevision: guard?.revision ?? 0,
+      workspaces: rows.map((row) => ({
+        workspaceRef: row.workspace_ref,
+        revision: row.revision,
+        deleted: row.deleted === 1,
+      })),
+    });
+  }
+
+  private admitSyncWorkspace(workspaceRef: string): Response {
+    const result = this.state.storage.transactionSync(() => {
+      const guard = this.state.storage.sql
+        .exec<{ deleted: number; revision: number }>(
+          'SELECT deleted, revision FROM backup_account_guard WHERE id = 1',
+        )
+        .toArray()[0];
+      if (guard?.deleted === 1)
+        return { status: 410, body: { error: 'This account sync authority has been deleted.' } };
+      const existing = this.state.storage.sql
+        .exec<{ revision: number; deleted: number }>(
+          'SELECT revision, deleted FROM sync_workspace_inventory WHERE workspace_ref = ?',
+          workspaceRef,
+        )
+        .toArray()[0];
+      if (existing?.deleted === 1)
+        return { status: 410, body: { error: 'This workspace sync authority has been deleted.' } };
+      if (existing === undefined) {
+        this.state.storage.sql.exec(
+          'INSERT INTO sync_workspace_inventory (workspace_ref, revision, deleted) VALUES (?, 1, 0)',
+          workspaceRef,
+        );
+        return { status: 201, body: { ok: true, workspaceRef, revision: 1 } };
+      }
+      return { status: 200, body: { ok: true, workspaceRef, revision: existing.revision } };
+    });
+    return json(result.body, result.status);
+  }
+
+  private deleteSyncWorkspace(workspaceRef: string): Response {
+    const result = this.state.storage.transactionSync(() => {
+      const existing = this.state.storage.sql
+        .exec<{ revision: number }>(
+          'SELECT revision FROM sync_workspace_inventory WHERE workspace_ref = ?',
+          workspaceRef,
+        )
+        .toArray()[0];
+      const revision = (existing?.revision ?? 0) + 1;
+      this.state.storage.sql.exec(
+        'INSERT INTO sync_workspace_inventory (workspace_ref, revision, deleted) VALUES (?, ?, 1) ON CONFLICT(workspace_ref) DO UPDATE SET revision = excluded.revision, deleted = 1',
+        workspaceRef,
+        revision,
+      );
+      return { revision };
+    });
+    return json({ ok: true, deleted: true, workspaceRef, revision: result.revision });
   }
 
   private content(workspaceRef: string, which: 'current' | 'previous' | 'anchor'): Response {
@@ -621,6 +712,9 @@ export class BackupWorkspaceDurableObject implements DurableObject {
       }
       this.state.storage.sql.exec(
         'UPDATE backup_account_guard SET deleted = 1, revision = revision + 1 WHERE id = 1',
+      );
+      this.state.storage.sql.exec(
+        'UPDATE sync_workspace_inventory SET deleted = 1, revision = revision + 1',
       );
     });
     return json({ ok: true, deleted: true, scope: 'account-backup-authority' });
