@@ -72,13 +72,81 @@ Reconcile audit IDs as VERIFIED, IMPLEMENTED-EXTERNAL-PROOF-REQUIRED, IN-PROGRES
 | Money safety and dates | SOURCE REVIEWED — corrections applied | Included in controller's 34 passing focused cases; candidate/device checks pending |
 | Android/Apple billing/runtime | SOURCE REVIEWED — `de18d8da`, `7309b3f` | Lifecycle, exact store terms, verified Apple API/JWS and bounded transport. Local Worker/packaging pass; real store/iOS evidence open |
 | Cloud protocol A04/A05 | SOURCE REVIEWED — controller corrections integrated | Atomic coordinator and real native-signature integration checks pass; no deployment or shipping sync claim |
-| Backup/Business recovery A03/A13 | LUNA IMPLEMENTING; controller reviews protocol | Atomic generation/catalog, retained recovery anchor, migration fence and durable Business activation required |
-| Banking durable delivery | QUEUED | Next free worker |
+| Backup/Business recovery A03/A13 | SOURCE REVIEWED — `025ee05` | Actual SQLite authority plus 6 named native/migration/activation cases pass; deployment/device recovery proof remains open |
+| Banking durable delivery | LUNA REVISING AFTER CONTROLLER REVIEW | Durable inbox committed `3572a36`; routed service/retry/pagination acceptance pending |
 | Mobile UI/voice and financial actions | SOURCE REVIEWED — `2ab349cf`, `80f03835` | Real transfer/refund routes, metadata persistence, safe Undo and manual-money parsing; S9 checks pending |
 | Shipping sync wiring | QUEUED | After protocol/recovery checkpoint |
 | Integration, candidate, S9 | QUEUED | After reviewed code |
 
 The controller maintains this file; workers do not change the index. The broader audit is not repeated. Scope changes require an explicit controller decision with the reason recorded.
+
+Backup checkpoint `025ee05`: controller corrected deletion resurrection, lost-response rotation,
+old-generation key preview, missing native streaming support, missing scoped Business migration,
+discarded legacy previous generations and registry loss during Personal restore. New backup head,
+catalog and generations are one account-scoped SQLite authority. Migration adopts both existing
+generations atomically. Explicit key replacement retains an old-key anchor; ordinary updates do not
+evict it. Phone uploads verify that its active/pending code opens the observed current ciphertext,
+save new material before upload, and keep the rotation intent through failed responses. The real
+Miniflare/SQLite check passed concurrent CAS, chunking, replay, anchor, migration and deletion fences.
+Six named native/route/persistence cases passed, including Business failure after manifest commit;
+service/mobile no-emit passed. This is not proof of a deployed migration or physical clean restore.
+
+The first A07 worker return was rejected: new receipt replay used an object/string mismatch, old KV
+secrets were not migrated/purged, pagination over 500 rows could never finish, callbacks lacked a
+revision check and a new empty-array selector could loop rendering. Controller sent concrete fixes;
+subsequent review identified partial-page job identity and multi-account starvation. Existing legacy
+tests passing do not close the new authority path. One actual local Worker delivery exercise is required.
+
+### Bounded shipping sync implementation contract (A06)
+
+Do not build a new CRDT/framework or claim typed audit hashes are replayable data. Reuse the existing
+signed coordinator, SQLCipher adapter, crypto primitives, store and sheet patterns. The controller
+will review the worker's short concrete data/flow proposal before edits to this lane.
+
+- Opt-in UI in the signed-in Account surface: enable/disable, Sync now, actual pending/error state,
+  device approval, device revocation and conflict review. Mount the real foreground/local-save
+  lifecycle in the Clerk-configured shell. No fabricated connection, sample sync or silent success.
+  Account/workspace binding and current entitlement govern network work, never offline local access.
+- Add device-local sync metadata/outbox to the SAME workspace SQLCipher transaction that saves the
+  exact financial state and canonical projection. Compare the last committed shareable projection
+  with the new one; do not enqueue render-only changes or restored billing claims. Persist operation
+  identity/sequence/plaintext delta before network, then persist its exact sealed upload before sending
+  so response-loss retries reuse ciphertext. Outbox entries survive restart and edits made in flight.
+- Use atomic compare-and-swap patch groups over changed owned entities/fields. A field/collection-level
+  compare-and-swap with visible conservative conflicts is acceptable; silent whole-vault last-write-
+  wins is not. All legs/balances of a financial action stay in one group. Replay is deterministic in
+  server cursor order, and overlapping edits retain both alternatives as durable reviewable conflicts.
+  Explicit conflict resolution emits another checked operation; it must not erase later local edits.
+- Persist replay baseline, partial group inbox, conflicts and local outbox together with the resulting
+  exact state before acknowledging the cursor. Check the local generation/store snapshot before
+  publishing a replay so concurrent UI edits cannot be overwritten. A workspace/account switch stops
+  stale UI application. Duplicate replay/ack is harmless. Invalid shape, ownership or decryption fails
+  closed with actionable retry/recovery text, never an empty reset.
+- First enrollment must really use the server's empty-registry rule; a nonempty registry requires an
+  already trusted device to approve the new device's public identity. A public approval code contains
+  the workspace ref/device ID/Ed25519 public key; display/compare its fingerprint. It contains no secret.
+  Wrap epoch keys to each verified recipient using installed Noble Ed25519→X25519 conversion,
+  ephemeral X25519/HKDF/AES-GCM with workspace/recipient/epoch/version-bound AAD. Do not distribute a
+  future-key derivation root to a device that can later be revoked. Save key material before network.
+- On revoke, generate a genuinely fresh key and wrap it only to remaining devices, as the existing
+  server requires. Retain prior-key access for legitimate backlog/new-device replay without letting
+  the revoked device derive future keys. A small signed opaque key-transition endpoint can store each
+  old key sealed under its successor; new approved devices unwrap backwards from their current key.
+  This avoids unbounded keyrings stuffed into device metadata and needs no new secret provider.
+- Initial bootstrap and large atomic patches may require bounded encrypted chunks/groups within the
+  existing operation size limit. Never acknowledge/apply an incomplete group. Do not enable automatic
+  compaction until an exact replay-baseline checkpoint exists and all active devices acknowledge it.
+  This shipping lane may retain the replay log; it must reject an incompatible compacted history with
+  explicit recovery guidance rather than pretending to initialize a new empty cloud workspace.
+- Cloud account deletion must fence future registration/operations, not only enumerate an eventually
+  consistent KV marker list. Use the account backup authority's durable inventory/admission fence plus
+  a permanent deleted state in each registered sync coordinator. Delete/admit races must be resolved
+  durably. Backup recovery and live-sync revocation are distinct: revocation cannot erase already
+  downloaded data or make an old backup code unknown to a lost device; copy must say this honestly.
+- Four to six focused integration cases: durable local commit/outbox, crossed two-device edits and
+  explicit resolution, lost upload response/restart/replay, key approval/revocation, and deletion race.
+  Test actual adapters/core execution functions, not another readiness-assessment model. Relevant
+  service/mobile no-emit only; no build/device/deploy until controller review.
 
 Financial-action checkpoint: controller reviewed Luna's implementation and corrected reentrant
 confirmation, penny arithmetic, refund edits exceeding their original, false successful Undo,
