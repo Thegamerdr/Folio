@@ -1050,6 +1050,8 @@ export type OpenBankingSyncResponse = Readonly<{
   pending: boolean;
   moreAvailable: boolean;
   directLedgerWrites: false;
+  deliveryId?: string;
+  connectionRevision?: number;
 }>;
 
 export type BankReviewQueueInput = Readonly<{
@@ -1100,6 +1102,18 @@ export function parseOpenBankingSyncResponse(value: unknown): OpenBankingSyncRes
   }
   const candidates = rawCandidates.map(parseRuntimeCandidate);
   if (candidates.some((candidate) => candidate === null)) return null;
+  const deliveryId = value['deliveryId'];
+  const connectionRevision = value['connectionRevision'];
+  if (
+    deliveryId !== undefined &&
+    (typeof deliveryId !== 'string' || deliveryId.length === 0 || deliveryId.length > 128)
+  )
+    return null;
+  if (
+    connectionRevision !== undefined &&
+    (!Number.isSafeInteger(connectionRevision) || connectionRevision < 1)
+  )
+    return null;
   return {
     connection,
     candidates: candidates.filter(
@@ -1108,6 +1122,8 @@ export function parseOpenBankingSyncResponse(value: unknown): OpenBankingSyncRes
     pending: value['pending'],
     moreAvailable: value['moreAvailable'],
     directLedgerWrites: false,
+    ...(deliveryId === undefined ? {} : { deliveryId }),
+    ...(connectionRevision === undefined ? {} : { connectionRevision }),
   };
 }
 

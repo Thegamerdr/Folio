@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { openJson, sealJson, storageUserId } from './crypto';
-import { handleAuthenticatedRequest, handleCallback, handleRequest } from './index';
+import { handleAuthenticatedRequest, handleCallback, handleRequest, syncConnection } from './index';
 import type { OpenBankingStore, ProviderGateway, RuntimeEnv, TransactionsPage } from './types';
 
 const USER_HASH = 'a'.repeat(64);
@@ -599,5 +599,144 @@ describe('Melo Open Banking service', () => {
       pendingCallbackMetadataExpiresWithinSeconds: 1200,
     });
     expect([...values.keys()].some((key) => key.startsWith(`users/${USER_HASH}/`))).toBe(false);
+  });
+
+  it('splits bounded pages and resumes the next account without creating a duplicate provider job', async () => {
+    const { store } = memoryStore();
+    const connectionId = '12345678-1234-4234-8234-123456789abc';
+    const secret = {
+      providerConnectionId: 'provider-connection',
+      accounts: [
+        { accountRef: 'account-1', providerAccountId: 'provider-account-1' },
+        { accountRef: 'account-2', providerAccountId: 'provider-account-2' },
+      ],
+    };
+    const record = {
+      v: 2 as const,
+      workspaceRef: WORKSPACE_A_REF,
+      id: connectionId,
+      provider: 'truelayer-data-v3' as const,
+      status: 'active' as const,
+      scopes: ['accounts', 'transactions'] as const,
+      createdAt: '2026-09-05T12:00:00.000Z',
+      callbackAt: null,
+      grantedAt: '2026-09-05T12:00:00.000Z',
+      expiresAt: '2026-12-04T12:00:00.000Z',
+      disconnectedAt: null,
+      lastSuccessfulRefreshAt: null,
+      lastErrorCode: null,
+      accounts: [
+        {
+          accountRef: 'account-1',
+          label: 'Current',
+          currency: 'GBP' as const,
+          kind: 'personal' as const,
+          accountType: 'current' as const,
+          lastSuccessfulRefreshAt: null,
+        },
+        {
+          accountRef: 'account-2',
+          label: 'Current 2',
+          currency: 'GBP' as const,
+          kind: 'personal' as const,
+          accountType: 'current' as const,
+          lastSuccessfulRefreshAt: null,
+        },
+      ],
+      sealedProvider: await sealJson(
+        secret,
+        KEY,
+        `melo.open-banking.v2:${USER_HASH}:${WORKSPACE_A_REF}:${connectionId}`,
+      ),
+    };
+    let firstAccountReads = 0;
+    let secondAccountReads = 0;
+    const provider: ProviderGateway = {
+      ...fakeProvider(),
+      listAccounts: async () => [
+        {
+          id: 'provider-account-1',
+          type: 'account',
+          accountType: 'current',
+          customerSegment: 'retail',
+          currency: 'GBP',
+        },
+        {
+          id: 'provider-account-2',
+          type: 'account',
+          accountType: 'current',
+          customerSegment: 'retail',
+          currency: 'GBP',
+        },
+      ],
+      createTransactionsRequest: async (_connection, account) => ({
+        requestId: account === 'provider-account-1' ? 'request-1' : 'request-2',
+      }),
+      getTransactionsRequest: async (_connection, account, requestId) => {
+        if (account === 'provider-account-1') {
+          firstAccountReads += 1;
+          return {
+            status: 'completed',
+            requestId,
+            items: Array.from({ length: 500 }, (_, index) => ({
+              id: `t-${index}`,
+              timestamp: '2026-09-05T10:00:00.000Z',
+              description: 'Synthetic',
+              currency: 'GBP',
+              amountInMinor: -1,
+              status: 'settled' as const,
+            })),
+            nextCursor: null,
+          };
+        }
+        secondAccountReads += 1;
+        return {
+          status: 'completed',
+          requestId,
+          items: [
+            {
+              id: 't-501',
+              timestamp: '2026-09-05T10:00:00.000Z',
+              description: 'Synthetic',
+              currency: 'GBP',
+              amountInMinor: -2,
+              status: 'settled' as const,
+            },
+          ],
+          nextCursor: null,
+        };
+      },
+    };
+    const first = await syncConnection(
+      store,
+      provider,
+      env,
+      USER_HASH,
+      WORKSPACE_A_REF,
+      record,
+      undefined,
+      false,
+    );
+    expect(first.payload).toMatchObject({ moreAvailable: true });
+    expect((first.payload as { candidates: unknown[] }).candidates).toHaveLength(500);
+    const nextSecret = await openJson<typeof secret & { sweepAccountIndex?: number }>(
+      first.nextRecord.sealedProvider!,
+      KEY,
+      `melo.open-banking.v2:${USER_HASH}:${WORKSPACE_A_REF}:${connectionId}`,
+    );
+    expect(nextSecret.sweepAccountIndex).toBe(1);
+    const second = await syncConnection(
+      store,
+      provider,
+      env,
+      USER_HASH,
+      WORKSPACE_A_REF,
+      first.nextRecord,
+      undefined,
+      false,
+    );
+    expect((second.payload as { candidates: unknown[] }).candidates).toHaveLength(1);
+    expect(firstAccountReads).toBe(1);
+    expect(secondAccountReads).toBe(1);
   });
 });

@@ -1,4 +1,5 @@
 import * as WebBrowser from 'expo-web-browser';
+import { fetch as nativeFetch } from 'expo/fetch';
 
 import {
   parseOpenBankingConnectionsResponse,
@@ -35,6 +36,12 @@ export class OpenBankingClientError extends Error {
     this.status = status;
   }
 }
+
+export type DurableOpenBankingSyncResponse = OpenBankingSyncResponse &
+  Readonly<{
+    deliveryId: string;
+    connectionRevision: number;
+  }>;
 
 export async function fetchOpenBankingConnections(
   token: string,
@@ -94,7 +101,7 @@ export async function syncOpenBankingConnection(
   token: string,
   workspaceId: WorkspaceId,
   connectionId: string,
-): Promise<OpenBankingSyncResponse> {
+): Promise<DurableOpenBankingSyncResponse> {
   const payload = await requestJson(
     `/v1/connections/${encodeURIComponent(connectionId)}/sync`,
     token,
@@ -105,7 +112,33 @@ export async function syncOpenBankingConnection(
   );
   const parsed = parseOpenBankingSyncResponse(payload);
   if (parsed === null) throw invalidResponse();
-  return parsed;
+  const raw = record(payload) ? payload : {};
+  const deliveryId = raw['deliveryId'];
+  const connectionRevision = raw['connectionRevision'];
+  if (typeof deliveryId !== 'string' || !Number.isSafeInteger(connectionRevision)) {
+    throw invalidResponse();
+  }
+  return { ...parsed, deliveryId, connectionRevision } as DurableOpenBankingSyncResponse;
+}
+
+export async function acknowledgeOpenBankingBatch(
+  token: string,
+  workspaceId: WorkspaceId,
+  connectionId: string,
+  deliveryId: string,
+  connectionRevision: number,
+): Promise<void> {
+  const payload = await requestJson(
+    `/v1/connections/${encodeURIComponent(connectionId)}/ack`,
+    token,
+    workspaceId,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deliveryId, revision: connectionRevision }),
+    },
+  );
+  if (!record(payload) || payload['ok'] !== true) throw invalidResponse();
 }
 
 export async function disconnectOpenBankingConnection(
@@ -178,7 +211,7 @@ async function requestJson(
   path: string,
   token: string,
   workspaceId: WorkspaceId | null,
-  init: RequestInit,
+  init: Readonly<{ method: string; headers?: Readonly<Record<string, string>>; body?: string }>,
 ): Promise<unknown> {
   if (token.trim().length === 0) {
     throw new OpenBankingClientError('Sign in again to use bank connection.', 'unauthorized', 401);
@@ -193,7 +226,7 @@ async function requestJson(
       headers.set('X-Melo-Workspace-Ref', workspaceBackupRef(workspaceId));
     }
     const accountDeletion = init.method === 'DELETE' && path === '/v1/account';
-    const response = await fetch(`${baseUrl(accountDeletion)}${path}`, {
+    const response = await nativeFetch(`${baseUrl(accountDeletion)}${path}`, {
       ...init,
       headers,
       signal: controller.signal,
@@ -230,7 +263,31 @@ async function requestJson(
 }
 
 async function readPayload(response: Response): Promise<unknown> {
-  const text = await response.text();
+  if (response.body === null) return {};
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      total += part.value.byteLength;
+      if (total > 1024 * 1024) {
+        await reader.cancel();
+        throw invalidResponse();
+      }
+      chunks.push(part.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const text = new TextDecoder().decode(bytes);
   if (text.length === 0) return {};
   try {
     return JSON.parse(text) as unknown;

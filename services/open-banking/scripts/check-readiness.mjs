@@ -52,6 +52,11 @@ check(
   'OPEN_BANKING KV binding is configured',
 );
 check(
+  Array.isArray(config.durable_objects?.bindings) &&
+    config.durable_objects.bindings.some((binding) => binding?.name === 'BANKING_WORKSPACE'),
+  'BANKING_WORKSPACE SQLite Durable Object binding is configured',
+);
+check(
   requireEnabled ? vars.OPEN_BANKING_ENABLED === 'true' : vars.OPEN_BANKING_ENABLED === 'false',
   requireEnabled
     ? 'Worker release gate is explicitly enabled'

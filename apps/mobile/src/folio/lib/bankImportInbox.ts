@@ -12,7 +12,7 @@ export type BankImportBatch = Readonly<{
 }>;
 
 const MAX_BATCHES = 24;
-const MAX_CANDIDATES_PER_BATCH = 5000;
+const MAX_CANDIDATES_PER_BATCH = 500;
 const MAX_INBOX_BYTES = 1024 * 1024;
 const BATCH_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
@@ -27,6 +27,17 @@ export function parseBankImportInbox(value: unknown, workspaceId: WorkspaceId): 
       throw new Error('Bank receipt is invalid.');
     const row = candidate as Record<string, unknown>;
     const sync = parseOpenBankingSyncResponse(row['sync']);
+    const rawSync = row['sync'];
+    const rawSyncRecord =
+      typeof rawSync === 'object' && rawSync !== null && !Array.isArray(rawSync)
+        ? (rawSync as Record<string, unknown>)
+        : null;
+    const deliveryId = rawSyncRecord?.['deliveryId'];
+    const connectionRevision = rawSyncRecord?.['connectionRevision'];
+    const durableSync =
+      sync !== null && typeof deliveryId === 'string' && Number.isSafeInteger(connectionRevision)
+        ? ({ ...sync, deliveryId, connectionRevision } as OpenBankingSyncResponse)
+        : sync;
     const mappings = row['accountMappings'];
     if (
       typeof row['id'] !== 'string' ||
@@ -35,8 +46,8 @@ export function parseBankImportInbox(value: unknown, workspaceId: WorkspaceId): 
       row['workspaceId'] !== workspaceId ||
       typeof row['receivedAt'] !== 'string' ||
       !Number.isFinite(Date.parse(row['receivedAt'])) ||
-      sync === null ||
-      sync.candidates.length > MAX_CANDIDATES_PER_BATCH ||
+      durableSync === null ||
+      durableSync.candidates.length > MAX_CANDIDATES_PER_BATCH ||
       mappings === null ||
       typeof mappings !== 'object' ||
       Array.isArray(mappings) ||
@@ -46,10 +57,10 @@ export function parseBankImportInbox(value: unknown, workspaceId: WorkspaceId): 
     ) {
       throw new Error('Bank receipt does not match this workspace or its delivery contract.');
     }
-    const accounts = new Set(sync.connection.accounts.map((account) => account.accountRef));
+    const accounts = new Set(durableSync.connection.accounts.map((account) => account.accountRef));
     if (
-      sync.candidates.some(
-        (item) => item.connectionId !== sync.connection.id || !accounts.has(item.accountRef),
+      durableSync.candidates.some(
+        (item) => item.connectionId !== durableSync.connection.id || !accounts.has(item.accountRef),
       ) ||
       Object.keys(mappings).some((ref) => !accounts.has(ref))
     ) {
@@ -60,7 +71,7 @@ export function parseBankImportInbox(value: unknown, workspaceId: WorkspaceId): 
       id: row['id'],
       workspaceId,
       receivedAt: row['receivedAt'],
-      sync,
+      sync: durableSync,
       accountMappings: { ...mappings } as Record<string, string>,
     };
   });

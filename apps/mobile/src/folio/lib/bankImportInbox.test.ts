@@ -133,4 +133,18 @@ describe('durable unreviewed bank inbox', () => {
     expect(getState().bankImportInbox).toHaveLength(1);
     expect(getState().transactions).toHaveLength(0);
   });
+
+  it('rejects a provider receipt above the 500-candidate delivery contract', () => {
+    const base = receipt();
+    const candidates = Array.from({ length: 501 }, (_, index) => ({
+      ...base.sync.candidates[0],
+      externalId: `provider-transaction-${index}`,
+    }));
+    expect(() =>
+      parseBankImportInbox(
+        [{ ...base, sync: { ...base.sync, candidates } }],
+        PERSONAL_WORKSPACE_ID,
+      ),
+    ).toThrow(/delivery contract|receipt/i);
+  });
 });

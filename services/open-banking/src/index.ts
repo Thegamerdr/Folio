@@ -9,6 +9,7 @@ import {
   storageWorkspaceId,
 } from './crypto';
 import { ProviderError, trueLayerGateway } from './truelayer';
+export { BankingWorkspaceDurableObject } from './banking-workspace';
 import type {
   OpenBankingStore,
   ProviderAccountSecret,
@@ -24,6 +25,8 @@ const STATE_TTL_SECONDS = 20 * 60;
 const FIRST_SYNC_DAYS = 90;
 const REFRESH_OVERLAP_DAYS = 3;
 const MAX_ACCOUNTS_PER_CONNECTION = 12;
+const MAX_RECEIPT_CANDIDATES = 500;
+const MAX_RECEIPT_BYTES = 512 * 1024;
 const MAX_PROVIDER_DESCRIPTION = 180;
 const WORKSPACE_REF_HEADER = 'X-Melo-Workspace-Ref';
 const WORKSPACE_REF_PATTERN = /^[a-f0-9]{64}$/u;
@@ -42,6 +45,14 @@ export default {
     const store = kvStore(env.OPEN_BANKING);
     const provider = trueLayerGateway(env as RuntimeEnv);
     try {
+      if (env.BANKING_WORKSPACE === undefined && new URL(request.url).pathname !== '/health') {
+        return json(
+          { error: 'Bank authority is not configured.', code: 'service_not_configured' },
+          503,
+          request,
+          env,
+        );
+      }
       return await handleRequest(request, store, provider, env as RuntimeEnv, async () =>
         authenticate(request, env),
       );
@@ -155,6 +166,30 @@ export async function handleAuthenticatedRequest(
 ): Promise<Response> {
   const url = new URL(request.url);
   if (request.method === 'DELETE' && url.pathname === '/v1/account') {
+    if (env.BANKING_WORKSPACE !== undefined) {
+      const response = await authorityRequest(env, userHash, '/internal/account', {
+        method: 'DELETE',
+      });
+      const payload = (await response.json()) as Record<string, unknown>;
+      if (!response.ok) throw new ProviderError('account_delete_failed', response.status);
+      const legacyDeleted = await deleteAccountConnections(store, userHash);
+      return json(
+        {
+          ok: true,
+          deletedConnections:
+            (typeof payload['deletedConnections'] === 'number'
+              ? payload['deletedConnections']
+              : 0) + legacyDeleted,
+          futureAccessStopped: true,
+          providerSecretsDeleted: true,
+          providerRevocationSupported: false,
+          pendingCallbackMetadataExpiresWithinSeconds: STATE_TTL_SECONDS,
+        },
+        200,
+        request,
+        env,
+      );
+    }
     const deleted = await deleteAccountConnections(store, userHash);
     return json(
       {
@@ -179,6 +214,9 @@ export async function handleAuthenticatedRequest(
       request,
       env,
     );
+  }
+  if (env.BANKING_WORKSPACE !== undefined) {
+    return handleDurableAuthenticatedRequest(request, store, provider, env, userHash, scope);
   }
   if (request.method === 'GET' && url.pathname === '/v1/connections') {
     const records = await listConnections(store, userHash, scope);
@@ -351,10 +389,397 @@ export async function handleAuthenticatedRequest(
   return json({ error: 'Route not found.', code: 'not_found' }, 404, request, env);
 }
 
+async function handleDurableAuthenticatedRequest(
+  request: Request,
+  store: OpenBankingStore,
+  provider: ProviderGateway,
+  env: RuntimeEnv,
+  userHash: string,
+  scope: WorkspaceScope,
+): Promise<Response> {
+  const url = new URL(request.url);
+  await adoptLegacyConnections(store, env, userHash, scope);
+  if (request.method === 'GET' && url.pathname === '/v1/connections') {
+    const response = await authorityRequest(
+      env,
+      userHash,
+      `/internal/connections?workspaceRef=${encodeURIComponent(scope.workspaceRef)}`,
+      { method: 'GET' },
+    );
+    if (!response.ok) throw new ProviderError('authority_unavailable', response.status);
+    const payload = (await response.json()) as Record<string, unknown>;
+    const rows = Array.isArray(payload['connections']) ? payload['connections'] : [];
+    return json(
+      {
+        providerConfigured: provider.configured,
+        connections: rows
+          .map((row) => {
+            const value = row as Record<string, unknown>;
+            return isStoredConnection(value['record']) ? publicConnection(value['record']) : null;
+          })
+          .filter((value): value is PublicConnection => value !== null),
+      },
+      200,
+      request,
+      env,
+    );
+  }
+  if (request.method === 'POST' && url.pathname === '/v1/connections') {
+    if (!provider.configured) throw new ProviderError('provider_not_configured', 503);
+    const body = await safeJsonBody(request, 4096);
+    const displayName = validDisplayName(body['displayName']);
+    const email = validEmail(body['email']);
+    if (displayName === null || email === null)
+      return json(
+        {
+          error: 'Enter your full name and signed-in email before continuing to the bank.',
+          code: 'invalid_profile',
+        },
+        400,
+        request,
+        env,
+      );
+    const encryptionKey = requiredEncryptionKey(env);
+    const localConnectionId = crypto.randomUUID();
+    const state = randomState();
+    const returnUri = `${trimSlash(env.PUBLIC_BASE_URL)}/v1/callback?state=${encodeURIComponent(state)}`;
+    const created = await provider.createConnection({
+      displayName,
+      email,
+      returnUri,
+      localConnectionId,
+      ...(clientIp(request) === undefined ? {} : { endUserIp: clientIp(request) }),
+    });
+    const now = new Date().toISOString();
+    const record: StoredConnection = {
+      v: 2,
+      workspaceRef: scope.workspaceRef,
+      id: localConnectionId,
+      provider: 'truelayer-data-v3',
+      status: 'pending_redirect',
+      scopes: ['accounts', 'transactions'],
+      createdAt: now,
+      callbackAt: null,
+      grantedAt: null,
+      expiresAt: null,
+      disconnectedAt: null,
+      lastSuccessfulRefreshAt: null,
+      lastErrorCode: null,
+      accounts: [],
+      sealedProvider: await sealJson(
+        {
+          providerConnectionId: created.providerConnectionId,
+          accounts: [],
+        } satisfies ProviderSecret,
+        encryptionKey,
+        providerSecretBinding(userHash, scope.workspaceRef, localConnectionId),
+      ),
+    };
+    const committed = await authorityRequest(env, userHash, '/internal/connection', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workspaceRef: scope.workspaceRef, id: localConnectionId, record }),
+    });
+    if (!committed.ok) throw new ProviderError('connection_commit_failed', committed.status);
+    await store.put(
+      stateKey(state),
+      JSON.stringify({
+        v: 2,
+        userHash,
+        workspaceRef: scope.workspaceRef,
+        localConnectionId,
+        createdAt: now,
+      }),
+      { expirationTtl: STATE_TTL_SECONDS },
+    );
+    return json(
+      {
+        connection: publicConnection(record),
+        authorizationUrl: created.authorizationUrl,
+        returnUri: env.APP_RETURN_URI,
+      },
+      201,
+      request,
+      env,
+    );
+  }
+  const route = connectionRoute(url.pathname);
+  if (route === null)
+    return json({ error: 'Route not found.', code: 'not_found' }, 404, request, env);
+  const currentResponse = await authorityRequest(
+    env,
+    userHash,
+    `/internal/connection/${encodeURIComponent(route.connectionId)}?workspaceRef=${encodeURIComponent(scope.workspaceRef)}`,
+    { method: 'GET' },
+  );
+  if (!currentResponse.ok)
+    return json({ error: 'Bank connection was not found.', code: 'not_found' }, 404, request, env);
+  const currentBody = (await currentResponse.json()) as Record<string, unknown>;
+  const currentRecord = currentBody['record'];
+  const revision = currentBody['revision'];
+  if (!isStoredConnection(currentRecord) || !Number.isSafeInteger(revision))
+    return json(
+      { error: 'Bank connection is unavailable.', code: 'authority_invalid' },
+      503,
+      request,
+      env,
+    );
+  if (request.method === 'POST' && route.action === 'ack') {
+    const body = await safeJsonBody(request, 4096);
+    const acknowledged = await authorityRequest(env, userHash, '/internal/connection/ack', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspaceRef: scope.workspaceRef,
+        id: route.connectionId,
+        deliveryId: body['deliveryId'],
+        revision: body['revision'],
+      }),
+    });
+    const payload = await acknowledged.json();
+    return json(payload, acknowledged.status, request, env);
+  }
+  if (request.method === 'POST' && route.action === 'sync') {
+    if (!provider.configured) throw new ProviderError('provider_not_configured', 503);
+    if (currentRecord.status === 'pending_redirect')
+      return json(
+        {
+          error: 'Finish the bank authorisation before refreshing.',
+          code: 'authorization_pending',
+        },
+        409,
+        request,
+        env,
+      );
+    if (currentRecord.status === 'disconnected' || currentRecord.sealedProvider === null)
+      return json(
+        {
+          error: 'This connection is disconnected. Connect the bank again to refresh.',
+          code: 'disconnected',
+        },
+        409,
+        request,
+        env,
+      );
+    const claimed = await authorityRequest(env, userHash, '/internal/connection/claim', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workspaceRef: scope.workspaceRef, id: route.connectionId }),
+    });
+    const claimPayload = (await claimed.json()) as Record<string, unknown>;
+    if (!claimed.ok) return json(claimPayload, claimed.status, request, env);
+    if (isRecord(claimPayload['receipt'])) {
+      const receipt = claimPayload['receipt'] as Record<string, unknown>;
+      const sealed = receipt['payload'];
+      if (typeof sealed !== 'string') throw new ProviderError('authority_invalid', 503);
+      const opened = await openJson<{ payload: unknown }>(
+        JSON.parse(sealed) as NonNullable<StoredConnection['sealedProvider']>,
+        requiredEncryptionKey(env),
+        receiptBinding(
+          userHash,
+          scope.workspaceRef,
+          route.connectionId,
+          String(receipt['deliveryId']),
+        ),
+      );
+      return json(opened.payload, 200, request, env);
+    }
+    const claimedRecord = claimPayload['record'];
+    const expectedRevision = claimPayload['revision'];
+    const leaseToken = claimPayload['leaseToken'];
+    if (
+      !isStoredConnection(claimedRecord) ||
+      !Number.isSafeInteger(expectedRevision) ||
+      typeof leaseToken !== 'string'
+    )
+      throw new ProviderError('authority_invalid', 503);
+    const expected = expectedRevision as number;
+    let result: Awaited<ReturnType<typeof syncConnection>>;
+    try {
+      result = await syncConnection(
+        store,
+        provider,
+        env,
+        userHash,
+        scope.workspaceRef,
+        claimedRecord,
+        clientIp(request),
+        false,
+      );
+    } catch (reason: unknown) {
+      const code = reason instanceof ProviderError ? reason.code : 'provider_error';
+      await authorityRequest(env, userHash, '/internal/connection/release', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceRef: scope.workspaceRef,
+          id: route.connectionId,
+          expectedRevision: expected,
+          leaseToken,
+          record: { ...claimedRecord, status: 'error', lastErrorCode: code },
+        }),
+      }).catch(() => undefined);
+      throw reason;
+    }
+    const deliveryId = await stablePublicId(
+      `${route.connectionId}:${expected}:${JSON.stringify(result.payload)}`,
+    );
+    const payload = {
+      ...(result.payload as Record<string, unknown>),
+      deliveryId,
+      connectionRevision: expected + 1,
+    };
+    const sealedPayload =
+      result.status === 202 && (payload as { candidates?: unknown[] }).candidates?.length === 0
+        ? ''
+        : JSON.stringify(
+            await sealJson(
+              { payload },
+              requiredEncryptionKey(env),
+              receiptBinding(userHash, scope.workspaceRef, route.connectionId, deliveryId),
+            ),
+          );
+    if (sealedPayload.length > MAX_RECEIPT_BYTES) throw new ProviderError('receipt_too_large', 413);
+    const committed = await authorityRequest(env, userHash, '/internal/connection/commit', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspaceRef: scope.workspaceRef,
+        id: route.connectionId,
+        expectedRevision: expected,
+        leaseToken,
+        deliveryId,
+        record: result.nextRecord,
+        sealedPayload,
+      }),
+    });
+    const committedPayload = (await committed.json()) as Record<string, unknown>;
+    if (!committed.ok) return json(committedPayload, committed.status, request, env);
+    const committedReceipt = committedPayload['receipt'];
+    if (isRecord(committedReceipt) && typeof committedReceipt['payload'] === 'string') {
+      const opened = await openJson<{ payload: unknown }>(
+        JSON.parse(committedReceipt['payload'] as string) as NonNullable<
+          StoredConnection['sealedProvider']
+        >,
+        requiredEncryptionKey(env),
+        receiptBinding(
+          userHash,
+          scope.workspaceRef,
+          route.connectionId,
+          String(committedReceipt['deliveryId']),
+        ),
+      );
+      return json(opened.payload, result.status, request, env);
+    }
+    return json(payload, result.status, request, env);
+  }
+  if (request.method === 'DELETE' && route.action === null) {
+    const now = new Date().toISOString();
+    const disconnected = {
+      ...currentRecord,
+      status: 'disconnected' as const,
+      disconnectedAt: now,
+      lastErrorCode: null,
+      sealedProvider: null,
+    };
+    const response = await authorityRequest(env, userHash, '/internal/connection', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspaceRef: scope.workspaceRef,
+        id: route.connectionId,
+        expectedRevision: revision,
+        record: disconnected,
+      }),
+    });
+    if (!response.ok)
+      return json(
+        { error: 'Bank connection could not be disconnected.', code: 'disconnect_failed' },
+        response.status,
+        request,
+        env,
+      );
+    return json(
+      {
+        connection: publicConnection(disconnected),
+        futureAccessStopped: true,
+        providerRevocationSupported: false,
+        localHistoryChanged: false,
+      },
+      200,
+      request,
+      env,
+    );
+  }
+  return json({ error: 'Route not found.', code: 'not_found' }, 404, request, env);
+}
+
+/** One-time, read-only adoption of pre-DO records. Once the authoritative write succeeds the
+ * legacy key is removed; no production route ever writes the legacy format again. */
+async function adoptLegacyConnections(
+  store: OpenBankingStore,
+  env: RuntimeEnv,
+  userHash: string,
+  scope: WorkspaceScope,
+): Promise<void> {
+  if (env.BANKING_WORKSPACE === undefined) return;
+  const keys = await store.list(userPrefix(userHash));
+  const adopted: string[] = [];
+  for (const key of keys) {
+    const match = /\/connections\/([0-9a-f-]{36})$/iu.exec(key);
+    if (match?.[1] === undefined) continue;
+    const raw = await store.get(key);
+    if (raw === null) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch {
+      continue;
+    }
+    const legacy = isStoredConnection(parsed)
+      ? parsed
+      : scope.allowLegacyPersonal && isLegacyStoredConnection(parsed)
+        ? migrateLegacyConnection(parsed, scope.workspaceRef)
+        : null;
+    if (legacy === null || legacy.workspaceRef !== scope.workspaceRef) continue;
+    const committed = await authorityRequest(env, userHash, '/internal/connection', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workspaceRef: scope.workspaceRef, id: legacy.id, record: legacy }),
+    });
+    if (committed.ok || committed.status === 409) adopted.push(key);
+  }
+  if (adopted.length > 0) await Promise.all(adopted.map((key) => store.delete(key)));
+  const indexKeys = keys.filter(
+    (key) => /\/connections-index$/u.test(key) || /\/index$/u.test(key),
+  );
+  if (indexKeys.length > 0) await Promise.all(indexKeys.map((key) => store.delete(key)));
+}
+
+function receiptBinding(
+  userHash: string,
+  workspaceRef: string,
+  connectionId: string,
+  deliveryId: string,
+): string {
+  return `melo.open-banking.receipt.v1:${userHash}:${workspaceRef}:${connectionId}:${deliveryId}`;
+}
+
+async function authorityRequest(
+  env: Pick<RuntimeEnv, 'BANKING_WORKSPACE'>,
+  userHash: string,
+  path: string,
+  init: RequestInit,
+): Promise<Response> {
+  if (env.BANKING_WORKSPACE === undefined) throw new Error('Bank authority is not configured.');
+  const stub = env.BANKING_WORKSPACE.get(env.BANKING_WORKSPACE.idFromName(userHash));
+  return stub.fetch(new Request(`https://bank-authority${path}`, init));
+}
+
 export async function handleCallback(
   request: Request,
   store: OpenBankingStore,
-  env: Pick<RuntimeEnv, 'APP_RETURN_URI' | 'ALLOWED_ORIGINS'>,
+  env: Pick<RuntimeEnv, 'APP_RETURN_URI' | 'ALLOWED_ORIGINS' | 'BANKING_WORKSPACE'>,
 ): Promise<Response> {
   const url = new URL(request.url);
   const state = url.searchParams.get('state')?.trim() ?? '';
@@ -372,6 +797,62 @@ export async function handleCallback(
     workspaceRef: callbackState.workspaceRef,
     allowLegacyPersonal: callbackState.legacyPersonal,
   };
+  if (env.BANKING_WORKSPACE !== undefined) {
+    const current = await authorityRequest(
+      env,
+      callbackState.userHash,
+      `/internal/connection/${encodeURIComponent(callbackState.localConnectionId)}?workspaceRef=${encodeURIComponent(scope.workspaceRef)}`,
+      { method: 'GET' },
+    );
+    if (current.status === 404 || current.status === 410)
+      return redirectToApp(env.APP_RETURN_URI, { status: 'missing' });
+    const currentBody = (await current.json()) as Record<string, unknown>;
+    const currentRecord = currentBody['record'];
+    if (!isStoredConnection(currentRecord))
+      return redirectToApp(env.APP_RETURN_URI, { status: 'missing' });
+    if (currentRecord.status === 'disconnected')
+      return redirectToApp(env.APP_RETURN_URI, {
+        status: 'disconnected',
+        connection: currentRecord.id,
+      });
+    const returnedError = url.searchParams.get('error');
+    const now = new Date().toISOString();
+    const next: StoredConnection = returnedError
+      ? {
+          ...currentRecord,
+          status: 'error',
+          callbackAt: now,
+          lastErrorCode: 'authorization_failed',
+        }
+      : {
+          ...currentRecord,
+          status: 'pending_sync',
+          callbackAt: now,
+          grantedAt: now,
+          expiresAt: addDays(now, 90),
+          lastErrorCode: null,
+        };
+    const committed = await authorityRequest(
+      env,
+      callbackState.userHash,
+      '/internal/connection/callback',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          workspaceRef: scope.workspaceRef,
+          id: currentRecord.id,
+          expectedRevision: currentBody['revision'],
+          record: next,
+        }),
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+    if (!committed.ok) return redirectToApp(env.APP_RETURN_URI, { status: 'missing' });
+    return redirectToApp(env.APP_RETURN_URI, {
+      status: returnedError ? 'error' : 'connected',
+      connection: currentRecord.id,
+    });
+  }
   const record = await getOwnedConnection(
     store,
     callbackState.userHash,
@@ -401,7 +882,7 @@ export async function handleCallback(
   });
 }
 
-async function syncConnection(
+export async function syncConnection(
   store: OpenBankingStore,
   provider: ProviderGateway,
   env: RuntimeEnv,
@@ -409,14 +890,18 @@ async function syncConnection(
   workspaceRef: string,
   record: StoredConnection,
   endUserIp?: string,
-): Promise<{ status: number; payload: unknown }> {
+  persist = true,
+): Promise<{ status: number; payload: unknown; nextRecord: StoredConnection }> {
   const encryptionKey = requiredEncryptionKey(env);
   const secret = await openJson<ProviderSecret>(
     record.sealedProvider as NonNullable<StoredConnection['sealedProvider']>,
     encryptionKey,
     providerSecretBinding(userHash, workspaceRef, record.id),
   );
-  const context = endUserIp === undefined ? undefined : { endUserIp };
+  const context = {
+    ...(endUserIp === undefined ? {} : { endUserIp }),
+    deadlineMs: Date.now() + 20_000,
+  };
   const providerAccounts = (
     await provider.listAccounts(secret.providerConnectionId, context)
   ).slice(0, MAX_ACCOUNTS_PER_CONNECTION);
@@ -434,8 +919,19 @@ async function syncConnection(
   let pending = false;
   let moreAvailable = false;
   let completedAnAccount = false;
+  let refreshError: string | null = null;
 
-  for (const providerAccount of reconciled.secret.accounts) {
+  const sweepStart = Math.max(
+    0,
+    Math.min(reconciled.secret.sweepAccountIndex ?? 0, reconciled.secret.accounts.length - 1),
+  );
+  for (
+    let accountIndex = sweepStart;
+    accountIndex < reconciled.secret.accounts.length;
+    accountIndex += 1
+  ) {
+    const providerAccount = reconciled.secret.accounts[accountIndex];
+    if (providerAccount === undefined) continue;
     const publicAccount = reconciled.publicByRef.get(providerAccount.accountRef);
     if (publicAccount === undefined) continue;
     const today = new Date().toISOString().slice(0, 10);
@@ -452,6 +948,11 @@ async function syncConnection(
     const to = providerAccount.rangeTo ?? today;
     providerAccount.rangeFrom = from;
     providerAccount.rangeTo = to;
+    if (candidates.length >= MAX_RECEIPT_CANDIDATES) {
+      moreAvailable = true;
+      reconciled.secret.sweepAccountIndex = accountIndex;
+      break;
+    }
     if (providerAccount.pendingRequestId === undefined) {
       const created = await provider.createTransactionsRequest(
         secret.providerConnectionId,
@@ -465,24 +966,45 @@ async function syncConnection(
       );
       providerAccount.pendingRequestId = created.requestId;
     }
-    const page = await pollTransactions(
-      provider,
-      secret.providerConnectionId,
-      providerAccount.providerAccountId,
-      providerAccount.pendingRequestId,
-      context,
-    );
+    // One account/page per request. Save a newly issued provider job even if its first
+    // read fails, so a retry resumes that exact job rather than issuing another one.
+    let page;
+    try {
+      page = await provider.getTransactionsRequest(
+        secret.providerConnectionId,
+        providerAccount.providerAccountId,
+        providerAccount.pendingRequestId,
+        context,
+      );
+    } catch (reason: unknown) {
+      pending = true;
+      refreshError = reason instanceof ProviderError ? reason.code : 'provider_unavailable';
+      reconciled.secret.sweepAccountIndex = accountIndex;
+      break;
+    }
     if (page.status === 'pending') {
       pending = true;
-      continue;
+      reconciled.secret.sweepAccountIndex = (accountIndex + 1) % reconciled.secret.accounts.length;
+      moreAvailable = reconciled.secret.accounts.length > 1;
+      break;
     }
     if (page.status === 'failed') {
-      throw new ProviderError(safeCode(page.reason), 502);
+      providerAccount.pendingRequestId = undefined;
+      providerAccount.pageOffset = undefined;
+      pending = true;
+      refreshError = safeCode(page.reason);
+      reconciled.secret.sweepAccountIndex = accountIndex;
+      break;
     }
-    providerAccount.pendingRequestId = undefined;
-    providerAccount.cursor = page.nextCursor ?? undefined;
-    moreAvailable ||= page.nextCursor !== null;
-    if (page.nextCursor === null) {
+    const pageOffset = providerAccount.pageOffset ?? 0;
+    const available = MAX_RECEIPT_CANDIDATES - candidates.length;
+    const pageItems = page.items.slice(pageOffset, pageOffset + available);
+    const consumedPage = pageOffset + pageItems.length >= page.items.length;
+    providerAccount.pageOffset = consumedPage ? undefined : pageOffset + pageItems.length;
+    providerAccount.pendingRequestId = consumedPage ? undefined : page.requestId;
+    if (consumedPage) providerAccount.cursor = page.nextCursor ?? undefined;
+    moreAvailable ||= !consumedPage || page.nextCursor !== null;
+    if (consumedPage && page.nextCursor === null) {
       providerAccount.rangeFrom = undefined;
       providerAccount.rangeTo = undefined;
       completedAnAccount = true;
@@ -492,7 +1014,7 @@ async function syncConnection(
         lastSuccessfulRefreshAt: refreshedAt,
       });
     }
-    for (const item of page.items) {
+    for (const item of pageItems) {
       candidates.push({
         externalId: `bank-${await stablePublicId(`${record.id}:${providerAccount.accountRef}:${item.id}`)}`,
         connectionId: record.id,
@@ -504,6 +1026,14 @@ async function syncConnection(
         description: boundedDescription(item.description),
       });
     }
+    if (!consumedPage || page.nextCursor !== null) {
+      reconciled.secret.sweepAccountIndex = accountIndex;
+    } else {
+      reconciled.secret.sweepAccountIndex =
+        accountIndex + 1 < reconciled.secret.accounts.length ? accountIndex + 1 : undefined;
+    }
+    moreAvailable ||= accountIndex + 1 < reconciled.secret.accounts.length;
+    break;
   }
 
   const refreshedAt = completedAnAccount
@@ -515,7 +1045,7 @@ async function syncConnection(
     grantedAt: record.grantedAt ?? new Date().toISOString(),
     expiresAt: record.expiresAt ?? addDays(new Date().toISOString(), 90),
     lastSuccessfulRefreshAt: refreshedAt,
-    lastErrorCode: null,
+    lastErrorCode: refreshError,
     accounts: [...reconciled.publicByRef.values()],
     sealedProvider: await sealJson(
       reconciled.secret,
@@ -523,7 +1053,7 @@ async function syncConnection(
       providerSecretBinding(userHash, workspaceRef, record.id),
     ),
   };
-  await putConnection(store, userHash, workspaceRef, nextRecord);
+  if (persist) await putConnection(store, userHash, workspaceRef, nextRecord);
   return {
     status: candidates.length === 0 && pending ? 202 : 200,
     payload: {
@@ -533,6 +1063,7 @@ async function syncConnection(
       moreAvailable,
       directLedgerWrites: false,
     },
+    nextRecord,
   };
 }
 
@@ -579,6 +1110,9 @@ async function reconcileAccounts(
       ...(previousSecret?.pendingRequestId !== undefined
         ? { pendingRequestId: previousSecret.pendingRequestId }
         : {}),
+      ...(previousSecret?.pageOffset !== undefined
+        ? { pageOffset: previousSecret.pageOffset }
+        : {}),
     });
     publicByRef.set(accountRef, {
       accountRef,
@@ -590,36 +1124,15 @@ async function reconcileAccounts(
     });
   }
   return {
-    secret: { providerConnectionId: secret.providerConnectionId, accounts: nextSecrets },
+    secret: {
+      providerConnectionId: secret.providerConnectionId,
+      accounts: nextSecrets,
+      ...(secret.sweepAccountIndex === undefined
+        ? {}
+        : { sweepAccountIndex: secret.sweepAccountIndex }),
+    },
     publicByRef,
   };
-}
-
-async function pollTransactions(
-  provider: ProviderGateway,
-  providerConnectionId: string,
-  providerAccountId: string,
-  requestId: string,
-  context?: Readonly<{ endUserIp?: string }>,
-) {
-  const delays = [0, 250, 500, 1000, 1500] as const;
-  let result = await provider.getTransactionsRequest(
-    providerConnectionId,
-    providerAccountId,
-    requestId,
-    context,
-  );
-  for (const delayMs of delays.slice(1)) {
-    if (result.status !== 'pending') return result;
-    await delay(delayMs);
-    result = await provider.getTransactionsRequest(
-      providerConnectionId,
-      providerAccountId,
-      requestId,
-      context,
-    );
-  }
-  return result;
 }
 
 async function authenticate(request: Request, env: Env): Promise<string> {
@@ -871,10 +1384,15 @@ function publicConnection(record: StoredConnection): PublicConnection {
   };
 }
 
-function connectionRoute(pathname: string): { connectionId: string; action: 'sync' | null } | null {
-  const match = /^\/v1\/connections\/([0-9a-f-]{36})(?:\/(sync))?$/u.exec(pathname);
+function connectionRoute(
+  pathname: string,
+): { connectionId: string; action: 'sync' | 'ack' | null } | null {
+  const match = /^\/v1\/connections\/([0-9a-f-]{36})(?:\/(sync|ack))?$/u.exec(pathname);
   if (match === null || match[1] === undefined) return null;
-  return { connectionId: match[1], action: match[2] === 'sync' ? 'sync' : null };
+  return {
+    connectionId: match[1],
+    action: match[2] === 'sync' ? 'sync' : match[2] === 'ack' ? 'ack' : null,
+  };
 }
 
 async function parseCallbackState(raw: string | null): Promise<{
@@ -1148,10 +1666,6 @@ function commaList(value: string | undefined): string[] {
 
 function trimSlash(value: string): string {
   return value.replace(/\/+$/u, '');
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function preflight(request: Request, env: Pick<RuntimeEnv, 'ALLOWED_ORIGINS'>): Response {

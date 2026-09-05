@@ -36,7 +36,7 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
     isValidEncryptionKey(env.CONNECTION_ENCRYPTION_KEY) &&
     configurationValid;
 
-  const token = async (): Promise<string> => {
+  const token = async (deadlineMs?: number): Promise<string> => {
     if (!configured) throw new ProviderError('provider_not_configured', 503);
     const clientId = env.TRUELAYER_CLIENT_ID as string;
     if (
@@ -52,11 +52,15 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
       client_secret: env.TRUELAYER_CLIENT_SECRET as string,
       scope: 'data',
     });
-    const response = await timedFetch(`${bases!.authBase}/connect/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-    });
+    const response = await timedFetch(
+      `${bases!.authBase}/connect/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      },
+      deadlineMs,
+    );
     const payload = await readJson(response);
     if (!response.ok) throw providerError(response, payload);
     const accessToken = stringField(payload, 'access_token');
@@ -75,13 +79,14 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
     init: RequestInit = {},
     providerConnectionId?: string,
     endUserIp?: string,
+    deadlineMs?: number,
   ): Promise<{ response: Response; payload: unknown }> => {
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/json');
-    headers.set('Authorization', `Bearer ${await token()}`);
+    headers.set('Authorization', `Bearer ${await token(deadlineMs)}`);
     if (providerConnectionId !== undefined) headers.set('Connection-Id', providerConnectionId);
     if (endUserIp !== undefined) headers.set('Tl-User-IP', endUserIp);
-    const response = await timedFetch(`${bases!.apiBase}${path}`, { ...init, headers });
+    const response = await timedFetch(`${bases!.apiBase}${path}`, { ...init, headers }, deadlineMs);
     const payload = await readJson(response);
     if (!response.ok) throw providerError(response, payload);
     return { response, payload };
@@ -121,6 +126,7 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
         },
         undefined,
         input.endUserIp,
+        Date.now() + 20_000,
       );
       const providerConnectionId = stringField(payload, 'id');
       const rawAuthorizationUrl = nestedStringField(payload, ['hosted_page', 'uri']);
@@ -136,6 +142,7 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
         {},
         providerConnectionId,
         context?.endUserIp,
+        context?.deadlineMs,
       );
       const items = arrayField(payload, 'items');
       if (items === null) throw new ProviderError('invalid_provider_response', 502);
@@ -157,6 +164,7 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
         },
         providerConnectionId,
         context?.endUserIp,
+        context?.deadlineMs,
       );
       const requestId = stringField(payload, 'id');
       if (requestId === null) throw new ProviderError('invalid_provider_response', 502);
@@ -173,6 +181,7 @@ export function trueLayerGateway(env: RuntimeEnv): ProviderGateway {
         {},
         providerConnectionId,
         context?.endUserIp,
+        context?.deadlineMs,
       );
       const status = stringField(payload, 'status');
       if (status === 'pending') return { status, requestId };
@@ -269,13 +278,28 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-async function timedFetch(url: string, init: RequestInit): Promise<Response> {
+async function timedFetch(url: string, init: RequestInit, deadlineMs?: number): Promise<Response> {
+  const remaining = Math.min(
+    PROVIDER_TIMEOUT_MS,
+    (deadlineMs ?? Date.now() + PROVIDER_TIMEOUT_MS) - Date.now(),
+  );
+  if (remaining <= 0) throw new ProviderError('provider_timeout', 504);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), remaining);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    const response = await fetch(url, { ...init, redirect: 'manual', signal: controller.signal });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      throw new ProviderError('provider_redirect', 502);
+    }
+    const text = await readBoundedText(response, MAX_PROVIDER_RESPONSE_BYTES);
+    const headers = new Headers(response.headers);
+    headers.delete('content-length');
+    headers.delete('content-encoding');
+    return new Response(text || null, { status: response.status, headers });
   } catch (reason: unknown) {
     if (controller.signal.aborted) throw new ProviderError('provider_timeout', 504);
+    if (reason instanceof ProviderError) throw reason;
     throw new ProviderError('provider_unavailable', 502);
   } finally {
     clearTimeout(timeout);

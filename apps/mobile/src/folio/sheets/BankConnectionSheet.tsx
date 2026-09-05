@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 
@@ -8,16 +8,23 @@ import {
   type OpenBankingRuntimeConnection,
   type OpenBankingSyncResponse,
 } from '@folio/open-banking';
-
-import { gap, radius, serif, Sheet, Surface, useTheme } from '@/folio/theme';
 import {
-  DEFAULT_ACCOUNT_ID,
-  deleteBankImportedHistory,
-  enqueueReviewItems,
+  stageBankImportBatch,
+  setBankImportBatchMappings,
+  discardBankImportBatch,
+  getState,
   useAppStore,
 } from '@/folio/store';
+import { unsettledBankImportBatches, type BankImportBatch } from '@/folio/lib/bankImportInbox';
+import { isClerkConfigured } from '@/folio/lib/clerkAuth';
+import { isOpenBankingEnabled } from '@/folio/lib/openBankingConfig';
+
+import { gap, radius, serif, Sheet, Surface, useTheme } from '@/folio/theme';
+import { DEFAULT_ACCOUNT_ID, deleteBankImportedHistory, enqueueReviewItems } from '@/folio/store';
+import { persistCurrentStateNow } from '@/folio/lib/persist';
 import {
   disconnectOpenBankingConnection,
+  acknowledgeOpenBankingBatch,
   fetchOpenBankingConnections,
   openBankAuthorization,
   startOpenBankingConnection,
@@ -25,6 +32,7 @@ import {
 } from '@/folio/lib/openBankingNative';
 
 const TRUELAYER_LEGAL_URL = 'https://truelayer.com/legal/';
+const EMPTY_BANK_INBOX: readonly BankImportBatch[] = [];
 
 export type BankSourceSummary = Readonly<{
   providerConfigured: boolean | null;
@@ -40,32 +48,104 @@ export type BankConnectionSheetProps = Readonly<{
   onStatusChange?: (summary: BankSourceSummary) => void;
 }>;
 
-export function BankConnectionSheet({
+const NO_TOKEN = async () => null;
+type BankSheetAuth = Readonly<{
+  isSignedIn: boolean;
+  getToken: () => Promise<string | null>;
+  fullName: string;
+  email: string | undefined;
+}>;
+
+/** Local receipts remain usable even in a build without a ClerkProvider. */
+export function BankConnectionSheet(props: BankConnectionSheetProps) {
+  return isClerkConfigured() ? (
+    <AuthenticatedBankConnectionSheet {...props} />
+  ) : (
+    <BankConnectionContents
+      {...props}
+      isSignedIn={false}
+      getToken={NO_TOKEN}
+      fullName=""
+      email={undefined}
+    />
+  );
+}
+
+function AuthenticatedBankConnectionSheet(props: BankConnectionSheetProps) {
+  const { isSignedIn, user } = useUser();
+  const { getToken } = useAuth();
+  return (
+    <BankConnectionContents
+      {...props}
+      isSignedIn={isSignedIn === true}
+      getToken={getToken}
+      fullName={user?.fullName ?? ''}
+      email={user?.primaryEmailAddress?.emailAddress}
+    />
+  );
+}
+
+function BankConnectionContents({
   visible,
   onClose,
   onReview,
   onRequestSignIn,
   onStatusChange,
-}: BankConnectionSheetProps) {
+  isSignedIn,
+  getToken,
+  fullName,
+  email,
+}: BankConnectionSheetProps & BankSheetAuth) {
   const t = useTheme();
-  const { isSignedIn, user } = useUser();
-  const { getToken } = useAuth();
+  const networkEnabled = isOpenBankingEnabled() && isSignedIn;
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
-  const localAccounts = useAppStore((state) => state.accounts ?? []);
+  const localAccounts = useAppStore((state) => state.accounts);
+  const transactions = useAppStore((state) => state.transactions);
+  const ignoredBankExternalIds = useAppStore((state) => state.ignoredBankExternalIds);
+  const rawBankImportInbox = useAppStore((state) => state.bankImportInbox);
+  const settledExternalIds = useMemo(
+    () =>
+      new Set([
+        ...transactions.flatMap((row) => (row.externalId ? [row.externalId] : [])),
+        ...(ignoredBankExternalIds ?? []),
+      ]),
+    [transactions, ignoredBankExternalIds],
+  );
+  const bankImportInbox = useMemo(
+    () => unsettledBankImportBatches(rawBankImportInbox ?? EMPTY_BANK_INBOX, settledExternalIds),
+    [rawBankImportInbox, settledExternalIds],
+  );
   const availableLocalAccounts = useMemo(
-    () => localAccounts.filter((account) => !account.closed),
+    () => (localAccounts ?? []).filter((account) => !account.closed),
     [localAccounts],
   );
   const [remote, setRemote] = useState<OpenBankingConnectionsResponse | null>(null);
-  const [displayName, setDisplayName] = useState(user?.fullName ?? '');
+  const [displayName, setDisplayName] = useState(fullName);
   const [showConnectForm, setShowConnectForm] = useState(false);
   const [stagedSync, setStagedSync] = useState<OpenBankingSyncResponse | null>(null);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<'loading' | 'connect' | 'sync' | 'queue' | 'disconnect' | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const operationRef = useRef(false);
+  const beginOperation = (kind: NonNullable<typeof busy>) => {
+    if (operationRef.current || busy !== null) return false;
+    operationRef.current = true;
+    setBusy(kind);
+    setError(null);
+    return true;
+  };
+  const endOperation = () => {
+    operationRef.current = false;
+    setBusy(null);
+  };
+  const assertWorkspace = () => {
+    if (getState().activeWorkspaceId !== activeWorkspaceId)
+      throw new Error('Return to the bank receipt workspace before continuing.');
+  };
 
   const liveConnections = useMemo(
     () => remote?.connections.filter((connection) => connection.status !== 'disconnected') ?? [],
@@ -78,12 +158,13 @@ export function BankConnectionSheet({
 
   useEffect(() => {
     if (!visible) return;
-    setDisplayName((current) => current || user?.fullName || '');
+    setDisplayName((current) => current || fullName);
     setError(null);
     setNotice(null);
     setStagedSync(null);
-    if (!isSignedIn) {
+    if (!networkEnabled) {
       setRemote(null);
+      setBusy(null);
       onStatusChange?.({ providerConfigured: null, active: false, checking: false });
       return;
     }
@@ -114,7 +195,16 @@ export function BankConnectionSheet({
     return () => {
       current = false;
     };
-  }, [activeWorkspaceId, getToken, isSignedIn, onStatusChange, user?.fullName, visible]);
+  }, [activeWorkspaceId, getToken, networkEnabled, onStatusChange, fullName, visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const pending =
+      bankImportInbox.find((batch) => batch.id === selectedBatchId) ?? bankImportInbox[0];
+    setStagedSync(pending?.sync ?? null);
+    setSelectedBatchId(pending?.id ?? null);
+    setAccountMappings(pending?.accountMappings ?? {});
+  }, [bankImportInbox, selectedBatchId, visible]);
 
   const refreshConnections = async () => {
     const result = await fetchOpenBankingConnections(
@@ -131,13 +221,12 @@ export function BankConnectionSheet({
   };
 
   const connect = async () => {
-    if (busy !== null) return;
-    const email = user?.primaryEmailAddress?.emailAddress;
+    if (!networkEnabled) return;
     if (!email) {
       setError('Your signed-in account needs a verified email before a bank can be connected.');
       return;
     }
-    setBusy('connect');
+    if (!beginOperation('connect')) return;
     setError(null);
     setNotice(null);
     try {
@@ -160,13 +249,12 @@ export function BankConnectionSheet({
     } catch (reason: unknown) {
       setError(messageFor(reason));
     } finally {
-      setBusy(null);
+      endOperation();
     }
   };
 
   const sync = async (connection: OpenBankingRuntimeConnection) => {
-    if (busy !== null) return;
-    setBusy('sync');
+    if (!networkEnabled || !beginOperation('sync')) return;
     setError(null);
     setNotice(null);
     setStagedSync(null);
@@ -176,7 +264,7 @@ export function BankConnectionSheet({
         activeWorkspaceId,
         connection.id,
       );
-      setStagedSync(result);
+      assertWorkspace();
       setRemote((current) =>
         current === null
           ? current
@@ -187,17 +275,42 @@ export function BankConnectionSheet({
               ),
             },
       );
-      setAccountMappings((current) => {
-        const next = { ...current };
-        result.connection.accounts.forEach((account, index) => {
-          if (next[account.accountRef] !== undefined) return;
-          next[account.accountRef] =
-            availableLocalAccounts[index]?.id ??
-            availableLocalAccounts[0]?.id ??
-            DEFAULT_ACCOUNT_ID;
-        });
-        return next;
+      if (result.pending && result.candidates.length === 0) {
+        setNotice(
+          'The bank is still preparing this refresh. Its progress is saved; refresh again shortly.',
+        );
+        return;
+      }
+      if (result.deliveryId === undefined || result.connectionRevision === undefined) {
+        throw new Error('The bank did not provide a durable receipt. Nothing was added to Melo.');
+      }
+      const mappings: Record<string, string> = {};
+      result.connection.accounts.forEach((account, index) => {
+        mappings[account.accountRef] =
+          accountMappings[account.accountRef] ??
+          availableLocalAccounts[index]?.id ??
+          availableLocalAccounts[0]?.id ??
+          DEFAULT_ACCOUNT_ID;
       });
+      const saved = stageBankImportBatch({
+        id: result.deliveryId,
+        workspaceId: activeWorkspaceId,
+        receivedAt: new Date().toISOString(),
+        sync: result,
+        accountMappings: mappings,
+      });
+      await persistCurrentStateNow(activeWorkspaceId);
+      await acknowledgeOpenBankingBatch(
+        await tokenOrThrow(getToken),
+        activeWorkspaceId,
+        connection.id,
+        result.deliveryId,
+        result.connectionRevision,
+      );
+      assertWorkspace();
+      setAccountMappings(saved.accountMappings);
+      setStagedSync(saved.sync);
+      setSelectedBatchId(result.deliveryId);
       if (result.candidates.length === 0 && result.pending) {
         setNotice('The bank is still preparing this refresh. Try again in a moment.');
       } else if (result.candidates.length === 0) {
@@ -206,7 +319,7 @@ export function BankConnectionSheet({
     } catch (reason: unknown) {
       setError(messageFor(reason));
     } finally {
-      setBusy(null);
+      endOperation();
     }
   };
 
@@ -214,36 +327,57 @@ export function BankConnectionSheet({
     () =>
       stagedSync === null
         ? null
-        : stageBankCandidatesForReview({ sync: stagedSync, accountMappings }),
-    [accountMappings, stagedSync],
+        : stageBankCandidatesForReview({
+            sync: {
+              ...stagedSync,
+              candidates: stagedSync.candidates.filter(
+                (row) => !settledExternalIds.has(row.externalId),
+              ),
+            },
+            accountMappings,
+          }),
+    [accountMappings, stagedSync, settledExternalIds],
   );
 
-  const sendToReview = () => {
-    if (busy !== null || staged === null || staged.reviewItems.length === 0) return;
-    setBusy('queue');
-    const result = enqueueReviewItems([...staged.reviewItems]);
-    setBusy(null);
-    if (result.fresh.length === 0) {
-      setNotice('Those bank rows are already accepted, ignored, or waiting in Review.');
-      return;
+  const sendToReview = async () => {
+    if (staged === null || staged.reviewItems.length === 0 || !beginOperation('queue')) return;
+    try {
+      assertWorkspace();
+      if (selectedBatchId !== null) setBankImportBatchMappings(selectedBatchId, accountMappings);
+      enqueueReviewItems([...staged.reviewItems]);
+      await persistCurrentStateNow(activeWorkspaceId);
+      assertWorkspace();
+      onClose();
+      onReview();
+    } catch (reason: unknown) {
+      setError(messageFor(reason));
+    } finally {
+      endOperation();
     }
-    setStagedSync(null);
-    onClose();
-    onReview();
   };
 
-  const cycleMapping = (accountRef: string) => {
+  const cycleMapping = async (accountRef: string) => {
     if (availableLocalAccounts.length < 2) return;
-    setAccountMappings((current) => {
-      const currentId = current[accountRef];
-      const index = availableLocalAccounts.findIndex((account) => account.id === currentId);
-      const next = availableLocalAccounts[(index + 1) % availableLocalAccounts.length];
-      return next === undefined ? current : { ...current, [accountRef]: next.id };
-    });
+    const currentId = accountMappings[accountRef];
+    const index = availableLocalAccounts.findIndex((account) => account.id === currentId);
+    const next = availableLocalAccounts[(index + 1) % availableLocalAccounts.length];
+    if (next === undefined || !beginOperation('queue')) return;
+    const mappings = { ...accountMappings, [accountRef]: next.id };
+    try {
+      assertWorkspace();
+      if (selectedBatchId !== null) setBankImportBatchMappings(selectedBatchId, mappings);
+      await persistCurrentStateNow(activeWorkspaceId);
+      assertWorkspace();
+      setAccountMappings(mappings);
+    } catch (reason: unknown) {
+      setError(messageFor(reason));
+    } finally {
+      endOperation();
+    }
   };
 
   const disconnect = (connection: OpenBankingRuntimeConnection) => {
-    if (busy !== null) return;
+    if (!networkEnabled || busy !== null) return;
     Alert.alert(
       'Disconnect this bank?',
       'Melo will delete its server-side connection identifier and stop future refreshes. Already accepted rows on this phone are a separate choice. TrueLayer Data v3 does not currently give Melo an API that can claim the bank-side consent itself was revoked.',
@@ -253,13 +387,14 @@ export function BankConnectionSheet({
           text: 'Disconnect Melo',
           style: 'destructive',
           onPress: () => {
-            setBusy('disconnect');
+            if (!beginOperation('disconnect')) return;
             setError(null);
             void tokenOrThrow(getToken)
               .then((token) =>
                 disconnectOpenBankingConnection(token, activeWorkspaceId, connection.id),
               )
               .then(async () => {
+                assertWorkspace();
                 await refreshConnections();
                 Alert.alert(
                   'Keep imported history?',
@@ -269,18 +404,28 @@ export function BankConnectionSheet({
                     {
                       text: 'Remove bank history',
                       style: 'destructive',
-                      onPress: () => {
-                        const deleted = deleteBankImportedHistory(connection.id);
-                        setNotice(
-                          `Removed ${deleted.deletedTransactions} accepted and ${deleted.deletedReviewItems} waiting bank ${deleted.deletedTransactions + deleted.deletedReviewItems === 1 ? 'row' : 'rows'} from this device.`,
-                        );
+                      onPress: async () => {
+                        if (!beginOperation('queue')) return;
+                        try {
+                          assertWorkspace();
+                          const deleted = deleteBankImportedHistory(connection.id);
+                          await persistCurrentStateNow(activeWorkspaceId);
+                          assertWorkspace();
+                          setNotice(
+                            `Removed ${deleted.deletedTransactions} accepted and ${deleted.deletedReviewItems} waiting bank ${deleted.deletedTransactions + deleted.deletedReviewItems === 1 ? 'row' : 'rows'} from this device.`,
+                          );
+                        } catch (reason: unknown) {
+                          setError(messageFor(reason));
+                        } finally {
+                          endOperation();
+                        }
                       },
                     },
                   ],
                 );
               })
               .catch((reason: unknown) => setError(messageFor(reason)))
-              .finally(() => setBusy(null));
+              .finally(endOperation);
           },
         },
       ],
@@ -300,7 +445,12 @@ export function BankConnectionSheet({
           until you send it to Review.
         </Text>
 
-        {!isSignedIn ? (
+        {!isOpenBankingEnabled() || !isClerkConfigured() ? (
+          <Text style={[styles.sectionBody, { color: t.muted }]}>
+            New bank connections are not available in this build. Your saved receipts below remain
+            available offline, without signing in.
+          </Text>
+        ) : !isSignedIn ? (
           <Surface
             style={[styles.statusCard, { backgroundColor: t.inset, borderColor: t.hairline }]}
           >
@@ -335,7 +485,7 @@ export function BankConnectionSheet({
           </Surface>
         ) : null}
 
-        {remote?.providerConfigured
+        {networkEnabled && remote?.providerConfigured
           ? liveConnections.map((connection) => (
               <ConnectionCard
                 connection={connection}
@@ -347,7 +497,9 @@ export function BankConnectionSheet({
             ))
           : null}
 
-        {remote?.providerConfigured && (showConnectForm || currentConnection === null) ? (
+        {networkEnabled &&
+        remote?.providerConfigured &&
+        (showConnectForm || currentConnection === null) ? (
           <View style={styles.connectSection}>
             <Text style={[styles.sectionTitle, { color: t.ink }]}>Connect a UK bank</Text>
             <Text style={[styles.sectionBody, { color: t.muted }]}>
@@ -387,7 +539,10 @@ export function BankConnectionSheet({
           </View>
         ) : null}
 
-        {remote?.providerConfigured && currentConnection !== null && !showConnectForm ? (
+        {networkEnabled &&
+        remote?.providerConfigured &&
+        currentConnection !== null &&
+        !showConnectForm ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => setShowConnectForm(true)}
@@ -395,6 +550,53 @@ export function BankConnectionSheet({
           >
             <Text style={[styles.textButtonLabel, { color: t.muted }]}>Connect another bank</Text>
           </Pressable>
+        ) : null}
+
+        {bankImportInbox.filter((batch) => batch.sync.candidates.length > 0).length > 0 ? (
+          <View style={styles.reviewSection}>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>
+              Bank receipts waiting for your decision
+            </Text>
+            <Text style={[styles.sectionBody, { color: t.muted }]}>
+              These encrypted receipts stay on this phone until you send their rows to Review or
+              explicitly discard them.
+            </Text>
+            {bankImportInbox
+              .filter((batch) => batch.sync.candidates.length > 0)
+              .map((batch) => (
+                <Pressable
+                  accessibilityRole="button"
+                  key={batch.id}
+                  onPress={() => {
+                    if (operationRef.current) return;
+                    setSelectedBatchId(batch.id);
+                    setStagedSync(batch.sync);
+                    setAccountMappings(batch.accountMappings);
+                  }}
+                  style={[
+                    styles.mappingRow,
+                    { borderColor: batch.id === selectedBatchId ? t.calm : t.hairline },
+                  ]}
+                >
+                  <View style={styles.mappingText}>
+                    <Text style={[styles.mappingBank, { color: t.ink }]}>
+                      {
+                        batch.sync.candidates.filter(
+                          (row) => !settledExternalIds.has(row.externalId),
+                        ).length
+                      }{' '}
+                      undecided rows
+                    </Text>
+                    <Text style={[styles.mappingLocal, { color: t.muted }]}>
+                      {new Date(batch.receivedAt).toLocaleString()}
+                    </Text>
+                  </View>
+                  <Text style={[styles.mappingChange, { color: t.calm }]}>
+                    {batch.id === selectedBatchId ? 'Selected' : 'Open'}
+                  </Text>
+                </Pressable>
+              ))}
+          </View>
         ) : null}
 
         {stagedSync !== null && staged !== null && stagedSync.candidates.length > 0 ? (
@@ -420,7 +622,7 @@ export function BankConnectionSheet({
                   }
                   accessibilityRole="button"
                   key={bankAccount.accountRef}
-                  onPress={() => cycleMapping(bankAccount.accountRef)}
+                  onPress={() => void cycleMapping(bankAccount.accountRef)}
                   style={[styles.mappingRow, { borderColor: t.hairline }]}
                 >
                   <View style={styles.mappingText}>
@@ -445,7 +647,7 @@ export function BankConnectionSheet({
               accessibilityRole="button"
               accessibilityState={{ disabled: staged.reviewItems.length === 0 || busy !== null }}
               disabled={staged.reviewItems.length === 0 || busy !== null}
-              onPress={sendToReview}
+              onPress={() => void sendToReview()}
               style={[
                 styles.primaryButton,
                 {
@@ -456,6 +658,44 @@ export function BankConnectionSheet({
             >
               <Text style={[styles.primaryLabel, { color: t.inverse }]}>Send to Review</Text>
             </Pressable>
+            {selectedBatchId !== null ? (
+              <Pressable
+                accessibilityRole="button"
+                disabled={busy !== null}
+                onPress={() => {
+                  Alert.alert(
+                    'Discard this bank receipt?',
+                    'These rows will not be added to Melo and the receipt will no longer be available for Review.',
+                    [
+                      { text: 'Keep receipt', style: 'cancel' },
+                      {
+                        text: 'Discard rows',
+                        style: 'destructive',
+                        onPress: async () => {
+                          if (!beginOperation('queue')) return;
+                          try {
+                            assertWorkspace();
+                            discardBankImportBatch(selectedBatchId);
+                            await persistCurrentStateNow(activeWorkspaceId);
+                            setStagedSync(null);
+                            setSelectedBatchId(null);
+                          } catch (reason: unknown) {
+                            setError(messageFor(reason));
+                          } finally {
+                            endOperation();
+                          }
+                        },
+                      },
+                    ],
+                  );
+                }}
+                style={styles.textButton}
+              >
+                <Text style={[styles.textButtonLabel, { color: t.repairInk }]}>
+                  Discard receipt
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 

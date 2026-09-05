@@ -21,6 +21,20 @@
       "id": "8735425468884de39f1eb5f273929c44",
     },
   ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "BANKING_WORKSPACE",
+        "class_name": "BankingWorkspaceDurableObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1-banking-workspace",
+      "new_sqlite_classes": ["BankingWorkspaceDurableObject"],
+    },
+  ],
   "observability": {
     "enabled": true,
     "logs": {

@@ -6,6 +6,9 @@ const openAuthSessionAsync = vi.fn();
 const extra: Record<string, unknown> = {};
 
 vi.mock('expo-web-browser', () => ({ maybeCompleteAuthSession, openAuthSessionAsync }));
+vi.mock('expo/fetch', () => ({
+  fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
+}));
 vi.mock('expo-constants', () => ({ default: { expoConfig: { extra } } }));
 vi.mock('./cloudBackup', () => ({ workspaceBackupRef: () => 'b'.repeat(64) }));
 
@@ -34,6 +37,26 @@ afterEach(() => {
 });
 
 describe('Open Banking native client boundary', () => {
+  it('rejects an oversized streamed body before parsing it', async () => {
+    let cancelled = false;
+    const response = new Response(null);
+    Object.defineProperty(response, 'body', { value:
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array(1024 * 1024 + 1));
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }),
+    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+    const { fetchOpenBankingConnections } = await import('./openBankingNative');
+    await expect(
+      fetchOpenBankingConnections('synthetic-session', workspaceId),
+    ).rejects.toMatchObject({ code: 'invalid_response' });
+    expect(cancelled).toBe(true);
+  });
   it('sends only the Clerk token and opaque workspace reference to the configured Worker', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')

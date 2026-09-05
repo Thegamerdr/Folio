@@ -63,18 +63,41 @@ For user-initiated connection and refresh calls it forwards Cloudflare's validat
 `CF-Connecting-IP` value as `Tl-User-IP`; malformed values are discarded.
 
 Data v3 uses an application client-credentials token. The Worker keeps that token only in memory
-until it expires. Provider connection and account IDs are encrypted with AES-256-GCM before KV
-storage. New ciphertext authenticates the hashed user, opaque workspace reference and local
-connection ID as associated data, so moving an encrypted record across those boundaries fails
-decryption. KV keys use a SHA-256 digest of the Clerk user ID and a SHA-256 workspace reference;
-raw workspace IDs never leave the device.
+until it expires. Provider connection and account IDs are encrypted with AES-256-GCM before the
+account-scoped `BANKING_WORKSPACE` SQLite Durable Object stores them. The same object atomically
+owns connection revisions, short sync leases, immutable encrypted import receipts and the account
+deletion fence. Only short-lived hosted-callback metadata remains in KV. New ciphertext
+authenticates the hashed user, opaque workspace reference and local connection ID as associated
+data, so moving an encrypted record across those boundaries fails decryption. The object name is a
+SHA-256 digest of the Clerk user ID; raw workspace IDs never leave the device.
 
 Every list, connect, callback, sync and disconnect path is workspace-bound. Current mobile clients
 send `X-Melo-Workspace-Ref`; headerless historic clients map only to the immutable Personal
 workspace, and old account-level records migrate only into Personal. Account deletion remains
-account-wide and enumerates the complete hashed-user prefix so it removes every workspace's
-encrypted provider records. These boundaries are present in the deployed dark-gated Worker; live
-provider activation remains a separate owner-controlled release step.
+account-wide: the authority first sets a permanent deletion fence and removes every workspace's
+records, then purges the legacy hashed-user KV prefix. The reviewed SQLite migration is local
+source until its Worker migration is deployed; it is not evidence that the previously deployed
+dark-gated Worker has these changes. Live provider activation is a separate owner-controlled step.
+
+Each refresh processes at most one account page, under a 20-second provider deadline inside the
+30-second authority lease. OAuth, headers and streamed response bodies share that deadline. A
+completed provider page is bounded to 500 candidates per immutable delivery; partial pages keep
+their exact provider job ID and offset. A failed first read also preserves a newly issued job.
+Unacknowledged deliveries replay without provider I/O. The phone saves the encrypted inbox before
+acknowledging the exact delivery/revision, and the saved inbox stays reachable offline or signed
+out in both Personal and Business. Sending rows to Review is not acceptance; accepted/ignored IDs
+settle the receipt. There is no automatic receipt expiry.
+
+Bounded local verification (no TrueLayer credentials or live bank data):
+
+```sh
+node tooling/scripts/check-bank-delivery-runtime.mjs
+node services/open-banking/scripts/check-authority-runtime.mjs
+```
+
+Run from the repository root. The routed exercise covers the real service handler, SQLite object,
+encrypted replay, revision acknowledgement, pagination, failed-read resume, disconnect race and
+account deletion fence. It does not prove live provider approval or a real bank authorization.
 
 Disconnecting deletes the encrypted provider identifiers so Melo cannot refresh again. TrueLayer's
 current Data v3 OpenAPI does not expose a connection-revocation endpoint, so the UI must not claim

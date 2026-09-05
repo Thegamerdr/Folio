@@ -36,11 +36,15 @@ export type ProviderAccountSecret = {
   rangeFrom?: string;
   rangeTo?: string;
   pendingRequestId?: string;
+  /** Offset within the last completed provider page when the bounded receipt filled up. */
+  pageOffset?: number;
 };
 
 export type ProviderSecret = {
   providerConnectionId: string;
   accounts: ProviderAccountSecret[];
+  /** Resume a bounded receipt sweep at the first account not fully consumed. */
+  sweepAccountIndex?: number;
 };
 
 export type StoredConnection = {
@@ -116,6 +120,8 @@ export type CreateProviderConnectionInput = Readonly<{
 
 export type ProviderRequestContext = Readonly<{
   endUserIp?: string;
+  /** Shared wall-clock budget for one leased refresh, including OAuth and response bodies. */
+  deadlineMs?: number;
 }>;
 
 export type ProviderGateway = Readonly<{
@@ -168,4 +174,5 @@ export type RuntimeEnv = Readonly<{
   TRUELAYER_CLIENT_ID?: string;
   TRUELAYER_CLIENT_SECRET?: string;
   CONNECTION_ENCRYPTION_KEY?: string;
+  BANKING_WORKSPACE?: DurableObjectNamespace;
 }>;

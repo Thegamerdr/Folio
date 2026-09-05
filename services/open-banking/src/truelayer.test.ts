@@ -22,6 +22,38 @@ const baseEnv: RuntimeEnv = {
 afterEach(() => vi.restoreAllMocks());
 
 describe('TrueLayer transport boundary', () => {
+  it('keeps the shared refresh deadline active through response-body consumption', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(Response.json({ access_token: 'synthetic-slow-token' }));
+      fetchSpy.mockImplementationOnce(
+        async (_url, init) =>
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode('{"items":'));
+                init?.signal?.addEventListener(
+                  'abort',
+                  () => controller.error(new DOMException('Aborted', 'AbortError')),
+                  { once: true },
+                );
+              },
+            }),
+          ),
+      );
+      const gateway = trueLayerGateway({ ...baseEnv, TRUELAYER_CLIENT_ID: 'body-timeout-client' });
+      const result = gateway.listAccounts('synthetic-connection', { deadlineMs: Date.now() + 100 });
+      const checked = expect(result).rejects.toMatchObject({
+        code: 'provider_timeout',
+        status: 504,
+      });
+      await vi.advanceTimersByTimeAsync(101);
+      await checked;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('rejects plaintext or credential-bearing provider URLs before any request', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const gateway = trueLayerGateway({
