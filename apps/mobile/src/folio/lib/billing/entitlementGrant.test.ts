@@ -53,7 +53,7 @@ describe('verifyEntitlementGrant', () => {
   });
 
   it('accepts Live through its bounded offline grace', () => {
-    const grace = '2026-08-17T12:00:00.000Z';
+    const grace = '2026-08-17T12:00:00.123Z';
     const token = grant({
       tier: 'live',
       productId: 'folio.live.monthly',
@@ -61,13 +61,32 @@ describe('verifyEntitlementGrant', () => {
       expiresAt: '2026-08-14T12:00:00.000Z',
       graceUntil: grace,
       refreshAfter: '2026-07-15T12:00:00.000Z',
-      exp: Date.parse(grace) / 1000,
+      exp: Math.floor(Date.parse(grace) / 1000),
     });
     expect(
       verifyEntitlementGrant(token, config, new Date('2026-08-16T12:00:00.000Z')),
     ).toMatchObject({
       tier: 'live',
     });
+  });
+
+  it('accepts provider timestamps with fractional milliseconds at the canonical JWT-second boundary', () => {
+    const grace = '2026-08-17T12:00:00.123Z';
+    const token = grant({
+      tier: 'live',
+      productId: 'folio.live.yearly',
+      providerState: 'SUBSCRIPTION_STATE_ACTIVE',
+      expiresAt: '2026-08-14T12:00:00.456Z',
+      graceUntil: grace,
+      exp: Math.floor(Date.parse(grace) / 1000),
+    });
+    expect(
+      verifyEntitlementGrant(token, config, new Date('2026-08-16T12:00:00.000Z')),
+    ).not.toBeNull();
+    expect(
+      verifyEntitlementGrant(token, config, new Date('2026-08-17T11:59:59.999Z')),
+    ).not.toBeNull();
+    expect(verifyEntitlementGrant(token, config, new Date('2026-08-17T12:00:00.000Z'))).toBeNull();
   });
 
   it('rejects a tampered payload and wrong expected product', () => {

@@ -36,8 +36,11 @@ export async function verifyGooglePurchase(
       message: 'Store verification is not configured for this Melo build yet.',
     };
   }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
   try {
     const response = await fetch(`${billingUrl()}/v1/google/verify`, {
+      signal: controller.signal,
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ productId: purchase.productId, purchaseToken }),
@@ -68,6 +71,8 @@ export async function verifyGooglePurchase(
       status: 'unavailable',
       message: 'Store verification is temporarily unavailable. Try Restore purchases shortly.',
     };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

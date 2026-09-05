@@ -35,6 +35,8 @@ export type EntitlementRecord = {
   expiresAt?: string;
   /** Bounded offline window after a Live provider expiry. */
   graceUntil?: string;
+  /** Server hint for the next provider reconciliation; never an unlock authority. */
+  refreshAfter?: string;
 };
 
 const CURRENT_VERSION = 2;
@@ -94,6 +96,7 @@ function normalizeRecord(value: unknown): EntitlementRecord | null {
   if (r.productId !== undefined && typeof r.productId !== 'string') return null;
   if (r.expiresAt !== undefined && typeof r.expiresAt !== 'string') return null;
   if (r.graceUntil !== undefined && typeof r.graceUntil !== 'string') return null;
+  if (r.refreshAfter !== undefined && typeof r.refreshAfter !== 'string') return null;
   return {
     source: r.source,
     tier: r.tier,
@@ -101,6 +104,7 @@ function normalizeRecord(value: unknown): EntitlementRecord | null {
     ...(r.productId !== undefined ? { productId: r.productId } : {}),
     ...(r.expiresAt !== undefined ? { expiresAt: r.expiresAt } : {}),
     ...(r.graceUntil !== undefined ? { graceUntil: r.graceUntil } : {}),
+    ...(r.refreshAfter !== undefined ? { refreshAfter: r.refreshAfter } : {}),
   };
 }
 

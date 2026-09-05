@@ -27,11 +27,18 @@ export function entitlementSigner(env: RuntimeEnv): GrantSigner {
         .setIssuedAt(now)
         .setJti(crypto.randomUUID());
       if (claims.graceUntil !== null) {
-        jwt = jwt.setExpirationTime(Math.floor(Date.parse(claims.graceUntil) / 1000));
+        jwt = jwt.setExpirationTime(canonicalEpochSeconds(claims.graceUntil));
       }
       return jwt.sign(privateKey);
     },
   };
+}
+
+/** JWT `exp` is whole epoch seconds while provider timestamps may carry milliseconds. */
+export function canonicalEpochSeconds(isoTimestamp: string): number {
+  const milliseconds = Date.parse(isoTimestamp);
+  if (!Number.isFinite(milliseconds)) throw new Error('Invalid entitlement timestamp.');
+  return Math.floor(milliseconds / 1000);
 }
 
 export async function publicJwkFromPrivate(privateKeyPem: string): Promise<JWK> {

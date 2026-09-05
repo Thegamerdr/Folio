@@ -61,12 +61,15 @@ import {
   probeAvailability,
   productIdFor,
   purchase,
-  finishPurchase,
   restore as restorePurchases,
   type BillingCadence,
+  type StoreProductMetadata,
 } from '@/folio/lib/billing/iap';
-import { loadActiveEntitlement, saveVerifiedEntitlement } from '@/folio/lib/billing/entitlements';
-import { verifyGooglePurchase } from '@/folio/lib/billing/billingVerification';
+import { loadActiveEntitlement } from '@/folio/lib/billing/entitlements';
+import {
+  acceptVerifiedPurchase,
+  subscribeToBillingEntitlements,
+} from '@/folio/lib/billing/billingLifecycle';
 import { resolveCtaMode } from '@/folio/lib/billing/ctaMode';
 import { showToast } from '@/folio/ui/Toast';
 import { showStatusDialog } from '@/folio/ui/statusDialogs';
@@ -82,12 +85,7 @@ export type PaywallScreenProps = {
 type TierKey = 'free' | 'full' | 'live';
 type Cadence = 'monthly' | 'yearly';
 
-// Prices — OWNER-CONFIRMED 2026-07-11 ("do all" sign-off; MONEY_MODEL.md §7.3 closed). Full is
-// one-time (software never rents); Live is the only recurring price. The cadence toggle applies
-// to Live alone.
-const FULL_ONE_TIME = 29.99;
-const LIVE_MONTHLY = 2.99;
-const LIVE_YEARLY = 24.99;
+// Store metadata owns displayed prices. The cadence toggle applies only to Live.
 
 // Frozen lens one-liners — verbatim from the web's `LENS_ONE_LINER`.
 const LENS_ONE_LINER: Record<MoneyMode, string> = {
@@ -142,7 +140,7 @@ const TIER_COPY: Record<
     bullets: [
       { label: 'Live bank sync', live: false },
       { label: 'Encrypted backup and multi-device sync', live: false },
-      { label: 'Cancel any month — the app keeps working', live: true },
+      { label: 'Cancel renewal anytime — the app keeps working', live: true },
     ],
   },
 };
@@ -206,23 +204,38 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   const [liveActive, setLiveActive] = useState(false);
   useEffect(() => {
     let mounted = true;
-    void loadActiveEntitlement('live').then((record) => {
-      if (mounted && record?.tier === 'live') setLiveActive(true);
-    });
+    const refresh = () => {
+      void loadActiveEntitlement('live')
+        .then((record) => {
+          if (mounted) setLiveActive(record?.tier === 'live');
+        })
+        .catch(() => {
+          if (mounted) setLiveActive(false);
+        });
+    };
+    refresh();
+    const unsubscribe = subscribeToBillingEntitlements(refresh);
     return () => {
       mounted = false;
+      unsubscribe();
     };
   }, []);
 
   // Real-billing availability — false in every build until a Play listing exists (no store, no
   // client, no fake success). Probed once per screen mount; never blocks first paint since the
   // existing preview CTA renders immediately and only swaps once the probe resolves.
-  const [billingAvailable, setBillingAvailable] = useState(false);
+  const [availableProductIds, setAvailableProductIds] = useState<readonly string[]>([]);
+  const [storeProducts, setStoreProducts] = useState<
+    Readonly<Record<string, StoreProductMetadata>>
+  >({});
   const [purchasing, setPurchasing] = useState<TierKey | null>(null);
   useEffect(() => {
     let mounted = true;
     void probeAvailability().then((result) => {
-      if (mounted) setBillingAvailable(result.available);
+      if (mounted) {
+        setAvailableProductIds(result.availableProductIds);
+        setStoreProducts(result.products);
+      }
     });
     return () => {
       mounted = false;
@@ -282,10 +295,14 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
   // the same inputs the JSX below branches on, so billingAvailable === false (today's reality,
   // no Play listing) is guaranteed to resolve to 'trial' — the existing preview CTA — never
   // 'purchase'.
+  const selectedProductId =
+    selected === 'free' ? null : productIdFor(selected, cadence as BillingCadence);
+  const selectedBillingAvailable =
+    selectedProductId !== null && availableProductIds.includes(selectedProductId);
   const ctaMode = resolveCtaMode({
     selected,
     canSell,
-    billingAvailable,
+    billingAvailable: selectedBillingAvailable,
     fullUnlocked,
     liveActive,
     trialCycleId,
@@ -330,14 +347,20 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
     transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
   }));
 
-  const priceFor = (
-    tier: TierKey,
-  ): { price: number; per: string; perMonth?: number; strike?: number } => {
-    if (tier === 'free') return { price: 0, per: '' };
-    if (tier === 'full') return { price: FULL_ONE_TIME, per: 'one-time' };
-    return cadence === 'yearly'
-      ? { price: LIVE_YEARLY, per: 'year', perMonth: LIVE_YEARLY / 12, strike: LIVE_MONTHLY }
-      : { price: LIVE_MONTHLY, per: 'month' };
+  const priceFor = (tier: TierKey): { display: string; per: string } => {
+    if (tier === 'free') return { display: 'Free', per: '' };
+    const productId = productIdFor(tier, cadence as BillingCadence);
+    const metadata = storeProducts[productId];
+    if (tier === 'full') {
+      return {
+        display: metadata?.displayPrice ?? 'Price unavailable',
+        per: 'one-time',
+      };
+    }
+    return {
+      display: metadata?.displayPrice ?? 'Price unavailable',
+      per: metadata?.billingPeriod === 'P1Y' ? 'year' : 'month',
+    };
   };
 
   const handleStartTrial = () => {
@@ -363,9 +386,9 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
     setPurchasing(tier);
     try {
       const productId = productIdFor(tier, cadence as BillingCadence);
-      const outcome = await purchase(productId);
+      const outcome = await purchase(productId, storeProducts[productId]?.offerToken);
       if (outcome.status === 'purchased') {
-        const verification = await verifyGooglePurchase(outcome.purchase);
+        const verification = await acceptVerifiedPurchase(outcome.purchase);
         if (verification.status !== 'verified') {
           const title =
             verification.status === 'pending'
@@ -380,22 +403,16 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
           showStatusDialog('dialog.paywall-purchase-verification', { title, message });
           return;
         }
-        const persisted = await saveVerifiedEntitlement(verification.grant);
-        if (persisted === null) {
-          showStatusDialog('dialog.paywall-entitlement-save-failed');
-          return;
-        }
         const resolvedTier = verification.entitlement.tier;
         if (resolvedTier === 'full') setLensFullUnlocked(true);
         else setLiveActive(true);
         // The Worker already attempts acknowledgement; finishing here is the replay-safe client
         // fallback, and only happens after provider verification + signed local persistence.
-        await finishPurchase(outcome.purchase);
         showStatusDialog('dialog.paywall-purchase-succeeded', {
           title: resolvedTier === 'live' ? 'Melo Live is on' : undefined,
           message:
             resolvedTier === 'live'
-              ? 'Unlimited reads while it runs — cancel any month.'
+              ? 'Your Live subscription is active. Manage renewal in your store subscriptions.'
               : undefined,
         });
         nav.back();
@@ -405,13 +422,21 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
         showStatusDialog('dialog.paywall-purchase-failed', { message: outcome.message });
       }
       // 'cancelled' — silent, matches the platform's own cancel UX (no extra alert on top of it).
+    } catch {
+      showStatusDialog('dialog.paywall-purchase-failed', {
+        message: 'The store could not complete this check. Restore purchases to retry safely.',
+      });
     } finally {
       setPurchasing(null);
     }
   };
 
   const handleRestore = async () => {
-    if (!billingAvailable) {
+    let restored: Awaited<ReturnType<typeof restorePurchases>>;
+    try {
+      await probeAvailability();
+      restored = await restorePurchases();
+    } catch {
       // No store to query. Report what this device already holds, honestly.
       if (fullUnlocked || liveActive) {
         const owned =
@@ -424,7 +449,6 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
       showStatusDialog('dialog.paywall-restore-unavailable-build');
       return;
     }
-    const restored = await restorePurchases();
     if (restored.length === 0) {
       showStatusDialog('dialog.paywall-restore-none');
       return;
@@ -433,7 +457,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
     let pending = false;
     let unavailableMessage: string | null = null;
     for (const restoredPurchase of restored) {
-      const verification = await verifyGooglePurchase(restoredPurchase);
+      const verification = await acceptVerifiedPurchase(restoredPurchase);
       if (verification.status === 'pending') {
         pending = true;
         continue;
@@ -442,13 +466,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
         if (verification.status === 'unavailable') unavailableMessage = verification.message;
         continue;
       }
-      const persisted = await saveVerifiedEntitlement(verification.grant);
-      if (persisted === null) {
-        unavailableMessage = 'Melo could not safely save the signed store entitlement.';
-        continue;
-      }
       tiers.add(verification.entitlement.tier);
-      await finishPurchase(restoredPurchase);
     }
     if (tiers.size === 0) {
       showStatusDialog('dialog.paywall-restore-not-granted', {
@@ -630,18 +648,6 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
               >
                 Yearly
               </Text>
-              <View
-                style={[
-                  styles.saveChip,
-                  { backgroundColor: cadence === 'yearly' ? t.calmSoft : 'transparent' },
-                ]}
-              >
-                <Text
-                  style={[styles.saveChipLabel, { color: cadence === 'yearly' ? t.calm : t.muted }]}
-                >
-                  save ~30%
-                </Text>
-              </View>
             </Pressable>
           </View>
         ) : null}
@@ -654,6 +660,9 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
             const isSelected = selected === tier;
             const isCurrent = ownsTier(tier);
             const isRecommended = tier === 'full';
+            const storeListed =
+              tier === 'free' ||
+              availableProductIds.includes(productIdFor(tier, cadence as BillingCadence));
             return (
               <Pressable
                 accessibilityRole="button"
@@ -687,25 +696,20 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                   </View>
                   <View style={styles.tierPriceCol}>
                     {tier === 'free' ? (
-                      <Text style={[styles.tierPrice, { color: t.ink }]}>£0</Text>
-                    ) : canSell ? (
+                      <Text style={[styles.tierPrice, { color: t.ink }]}>Free</Text>
+                    ) : canSell && storeListed ? (
                       <>
                         <View style={styles.tierPriceRow}>
-                          <Text style={[styles.tierPrice, { color: t.ink }]}>
-                            {`£${p.price.toFixed(2)}`}
-                          </Text>
+                          <Text style={[styles.tierPrice, { color: t.ink }]}>{p.display}</Text>
                           <Text style={[styles.tierPricePer, { color: t.muted }]}>
                             {p.per === 'one-time' ? ' one-time' : ` / ${p.per}`}
                           </Text>
                         </View>
-                        {p.perMonth != null && p.strike != null ? (
-                          <Text style={[styles.tierPriceSub, { color: t.muted }]}>
-                            {`≈ £${p.perMonth.toFixed(2)}/mo · save £${(p.strike * 12 - p.price).toFixed(0)}`}
-                          </Text>
-                        ) : null}
                       </>
                     ) : (
-                      <Text style={[styles.tierPriceHidden, { color: t.muted }]}>price hidden</Text>
+                      <Text style={[styles.tierPriceHidden, { color: t.muted }]}>
+                        {canSell ? 'price unavailable' : 'price hidden'}
+                      </Text>
                     )}
                   </View>
                 </View>
@@ -801,7 +805,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
               </Text>
               <Text style={[styles.ctaStateBody, { color: t.muted }]}>
                 {selected === 'live'
-                  ? 'Unlimited reads while it runs.'
+                  ? 'Your subscription is active. Statement reading stays on this device for every plan.'
                   : 'Every lens is unlocked — for good.'}
               </Text>
             </Surface>
@@ -833,14 +837,14 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                   {purchasing === selected
                     ? 'Processing…'
                     : selected === 'full'
-                      ? `Get Full — £${priceFor('full').price.toFixed(2)} one-time`
-                      : `Get Live — £${priceFor('live').price.toFixed(2)} / ${priceFor('live').per}`}
+                      ? `Get Full — ${priceFor('full').display} one-time`
+                      : `Get Live — ${priceFor('live').display} / ${priceFor('live').per}`}
                 </Text>
               </Pressable>
               <Text style={[styles.ctaFootnote, { color: t.muted }]}>
                 {selected === 'full'
                   ? 'Charged once by Google Play. Nothing renews.'
-                  : 'Charged by Google Play · cancel anytime in your subscriptions.'}
+                  : `Renews every ${priceFor('live').per} at ${priceFor('live').display}. Cancel renewal anytime in your store subscriptions; access lasts through the paid period.`}
               </Text>
             </>
           ) : ctaMode === 'trial' ? (

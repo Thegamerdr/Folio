@@ -79,14 +79,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     platforms: ['ios', 'android'],
     userInterfaceStyle: 'automatic',
     runtimeVersion: {
-      policy: 'appVersion',
+      // Billing/native-module changes must never be delivered to the old 0.0.1 runtime. Expo's
+      // fingerprint policy derives a new runtime whenever native-affecting config changes, without
+      // inventing a public app-version bump or publishing an OTA update.
+      policy: 'fingerprint',
     },
     updates: {
       // OTA JS updates via EAS Update (enabled 2026-07-05). Non-blocking check on launch
       // (fallbackToCacheTimeout 0): users never wait on the network, a fetched update applies on
       // the NEXT launch. Locally-built APKs pin the 'production' channel via requestHeaders;
       // EAS-built profiles get their channel from eas.json. Native/config changes still need a
-      // full rebuild — runtimeVersion (appVersion policy) fences incompatible updates.
+      // full rebuild — runtimeVersion (fingerprint policy) fences incompatible updates.
       enabled: true,
       url: 'https://u.expo.dev/ef69039d-abaf-48e9-b35a-52d80b03a96a',
       fallbackToCacheTimeout: 0,

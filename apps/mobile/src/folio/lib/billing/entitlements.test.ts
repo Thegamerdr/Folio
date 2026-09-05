@@ -56,7 +56,7 @@ vi.mock('./entitlementGrant', () => ({
 }));
 
 import { resetAll, setPartial, getState, type LensState } from '../../store';
-import { reconcileEntitlements } from './entitlements';
+import { reconcileEntitlements, saveVerifiedEntitlement } from './entitlements';
 
 // AppState.lens is optional on the type (shape-migration reasons — see store.ts DEFAULT_LENS),
 // so reads go through this helper for a non-optional LensState in test assertions/setup, mirroring
@@ -78,6 +78,23 @@ beforeEach(() => {
 });
 
 describe('reconcileEntitlements', () => {
+  it('retains independent Full and Live grants during concurrent writes', async () => {
+    let disk = JSON.stringify({ v: 2, records: [] });
+    getInfoAsync.mockResolvedValue({ exists: true });
+    readAsStringAsync.mockImplementation(async () => disk);
+    writeAsStringAsync.mockImplementation(async (_uri, value: string) => {
+      disk = value;
+    });
+    await Promise.all([
+      saveVerifiedEntitlement('signed-full'),
+      saveVerifiedEntitlement('signed-live'),
+    ]);
+    expect(
+      JSON.parse(disk)
+        .records.map((record: { tier: string }) => record.tier)
+        .sort(),
+    ).toEqual(['full', 'live']);
+  });
   it('is a no-op when nothing is persisted (missing file)', async () => {
     getInfoAsync.mockResolvedValue({ exists: false });
 

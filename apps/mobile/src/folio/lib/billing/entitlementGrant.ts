@@ -106,8 +106,12 @@ export function verifyEntitlementGrant(
       const graceMs = Date.parse(graceUntil);
       if (!Number.isFinite(expiresMs) || !Number.isFinite(graceMs) || graceMs < expiresMs)
         return null;
-      if (nowMs > graceMs) return null;
-      if (typeof payload['exp'] !== 'number' || payload['exp'] * 1000 !== graceMs) return null;
+      // JWT exp is whole epoch seconds. Google returns RFC3339 values that may carry fractional
+      // milliseconds, so compare against the canonical second boundary without rejecting a
+      // correctly signed backend grant merely because JSON preserved those milliseconds.
+      if (typeof payload['exp'] !== 'number' || payload['exp'] !== Math.floor(graceMs / 1000))
+        return null;
+      if (nowMs >= payload['exp'] * 1000) return null;
     }
     return {
       v: 1,

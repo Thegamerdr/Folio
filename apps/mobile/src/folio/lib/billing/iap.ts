@@ -4,16 +4,13 @@
 // export degrades to a safe no-op/throw when billing isn't available, rather than crashing.
 //
 // HONEST REALITY (2026-07): there is no Play Store listing for this app yet, so on-device this
-// module will always resolve `available: false` — `initConnection()` succeeds (expo-iap's mock/
-// no-op path in dev) but `fetchProducts()` for our real SKUs returns an empty array because the
-// SKUs aren't registered anywhere. `probeAvailability()` treats "connected but zero products
-// found for our SKUs" as unavailable, which is the honest signal until a listing exists. This
-// keeps the seam real (wired to the actual expo-iap API) while being truthful about what today's
-// build can and cannot do — no fake success path, no invented purchase flow.
+// module resolves `available: false` until a real Play listing exists — `initConnection()` may
+// succeed (expo-iap's mock/no-op path in dev) while `fetchProducts()` returns no registered SKUs.
+// Each SKU is tracked independently so one legacy/partial listing cannot make an unrelated sell
+// button appear. This keeps the seam real while being truthful about what the build can do.
 //
-// PaywallScreen's existing preview behavior (Alert-based trial start / restore stub) is the
-// fallback whenever `available` is false. When a real listing exists, flip the paywall to call
-// `purchase()` / `restore()` here instead — the entitlement write-through is identical either way
+// PaywallScreen's existing preview behavior (Alert-based trial start / restore stub) remains the
+// fallback for unavailable SKUs. Listed purchases use the same verified write-through
 // (see ./entitlements.ts).
 
 import {
@@ -25,9 +22,10 @@ import {
   purchaseErrorListener,
   purchaseUpdatedListener,
   requestPurchase,
-  type Product,
+  type ProductOrSubscription,
   type Purchase,
 } from 'expo-iap';
+import { Platform } from 'react-native';
 
 /** Billing tiers since the Free/Full/Live restructure (MONEY_MODEL.md §2b): 'full' is a ONE-TIME
  *  non-consumable ("yours forever" — zero marginal cost), 'live' is the only subscription
@@ -80,11 +78,121 @@ export function tierForProductId(productId: string): BillingTier | null {
 
 export type AvailabilityResult = {
   available: boolean;
+  /** Store-listed, localized metadata keyed by SKU. Legacy restore SKUs remain visible here but
+   * are never sold by the paywall. */
+  products: Readonly<Record<string, StoreProductMetadata>>;
+  availableProductIds: readonly string[];
   /** Short honest reason, for logging only — never shown verbatim to the user. */
   reason: 'ready' | 'connect-failed' | 'no-products-listed' | 'unsupported-platform';
 };
 
+export type StoreProductMetadata = Readonly<{
+  productId: string;
+  displayPrice: string;
+  currency: string;
+  type: 'in-app' | 'subs';
+  /** The selected eligible Play offer. Required for subscription purchase requests. */
+  offerToken?: string;
+  basePlanId?: string;
+  offerId?: string;
+  billingPeriod?: 'P1M' | 'P1Y';
+}>;
+
+export function metadataForProducts(
+  products: readonly ProductOrSubscription[],
+): StoreProductMetadata[] {
+  return products.flatMap((product) => {
+    if (typeof product.id !== 'string' || typeof product.displayPrice !== 'string') return [];
+    const metadata: StoreProductMetadata = {
+      productId: product.id,
+      displayPrice: product.displayPrice,
+      currency: product.currency,
+      type: product.type,
+    };
+    if (product.type === 'subs' && product.platform === 'android') {
+      const offers = product.subscriptionOfferDetailsAndroid ?? [];
+      // Sell the regular auto-renewing base plan only. Introductory/instalment offers need
+      // their own multi-phase disclosure UI; do not pick one while advertising another price.
+      const expectedPeriod = product.id.endsWith('.yearly') ? 'P1Y' : 'P1M';
+      const offer = offers.find((candidate) => {
+        const phases = candidate.pricingPhases.pricingPhaseList;
+        return (
+          !candidate.offerId &&
+          !candidate.installmentPlanDetails &&
+          candidate.offerToken.length > 0 &&
+          phases.length === 1 &&
+          phases[0]?.recurrenceMode === 1 &&
+          phases[0].billingPeriod === expectedPeriod
+        );
+      });
+      if (offer) {
+        return [
+          {
+            ...metadata,
+            displayPrice: offer.pricingPhases.pricingPhaseList[0]!.formattedPrice,
+            currency: offer.pricingPhases.pricingPhaseList[0]!.priceCurrencyCode,
+            billingPeriod: expectedPeriod,
+            offerToken: offer.offerToken,
+            basePlanId: offer.basePlanId,
+            ...(offer.offerId ? { offerId: offer.offerId } : {}),
+          },
+        ];
+      }
+      return [];
+    }
+    return [metadata];
+  });
+}
+
 let connected = false;
+let cachedProducts: Readonly<Record<string, StoreProductMetadata>> = {};
+type PurchaseSubscription = { remove: () => void };
+type PurchaseUpdateHandler = (purchase: Purchase) => void;
+let purchaseUpdatesSubscription: PurchaseSubscription | null = null;
+let purchaseErrorsSubscription: PurchaseSubscription | null = null;
+const purchaseUpdateHandlers = new Set<PurchaseUpdateHandler>();
+const pendingResolvers = new Map<string, (outcome: PurchaseOutcome) => void>();
+
+export function subscribeToPurchaseUpdates(handler: PurchaseUpdateHandler): () => void {
+  purchaseUpdateHandlers.add(handler);
+  return () => purchaseUpdateHandlers.delete(handler);
+}
+
+export function ensurePurchaseListeners(): void {
+  if (Platform.OS !== 'android' || purchaseUpdatesSubscription !== null) return;
+  purchaseUpdatesSubscription = purchaseUpdatedListener((purchase) => {
+    // Play is the durable queue, including pending purchases across restarts. Never suppress a
+    // redelivery merely because the paywall saw it: verification/persistence may have failed.
+    const resolver = pendingResolvers.get(purchase.productId);
+    if (resolver) {
+      if (purchase.purchaseState === 'pending') {
+        pendingResolvers.delete(purchase.productId);
+        resolver({ status: 'pending' });
+      } else if (purchase.purchaseState === 'purchased') {
+        pendingResolvers.delete(purchase.productId);
+        resolver({ status: 'purchased', purchase });
+      }
+    }
+    purchaseUpdateHandlers.forEach((handler) => {
+      try {
+        handler(purchase);
+      } catch {
+        /* One observer must not interrupt expo-iap's durable native event listener. */
+      }
+    });
+  });
+  purchaseErrorsSubscription = purchaseErrorListener((error) => {
+    const productId = error.productId ?? [...pendingResolvers.keys()][0];
+    const resolver = productId === undefined ? undefined : pendingResolvers.get(productId);
+    if (!resolver || productId === undefined) return;
+    pendingResolvers.delete(productId);
+    resolver(
+      error.code === 'user-cancelled'
+        ? { status: 'cancelled' }
+        : { status: 'failed', message: error.message },
+    );
+  });
+}
 
 /**
  * True platform + store availability probe. NEVER throws — every failure mode collapses to
@@ -93,37 +201,68 @@ let connected = false;
  * memoized for the session.
  */
 export async function probeAvailability(): Promise<AvailabilityResult> {
+  if (Platform.OS !== 'android') {
+    return {
+      available: false,
+      products: {},
+      availableProductIds: [],
+      reason: 'unsupported-platform',
+    };
+  }
   try {
     if (!connected) {
       const ok = await initConnection();
-      if (!ok) return { available: false, reason: 'connect-failed' };
+      if (!ok)
+        return {
+          available: false,
+          products: {},
+          availableProductIds: [],
+          reason: 'connect-failed',
+        };
       connected = true;
     }
     // Full is an in-app product and Live a subscription, so the probe must query both types —
     // either being listed is enough to call billing reachable.
     const [inApp, subs] = await Promise.all([
-      fetchProducts({ skus: [PRODUCT_IDS.full], type: 'in-app' }),
-      fetchProducts({ skus: [...SUB_PRODUCT_IDS], type: 'subs' }),
+      fetchProducts({ skus: [PRODUCT_IDS.full], type: 'in-app' }).catch(() => []),
+      fetchProducts({ skus: [...SUB_PRODUCT_IDS], type: 'subs' }).catch(() => []),
     ]);
-    const found =
-      (Array.isArray(inApp) ? inApp.length : 0) + (Array.isArray(subs) ? subs.length : 0);
-    if (found === 0) {
-      return { available: false, reason: 'no-products-listed' };
-    }
-    return { available: true, reason: 'ready' };
+    const products = metadataForProducts([
+      ...(Array.isArray(inApp) ? inApp : []),
+      ...(Array.isArray(subs) ? subs : []),
+    ]);
+    cachedProducts = Object.fromEntries(products.map((product) => [product.productId, product]));
+    const availableProductIds = products
+      .filter(
+        (product) => product.productId === PRODUCT_IDS.full || product.offerToken !== undefined,
+      )
+      .map((product) => product.productId);
+    return availableProductIds.length === 0
+      ? {
+          available: false,
+          products: cachedProducts,
+          availableProductIds,
+          reason: 'no-products-listed',
+        }
+      : { available: true, products: cachedProducts, availableProductIds, reason: 'ready' };
   } catch {
     // Store not reachable (no listing, dev/debug client, emulator without Play, offline, etc.) —
     // this is the expected state until a real Play listing exists. Never surface as a crash.
-    return { available: false, reason: 'connect-failed' };
+    return {
+      available: false,
+      products: cachedProducts,
+      availableProductIds: [],
+      reason: 'connect-failed',
+    };
   }
 }
 
 /** Fetch store-listed product metadata (price strings, etc.) for the given SKUs. Empty array on
- *  any failure — callers should treat that the same as "billing unavailable". SKUs are split by
- *  product type (Full = in-app, everything else = subs) and queried per type; the cast narrows
- *  the library's broader `type`-discriminated union back to the `Product` shape this module's
- *  callers expect (price/title/etc. — the fields we actually read). */
-export async function queryProducts(skus: readonly string[] = ALL_PRODUCT_IDS): Promise<Product[]> {
+ * any failure — callers should treat that the same as "billing unavailable". SKUs are split by
+ * product type (Full = in-app, everything else = subs) and queried per type. */
+export async function queryProducts(
+  skus: readonly string[] = ALL_PRODUCT_IDS,
+): Promise<ProductOrSubscription[]> {
   try {
     const inAppSkus = skus.filter((sku) => productTypeFor(sku) === 'in-app');
     const subSkus = skus.filter((sku) => productTypeFor(sku) === 'subs');
@@ -132,7 +271,7 @@ export async function queryProducts(skus: readonly string[] = ALL_PRODUCT_IDS): 
       subSkus.length > 0 ? fetchProducts({ skus: subSkus, type: 'subs' }) : [],
     ]);
     const merged = [...(Array.isArray(inApp) ? inApp : []), ...(Array.isArray(subs) ? subs : [])];
-    return merged as unknown as Product[];
+    return merged;
   } catch {
     return [];
   }
@@ -150,37 +289,59 @@ export type PurchaseOutcome =
  * node_modules/expo-iap CLAUDE.md "Hook API Semantics"). Callers own writing the entitlement
  * (./entitlements.ts) and calling `finishPurchase` after their own verification step.
  */
-export function purchase(productId: string): Promise<PurchaseOutcome> {
+export function purchase(productId: string, offerToken?: string): Promise<PurchaseOutcome> {
+  if (Platform.OS !== 'android')
+    return Promise.resolve({
+      status: 'failed',
+      message: 'Google Play purchases are unavailable on this platform.',
+    });
+  if (
+    ![PRODUCT_IDS.full, PRODUCT_IDS.live.monthly, PRODUCT_IDS.live.yearly].some(
+      (id) => id === productId,
+    )
+  ) {
+    return Promise.resolve({
+      status: 'failed',
+      message: 'This product is restore-only or unavailable.',
+    });
+  }
+  if (pendingResolvers.size > 0) {
+    return Promise.resolve({
+      status: 'failed',
+      message: 'A store purchase is already in progress.',
+    });
+  }
+  const selectedOfferToken = offerToken ?? cachedProducts[productId]?.offerToken;
+  if (productTypeFor(productId) === 'subs' && !selectedOfferToken) {
+    return Promise.resolve({
+      status: 'failed',
+      message: 'This subscription has no eligible Play offer.',
+    });
+  }
+  try {
+    ensurePurchaseListeners();
+  } catch {
+    return Promise.resolve({
+      status: 'failed',
+      message: 'The store could not start this purchase.',
+    });
+  }
   return new Promise((resolve) => {
-    let settled = false;
-    const settle = (outcome: PurchaseOutcome) => {
-      if (settled) return;
-      settled = true;
-      updatedSub.remove();
-      errorSub.remove();
-      resolve(outcome);
-    };
-
-    const updatedSub = purchaseUpdatedListener((p) => {
-      if (p.productId !== productId) return;
-      // Pending cash/approval transactions are not ownership. They must never reach verification,
-      // acknowledgement, finishTransaction, or the entitlement store.
-      if (p.purchaseState === 'pending') settle({ status: 'pending' });
-      else if (p.purchaseState === 'purchased') settle({ status: 'purchased', purchase: p });
-    });
-    const errorSub = purchaseErrorListener((err) => {
-      if (err.code === 'user-cancelled') {
-        settle({ status: 'cancelled' });
-      } else {
-        settle({ status: 'failed', message: err.message });
-      }
-    });
+    pendingResolvers.set(productId, resolve);
 
     requestPurchase({
-      request: { google: { skus: [productId] } },
+      request: {
+        google: {
+          skus: [productId],
+          ...(selectedOfferToken
+            ? { subscriptionOffers: [{ sku: productId, offerToken: selectedOfferToken }] }
+            : {}),
+        },
+      },
       type: productTypeFor(productId),
     }).catch((err: unknown) => {
-      settle({
+      pendingResolvers.delete(productId);
+      resolve({
         status: 'failed',
         message: err instanceof Error ? err.message : 'Purchase could not be started.',
       });
@@ -191,23 +352,21 @@ export function purchase(productId: string): Promise<PurchaseOutcome> {
 /** Mark a verified purchase finished so the store queue clears it. Neither the Full
  *  non-consumable nor the Live subscription is consumable. Swallows failure — a stuck unfinished
  *  transaction just replays harmlessly next launch, it must never crash the app. */
-export async function finishPurchase(p: Purchase): Promise<void> {
+export async function finishPurchase(p: Purchase): Promise<boolean> {
   try {
     await finishTransaction({ purchase: p, isConsumable: false });
+    return true;
   } catch {
     /* replay-safe: the platform will re-deliver this transaction next launch/query. */
+    return false;
   }
 }
 
-/** The device's currently-held (unfinished/active) purchases for our SKUs. Empty array on any
- *  failure — callers should treat that the same as "nothing found", never as a crash. */
+/** Play owns the durable unfinished/pending queue. A query failure is not an empty queue;
+ * callers must catch it and offer retry instead of claiming no purchases exist. */
 export async function restore(): Promise<Purchase[]> {
-  try {
-    const all = await getAvailablePurchases();
-    return all.filter((p) => ALL_PRODUCT_IDS.includes(p.productId));
-  } catch {
-    return [];
-  }
+  const all = await getAvailablePurchases();
+  return all.filter((p) => ALL_PRODUCT_IDS.includes(p.productId));
 }
 
 /** Release the store connection. Call on app background/unmount if the app ever opens one

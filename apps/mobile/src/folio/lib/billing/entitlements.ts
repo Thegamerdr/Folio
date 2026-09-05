@@ -21,6 +21,7 @@ import { verifyEntitlementGrant } from './entitlementGrant';
 export type { EntitlementRecord, EntitlementSource, EntitlementTier } from './entitlementsLogic';
 
 const ENTITLEMENT_FILENAME = 'folio.entitlement.v1.json';
+let verifiedWrite: Promise<unknown> = Promise.resolve();
 
 function fileUri(): string | null {
   const dir = FileSystem.documentDirectory;
@@ -74,6 +75,12 @@ export async function saveEntitlement(record: EntitlementRecord | null): Promise
 /** Persist one independently-owned signed grant, replacing only the same tier. The grant is
  * verified again here so callers cannot smuggle an unverified server response onto disk. */
 export async function saveVerifiedEntitlement(grant: string): Promise<EntitlementRecord | null> {
+  const write = verifiedWrite.then(() => persistVerifiedEntitlement(grant));
+  verifiedWrite = write.catch(() => undefined);
+  return write;
+}
+
+async function persistVerifiedEntitlement(grant: string): Promise<EntitlementRecord | null> {
   const config = billingVerificationConfig();
   if (config === null) return null;
   const verified = verifyEntitlementGrant(grant, config, new Date());
@@ -86,6 +93,7 @@ export async function saveVerifiedEntitlement(grant: string): Promise<Entitlemen
     productId: verified.productId,
     ...(verified.expiresAt !== null ? { expiresAt: verified.expiresAt } : {}),
     ...(verified.graceUntil !== null ? { graceUntil: verified.graceUntil } : {}),
+    refreshAfter: verified.refreshAfter,
   };
   const records = [
     ...existing.filter((candidate) => candidate.tier !== verified.tier),
@@ -125,6 +133,7 @@ export async function loadActiveEntitlements(): Promise<EntitlementRecord[]> {
       productId: verified.productId,
       ...(verified.expiresAt !== null ? { expiresAt: verified.expiresAt } : {}),
       ...(verified.graceUntil !== null ? { graceUntil: verified.graceUntil } : {}),
+      refreshAfter: verified.refreshAfter,
     });
   }
   return active;
