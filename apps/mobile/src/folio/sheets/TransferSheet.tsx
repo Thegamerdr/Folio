@@ -4,6 +4,7 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { recordInternalTransfer, useAppStore, type Account } from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
+import { parseManualMoney } from '@/folio/lib/manualMoney';
 
 const EMPTY_ACCOUNTS: Account[] = [];
 
@@ -43,11 +44,8 @@ export function TransferSheet({ visible, onClose }: TransferSheetProps) {
   }, [visible, workspaceId]);
   const from = activeAccounts.find((account) => account.id === fromAccountId);
   const to = activeAccounts.find((account) => account.id === toAccountId);
-  const parsedAmount = Number(amount);
-  const validAmount =
-    /^\d+(?:\.\d{0,2})?$/.test(amount) &&
-    parsedAmount > 0 &&
-    Number.isSafeInteger(Math.round(parsedAmount * 100));
+  const parsedAmount = parseManualMoney(amount) ?? 0;
+  const validAmount = parsedAmount > 0;
   const canReview = from !== undefined && to !== undefined && from.id !== to.id && validAmount;
 
   function review() {
@@ -135,7 +133,7 @@ export function TransferSheet({ visible, onClose }: TransferSheetProps) {
             />
             <TextInput
               value={amount}
-              onChangeText={(value) => setAmount(value.replace(/[^0-9.]/g, ''))}
+              onChangeText={setAmount}
               keyboardType="decimal-pad"
               placeholder="Amount"
               placeholderTextColor={palette.muted}

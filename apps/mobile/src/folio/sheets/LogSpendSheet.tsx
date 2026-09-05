@@ -24,13 +24,8 @@
 // (which re-exports the pressure-map kit). Nothing new is defined — no colour, no font, no spacing
 // value, no dependency.
 //
-// Money discipline: the amount is stored NEGATIVE (amount: -v) — dropping the sign would corrupt
-// the money path (inflow vs spend). Validation is duplicated on purpose: the disabled prop AND the
-// save() early-return share the same predicate (merchant.trim() && parseFloat(amount) > 0) so a
-// programmatic save can't bypass the gate. The category chips EXCLUDE 'income' (spend-only) though
-// the Transaction.category type includes it — the explicit `cats` array is the source of truth, not
-// the full union. The amount sanitiser only strips non [0-9.] characters; it does NOT block multiple
-// dots — matched to the web behaviour for parity rather than "fixed".
+// Money discipline: one strict parse supplies both the disabled gate and the negative saved amount.
+// Malformed pasted text is rejected visibly rather than recording a different numeric prefix.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -47,6 +42,7 @@ import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme
 import { copy } from '@/folio/copy/copy';
 import { addTransaction, rememberMerchantCategory, type Transaction } from '@/folio/store';
 import { triggerFeedback } from '@/folio/lib/feedback';
+import { parseManualMoney } from '@/folio/lib/manualMoney';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -137,20 +133,24 @@ function LogSpendForm({
 }) {
   const [merchant, setMerchant] = useState('');
   const [amount, setAmount] = useState(
-    typeof initialAmount === 'number' && initialAmount > 0 ? String(Math.round(initialAmount)) : '',
+    typeof initialAmount === 'number' && Number.isFinite(initialAmount) && initialAmount > 0
+      ? initialAmount.toFixed(2)
+      : '',
   );
+  const committed = useRef(false);
   const [category, setCategory] = useState<Transaction['category']>('food');
   const [merchantFocused, setMerchantFocused] = useState(false);
 
   // Shared validation predicate — used by BOTH the disabled gate and save() (spec: keep both so a
   // programmatic save can't bypass the gate).
-  const canSave = merchant.trim().length > 0 && parseFloat(amount) > 0;
+  const parsedAmount = parseManualMoney(amount);
+  const canSave = merchant.trim().length > 0 && parsedAmount !== undefined;
 
   function save() {
     const m = merchant.trim();
-    const v = parseFloat(amount);
-    if (!m || !(v > 0)) return;
-    addTransaction({ merchant: m, amount: -v, category, source: 'manual' });
+    if (committed.current || !m || parsedAmount === undefined) return;
+    committed.current = true;
+    addTransaction({ merchant: m, amount: -parsedAmount, category, source: 'manual' });
     void triggerFeedback('log-commit');
     // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): a manual log is the user
     // explicitly setting this merchant's category from scratch — remember it so a future statement
@@ -189,7 +189,7 @@ function LogSpendForm({
           <Text style={s.currency}>{copy.global.currency.symbol}</Text>
           <TextInput
             value={amount}
-            onChangeText={(text) => setAmount(text.replace(/[^0-9.]/g, ''))}
+            onChangeText={setAmount}
             keyboardType="decimal-pad"
             placeholder="0"
             placeholderTextColor={t.calm}
@@ -198,6 +198,12 @@ function LogSpendForm({
           />
         </View>
       </View>
+
+      {amount.length > 0 && parsedAmount === undefined ? (
+        <Text accessibilityRole="alert" style={{ color: t.repairInk }}>
+          Enter a positive amount with at most two decimal places.
+        </Text>
+      ) : null}
 
       {/* Category chips — exactly one active (--ink fill / --paper text); rest --inset / --ink. */}
       <View style={s.chipRow}>
