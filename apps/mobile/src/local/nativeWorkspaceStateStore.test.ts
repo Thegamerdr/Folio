@@ -194,6 +194,14 @@ const {
             ? { rows: [], rowsAffected: 0 }
             : { rows: [{ payload: syncState.payload }], rowsAffected: 0 };
         }
+        if (normalized.startsWith('SELECT payload, payload_sha256 FROM folio_workspace_sync_state')) {
+          return syncState === undefined
+            ? { rows: [], rowsAffected: 0 }
+            : {
+                rows: [{ payload: syncState.payload, payload_sha256: syncState.payload_sha256 }],
+                rowsAffected: 0,
+              };
+        }
         if (
           normalized.startsWith(
             'SELECT payload, payload_sha256, updated_at FROM folio_workspace_sync_state',
@@ -647,6 +655,35 @@ describe('lossless SQLCipher workspace generations', () => {
       ),
     ).rejects.toThrow('metadata changed');
     expect((await loadNativeWorkspaceSyncState(workspace))?.payload).toBe(outboxSync);
+  });
+
+  it('fails closed before an ordinary save builder receives a hash-corrupt sync journal', async () => {
+    const workspace = businessWorkspace();
+    const databaseName = workspaceLedgerDatabaseName(workspace.id);
+    syncStatesByDatabase.set(databaseName, {
+      payload: JSON.stringify({ version: 2, revision: 4, outbox: [] }),
+      payload_sha256: '0'.repeat(64),
+      updated_at: '2026-07-16T12:40:00.000Z',
+    });
+
+    const builder = vi.fn(() => JSON.stringify({ version: 2, revision: 5, outbox: [] }));
+    await expect(
+      saveNativeWorkspaceStateGeneration(
+        workspace,
+        statePayload(workspace, 'hash-guard'),
+        canonicalSnapshot(workspace),
+        [],
+        undefined,
+        builder,
+      ),
+    ).rejects.toThrow(/sync journal failed its integrity check/i);
+
+    expect(builder).not.toHaveBeenCalled();
+    expect(await loadNativeWorkspaceStateGenerations(workspace)).toEqual({
+      status: 'absent',
+      generations: [],
+    });
+    expect(syncStatesByDatabase.get(databaseName)?.payload_sha256).toBe('0'.repeat(64));
   });
 
   it('repairs a stale canonical binding while committing its exact generation', async () => {

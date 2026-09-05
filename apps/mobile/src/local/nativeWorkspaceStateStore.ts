@@ -461,12 +461,29 @@ async function saveRecord(
           typeof previous.rows[0]?.payload === 'string' ? previous.rows[0].payload : null;
       }
       let effectiveSyncStatePayload = syncStatePayload;
-      const existingSync = await transaction.execute<{ payload?: unknown }>(
-        `SELECT payload FROM ${SYNC_STATE_TABLE_NAME} WHERE workspace_id = ?`,
+      const existingSync = await transaction.execute<{
+        payload?: unknown;
+        payload_sha256?: unknown;
+      }>(
+        `SELECT payload, payload_sha256 FROM ${SYNC_STATE_TABLE_NAME} WHERE workspace_id = ?`,
         [String(workspace.id)],
       );
-      const previousSyncStatePayload =
-        typeof existingSync.rows[0]?.payload === 'string' ? existingSync.rows[0].payload : null;
+      const existingSyncRow = existingSync.rows[0] as
+        | { payload?: unknown; payload_sha256?: unknown }
+        | undefined;
+      let previousSyncStatePayload: string | null = null;
+      if (existingSyncRow !== undefined) {
+        if (
+          typeof existingSyncRow.payload !== 'string' ||
+          typeof existingSyncRow.payload_sha256 !== 'string'
+        ) {
+          throw new Error('SQLCipher sync metadata is unreadable.');
+        }
+        if ((await sha256(existingSyncRow.payload)) !== existingSyncRow.payload_sha256) {
+          throw new Error('The saved sync journal failed its integrity check. It was not reset.');
+        }
+        previousSyncStatePayload = existingSyncRow.payload;
+      }
       if (expectedSyncRevision !== undefined) {
         let actualRevision: unknown = null;
         try {
