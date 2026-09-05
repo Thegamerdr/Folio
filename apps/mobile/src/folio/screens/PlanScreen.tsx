@@ -16,7 +16,7 @@
 // @opens-sheet  add-event · onboarding (three source sheets still require shared native registration)
 // @motion       press 0.97 only; ScreenPlanHub has no route-entry animation.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -27,6 +27,8 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
+import { useDayClock } from '@/folio/lib/useDayClock';
+import { utcMidnightForLocalDay } from '@/folio/lib/dayClock';
 import type { Nav } from '@/folio/types';
 import { buildPlanTightPoint, buildPlanUpcoming, shortPlanDay } from './planModel';
 
@@ -144,10 +146,8 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
 
   // Mount-gate the clock (mirrors TodayScreen): defer `new Date()` to an effect so nothing reads the
   // wall clock during the first render. Until it opens, the screen holds the loading branch.
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-  }, []);
+  const now = useDayClock();
+  const engineNow = useMemo(() => (now ? utcMidnightForLocalDay(now) : null), [now]);
 
   // The shared store→money-path bridge — same curve every surface reads. The hook can't be called
   // conditionally, so it always runs against `now ?? EPOCH`; before the mount-gate opens we discard
@@ -171,12 +171,13 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
             pots,
             incomeSources,
             whatIfHolds,
-            now,
+            now: engineNow!,
             includeSampleBills,
           })
         : [],
     [
       now,
+      engineNow,
       subs,
       subPaused,
       subOverrides,
@@ -189,11 +190,18 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
     ],
   );
 
-  const upcoming = useMemo(() => buildPlanUpcoming(events), [events]);
+  // Income-free routes still resolve a payday fallback for the caption. Reconstruct that same
+  // inclusive period end from the route's day count when no payday event exists in the 35-day list.
+  const nextPayday =
+    events.find((event) => event.source === 'payday')?.date ??
+    (engineNow && route
+      ? new Date(engineNow.getTime() + route.daysToPayday * 86_400_000).toISOString().slice(0, 10)
+      : null);
+  const upcoming = useMemo(() => buildPlanUpcoming(events, nextPayday), [events, nextPayday]);
   const total = useMemo(() => upcoming.reduce((sum, u) => sum + u.amount, 0), [upcoming]);
   const planTightPoint = useMemo(
-    () => (now === null ? null : buildPlanTightPoint(events, currentBalance)),
-    [currentBalance, events, now],
+    () => (now === null ? null : buildPlanTightPoint(events, currentBalance, nextPayday)),
+    [currentBalance, events, nextPayday, now],
   );
   const tightDate = planTightPoint?.date ?? null;
   const tightSpare = planTightPoint?.amount ?? null;
@@ -288,7 +296,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
     {
       label: 'Debts',
       meta: debts.length ? `${debts.length} tracked` : 'nothing tracked yet',
-      onPress: undefined,
+      onPress: () => nav.go('debts'),
     },
     {
       label: 'Pots',
@@ -315,262 +323,276 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
       meta: 'something that leaves every month',
       onPress: () => nav.go('add-bill'),
     },
-    { label: 'Add a debt', meta: 'balance, rate, payoff', onPress: () => nav.go('add-debt') },
+    {
+      label: 'Add a debt',
+      meta: 'balance, rate, payoff',
+      onPress: () => nav.openSheet('declare-debt'),
+    },
     { label: 'Add a date', meta: 'a one-off in or out', onPress: () => nav.openSheet('add-event') },
-    { label: 'Sub check-in', meta: 'still worth it? three choices', onPress: undefined },
+    { label: 'Sub check-in', meta: 'still worth it? three choices', onPress: () => nav.go('subs') },
     { label: 'Log a transfer', meta: 'between your own accounts', onPress: undefined },
     { label: 'Pair a refund', meta: 'link the money in to the earlier spend', onPress: undefined },
   ];
 
   return (
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: gap.xl }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {showSampleMarker ? (
-          <View style={styles.sampleMarker}>
-            <View style={[styles.sampleDot, { backgroundColor: t.caution }]} />
-            <Text style={[styles.sampleText, { color: t.muted }]}>Sample numbers</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.intro}>
-          <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Plan</Text>
-          <Text accessibilityRole="header" style={[styles.heading, { color: t.ink }]}>
-            {'Between now and '}
-            <Text style={[styles.headingAccent, { color: t.calm }]}>payday.</Text>
-          </Text>
-          <Text style={[styles.narrative, { color: t.muted }]}>
-            What is still to leave, where it gets tight, and what you can change before it does.
-          </Text>
-        </View>
-
-        <View style={[styles.dominant, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          <Text style={[styles.smallLabel, { color: t.muted }]}>
-            {upcoming.length} thing{upcoming.length === 1 ? '' : 's'} still to leave
-          </Text>
-          <View style={styles.figureAmount}>
-            <Money value={formatGBP(total)} size="lg" t={t} />
-          </View>
-          <Text style={[styles.dominantCaption, { color: t.muted }]}>
-            {daysToPayday === 0
-              ? 'payday is today'
-              : `over the ${daysToPayday ?? 0} day${daysToPayday === 1 ? '' : 's'} to payday`}
-          </Text>
-          <View style={styles.dominantActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="See what's coming"
-              onPress={() => nav.go('calendar')}
-              style={({ pressed: isPressed }) => [
-                styles.secondaryButton,
-                { backgroundColor: t.surface, borderColor: t.hairline },
-                isPressed ? styles.pressed : undefined,
-              ]}
-            >
-              <Text style={[styles.buttonLabel, styles.buttonLabelShrink, { color: t.ink }]}>
-                See what's coming
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Try a change"
-              onPress={() => nav.go('whatif')}
-              style={({ pressed: isPressed }) => [
-                styles.quietAction,
-                isPressed ? styles.pressed : undefined,
-              ]}
-            >
-              <Text style={[styles.buttonLabel, styles.buttonLabelShrink, { color: t.calmStrong }]}>
-                Try a change
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View
-          style={[
-            styles.pressureNote,
-            { borderLeftColor: tightSpare !== null && tightSpare < 0 ? t.repair : t.caution },
-          ]}
+      <View style={[styles.viewportSafeArea, { paddingTop: insets.top }]}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: gap.xl }]}
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Tight point</Text>
-          <Text style={[styles.pressureText, { color: t.ink }]}>{tightMessage}</Text>
-        </View>
+          {showSampleMarker ? (
+            <View style={styles.sampleMarker}>
+              <View style={[styles.sampleDot, { backgroundColor: t.caution }]} />
+              <Text style={[styles.sampleText, { color: t.muted }]}>Sample numbers</Text>
+            </View>
+          ) : null}
 
-        <View style={[styles.chapterDivider, { backgroundColor: t.hairline }]} />
+          <View style={styles.intro}>
+            <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Plan</Text>
+            <Text accessibilityRole="header" style={[styles.heading, { color: t.ink }]}>
+              {'Between now and '}
+              <Text style={[styles.headingAccent, { color: t.calm }]}>payday.</Text>
+            </Text>
+            <Text style={[styles.narrative, { color: t.muted }]}>
+              What is still to leave, where it gets tight, and what you can change before it does.
+            </Text>
+          </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionEyebrow, { color: t.muted }]}>What's coming</Text>
-          <Text style={[styles.sectionTitle, { color: t.ink }]}>The next few dates</Text>
-          <View style={styles.timelineList}>
-            {upcoming.length === 0 ? (
-              <Text style={[styles.timelineEmpty, { color: t.muted }]}>
-                Nothing is scheduled to leave before payday.
-              </Text>
-            ) : null}
-            {upcoming.slice(0, 4).map((u, i) => (
+          <View style={[styles.dominant, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+            <Text style={[styles.smallLabel, { color: t.muted }]}>
+              {upcoming.length} thing{upcoming.length === 1 ? '' : 's'} still to leave
+            </Text>
+            <View style={styles.figureAmount}>
+              <Money value={formatGBP(total)} size="lg" t={t} />
+            </View>
+            <Text style={[styles.dominantCaption, { color: t.muted }]}>
+              {daysToPayday === 0
+                ? 'payday is today'
+                : `over the ${daysToPayday ?? 0} day${daysToPayday === 1 ? '' : 's'} to payday`}
+            </Text>
+            <View style={styles.dominantActions}>
               <Pressable
-                key={u.id}
                 accessibilityRole="button"
-                accessibilityLabel={`${u.name}, ${formatGBP(u.amount)}, ${shortPlanDay(u.date)}`}
-                accessibilityHint="Opens Calendar."
+                accessibilityLabel="See what's coming"
                 onPress={() => nav.go('calendar')}
                 style={({ pressed: isPressed }) => [
-                  styles.timelineRow,
-                  i > 0 ? { borderTopWidth: 1, borderTopColor: t.hairline } : undefined,
+                  styles.secondaryButton,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.buttonLabel, styles.buttonLabelShrink, { color: t.ink }]}>
+                  See what's coming
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Try a change"
+                onPress={() => nav.go('whatif')}
+                style={({ pressed: isPressed }) => [
+                  styles.quietAction,
                   isPressed ? styles.pressed : undefined,
                 ]}
               >
                 <Text
-                  style={[styles.timelineWhen, { color: u.date === tightDate ? t.calm : t.muted }]}
+                  style={[styles.buttonLabel, styles.buttonLabelShrink, { color: t.calmStrong }]}
                 >
-                  {shortPlanDay(u.date)}
+                  Try a change
                 </Text>
-                <View
-                  style={[
-                    styles.timelineDot,
-                    { backgroundColor: u.date === tightDate ? t.calm : t.muted },
-                  ]}
-                />
-                <View style={styles.rowBody}>
-                  <Text style={[styles.rowName, { color: t.ink }]} numberOfLines={1}>
-                    {u.name}
-                  </Text>
-                  <Text style={[styles.rowNote, { color: t.muted }]} numberOfLines={1}>
-                    {u.note || 'spoken for'}
-                  </Text>
-                </View>
-                <Money value={formatGBP(u.amount)} size="sm" tone="negative" t={t} />
               </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Set aside</Text>
-          <Text style={[styles.sectionTitle, { color: t.ink }]}>Held back on purpose</Text>
-          <View style={styles.sectionChildren}>
-            <View style={styles.statLine}>
-              <View>
-                <Text style={[styles.statLabel, { color: t.ink }]}>In pots</Text>
-                <Text style={[styles.statCaption, { color: t.muted }]}>
-                  {pots.length
-                    ? `${pots.length} pot${pots.length === 1 ? '' : 's'}`
-                    : 'no pots yet'}
-                </Text>
-              </View>
-              <Text style={[styles.statValue, { color: t.ink }]}>{formatGBP(potsSaved)}</Text>
             </View>
-            <View style={styles.statLine}>
-              <View>
-                <Text style={[styles.statLabel, { color: t.ink }]}>Subscriptions running</Text>
-                <Text style={[styles.statCaption, { color: t.muted }]}>
-                  {liveSubs.length ? 'renewing on their own' : 'none active'}
-                </Text>
-              </View>
-              <Text style={[styles.statValue, { color: t.ink }]}>{liveSubs.length}</Text>
-            </View>
-            {debts.length ? (
-              <View style={styles.statLine}>
-                <View>
-                  <Text style={[styles.statLabel, { color: t.ink }]}>Debts tracked</Text>
-                  <Text style={[styles.statCaption, { color: t.muted }]}>
-                    repayments already in the path
-                  </Text>
-                </View>
-                <Text style={[styles.statValue, { color: t.ink }]}>{debts.length}</Text>
-              </View>
-            ) : null}
           </View>
-        </View>
 
-        <View style={styles.destinations}>
-          <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Go deeper</Text>
-          <Text style={[styles.sectionTitle, { color: t.ink }]}>Places that shape the path</Text>
-          <View style={styles.navList}>
-            {destinations.map((item, index) => (
-              <Pressable
-                key={item.label}
-                accessibilityRole={item.onPress ? 'button' : undefined}
-                onPress={item.onPress}
-                style={({ pressed: isPressed }) => [
-                  styles.destinationRow,
-                  index > 0 ? { borderTopWidth: 1, borderTopColor: t.hairline } : undefined,
-                  isPressed ? styles.pressed : undefined,
-                ]}
-              >
-                <View style={styles.rowBody}>
-                  <Text style={[styles.destinationLabel, { color: t.ink }]}>{item.label}</Text>
-                  <Text style={[styles.destinationMeta, { color: t.muted }]} numberOfLines={1}>
-                    {item.meta}
-                  </Text>
-                </View>
-                {'value' in item && item.value ? (
-                  <Text style={[styles.destinationValue, { color: t.muted }]}>{item.value}</Text>
-                ) : null}
-                <ChevronGlyph color={t.muted} />
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.addSection}>
-          <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Add</Text>
-          <Text style={[styles.sectionTitle, { color: t.ink }]}>Put something in the plan</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: showAdd }}
-            onPress={() => setShowAdd((visible) => !visible)}
-            style={({ pressed: isPressed }) => [
-              styles.addDisclosure,
-              isPressed ? styles.pressed : undefined,
+          <View
+            style={[
+              styles.pressureNote,
+              { borderLeftColor: tightSpare !== null && tightSpare < 0 ? t.repair : t.caution },
             ]}
           >
-            <View style={styles.rowBody}>
-              <Text style={[styles.disclosureLabel, { color: t.ink }]}>Add something</Text>
-              <Text style={[styles.destinationMeta, { color: t.muted }]} numberOfLines={1}>
-                bills, debts, dates, transfers and refunds
-              </Text>
-            </View>
-            <ChevronGlyph direction={showAdd ? 'up' : 'down'} color={t.muted} />
-          </Pressable>
-          {showAdd ? (
-            <View style={styles.addChoices}>
-              {addChoices.map((choice, index) => (
+            <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Tight point</Text>
+            <Text style={[styles.pressureText, { color: t.ink }]}>{tightMessage}</Text>
+          </View>
+
+          <View style={[styles.chapterDivider, { backgroundColor: t.hairline }]} />
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionEyebrow, { color: t.muted }]}>What's coming</Text>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>The next few dates</Text>
+            <View style={styles.timelineList}>
+              {upcoming.length === 0 ? (
+                <Text style={[styles.timelineEmpty, { color: t.muted }]}>
+                  Nothing is scheduled to leave before payday.
+                </Text>
+              ) : null}
+              {upcoming.slice(0, 4).map((u, i) => (
                 <Pressable
-                  key={choice.label}
-                  accessibilityRole={choice.onPress ? 'button' : undefined}
-                  onPress={choice.onPress}
+                  key={u.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${u.name}, ${formatGBP(u.amount)}, ${shortPlanDay(u.date)}`}
+                  accessibilityHint="Opens Calendar."
+                  onPress={() => nav.go('calendar')}
                   style={({ pressed: isPressed }) => [
-                    styles.choiceRow,
+                    styles.timelineRow,
+                    i > 0 ? { borderTopWidth: 1, borderTopColor: t.hairline } : undefined,
+                    isPressed ? styles.pressed : undefined,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.timelineWhen,
+                      { color: u.date === tightDate ? t.calm : t.muted },
+                    ]}
+                  >
+                    {shortPlanDay(u.date)}
+                  </Text>
+                  <View
+                    style={[
+                      styles.timelineDot,
+                      { backgroundColor: u.date === tightDate ? t.calm : t.muted },
+                    ]}
+                  />
+                  <View style={styles.rowBody}>
+                    <Text style={[styles.rowName, { color: t.ink }]} numberOfLines={1}>
+                      {u.name}
+                    </Text>
+                    <Text style={[styles.rowNote, { color: t.muted }]} numberOfLines={1}>
+                      {u.note || 'spoken for'}
+                    </Text>
+                  </View>
+                  <Money value={formatGBP(u.amount)} size="sm" tone="negative" t={t} />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Set aside</Text>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>Held back on purpose</Text>
+            <View style={styles.sectionChildren}>
+              <View style={styles.statLine}>
+                <View>
+                  <Text style={[styles.statLabel, { color: t.ink }]}>In pots</Text>
+                  <Text style={[styles.statCaption, { color: t.muted }]}>
+                    {pots.length
+                      ? `${pots.length} pot${pots.length === 1 ? '' : 's'}`
+                      : 'no pots yet'}
+                  </Text>
+                </View>
+                <Text style={[styles.statValue, { color: t.ink }]}>{formatGBP(potsSaved)}</Text>
+              </View>
+              <View style={styles.statLine}>
+                <View>
+                  <Text style={[styles.statLabel, { color: t.ink }]}>Subscriptions running</Text>
+                  <Text style={[styles.statCaption, { color: t.muted }]}>
+                    {liveSubs.length ? 'renewing on their own' : 'none active'}
+                  </Text>
+                </View>
+                <Text style={[styles.statValue, { color: t.ink }]}>{liveSubs.length}</Text>
+              </View>
+              {debts.length ? (
+                <View style={styles.statLine}>
+                  <View>
+                    <Text style={[styles.statLabel, { color: t.ink }]}>Debts tracked</Text>
+                    <Text style={[styles.statCaption, { color: t.muted }]}>
+                      repayments already in the path
+                    </Text>
+                  </View>
+                  <Text style={[styles.statValue, { color: t.ink }]}>{debts.length}</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.destinations}>
+            <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Go deeper</Text>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>Places that shape the path</Text>
+            <View style={styles.navList}>
+              {destinations.map((item, index) => (
+                <Pressable
+                  key={item.label}
+                  accessibilityRole="button"
+                  onPress={item.onPress}
+                  style={({ pressed: isPressed }) => [
+                    styles.destinationRow,
                     index > 0 ? { borderTopWidth: 1, borderTopColor: t.hairline } : undefined,
                     isPressed ? styles.pressed : undefined,
                   ]}
                 >
                   <View style={styles.rowBody}>
-                    <Text style={[styles.choiceLabel, { color: t.ink }]}>{choice.label}</Text>
+                    <Text style={[styles.destinationLabel, { color: t.ink }]}>{item.label}</Text>
                     <Text style={[styles.destinationMeta, { color: t.muted }]} numberOfLines={1}>
-                      {choice.meta}
+                      {item.meta}
                     </Text>
                   </View>
+                  {'value' in item && item.value ? (
+                    <Text style={[styles.destinationValue, { color: t.muted }]}>{item.value}</Text>
+                  ) : null}
                   <ChevronGlyph color={t.muted} />
                 </Pressable>
               ))}
             </View>
-          ) : null}
-          <Text style={[styles.addTruth, { color: t.muted }]}>
-            Nothing lands in your plan until you say so.
-          </Text>
-        </View>
-      </ScrollView>
+          </View>
+
+          <View style={styles.addSection}>
+            <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Add</Text>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>Put something in the plan</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showAdd }}
+              onPress={() => setShowAdd((visible) => !visible)}
+              style={({ pressed: isPressed }) => [
+                styles.addDisclosure,
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <View style={styles.rowBody}>
+                <Text style={[styles.disclosureLabel, { color: t.ink }]}>Add something</Text>
+                <Text style={[styles.destinationMeta, { color: t.muted }]} numberOfLines={1}>
+                  bills, debts, dates, transfers and refunds
+                </Text>
+              </View>
+              <ChevronGlyph direction={showAdd ? 'up' : 'down'} color={t.muted} />
+            </Pressable>
+            {showAdd ? (
+              <View style={styles.addChoices}>
+                {addChoices.map((choice, index) => (
+                  <Pressable
+                    key={choice.label}
+                    accessibilityRole={choice.onPress ? 'button' : undefined}
+                    onPress={choice.onPress}
+                    style={({ pressed: isPressed }) => [
+                      styles.choiceRow,
+                      index > 0 ? { borderTopWidth: 1, borderTopColor: t.hairline } : undefined,
+                      isPressed ? styles.pressed : undefined,
+                    ]}
+                  >
+                    <View style={styles.rowBody}>
+                      <Text style={[styles.choiceLabel, { color: t.ink }]}>{choice.label}</Text>
+                      <Text style={[styles.destinationMeta, { color: t.muted }]} numberOfLines={1}>
+                        {choice.meta}
+                      </Text>
+                    </View>
+                    <ChevronGlyph color={t.muted} />
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            <Text style={[styles.addTruth, { color: t.muted }]}>
+              Nothing lands in your plan until you say so.
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
+    flex: 1,
+  },
+  viewportSafeArea: {
     flex: 1,
   },
   frame: {

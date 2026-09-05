@@ -77,6 +77,8 @@ type SheetProps = {
   // container uses (AccessibilityInfo.isReduceMotionEnabled — see useReducedMotionPreference
   // in mobileShell). Defaults to motion on.
   reduceMotion?: boolean | undefined;
+  /** Let a self-hosting surface keep fixed chrome visible while its own child scrolls. */
+  scrollable?: boolean;
 };
 
 type SheetPortalApi = {
@@ -138,7 +140,7 @@ export function SheetPortalProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) {
+export function Sheet({ visible, onClose, children, reduceMotion, scrollable = true }: SheetProps) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const t = useTheme();
@@ -286,6 +288,7 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
               style={[
                 s.panel,
                 { maxHeight, paddingBottom: panelBottomPadding },
+                !scrollable && { height: maxHeight, flexShrink: 1 },
                 { transform: [{ translateY }] },
               ]}
             >
@@ -302,14 +305,18 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
                 importantForAccessibility="no-hide-descendants"
                 style={s.handle}
               />
-              <ScrollView
-                bounces={false}
-                contentContainerStyle={layout.scrollContent}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                {children}
-              </ScrollView>
+              {scrollable ? (
+                <ScrollView
+                  bounces={false}
+                  contentContainerStyle={layout.scrollContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  {children}
+                </ScrollView>
+              ) : (
+                <View style={layout.sheetContent}>{children}</View>
+              )}
             </Animated.View>
           </KeyboardAvoidingView>
         </View>
@@ -327,6 +334,7 @@ export function Sheet({ visible, onClose, children, reduceMotion }: SheetProps) 
       translateY,
       usesAndroidPortal,
       visible,
+      scrollable,
     ],
   );
 
@@ -400,6 +408,9 @@ const layout = StyleSheet.create({
     // The panel already owns the platform-safe bottom rhythm; the scroll content only needs
     // a little breathing room under the last child.
     paddingBottom: gap.sm,
+  },
+  sheetContent: {
+    flex: 1,
   },
 });
 

@@ -716,10 +716,25 @@ export function ReviewScreen({
                   Nothing waiting to be <Text style={{ color: t.calm }}>checked</Text>.
                 </Text>
                 <Text style={[sourceStyles.emptyBody, { color: t.muted }]}>
-                  When Melo finds something new, it will show up here first.
+                  Add a statement to see suggestions here. You decide what becomes part of your
+                  money picture.
                 </Text>
               </View>
             </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add a statement"
+              onPress={() => nav.go('intake')}
+              style={({ pressed: isPressed }) => [
+                sourceStyles.emptyCta,
+                { backgroundColor: t.calm },
+                isPressed ? sourceStyles.pressed : undefined,
+              ]}
+            >
+              <Text style={[sourceStyles.emptyCtaLabel, { color: t.inverse }]}>
+                Add a statement
+              </Text>
+            </Pressable>
             {(getState().ignoredReviewSigs ?? []).length > 0 ? (
               <Pressable
                 accessibilityRole="button"
@@ -1767,6 +1782,14 @@ const sourceStyles = StyleSheet.create({
   emptyCopy: { flex: 1, minWidth: 0 },
   emptyHeadline: { fontFamily: serif.display, fontSize: 28, lineHeight: 32 },
   emptyBody: { fontSize: 14, lineHeight: 22, marginTop: gap.md, maxWidth: 240 },
+  emptyCta: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    justifyContent: 'center',
+    marginTop: gap.xl,
+    minHeight: 52,
+  },
+  emptyCtaLabel: { fontSize: 15, fontWeight: '500' },
   hiddenButton: {
     alignSelf: 'center',
     borderRadius: radius.md,

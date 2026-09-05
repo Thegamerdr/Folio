@@ -112,6 +112,8 @@ import {
 } from '@/folio/lib/calendarEvents';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { selectMonthlyIncome } from '@/folio/lib/income';
+import { useDayClock } from '@/folio/lib/useDayClock';
+import { utcMidnightForLocalDay } from '@/folio/lib/dayClock';
 import {
   calendarDefaultAnchor,
   calendarAnchorLabel,
@@ -318,12 +320,18 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   // calm empty frame rather than a flash of half-derived content (NOT the web's UTC/SSR rationale).
   // It also doubles as the money-path mount-gate (mirrors TodayScreen): the route engine has no honest
   // "today" until this is set, so the route is discarded that one frame.
-  const [today, setToday] = useState<Date | null>(null);
-  useEffect(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    setToday(d);
-  }, []);
+  const clockNow = useDayClock();
+  // Calendar's views use local date arithmetic (not true instants). Keep their base at local
+  // midnight so a Monday afternoon cannot look like a partial day when WeekView computes jumps;
+  // the engine still receives the equivalent UTC-midnight date-only anchor below.
+  const today = useMemo(
+    () =>
+      clockNow === null
+        ? null
+        : new Date(clockNow.getFullYear(), clockNow.getMonth(), clockNow.getDate()),
+    [clockNow],
+  );
+  const engineToday = useMemo(() => (today ? utcMidnightForLocalDay(today) : null), [today]);
 
   // @rn-engine money-path — the running-spare ladder + the tightest-day pill anchor to the REAL route,
   // not the old literal £720. `useRoute` (the shared store→money-path bridge) maps the live store onto
@@ -361,7 +369,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
             pots,
             spendHold,
             whatIfHolds,
-            now: today,
+            now: engineToday!,
             includeSampleBills,
           })
         : [],
@@ -376,6 +384,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
       spendHold,
       whatIfHolds,
       today,
+      engineToday,
       includeSampleBills,
     ],
   );

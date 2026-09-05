@@ -1,11 +1,50 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('expo-file-system/legacy', () => ({
-  documentDirectory: null,
-  EncodingType: { UTF8: 'utf8' },
+const filesystem = vi.hoisted(() => ({
+  directory: 'file:///notification-test/' as string | null,
+  write: vi.fn<(...args: unknown[]) => Promise<void>>(),
 }));
 
-import { DEFAULT_REMINDERS_SETTINGS, parseRemindersSettings } from './notifySettings';
+vi.mock('expo-file-system/legacy', () => ({
+  get documentDirectory() {
+    return filesystem.directory;
+  },
+  EncodingType: { UTF8: 'utf8' },
+  writeAsStringAsync: filesystem.write,
+}));
+
+import {
+  DEFAULT_REMINDERS_SETTINGS,
+  parseRemindersSettings,
+  saveRemindersSettings,
+} from './notifySettings';
+
+beforeEach(() => {
+  filesystem.directory = 'file:///notification-test/';
+  filesystem.write.mockReset().mockResolvedValue(undefined);
+});
+
+describe('saveRemindersSettings', () => {
+  it('reports success only after the native preference write completes', async () => {
+    expect(await saveRemindersSettings(DEFAULT_REMINDERS_SETTINGS)).toBe(true);
+    expect(filesystem.write).toHaveBeenCalledWith(
+      'file:///notification-test/reminders.settings.v1.json',
+      JSON.stringify(DEFAULT_REMINDERS_SETTINGS),
+      { encoding: 'utf8' },
+    );
+  });
+
+  it('reports failed storage so the switch cannot claim an unsaved setting', async () => {
+    filesystem.write.mockRejectedValueOnce(new Error('disk full'));
+    expect(await saveRemindersSettings(DEFAULT_REMINDERS_SETTINGS)).toBe(false);
+  });
+
+  it('reports unavailable storage without trying a write', async () => {
+    filesystem.directory = null;
+    expect(await saveRemindersSettings(DEFAULT_REMINDERS_SETTINGS)).toBe(false);
+    expect(filesystem.write).not.toHaveBeenCalled();
+  });
+});
 
 describe('parseRemindersSettings', () => {
   it('is quiet and privacy-safe by default', () => {

@@ -122,10 +122,22 @@ export function useMeloVoiceTranscript(active: boolean): MeloVoiceTranscript {
       setRoute(recognitionRoute);
       updatePhase('starting');
 
-      const permission =
-        recognitionRoute === 'on-device'
-          ? await ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync()
-          : await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      let permission: { granted: boolean; canAskAgain?: boolean };
+      try {
+        permission =
+          recognitionRoute === 'on-device'
+            ? await ExpoSpeechRecognitionModule.requestMicrophonePermissionsAsync()
+            : await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      } catch {
+        // Native permission prompts can reject when the OS service is unavailable or the request is
+        // interrupted. Always unwind the starting phase so the composer remains retryable.
+        if (generation !== requestGenerationRef.current || !activeRef.current) return false;
+        sessionActiveRef.current = false;
+        setRoute(null);
+        updatePhase('idle');
+        setError('Microphone permission could not be checked. You can type instead.');
+        return false;
+      }
       if (generation !== requestGenerationRef.current || !activeRef.current) return false;
       if (!permission.granted) {
         setRoute(null);

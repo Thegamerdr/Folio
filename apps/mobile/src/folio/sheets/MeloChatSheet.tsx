@@ -292,7 +292,7 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
   // is intentionally dropped (spec `moods` row + fidelity note). One avatar instance, re-keyed on
   // visible so it remounts fresh each open (matches the web mount lifecycle).
   return (
-    <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
+    <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion} scrollable={false}>
       <MeloChat
         snapshot={snapshot}
         prefill={prefill}
@@ -1285,10 +1285,10 @@ const submitStyles = StyleSheet.create({
   },
   button: {
     alignItems: 'center',
-    borderRadius: 16,
-    height: 32,
+    borderRadius: 22,
+    height: 44,
     justifyContent: 'center',
-    width: 32,
+    width: 44,
   },
   stop: {
     borderRadius: 2,
@@ -1466,7 +1466,7 @@ function makeStyles(t: Palette) {
       // scrolls inside, so the body fills the available column rather than pinning a px height.
       flexGrow: 1,
       flexShrink: 1,
-      minHeight: 360,
+      minHeight: 0,
     },
     composer: {
       alignItems: 'flex-end',
@@ -1648,6 +1648,7 @@ function makeStyles(t: Palette) {
     },
     submitRow: {
       alignItems: 'flex-end',
+      minHeight: 44,
       paddingBottom: gap.xxs,
     },
     thinking: {

@@ -1,25 +1,15 @@
 // OnboardingSheet complete/skip → clean store contract tests.
 //
-// What this proves (the behaviour wired in this change): completing onboarding (the primary
-// "make them yours" path, OnboardingSheet.done()) removes any legacy development fixture before it
-// writes real values. Skipping also clears that fixture, but keeps onboarding incomplete.
-//
-// done() runs this exact store sequence:
-//   resetToEmpty()                              // wipe the demo → clean empty + onboarding.done=true
-//   setOnboarding({ name, payday, monthlyIncome, done: true })   // the user's real identity
-//   if (balance > 0) setCurrentBalance({ amount, source: 'user-entered', confidence: 'rough' })
-//   if (pickedPots.length) setPots(pickedPots @ saved: 0)        // chosen pots, freshly zeroed
-//
-// These tests exercise that sequence against the store's public surface (the single reactive seam),
-// proving the demo→clean transition end-to-end. They are Node-safe (no react-native, no DOM), so the
-// apps/**/*.test.ts runner collects them; the sheet component itself imports react-native and is
-// verified by typecheck + on-device render, while the write contract it depends on is proven here.
+// What this proves: OnboardingSheet.done()/skipForNow() call the shared production mutation seam.
+// Legacy sample cleanup is first-run-only; returning edits preserve the populated workspace while
+// updating the payday/income context. These tests are Node-safe (no react-native or DOM).
 //
 // Imports go through the store's public surface, mirroring store.test.ts / editTxnSave.test.ts.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  addTransaction,
   type IncomeSource,
   type Pot,
   getState,
@@ -27,12 +17,12 @@ import {
   isEmptyForMeloImport,
   resetAll,
   resetToEmpty,
-  setCurrentBalance,
   setIncomeSources,
   setOnboarding,
   setPots,
 } from '../store';
 import { monthlyEquivalent } from '../lib/driftSignals';
+import { commitOnboarding, skipOnboardingForNow } from '../lib/onboardingMutations';
 
 // Reset to the demo seed before each test so we always start in the PRE-ONBOARDING regime that
 // finishing onboarding must transition out of (resetAll seeds demo pots/subs/cycles/transactions +
@@ -41,28 +31,12 @@ beforeEach(() => {
   resetAll();
 });
 
-const WEEK_BASED_CADENCES = new Set<IncomeSource['cadence']>([
-  'weekly',
-  'fortnightly',
-  'four-weekly',
-]);
-
 function dayOfMonthFromIso(iso: string): number {
   const day = Number(iso.slice(8, 10));
   return Number.isInteger(day) && day >= 1 && day <= 31 ? day : 1;
 }
 
-// The store sequence OnboardingSheet.done() runs on the primary finish path, parameterised by what
-// the user entered. Kept byte-faithful to the component so the test tracks the real contract.
-// `cadence`/`anchorISO` default to the legacy monthly-only path so every pre-existing test in this
-// file (which predates the cadence step) keeps exercising byte-identical behaviour.
-//
-// `input.monthlyIncome` is the PER-OCCURRENCE amount the user entered at their declared cadence
-// (matching the component's `income` slider state — see OnboardingSheet.tsx step 5's per-cadence
-// range) — never a pre-converted monthly figure. `done()` converts it via `monthlyEquivalent`
-// before writing the legacy `onboarding.monthlyIncome` slot, exactly as this helper now does, so a
-// monthly earner's byte-identical £2400 stays £2400 (monthlyEquivalent is a no-op at cadence
-// 'monthly') while a weekly earner's per-week figure is correctly scaled up.
+// The test calls the exact production mutation used by OnboardingSheet.done().
 function completeOnboarding(input: {
   name: string;
   payday: number;
@@ -75,39 +49,24 @@ function completeOnboarding(input: {
 }) {
   const cadence = input.cadence ?? 'monthly';
   const anchorISO = input.anchorISO ?? '2026-07-01';
-
-  resetToEmpty();
-
   const legacyPayday =
     cadence === 'monthly'
       ? input.payday
       : cadence === 'last-working-day'
         ? (input.lastWorkingDayNumber ?? 29)
         : dayOfMonthFromIso(anchorISO);
-
-  setOnboarding({
+  commitOnboarding({
     name: input.name,
-    payday: legacyPayday,
-    monthlyIncome: monthlyEquivalent(input.monthlyIncome, cadence),
-    done: true,
-  });
-
-  const incomeSource: IncomeSource = {
-    id: 'income-onboarding-pay',
-    label: 'Pay',
+    payday: input.payday,
+    monthlyIncome: input.monthlyIncome,
+    balance: input.balance,
+    pickedPots: input.pickedPots,
     cadence,
-    amount: input.monthlyIncome,
-    source: 'onboarding',
-    ...(cadence === 'monthly' ? { dayOfMonth: input.payday } : {}),
-    ...(WEEK_BASED_CADENCES.has(cadence) ? { anchorISO } : {}),
-  };
-  setIncomeSources([incomeSource]);
-
-  if (input.balance > 0) {
-    setCurrentBalance({ amount: input.balance, source: 'user-entered', confidence: 'rough' });
-  }
-  const nextPots: Pot[] = input.pickedPots.map((p) => ({ ...p, saved: 0 }));
-  if (nextPots.length > 0) setPots(nextPots);
+    anchorISO,
+    legacyPayday,
+    intentMode: 'survival',
+    modeExtra: 100,
+  });
 }
 
 describe('OnboardingSheet complete → clean app (demo is pre-onboarding only)', () => {
@@ -247,7 +206,7 @@ describe('OnboardingSheet complete → clean app (demo is pre-onboarding only)',
 
 describe('OnboardingSheet skip → honest empty account', () => {
   it('clears any legacy sample state while leaving onboarding incomplete', () => {
-    resetToEmpty({ onboardingDone: false });
+    skipOnboardingForNow();
     const s = getState();
     expect(s.onboarding.done).toBe(false);
     expect(hasAnyUserData(s)).toBe(false);
@@ -383,5 +342,80 @@ describe('OnboardingSheet cadence step → incomeSources + legacy payday equival
     // Legacy equivalent is whatever the current month's last working day resolves to — not the
     // (unused, hidden) day-of-month slider value.
     expect(s.onboarding.payday).toBe(30);
+  });
+});
+
+describe('OnboardingSheet returning workspace safety', () => {
+  it('updates only onboarding income context while preserving ledger, other income and pots', () => {
+    resetToEmpty();
+    addTransaction({ merchant: 'Groceries', amount: -42, category: 'food', source: 'manual' });
+    setOnboarding({ name: 'Existing', payday: 12, monthlyIncome: 1800, done: true });
+    setIncomeSources([
+      {
+        id: 'income-onboarding-pay',
+        label: 'Pay',
+        cadence: 'monthly',
+        dayOfMonth: 12,
+        amount: 1800,
+        source: 'onboarding',
+      },
+      {
+        id: 'income-side-work',
+        label: 'Side work',
+        cadence: 'weekly',
+        anchorISO: '2026-08-07',
+        amount: 125,
+        source: 'manual',
+      },
+    ]);
+    setPots([
+      { id: 'holiday', name: 'Holiday', saved: 240, goal: 1200, perWeek: 35, accent: true },
+      { id: 'custom', name: 'Custom', saved: 90, goal: 500, perWeek: 10, accent: false },
+    ]);
+    const beforePots = getState().pots;
+    const beforeTransaction = getState().transactions[0];
+
+    completeOnboarding({
+      name: 'Updated',
+      payday: 25,
+      monthlyIncome: 2200,
+      balance: 0,
+      pickedPots: [],
+    });
+
+    const after = getState();
+    expect(after.transactions).toEqual([beforeTransaction]);
+    expect(after.pots).toEqual(beforePots);
+    expect(after.incomeSources).toHaveLength(2);
+    expect(after.incomeSources?.find((source) => source.id === 'income-side-work')).toMatchObject({
+      amount: 125,
+      source: 'manual',
+    });
+    expect(after.onboarding).toMatchObject({ name: 'Updated', payday: 25, monthlyIncome: 2200, done: true });
+  });
+
+  it('does not treat a sample balance alone as permission to delete a real transaction', () => {
+    // This simulates a partially configured/legacy workspace where the balance marker is stale but
+    // the ledger has a user-owned row. The production path must preserve that row.
+    addTransaction({ merchant: 'Train', amount: -8, category: 'transport', source: 'manual' });
+    const transaction = getState().transactions.find((row) => row.merchant === 'Train');
+    completeOnboarding({
+      name: 'Ada',
+      payday: 25,
+      monthlyIncome: 2180,
+      balance: 0,
+      pickedPots: [],
+    });
+    expect(getState().transactions).toContainEqual(transaction);
+  });
+
+  it('treats skip as cancellation on a returning workspace', () => {
+    resetToEmpty();
+    addTransaction({ merchant: 'Lunch', amount: -12, category: 'food', source: 'manual' });
+    setOnboarding({ done: true, name: 'Ada', payday: 20, monthlyIncome: 2000 });
+    const before = getState();
+    skipOnboardingForNow();
+    expect(getState().transactions).toEqual(before.transactions);
+    expect(getState().onboarding).toEqual(before.onboarding);
   });
 });

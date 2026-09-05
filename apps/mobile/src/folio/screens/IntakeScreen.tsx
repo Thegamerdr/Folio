@@ -711,9 +711,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
             ))}
           </View>
           <Text style={[styles.explainer, { color: t.muted }]}>
-            Pasted text and numbers you type are read here. Files and photos are read in the mobile
-            app, so those two show a worked example for now. Sources you already use are managed in
-            Data &amp; security.
+            Pasted text and numbers you type stay on this phone while Melo prepares suggestions.
+            Files and photos use the native picker here; sources you already use are managed in
+            Data &amp; security. Nothing is added until you review it.
           </Text>
         </View>
 

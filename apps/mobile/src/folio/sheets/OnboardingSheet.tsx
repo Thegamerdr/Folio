@@ -64,21 +64,14 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
-import {
-  resetToEmpty,
-  setBufferAmount,
-  setCurrentBalance,
-  setIncomeSources,
-  setModeExtra as persistModeExtra,
-  setMoneyMode,
-  setOnboarding,
-  setPots as storeSetPots,
-  useAppStore,
-  type IncomeSource,
-} from '@/folio/store';
+import { useAppStore, type IncomeSource } from '@/folio/store';
 import type { MoneyMode } from '@/folio/lib/modes/types';
 import { isBusinessDay } from '@/folio/lib/payday';
-import { monthlyEquivalent } from '@/folio/lib/driftSignals';
+import {
+  commitOnboarding,
+  isOnboardingFirstRun,
+  skipOnboardingForNow,
+} from '@/folio/lib/onboardingMutations';
 
 // ---------------------------------------------------------------------------
 // Intent picker + mode-specific extra question (BREAKS-PARITY fix) — web
@@ -462,17 +455,24 @@ function OnboardingFlow({
   const ob = useAppStore((st) => st.onboarding);
   const existingPots = useAppStore((st) => st.pots);
   const currentBalance = useAppStore((st) => st.currentBalance);
+  const savedIncomeSource = useAppStore(
+    (st) => st.incomeSources?.find((source) => source.id === 'income-onboarding-pay') ?? null,
+  );
+  const isFirstRun = useAppStore(isOnboardingFirstRun);
+  // Returning users enter this sheet from "Payday and income". Keep only its owned fields in the
+  // step sequence; mode, balance and pots belong to other surfaces and are not silently discarded.
+  const isReturning = !isFirstRun;
   const savedMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const isDark = useIsDark();
   const savedBuffer = useAppStore((st) => st.bufferAmount ?? 100);
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState(ob.name);
-  const [payday, setPayday] = useState(ob.payday);
-  const [income, setIncome] = useState(ob.monthlyIncome);
+  const [payday, setPayday] = useState(savedIncomeSource?.dayOfMonth ?? ob.payday);
   // Pay cadence (new step, ahead of the day picker) — see lib/income.ts. Monthly is the honest
   // default: it matches every existing user's behaviour byte-for-byte until they say otherwise.
-  const [cadence, setCadence] = useState<PayCadence>('monthly');
+  const [cadence, setCadence] = useState<PayCadence>(savedIncomeSource?.cadence ?? 'monthly');
+  const [income, setIncome] = useState(savedIncomeSource?.amount ?? ob.monthlyIncome);
   // The income slider's range/unit branches on the declared cadence — a weekly earner's
   // per-occurrence figure lives on a much smaller scale than a monthly one (see
   // INCOME_RANGE_BY_CADENCE above). Recomputed, not stored, so it always tracks `cadence`.
@@ -486,7 +486,7 @@ function OnboardingFlow({
   }, [incomeRange]);
   // Anchor date for the three week-based cadences — "when did pay last arrive?" Defaults to today so
   // the date picker never opens on a blank/undefined value.
-  const [anchorISO, setAnchorISO] = useState<string>(todayIso());
+  const [anchorISO, setAnchorISO] = useState<string>(savedIncomeSource?.anchorISO ?? todayIso());
   const [showAnchorPicker, setShowAnchorPicker] = useState(false);
   // Intent picker + mode-extra (BREAKS-PARITY fix) — MONEY_MODES.md § 3 — user-declared intent maps
   // to a Money Mode, stored explicitly (never silently switched later). `modeExtra` is the mode's
@@ -517,95 +517,38 @@ function OnboardingFlow({
   }
 
   function done() {
-    // CLEAN SLATE on completion. `resetToEmpty` removes any state left by an older development build
-    // before writing the user's real values. No sample transaction, pot, subscription, cycle or
-    // balance is allowed to become part of a real account.
-    resetToEmpty();
-
-    // Legacy day-of-month equivalent — kept alive for anything not yet swept onto `incomeSources`
-    // (see lib/income.ts doc-block). Monthly/last-working-day earners already have an honest
-    // day-of-month; week-based cadences use the day-of-month their anchor date falls on, which is the
-    // nearest honest single-number equivalent of "when pay lands" for a legacy reader.
+    // The shared production seam distinguishes first-run sample cleanup from returning-user edits.
     const legacyPayday =
       cadence === 'monthly'
         ? payday
         : cadence === 'last-working-day'
           ? lastWorkingDayOfMonthNumber()
           : dayOfMonthFromIso(anchorISO);
-
-    // Legacy monthly-equivalent — `onboarding.monthlyIncome` is read by name as a MONTHLY figure by
-    // several surfaces that haven't yet migrated to `selectMonthlyIncome`/`incomeSources` (see
-    // lib/income.ts doc-block). `income` above is the per-occurrence amount at the declared cadence
-    // (e.g. a weekly earner's per-week figure), so writing it verbatim into a slot named
-    // "monthlyIncome" would understate a weekly/fortnightly/four-weekly earner's real monthly total
-    // by ~4x/2x/etc. `monthlyEquivalent` (driftSignals.ts) puts it on the correct monthly footing —
-    // the same cadence table `selectMonthlyIncome` and the drift-detection engine already use, so
-    // this legacy slot and the modern selector never diverge.
-    const monthlyIncomeEquivalent = monthlyEquivalent(income, cadence);
-
-    // The user's real onboarding identity, written over the clean state. `resetToEmpty` clears the
-    // prior onboarding identity and keeps only done=true; this writes the current name/payday/income
-    // after the sample/demo purge.
-    setOnboarding({
-      name,
-      payday: legacyPayday,
-      monthlyIncome: monthlyIncomeEquivalent,
-      done: true,
-    });
-
-    // The income-cadence model (lib/income.ts) — the FIRST declared source, correctly cadenced. Every
-    // caller downstream (calendarEvents, storeRoute, notifications, the widget) reads this instead of
-    // re-deriving payday math, so a weekly/fortnightly/four-weekly/last-working-day earner gets correct
-    // "next payday" math everywhere, not just the legacy single-lump approximation above.
-    const incomeSource: IncomeSource = {
-      id: 'income-onboarding-pay',
-      label: 'Pay',
-      cadence,
-      amount: income,
-      source: 'onboarding',
-      ...(cadence === 'monthly' ? { dayOfMonth: payday } : {}),
-      ...(WEEK_BASED_CADENCES.has(cadence) ? { anchorISO } : {}),
-    };
-    setIncomeSources([incomeSource]);
-
-    // The user's declared intent → Money Mode (BREAKS-PARITY fix — the root cause: without this,
-    // every RN user onboarded into the default mode and no mode-driven copy anywhere in the app
-    // could ever show correctly). EVERY mode's follow-up answer persists to `modeExtras` (it used
-    // to be captured on-screen and then silently dropped for 8 of 10 modes — 2026-07-10
-    // alignment-audit fix); Survival/Stability's answer ALSO lands in `bufferAmount`, the input
-    // their engines read today. AFTER resetToEmpty, so the clean-slate wipe never eats it.
-    setMoneyMode(intentMode);
-    persistModeExtra(intentMode, modeExtra);
-    if (intentMode === 'survival' || intentMode === 'stability') {
-      setBufferAmount(modeExtra);
-    }
-
-    // Write the balance the user just entered with an honest source label (ENGINES.md §6). If they
-    // left it at £0, `resetToEmpty`'s neutral £0 (user-entered/rough) already stands — no demo balance
-    // survives either way.
-    if (balance > 0) {
-      setCurrentBalance({ amount: balance, source: 'user-entered', confidence: 'rough' });
-    }
-
-    // The pots the user picked, created fresh at £0 saved. The app is now empty, so there are no prior
-    // saved amounts to carry — every chosen pot is a brand-new, honestly-zero set-aside the user will
-    // fund themselves. Picking none leaves Pots genuinely empty (its empty state invites the first one).
-    const nextPots = POT_TEMPLATES.filter((tpl) => picked.has(tpl.id)).map((tpl) => ({
+    const pickedPots = POT_TEMPLATES.filter((tpl) => picked.has(tpl.id)).map((tpl) => ({
       id: tpl.id,
       name: tpl.name,
-      saved: 0,
       goal: tpl.goal,
       perWeek: tpl.perWeek,
       accent: tpl.accent,
     }));
-    if (nextPots.length > 0) storeSetPots(nextPots);
+    commitOnboarding({
+      name,
+      payday,
+      monthlyIncome: income,
+      balance,
+      pickedPots,
+      cadence,
+      anchorISO,
+      legacyPayday,
+      intentMode,
+      modeExtra,
+    });
     onClose();
   }
 
   function skipForNow() {
-    // Skip means "not yet", not "show me invented money". Keep onboarding incomplete so the user
-    // can return later, but make the underlying Today screen a genuinely empty setup doorway.
-    resetToEmpty({ onboardingDone: false });
+    // On a configured workspace this is cancellation, not a destructive reset.
+    skipOnboardingForNow();
     onClose();
   }
 
@@ -635,10 +578,12 @@ function OnboardingFlow({
   const STEP_CADENCE = 3;
   const STEP_PAYDAY = 4;
   const STEP_POTS = 7;
-  // `step` is always a valid index (0..7) — the `?? steps[0]` is a defensive fallback that satisfies
-  // noUncheckedIndexedAccess; it is never reached at runtime.
-  const current = steps[step] ?? steps[0];
-  const isLast = step === steps.length - 1;
+  // Returning users only need the fields this route owns: name, cadence, payday and income. The
+  // first-run flow keeps all eight setup steps, while both flows share the same production commit.
+  const visibleStepIndices = isReturning ? [0, STEP_CADENCE, STEP_PAYDAY, 5] : steps.map((_, i) => i);
+  const activeStepIndex = visibleStepIndices[step] ?? 0;
+  const current = steps[activeStepIndex] ?? steps[0];
+  const isLast = step === visibleStepIndices.length - 1;
   // MELO_MOODS.md: the middle steps read calm; the pot picker reads curious; a completed onboarding
   // reads cheer. The pot step is the last index.
   const meloMood = isLast ? 'curious' : 'calm';
@@ -702,7 +647,7 @@ function OnboardingFlow({
     <View style={s.body}>
       {/* Progress pips — three states (active w7 accent · done w5 ink/60 · future w5 hairline). */}
       <View style={s.pips}>
-        {steps.map((_, i) => (
+        {visibleStepIndices.map((_, i) => (
           <ProgressPip
             key={i}
             kind={i === step ? 'active' : i < step ? 'done' : 'future'}
@@ -728,7 +673,7 @@ function OnboardingFlow({
 
       {/* The per-step body — seven mutually exclusive branches, sliding on step change. */}
       <Animated.View style={{ transform: [{ translateX: bodyTranslateX }] }}>
-        {step === 0 ? (
+        {activeStepIndex === 0 ? (
           <TextInput
             autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
             value={name}
@@ -743,7 +688,7 @@ function OnboardingFlow({
 
         {/* Intent picker (BREAKS-PARITY fix) — the ten Money Modes, in the user's language. Choosing
             one sets `intentMode`, which `done()` persists via `setMoneyMode`. */}
-        {step === 1 ? (
+        {!isReturning && activeStepIndex === 1 ? (
           <View style={s.fieldBlock}>
             <Text style={s.intentIntro}>
               Choose one to start. You can change this later — Melo reshapes around it.
@@ -779,7 +724,7 @@ function OnboardingFlow({
         ) : null}
 
         {/* Mode-extra follow-up (BREAKS-PARITY fix) — one slider per mode, copy from MODE_EXTRA. */}
-        {step === 2 ? (
+        {!isReturning && activeStepIndex === 2 ? (
           <View style={s.fieldBlock}>
             <View style={s.valueRow}>
               <Text style={s.bigValue}>
@@ -803,7 +748,7 @@ function OnboardingFlow({
         {/* Cadence picker (new step, ahead of the day picker) — calm, jargon-free options. Choosing a
             week-based cadence swaps the next step's slider for a date pick; monthly/last-working-day
             keep the day-of-month slider (hidden for last-working-day, which needs no day input). */}
-        {step === STEP_CADENCE ? (
+        {activeStepIndex === STEP_CADENCE ? (
           <View style={s.fieldBlock}>
             <View style={s.intentList}>
               {CADENCE_OPTIONS.map((opt) => {
@@ -832,7 +777,7 @@ function OnboardingFlow({
           </View>
         ) : null}
 
-        {step === STEP_PAYDAY ? (
+        {activeStepIndex === STEP_PAYDAY ? (
           <View style={s.fieldBlock}>
             {cadence === 'monthly' ? (
               <>
@@ -887,7 +832,7 @@ function OnboardingFlow({
           </View>
         ) : null}
 
-        {step === 5 ? (
+        {activeStepIndex === 5 ? (
           <View style={s.fieldBlock}>
             <View style={s.valueRow}>
               <Text style={s.bigValue}>{poundsTabular(income)}</Text>
@@ -906,7 +851,7 @@ function OnboardingFlow({
           </View>
         ) : null}
 
-        {step === 6 ? (
+        {!isReturning && activeStepIndex === 6 ? (
           <View style={s.fieldBlock}>
             <View style={s.valueRow}>
               <Text style={s.bigValue}>{poundsTabular(balance)}</Text>
@@ -928,7 +873,7 @@ function OnboardingFlow({
           </View>
         ) : null}
 
-        {step === STEP_POTS ? (
+        {!isReturning && activeStepIndex === STEP_POTS ? (
           <View style={s.fieldBlock}>
             <Text style={s.potsIntro}>
               Pick any. Skip with none if you'd rather start blank — you can add later.

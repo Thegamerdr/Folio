@@ -6,11 +6,20 @@
 //
 // Native remains the authority for workspace switching, appearance persistence, notification
 // permission/state, accessibility state, account data and privacy controls. A few Lovable child
-// routes are not yet present in the native ScreenId registry; their temporary bindings below keep
-// those native authorities reachable without pretending the missing destinations exist.
+// Search and notification controls stay local-first: navigation targets are real shell routes and
+// notification state is only enabled after the OS permission is granted.
 
-import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  AccessibilityInfo,
+  AppState,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChevronRight, gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
@@ -32,40 +41,80 @@ import type { Nav, ScreenId, SheetId } from '@/folio/types';
 function useReminders(): {
   settings: RemindersSettings;
   permission: PermissionState;
-  toggleEnabled: () => void;
+  error: string | null;
+  busy: boolean;
+  toggleEnabled: (enabled: boolean) => void;
 } {
   const [settings, setSettings] = useState(DEFAULT_REMINDERS_SETTINGS);
   const [permission, setPermission] = useState<PermissionState>('undetermined');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(true);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      const [saved, currentPermission] = await Promise.all([
-        loadRemindersSettings(),
-        getPermissionState(),
-      ]);
-      if (!mounted) return;
-      setSettings(saved);
-      setPermission(currentPermission);
-    })();
+    mountedRef.current = true;
+    const refresh = async () => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const [saved, currentPermission] = await Promise.all([
+          loadRemindersSettings(),
+          getPermissionState(),
+        ]);
+        if (!mountedRef.current) return;
+        setSettings(saved);
+        setPermission(currentPermission);
+        setError(null);
+      } catch {
+        if (mountedRef.current) setError('Notification settings could not be checked. Try again.');
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
+      }
+    };
+    void refresh();
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void refresh();
+    });
     return () => {
-      mounted = false;
+      mountedRef.current = false;
+      subscription.remove();
     };
   }, []);
 
-  const toggleEnabled = () => {
+  const toggleEnabled = (enabled: boolean) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
     void (async () => {
-      const next = { ...settings, remindersEnabled: !settings.remindersEnabled };
-      setSettings(next);
-      await saveRemindersSettings(next);
-      if (next.remindersEnabled && permission !== 'granted') {
-        setPermission(await requestPermission());
+      try {
+        const saved = await loadRemindersSettings();
+        let nextPermission = enabled ? await getPermissionState() : permission;
+        if (enabled && nextPermission !== 'granted') nextPermission = await requestPermission();
+        const next = { ...saved, remindersEnabled: enabled && nextPermission === 'granted' };
+        if (!(await saveRemindersSettings(next))) throw new Error('Preference was not saved.');
+        forceRescheduleNow();
+        if (!mountedRef.current) return;
+        setSettings(next);
+        setPermission(nextPermission);
+        if (enabled && nextPermission !== 'granted') {
+          setError(
+            'Notifications are blocked. Allow them in device settings to turn reminders on.',
+          );
+        }
+      } catch {
+        if (mountedRef.current) setError('Notification change could not be saved. Try again.');
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setBusy(false);
       }
-      forceRescheduleNow();
     })();
   };
 
-  return { settings, permission, toggleEnabled };
+  return { settings, permission, error, busy, toggleEnabled };
 }
 
 function useAccessibilityDescription(): () => void {
@@ -107,6 +156,7 @@ type MoreRow = {
   to?: ScreenId;
   sheet?: SheetId;
   onPress?: () => void;
+  trailing?: ReactNode;
 };
 
 type MoreSection = {
@@ -128,9 +178,8 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
   };
 
   // ScreenMore.tsx is the exact composition authority. These are its five sections and ten rows in
-  // source order. Temporary native bindings are intentionally local and are called out inline:
-  // global-search, notifications, accessibility, trust and ai-transparency need
-  // shared ScreenId + shell owners before their navigation can become byte-for-byte equivalent.
+  // source order. Search is a real local route; notification state is surfaced from its persisted
+  // preference plus the current OS permission.
   const sections: MoreSection[] = [
     {
       eyebrow: 'Find',
@@ -140,9 +189,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         {
           label: 'Search Melo',
           meta: 'jump to pots, subscriptions, settings and actions',
-          // Native has no global-search ScreenId yet. The existing Melo doorway is the only honest
-          // search/help authority available from this screen until the shared registry is extended.
-          onPress: () => nav.openMelo(),
+          to: 'search',
         },
       ],
     },
@@ -166,22 +213,42 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         {
           label: 'Appearance',
           meta: 'light, dark or follow your device',
-          // Appearance is already a persisted native sheet. Keep that authority until the shared
-          // `appearance` screen route exists.
+          // Appearance is already a persisted native sheet.
           sheet: 'appearance',
         },
         {
           label: 'Notifications',
-          meta: 'what Melo may say, and when',
-          // The native notification module owns permission and scheduling. Its dedicated source
-          // route is not registered in native yet, so this remains the existing explicit toggle.
-          onPress: reminders.toggleEnabled,
+          meta:
+            reminders.settings.remindersEnabled && reminders.permission === 'granted'
+              ? 'On · permission granted'
+              : reminders.permission === 'denied'
+                ? 'Off · permission denied'
+                : reminders.permission === 'granted'
+                  ? 'Off · permission granted'
+                  : 'Off · permission not granted',
+          trailing: (
+            <Switch
+              accessibilityLabel="Notifications"
+              disabled={reminders.busy}
+              accessibilityState={{
+                checked: reminders.settings.remindersEnabled && reminders.permission === 'granted',
+                disabled: reminders.busy,
+              }}
+              onValueChange={reminders.toggleEnabled}
+              trackColor={{ false: t.inset, true: t.calmSoft }}
+              thumbColor={
+                reminders.settings.remindersEnabled && reminders.permission === 'granted'
+                  ? t.calm
+                  : t.muted
+              }
+              value={reminders.settings.remindersEnabled && reminders.permission === 'granted'}
+            />
+          ),
         },
         {
           label: 'Accessibility',
           meta: 'text, contrast, motion and companion restraint',
-          // Native accessibility follows the OS. The dedicated source route is a shared-registry
-          // dependency; this preserves the existing truthful device-state explanation meanwhile.
+          // Native accessibility follows the OS, so this remains a truthful device-state explanation.
           onPress: describeAccessibility,
         },
         {
@@ -216,15 +283,13 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
         {
           label: 'Data and privacy',
           meta: 'what Melo reads, backup, export, deletion and app lock',
-          // PrivacyScreen is the current native authority for these controls; the pinned source's
-          // intermediate `trust` hub is not registered in the native shell yet.
+          // PrivacyScreen is the native authority for these controls.
           to: 'privacy',
         },
         {
           label: 'AI and automation',
           meta: 'what the model sees and when Melo asks first',
-          // Preserve the existing truthful Review-before-truth explanation until the shared
-          // `ai-transparency` route is available.
+          // Preserve the existing truthful Review-before-truth explanation.
           onPress: describeAiAutomation,
         },
       ],
@@ -311,6 +376,11 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
             {section.note ? (
               <Text style={[styles.note, { color: t.muted }]}>{section.note}</Text>
             ) : null}
+            {section.eyebrow === 'Your Melo' && reminders.error ? (
+              <Text style={[styles.note, styles.error, { color: t.repair }]}>
+                {reminders.error}
+              </Text>
+            ) : null}
           </View>
         ))}
       </ScrollView>
@@ -335,8 +405,9 @@ function MoreRowView({ nav, row }: { nav: Nav; row: MoreRow }) {
 
   return (
     <Pressable
-      accessibilityRole="button"
-      onPress={handlePress}
+      accessibilityRole={row.trailing ? undefined : 'button'}
+      accessible={row.trailing ? false : undefined}
+      onPress={row.trailing ? undefined : handlePress}
       style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : undefined]}
     >
       <View style={styles.rowCopy}>
@@ -347,9 +418,11 @@ function MoreRowView({ nav, row }: { nav: Nav; row: MoreRow }) {
           {row.meta}
         </Text>
       </View>
-      <View style={styles.chevron}>
-        <ChevronRight color={t.muted} />
-      </View>
+      {row.trailing ?? (
+        <View style={styles.chevron}>
+          <ChevronRight color={t.muted} />
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -459,4 +532,5 @@ const styles = StyleSheet.create({
     lineHeight: 18.75,
     marginTop: gap.md,
   },
+  error: { marginTop: gap.sm },
 });

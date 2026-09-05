@@ -36,6 +36,22 @@ describe('pinned Plan Hub model', () => {
     ]);
   });
 
+  it('bounds Plan totals and rows inclusively at the resolved next payday', () => {
+    const events = [
+      event({ id: 'before', date: '2026-08-22', amount: -118.4 }),
+      event({ id: 'on-payday', date: '2026-08-28', amount: -30 }),
+      event({ id: 'after', date: '2026-09-11', amount: -540 }),
+    ];
+    expect(buildPlanUpcoming(events, '2026-08-28').map((row) => row.id)).toEqual([
+      'before',
+      'on-payday',
+    ]);
+    expect(buildPlanTightPoint(events, 500, '2026-08-28')).toEqual({
+      date: '2026-08-28',
+      amount: 351.6,
+    });
+  });
+
   it('uses the source short weekday-and-day label', () => {
     expect(shortPlanDay('2026-09-01')).toBe('Tue 1');
   });

@@ -11,13 +11,22 @@ export type PlanUpcoming = Readonly<{
 
 /**
  * Exact ScreenPlanHub event selection: every real negative `out` event in the
- * calendar engine's 35-day window, in engine order. The Plan Hub deliberately
- * does not truncate this model at payday; its first four rows are only a visual
- * excerpt, while the dominant total/count cover the complete derived window.
+ * period from today through the next resolved payday, in engine order. The
+ * Calendar remains the longer 35-day view; Plan's headline and rows share this
+ * payday-bounded period.
  */
-export function buildPlanUpcoming(events: readonly DerivedEvent[]): PlanUpcoming[] {
+export function buildPlanUpcoming(
+  events: readonly DerivedEvent[],
+  periodEnd?: string | null,
+): PlanUpcoming[] {
   return events
-    .filter((event) => event.kind === 'out' && typeof event.amount === 'number' && event.amount < 0)
+    .filter(
+      (event) =>
+        event.kind === 'out' &&
+        typeof event.amount === 'number' &&
+        event.amount < 0 &&
+        (periodEnd === undefined || periodEnd === null || event.date <= periodEnd),
+    )
     .map((event) => ({
       id: event.id,
       date: event.date,
@@ -35,8 +44,13 @@ export function buildPlanUpcoming(events: readonly DerivedEvent[]): PlanUpcoming
 export function buildPlanTightPoint(
   events: readonly DerivedEvent[],
   currentBalance: number,
+  periodEnd?: string | null,
 ): Readonly<{ date: string | null; amount: number }> {
-  const result = computeSpareAndTightest(groupByDay([...events]), currentBalance);
+  const bounded =
+    periodEnd === undefined || periodEnd === null
+      ? events
+      : events.filter((event) => event.date <= periodEnd);
+  const result = computeSpareAndTightest(groupByDay([...bounded]), currentBalance);
   return { date: result.tightestDate, amount: result.tightestSpare };
 }
 

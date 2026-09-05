@@ -69,6 +69,8 @@ import {
   touchOpened,
 } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { useDayClock } from '@/folio/lib/useDayClock';
+import { utcMidnightForLocalDay } from '@/folio/lib/dayClock';
 import { deriveCalendarEvents } from '@/folio/lib/calendarEvents';
 import { useChartStyle } from '@/folio/lib/chartStyle';
 import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
@@ -179,10 +181,10 @@ export function TodayScreen({
   // RN it also defers `new Date()` so the date-derived bits don't render on the first frame). When
   // `state === 'loading'` we hold the gate closed so the loading branch (Melo curious + line, never
   // a spinner) shows.
-  const [now, setNow] = useState<Date | null>(null);
+  const now = useDayClock();
+  const engineNow = useMemo(() => (now ? utcMidnightForLocalDay(now) : null), [now]);
   const [prevOpenIso, setPrevOpenIso] = useState<string | null>(null);
   useEffect(() => {
-    setNow(new Date());
     sweepSubOverrides();
     sweepAutoResumeNow();
     setPrevOpenIso(touchOpened());
@@ -336,12 +338,13 @@ export function TodayScreen({
             spendHold,
             whatIfHolds,
             windowDays: 35,
-            now,
+            now: engineNow!,
             includeSampleBills: currentBalance.source === 'sample',
           })
         : [],
     [
       now,
+      engineNow,
       subs,
       subPaused,
       subOverrides,

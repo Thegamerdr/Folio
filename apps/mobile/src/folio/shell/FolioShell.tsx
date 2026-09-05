@@ -41,6 +41,7 @@ import {
 // captureException helper, so componentDidCatch below imports the SDK directly.
 import * as Sentry from '@sentry/react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { useBillingLifecycle } from '@/folio/lib/billing/billingLifecycle';
 
 import {
   BottomNav,
@@ -93,10 +94,12 @@ import { ShortfallScreen } from '@/folio/screens/ShortfallScreen';
 import { RecoveryScreen } from '@/folio/screens/RecoveryScreen';
 import { TodayAfterScreen } from '@/folio/screens/TodayAfterScreen';
 import { MoreScreen } from '@/folio/screens/MoreScreen';
+import { MoreSearchScreen } from '@/folio/screens/MoreSearchScreen';
 import { PrivacyScreen } from '@/folio/screens/PrivacyScreen';
 import { TimelineScreen } from '@/folio/screens/TimelineScreen';
 import { PlansScreen } from '@/folio/screens/PlansScreen';
 import { PlanScreen } from '@/folio/screens/PlanScreen';
+import { DebtsScreen } from '@/folio/screens/DebtsScreen';
 import { GuidedCheckInScreen } from '@/folio/screens/GuidedCheckInScreen';
 import { MeloScreen } from '@/folio/screens/MeloScreen';
 import { PaywallScreen } from '@/folio/screens/PaywallScreen';
@@ -198,6 +201,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   'today-after': 'After',
   whatif: 'What if',
   plan: 'Plan',
+  debts: 'Debts',
   plans: 'Plans',
   calendar: 'Calendar',
   timeline: 'Timeline',
@@ -210,6 +214,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   insights: 'Insights',
   shortfall: 'Shortfall',
   more: 'More',
+  search: 'Search Melo',
   privacy: 'Privacy',
   melo: 'Melo',
   paywall: 'Melo plans',
@@ -255,6 +260,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
 // oversight.
 const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'more',
+  'search',
   'melo',
   'paywall',
   'privacy',
@@ -285,6 +291,7 @@ const MORE_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
 
 const PLAN_SUBTREE: ReadonlySet<ScreenId> = new Set<ScreenId>([
   'plan',
+  'debts',
   'plans',
   'calendar',
   'subs',
@@ -361,6 +368,7 @@ function useReducedMotion(): boolean {
 // ---------------------------------------------------------------------------
 
 export function FolioShell() {
+  useBillingLifecycle();
   const t = useTheme();
   const parity = useMemo(() => getParityHarnessConfig(), []);
   const parityRuntime = useSyncExternalStore(
@@ -724,7 +732,9 @@ export function FolioShell() {
                 <ScreenView screen={screen} nav={nav} pressure={activePressure} />
               </ScreenErrorBoundary>
             </View>
-            <ShellMeloCompanion screen={screen} nav={nav} />
+            {screen !== 'review' && screen !== 'plan' ? (
+              <ShellMeloCompanion screen={screen} nav={nav} />
+            ) : null}
             {businessWorkspaceActive ? (
               <BusinessWorkspaceBar label="Business" onPress={() => nav.openWorkspace?.()} />
             ) : null}
@@ -1175,9 +1185,11 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
   // `melo` the standalone companion (threaded the shell's pressure default — the Nav contract carries
   // no pressure, mirroring Today / Pots / WhatIf / MeloChat).
   if (screen === 'more') return <MoreScreen nav={nav} />;
+  if (screen === 'search') return <MoreSearchScreen nav={nav} />;
   if (screen === 'privacy') return <PrivacyScreen nav={nav} />;
   if (screen === 'timeline') return <TimelineScreen nav={nav} />;
   if (screen === 'plan') return <PlanScreen nav={nav} />;
+  if (screen === 'debts') return <DebtsScreen nav={nav} />;
   if (screen === 'plans') return <PlansScreen nav={nav} />;
   if (screen === 'guided') return <GuidedCheckInScreen nav={nav} />;
   if (screen === 'melo') return <MeloScreen nav={nav} pressure={pressure} />;

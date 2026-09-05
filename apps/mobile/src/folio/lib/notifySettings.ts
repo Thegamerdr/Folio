@@ -125,14 +125,16 @@ export async function loadRemindersSettings(): Promise<RemindersSettings> {
   }
 }
 
-export async function saveRemindersSettings(settings: RemindersSettings): Promise<void> {
+export async function saveRemindersSettings(settings: RemindersSettings): Promise<boolean> {
   const uri = settingsFileUri();
-  if (uri === null) return;
+  if (uri === null) return false;
   try {
     await FileSystem.writeAsStringAsync(uri, JSON.stringify(settings), {
       encoding: FileSystem.EncodingType.UTF8,
     });
+    return true;
   } catch {
-    // A preference write must never crash or block the app.
+    // Let explicit controls report failure without creating an unhandled native exception.
+    return false;
   }
 }
