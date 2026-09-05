@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "releaseName": "Melo release gate",
-  "updatedOn": "2026-09-01",
+  "updatedOn": "2026-09-05",
   "policy": {
     "publicReleaseAllowed": false,
     "allowSyntheticEvidenceForPublicRelease": false,
@@ -24,10 +24,14 @@
     "cloudScope": "optional Clerk-authenticated client-encrypted Cloud Vault",
     "openBankingScope": "disabled in current release candidate; explicit approved-build flag required for future provider route",
     "aiScope": "local deterministic core; raw document/chat transport retired; enum-only future route",
-    "evidenceAuthority": "OWNER_ACTION_PACK.md and docs/release-evidence/RELEASE_REVIEW_HANDOFF_2026-08-31.md"
+    "evidenceAuthority": "plans/AUDIT_UI_UX_AND_RELEASE_2026-09-05.md and plans/123-deliver-reviewed-melo-product.md supersede earlier engineering-complete claims; OWNER_ACTION_PACK.md retains external actions"
   },
-  "classificationVocabulary": ["CLOSED", "BLOCKED EXTERNAL", "BLOCKED OWNER DECISION"],
+  "classificationVocabulary": ["CLOSED", "IN PROGRESS LOCAL", "BLOCKED EXTERNAL", "BLOCKED OWNER DECISION"],
   "blockerDispositions": {
+    "RB-AUDIT-2026-09-05-LOCAL-DELIVERY": {
+      "classification": "IN PROGRESS LOCAL",
+      "action": "Close audit A01-A21 through reviewed production changes and focused verification; build and verify the resulting Android candidate on S9. Credentials and independent sign-off cannot substitute for these local fixes."
+    },
     "RB-P0-IOS-NATIVE-SMOKE": {
       "classification": "BLOCKED EXTERNAL",
       "action": "Produce and install an authenticated iOS build on macOS/Xcode or EAS."
@@ -70,7 +74,7 @@
     },
     "RB-CLOUD-SYNC-RECOVERY": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Ciphertext-only sync, registry, revoke, replay, snapshots and compaction are implemented; deploy production bindings and run two-device encrypted backup/restore, revoke and offline recovery proof."
+      "action": "First close local A03-A06/A13 under RB-AUDIT-2026-09-05-LOCAL-DELIVERY. Then deploy approved production bindings and run two-device encrypted backup/restore, revoke and offline recovery proof."
     },
     "RB-AI-GATEWAY-EVALUATION": {
       "classification": "BLOCKED OWNER DECISION",
@@ -78,7 +82,7 @@
     },
     "RB-OPEN-BANKING-PROVIDER": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Complete TrueLayer Data v3 contracting and regulatory-route approval, install sandbox/production credentials server-side, and pass consent, deletion and incident proof."
+      "action": "First close local A07 durable delivery. Complete TrueLayer Data v3 contracting and regulatory-route approval, install sandbox/production credentials server-side, and pass consent, deletion and incident proof."
     },
     "RB-BUSINESS-TAX-BETA": {
       "classification": "BLOCKED OWNER DECISION",
@@ -90,7 +94,7 @@
     },
     "RB-T184-NATIVE-BILLING": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Create current Play products and run license-test purchase/restore/expiry proof with billing credentials."
+      "action": "First close local A08-A11/A20 billing implementation. Create current store products and run sandbox/license-test purchase, pending completion, restore and expiry proof with provider credentials."
     },
     "RB-T185-INCIDENT-RUNBOOKS": {
       "classification": "BLOCKED OWNER DECISION",
@@ -122,6 +126,14 @@
     }
   },
   "currentEvidence": [
+    {
+      "blockerId": "RB-AUDIT-2026-09-05-LOCAL-DELIVERY",
+      "paths": [
+        "plans/AUDIT_UI_UX_AND_RELEASE_2026-09-05.md",
+        "plans/123-deliver-reviewed-melo-product.md"
+      ],
+      "note": "Independent controller audit of source and the installed September 1 S9 candidate found 21 local defects/gaps. Implementation is in progress with Luna and controller review. No new candidate or closure is claimed yet."
+    },
     {
       "blockerId": "RB-P0-IOS-NATIVE-SMOKE",
       "paths": [
@@ -391,6 +403,21 @@
     }
   ],
   "blockers": [
+    {
+      "id": "RB-AUDIT-2026-09-05-LOCAL-DELIVERY",
+      "phase": "delivery-review",
+      "taskIds": ["A01-A21", "T187"],
+      "category": "product_implementation",
+      "title": "Reviewed local money, UI, billing, banking and cloud fixes",
+      "kind": "local_engineering",
+      "impact": "release_blocking",
+      "status": "in_progress",
+      "owner": "engineering-controller",
+      "machineCheckable": false,
+      "source": "plans/123-deliver-reviewed-melo-product.md",
+      "evidenceRequired": ["reviewed-source-and-device"],
+      "unblockCondition": "Each audit finding has a reviewed shipping fix and appropriate focused/device evidence, or an explicit owner-approved scope decision. No uncalled helpers, data-loss paths or local gaps may be represented as secrets-only work."
+    },
     {
       "id": "RB-P0-IOS-NATIVE-SMOKE",
       "phase": "phase0",

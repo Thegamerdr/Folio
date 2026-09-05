@@ -9,7 +9,9 @@ const requireReady = args.has('--require-ready');
 const jsonOutput = args.has('--json');
 
 const register = JSON.parse(fs.readFileSync(registerPath, 'utf8'));
-const allowedClassifications = new Set(['CLOSED', 'BLOCKED EXTERNAL', 'BLOCKED OWNER DECISION']);
+const allowedClassifications = new Set([
+  'CLOSED', 'IN PROGRESS LOCAL', 'BLOCKED EXTERNAL', 'BLOCKED OWNER DECISION',
+]);
 const validation = validate(register);
 const currentEvidenceRows = Array.isArray(register.currentEvidence)
   ? register.currentEvidence.length
@@ -26,6 +28,7 @@ const externalBlockers = openBlockers.filter((blocker) =>
 );
 const localMachineChecks = openBlockers.filter((blocker) => blocker.kind === 'local_machine_check');
 const localDocsEvidence = openBlockers.filter((blocker) => blocker.kind === 'local_docs_evidence');
+const localEngineering = openBlockers.filter((blocker) => blocker.kind === 'local_engineering');
 const readyForPublicRelease =
   validation.valid && register.policy.publicReleaseAllowed && releaseBlockers.length === 0;
 
@@ -43,6 +46,7 @@ const summary = {
   externalOpen: externalBlockers.length,
   localMachineCheckOpen: localMachineChecks.length,
   localDocsEvidenceOpen: localDocsEvidence.length,
+  localEngineeringOpen: localEngineering.length,
   currentEvidenceRows,
   missingEvidenceFiles,
   firstReleaseBlockers: releaseBlockers.slice(0, 10).map((blocker) => ({
@@ -239,6 +243,7 @@ function printSummary(summary) {
   console.log(`External blockers: ${summary.externalOpen}`);
   console.log(`Local machine-check blockers: ${summary.localMachineCheckOpen}`);
   console.log(`Local docs/evidence blockers: ${summary.localDocsEvidenceOpen}`);
+  console.log(`Local engineering blockers: ${summary.localEngineeringOpen}`);
   console.log(`Current evidence rows: ${summary.currentEvidenceRows}`);
   console.log(`Missing current evidence files: ${summary.missingEvidenceFiles.length}`);
 

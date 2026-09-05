@@ -1,5 +1,14 @@
 # Melo Status (historical filename: Folio V2 Greenfield)
 
+## Superseding delivery status — 5 September 2026
+
+The source and connected S9 audit found 21 local defects/gaps; this is not a secrets-only or
+release-ready product. Earlier engineering-complete claims are superseded by
+[the audit](plans/AUDIT_UI_UX_AND_RELEASE_2026-09-05.md) and
+[the active delivery plan](plans/123-deliver-reviewed-melo-product.md). Luna implementation and
+controller review are in progress. The installed S9 APK matches the September 1 candidate;
+no corrected candidate is claimed yet. The release gate now explicitly includes local engineering.
+
 ## Current release-control authority — 24 August 2026
 
 This addendum supersedes older phase banners for release decisions. The product is Melo, with

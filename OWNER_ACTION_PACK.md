@@ -1,5 +1,11 @@
 # Melo owner action pack — current release gate (1 September 2026)
 
+> **5 September correction:** this remains the external-action list, not a claim that only external
+> actions remain. The [audit](plans/AUDIT_UI_UX_AND_RELEASE_2026-09-05.md) reopened local money,
+> UI, billing, banking and cloud implementation. Follow
+> [Plan 123](plans/123-deliver-reviewed-melo-product.md) for reviewed engineering delivery before
+> treating secrets, provider testing and independent sign-off as the final steps.
+
 This is the only current owner-action list. It contains genuine external actions; the internal
 tabletop revalidation, safe rotation drills, declaration drafts, privacy/DPIA package, security and
 accessibility handoffs are already delivered in this branch. See
