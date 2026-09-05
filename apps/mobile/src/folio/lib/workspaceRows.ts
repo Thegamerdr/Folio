@@ -21,6 +21,7 @@ export const PERSISTED_WORKSPACE_ROW_COLLECTIONS = [
   'timelineEvents',
   'reviewQueue',
   'reviewQueueSpillover',
+  'bankImportInbox',
   'incomeSources',
   'dismissedDriftSignals',
   'statementImports',

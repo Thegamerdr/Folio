@@ -61,6 +61,7 @@ export const appStateAuthorityManifest = {
   // migration; until then the exact encrypted object remains authoritative so
   // recovery cannot reconstruct a lossy approximation.
   business: 'exact-encrypted-authority',
+  bankImportInbox: 'exact-encrypted-authority',
   household: 'canonical-financial-context-authority',
   plans: 'canonical-route-planning-authority',
   lens: 'canonical-companion-runtime-authority',

@@ -6,8 +6,8 @@ import {
 } from './appStateAuthorityManifest';
 
 describe('AppState authority manifest', () => {
-  it('keeps the current 55-field shipping contract explicitly classified', () => {
-    expect(Object.keys(appStateAuthorityManifest)).toHaveLength(56);
+  it('keeps the current shipping contract explicitly classified', () => {
+    expect(Object.keys(appStateAuthorityManifest)).toHaveLength(57);
     expect(appStateFieldsWithAuthority('workspace-root')).toEqual([
       'schemaVersion',
       'workspaces',
@@ -87,6 +87,9 @@ describe('AppState authority manifest', () => {
       'calendarEvents',
     );
     expect(appStateFieldsWithAuthority('canonical-companion-runtime-authority')).toContain('melo');
-    expect(appStateFieldsWithAuthority('exact-encrypted-authority')).toEqual(['business']);
+    expect(appStateFieldsWithAuthority('exact-encrypted-authority')).toEqual([
+      'business',
+      'bankImportInbox',
+    ]);
   });
 });

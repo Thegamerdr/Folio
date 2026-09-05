@@ -78,6 +78,11 @@ import {
 } from './lib/typedCommandBridge';
 import type { FinancialAction, WorkspaceId } from '@folio/domain';
 import {
+  parseBankImportInbox,
+  unsettledBankImportBatches,
+  type BankImportBatch,
+} from './lib/bankImportInbox';
+import {
   emptyBusinessOperationsState,
   hasBusinessOperationsData,
   normaliseBusinessOperationsState,
@@ -767,6 +772,8 @@ export type AppState = {
    *  (mirrors `timelineEvents?` above); `DEFAULTS`/`load()`/`resetToEmpty()`
    *  always populate it ([]). */
   reviewQueue?: ReviewItem[];
+  /** Durable bank receipts. Separate from posted facts and Review's bounded visual queue. */
+  bankImportInbox?: BankImportBatch[];
   /** Overflow honesty net for `reviewQueue` (`enqueueReviewItems`'s "silent queue truncation" fix,
    *  phase ⑦). `reviewQueue` stays visually capped at `REVIEW_QUEUE_CAP` (60) so Review never renders
    *  a wall of cards, but a bulk import (a 17-chunk statement, say) can easily produce far more
@@ -1557,6 +1564,7 @@ export function isRealUser(s: AppState): boolean {
     (s.timelineEvents?.length ?? 0) > 0 ||
     (s.reviewQueue?.length ?? 0) > 0 ||
     (s.reviewQueueSpillover?.length ?? 0) > 0 ||
+    (s.bankImportInbox?.length ?? 0) > 0 ||
     (s.statementImports?.length ?? 0) > 0 ||
     (s.evidenceDocuments?.length ?? 0) > 0 ||
     Object.keys(s.subPaused).length > 0 ||
@@ -1757,6 +1765,14 @@ function load(): AppState {
       readerClosingBalance: null,
       ignoredReviewSigs: migrated.ignoredReviewSigs ?? [],
       reviewQueue: Array.isArray(migrated.reviewQueue) ? migrated.reviewQueue : [],
+      ...(migrated.bankImportInbox === undefined
+        ? {}
+        : {
+            bankImportInbox: parseBankImportInbox(
+              migrated.bankImportInbox,
+              workspaceRoot.activeWorkspaceId,
+            ),
+          }),
       reviewQueueSpillover: Array.isArray(migrated.reviewQueueSpillover)
         ? migrated.reviewQueueSpillover
         : [],
@@ -5682,6 +5698,88 @@ export function unhideReviewSig(sig: string) {
 }
 
 /* ---------- reviewQueue — the persisted intake review queue ---------- */
+
+/** Stage synchronously, then caller MUST await persistCurrentStateNow before acknowledging delivery. */
+export function stageBankImportBatch(batch: BankImportBatch): BankImportBatch {
+  if (batch.workspaceId !== state.activeWorkspaceId)
+    throw new Error('Return to the bank batch workspace before continuing.');
+  const [checked] = parseBankImportInbox([batch], state.activeWorkspaceId);
+  if (checked === undefined) throw new Error('Bank receipt is missing.');
+  const existing = state.bankImportInbox ?? [];
+  const duplicate = existing.find((item) => item.id === checked.id);
+  if (duplicate !== undefined) {
+    if (JSON.stringify(duplicate.sync) !== JSON.stringify(checked.sync))
+      throw new Error('The bank reused a receipt identifier for different data.');
+    return duplicate;
+  }
+  const settled = new Set([
+    ...state.transactions.flatMap((row) => (row.externalId ? [row.externalId] : [])),
+    ...(state.ignoredBankExternalIds ?? []),
+  ]);
+  const inbox = parseBankImportInbox(
+    [...unsettledBankImportBatches(existing, settled), checked],
+    state.activeWorkspaceId,
+  );
+  setPartialWithTypedCommand(
+    { bankImportInbox: inbox },
+    {
+      commandType: 'folio.bank.receipt.stage.v1',
+      actorKind: 'sync',
+      entityRefs: [{ type: 'bank-receipt', id: checked.id }],
+      before: {},
+      after: { batchId: checked.id },
+      invalidatedProjectionKinds: ['bank-inbox'],
+    },
+  );
+  return checked;
+}
+
+export function setBankImportBatchMappings(
+  batchId: string,
+  mappings: Readonly<Record<string, string>>,
+): void {
+  const batch = state.bankImportInbox?.find((item) => item.id === batchId);
+  if (batch === undefined) throw new Error('This bank receipt is no longer available.');
+  const activeAccounts = new Set(
+    (state.accounts ?? []).filter((account) => !account.closed).map((account) => account.id),
+  );
+  if (Object.values(mappings).some((id) => !activeAccounts.has(id)))
+    throw new Error('Choose an active account in this workspace.');
+  const inbox = parseBankImportInbox(
+    (state.bankImportInbox ?? []).map((item) =>
+      item.id === batchId ? { ...item, accountMappings: mappings } : item,
+    ),
+    state.activeWorkspaceId,
+  );
+  setPartial({ bankImportInbox: inbox });
+}
+
+/** Caller must obtain explicit discard consent; staging into Review alone is not a decision. */
+export function discardBankImportBatch(batchId: string): void {
+  const batch = state.bankImportInbox?.find((item) => item.id === batchId);
+  if (batch === undefined) return;
+  const discarded = new Set(batch.sync.candidates.map((item) => item.externalId));
+  setPartialWithTypedCommand(
+    {
+      bankImportInbox: (state.bankImportInbox ?? []).filter((item) => item.id !== batchId),
+      ignoredBankExternalIds: [...new Set([...(state.ignoredBankExternalIds ?? []), ...discarded])],
+      reviewQueue: (state.reviewQueue ?? []).filter(
+        (item) => !item.externalId || !discarded.has(item.externalId),
+      ),
+      reviewQueueSpillover: (state.reviewQueueSpillover ?? []).filter(
+        (item) => !item.externalId || !discarded.has(item.externalId),
+      ),
+    },
+    {
+      commandType: 'folio.bank.receipt.discard.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'bank-receipt', id: batchId }],
+      before: { batchId },
+      after: {},
+      invalidatedProjectionKinds: ['bank-inbox', 'review-proposals'],
+    },
+  );
+}
 // Ported 1:1 from the design source (folio-melo store.ts `enqueueReviewItems` /
 // `resolveReviewItem` / `clearReviewQueue` / `sweepReviewQueue`). The web's
 // combined `ignoreReviewItem` is intentionally NOT ported as one action: the RN
@@ -5960,12 +6058,19 @@ export function deleteBankImportedHistory(connectionId: string): {
     (item) => item.bankConnectionId !== connectionId,
   );
   const deletedTransactions = state.transactions.length - transactions.length;
+  const bankImportInbox = (state.bankImportInbox ?? []).filter(
+    (batch) => batch.sync.connection.id !== connectionId,
+  );
   const deletedReviewItems =
     (state.reviewQueue?.length ?? 0) +
     (state.reviewQueueSpillover?.length ?? 0) -
     reviewQueue.length -
     reviewQueueSpillover.length;
-  if (deletedTransactions > 0 || deletedReviewItems > 0) {
+  if (
+    deletedTransactions > 0 ||
+    deletedReviewItems > 0 ||
+    bankImportInbox.length !== (state.bankImportInbox?.length ?? 0)
+  ) {
     const removedTransactions = state.transactions.filter(
       (transaction) => transaction.bankConnectionId === connectionId,
     );
@@ -5973,8 +6078,11 @@ export function deleteBankImportedHistory(connectionId: string): {
       ...(state.reviewQueue ?? []),
       ...(state.reviewQueueSpillover ?? []),
     ].filter((item) => item.bankConnectionId === connectionId);
+    const removedBatches = (state.bankImportInbox ?? []).filter(
+      (batch) => batch.sync.connection.id === connectionId,
+    );
     setPartialWithTypedCommand(
-      { transactions, reviewQueue, reviewQueueSpillover },
+      { transactions, reviewQueue, reviewQueueSpillover, bankImportInbox },
       {
         commandType: 'folio.open_banking.history.delete.v1',
         actorKind: 'user',
@@ -5984,12 +6092,18 @@ export function deleteBankImportedHistory(connectionId: string): {
             id: transaction.id,
           })),
           ...removedReviewItems.map((item) => ({ type: 'review-proposal', id: item.id })),
+          ...removedBatches.map((batch) => ({ type: 'bank-receipt', id: batch.id })),
         ],
-        before: { transactions: removedTransactions, proposals: removedReviewItems },
+        before: {
+          transactions: removedTransactions,
+          proposals: removedReviewItems,
+          batchIds: removedBatches.map((batch) => batch.id),
+        },
         after: {},
         changedEntityIds: [
           ...removedTransactions.map((transaction) => transaction.id),
           ...removedReviewItems.map((item) => item.id),
+          ...removedBatches.map((batch) => batch.id),
         ],
         invalidatedProjectionKinds: ['transactions', 'cashflow', 'review-proposals'],
       },
