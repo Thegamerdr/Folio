@@ -249,6 +249,11 @@ async function handleSyncRequest(
   store: BackupStore,
   userId: string,
 ): Promise<Response> {
+  // Account purge is a service-to-DO operation, never a public device route. Account-level
+  // deletion remains available through the authenticated /v1/account workflow.
+  if (new URL(request.url).pathname === '/v1/sync/account') {
+    return json({ error: 'Route not found.' }, 404, request, env);
+  }
   const suppliedRef = request.headers.get(WORKSPACE_REF_HEADER);
   const workspaceRef = suppliedRef === null ? null : normalizeWorkspaceRef(suppliedRef);
   if (workspaceRef === null) {
@@ -285,6 +290,7 @@ async function handleSyncRequest(
   const stub = env.SYNC_WORKSPACES.getByName(`${userRef}:${workspaceRef}`);
   const headers = new Headers(request.headers);
   headers.delete('authorization');
+  headers.delete('x-melo-internal-backup-verified');
   headers.set('x-melo-internal-now', new Date().toISOString());
   if (request.method === 'PUT' && new URL(request.url).pathname === '/v1/sync/snapshot') {
     headers.set('x-melo-internal-backup-verified', 'true');
@@ -613,7 +619,7 @@ function corsHeaders(request: Request, env?: Pick<Env, 'ALLOWED_ORIGINS'>): Reco
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers':
-      'Authorization, Content-Type, Content-Length, X-Melo-Checksum, X-Melo-Created-At, X-Melo-Device, X-Melo-Workspace-Ref',
+      'Authorization, Content-Type, Content-Length, X-Melo-Checksum, X-Melo-Created-At, X-Melo-Device, X-Melo-Workspace-Ref, X-Melo-Signature-Version, X-Melo-Signed-At, X-Melo-Nonce, X-Melo-Request-Sequence, X-Melo-Body-Sha256, X-Melo-Signature',
     'Access-Control-Expose-Headers': 'ETag, X-Melo-Checksum',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',

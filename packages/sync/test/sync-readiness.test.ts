@@ -136,6 +136,50 @@ describe('encrypted envelope contract', () => {
     expect(calls[0]!.init.body).toBe(JSON.stringify({ deviceId: 'b'.repeat(32), cursor: 7 }));
   });
 
+  it('forwards the device proof returned by the platform signer on every request', async () => {
+    const calls: Array<{ headers: Record<string, string>; body?: string }> = [];
+    const api = createCloudSyncApi({
+      baseUrl: 'https://vault.example.test',
+      bearerToken: 'session-token',
+      workspaceRef: 'a'.repeat(64),
+      deviceId: 'b'.repeat(32),
+      requestSigner: {
+        sign: async ({ method, path, body }) => {
+          expect({ method, path, body }).toEqual({
+            method: 'POST',
+            path: '/v1/sync/acknowledgements',
+            body: JSON.stringify({ deviceId: 'b'.repeat(32), cursor: 7 }),
+          });
+          return {
+            version: 1,
+            signedAt: '2026-09-01T10:00:00.000Z',
+            nonce: 'nonce-123456789012',
+            requestSequence: 8,
+            bodySha256: 'c'.repeat(64),
+            signature: 'd'.repeat(86),
+          };
+        },
+      },
+      fetch: async (_url, init) => {
+        calls.push({
+          headers: { ...init.headers },
+          ...(init.body === undefined ? {} : { body: init.body }),
+        });
+        return { ok: true, status: 200, json: async () => ({ acknowledgedCursor: 7 }) };
+      },
+    });
+
+    await api.acknowledge(7);
+    expect(calls[0]!.headers).toMatchObject({
+      'X-Melo-Signature-Version': '1',
+      'X-Melo-Signed-At': '2026-09-01T10:00:00.000Z',
+      'X-Melo-Nonce': 'nonce-123456789012',
+      'X-Melo-Request-Sequence': '8',
+      'X-Melo-Body-Sha256': 'c'.repeat(64),
+      'X-Melo-Signature': 'd'.repeat(86),
+    });
+  });
+
   it('creates versioned ciphertext envelopes with minimal service metadata', () => {
     const envelope = createEncryptedSyncEnvelope({
       id: 'env_001',

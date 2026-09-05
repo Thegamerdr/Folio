@@ -1,3 +1,7 @@
+export { canonicalSyncRequestMessage } from './signedRequest.js';
+export type { CloudSyncRequestSigner, SyncRequestSignature } from './signedRequest.js';
+import type { CloudSyncRequestSigner } from './signedRequest.js';
+
 export const syncBoundary = {
   packageName: '@folio/sync',
   modelRequired: false,
@@ -390,6 +394,7 @@ export type CloudSyncDevice = Readonly<{
   lastSeenAt: string;
   acknowledgedCursor: number;
   lastDeviceSequence: number;
+  lastRequestSequence: number;
   revokedAt?: string;
 }>;
 
@@ -465,6 +470,9 @@ export type CloudSyncApiInput = Readonly<{
   bearerToken: string;
   workspaceRef: string;
   deviceId: string;
+  requestSigner?: CloudSyncRequestSigner;
+  /** Includes signing and response consumption so queued proofs are fresh when sent. */
+  serializeRequest?: <T>(work: () => Promise<T>) => Promise<T>;
   fetch: (
     url: string,
     init: Readonly<{ method: string; headers: Readonly<Record<string, string>>; body?: string }>,
@@ -550,7 +558,12 @@ export function createCloudSyncApi(input: CloudSyncApiInput): CloudSyncApi {
   }
   if (input.bearerToken.trim().length === 0) throw new Error('Cloud sync requires authentication.');
 
-  const request = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
+  const performRequest = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
+    const bodyText = body === undefined ? undefined : JSON.stringify(body);
+    const signed =
+      input.requestSigner === undefined
+        ? undefined
+        : await input.requestSigner.sign({ method, path, body: bodyText });
     const response = await input.fetch(`${baseUrl}${path}`, {
       method,
       headers: {
@@ -558,8 +571,18 @@ export function createCloudSyncApi(input: CloudSyncApiInput): CloudSyncApi {
         'Content-Type': 'application/json',
         'X-Melo-Workspace-Ref': input.workspaceRef,
         'X-Melo-Device': input.deviceId,
+        ...(signed === undefined
+          ? {}
+          : {
+              'X-Melo-Signature-Version': String(signed.version),
+              'X-Melo-Signed-At': signed.signedAt,
+              'X-Melo-Nonce': signed.nonce,
+              'X-Melo-Request-Sequence': String(signed.requestSequence),
+              'X-Melo-Body-Sha256': signed.bodySha256,
+              'X-Melo-Signature': signed.signature,
+            }),
       },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(bodyText === undefined ? {} : { body: bodyText }),
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
@@ -574,6 +597,11 @@ export function createCloudSyncApi(input: CloudSyncApiInput): CloudSyncApi {
     }
     return payload as T;
   };
+
+  const request = <T>(method: string, path: string, body?: unknown): Promise<T> =>
+    input.serializeRequest
+      ? input.serializeRequest(() => performRequest<T>(method, path, body))
+      : performRequest<T>(method, path, body);
 
   return {
     listDevices: () => request('GET', '/v1/sync/devices'),

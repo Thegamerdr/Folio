@@ -20,6 +20,8 @@ export type SyncDevice = Readonly<{
   lastSeenAt: string;
   acknowledgedCursor: number;
   lastDeviceSequence: number;
+  /** Atomic replay high-water mark; no growing nonce journal is needed. */
+  lastRequestSequence: number;
   revokedAt?: string;
 }>;
 
@@ -54,6 +56,8 @@ type WorkspaceState = {
   previousSnapshot?: SyncSnapshot;
 };
 
+type RequestAuth = Readonly<{ requestSequence: number; publicKey: string }>;
+
 export type SyncWorkspaceStorage = Readonly<{
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
@@ -64,6 +68,9 @@ export type SyncWorkspaceStorage = Readonly<{
     limit?: number;
   }): Promise<Map<string, T>>;
   deleteAll(): Promise<void>;
+  /** Atomic read/modify/write boundary. Production DO storage supplies this using its durable
+   * transaction API; test storage supplies clone-on-read/write rollback semantics. */
+  transaction<T>(work: (storage: SyncWorkspaceStorage) => Promise<T>): Promise<T>;
 }>;
 
 export class SyncWorkspace {
@@ -80,98 +87,200 @@ export class SyncWorkspace {
     }
 
     const state = await this.state();
+    const requestAuth = await verifySignedRequest(request, state, now);
+    if (requestAuth === null) {
+      return response(
+        { error: 'A fresh device signature is required for this sync request.' },
+        401,
+      );
+    }
 
     if (url.pathname === '/v1/sync/devices' && request.method === 'GET') {
-      return response({
-        devices: Object.values(state.devices).sort((left, right) =>
-          left.registeredAt.localeCompare(right.registeredAt),
-        ),
-        currentKeyEpoch: state.currentKeyEpoch,
-        headCursor: state.headCursor,
-        compactedThrough: state.compactedThrough,
+      const actorId = deviceHeader(request);
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const actor =
+          actorId === null ? undefined : activeDevice(current, actorId, requestAuth.publicKey);
+        if (actor === undefined)
+          return response({ error: 'An active registered device is required.' }, 403);
+        if (requestAuth.requestSequence <= actor.lastRequestSequence) {
+          return response({ error: 'This signed sync request was already used.' }, 409);
+        }
+        current.devices[actor.deviceId] = {
+          ...actor,
+          lastRequestSequence: requestAuth.requestSequence,
+          lastSeenAt: now,
+        };
+        await this.save(current, storage);
+        return response({
+          devices: Object.values(current.devices).sort((left, right) =>
+            compareCanonicalText(left.registeredAt, right.registeredAt),
+          ),
+          currentKeyEpoch: current.currentKeyEpoch,
+          headCursor: current.headCursor,
+          compactedThrough: current.compactedThrough,
+        });
       });
     }
 
     if (url.pathname === '/v1/sync/devices' && request.method === 'POST') {
       const body = await jsonBody(request);
-      if (!validDeviceRegistration(body)) {
+      if (!validDeviceRegistration(body) || !(await deviceFingerprintMatches(body))) {
         return response({ error: 'Device registration is invalid.' }, 400);
       }
-      const existing = state.devices[body.deviceId];
-      if (existing?.revokedAt !== undefined) {
-        return response({ error: 'A revoked device identifier cannot be registered again.' }, 409);
-      }
-      if (body.keyEpoch !== state.currentKeyEpoch) {
-        return response({ error: 'Device registration uses a stale sync-key epoch.' }, 409);
-      }
-      const device: SyncDevice = {
-        deviceId: body.deviceId,
-        label: body.label.trim(),
-        publicKey: body.publicKey,
-        publicKeyFingerprint: body.publicKeyFingerprint,
-        keyEpoch: body.keyEpoch,
-        wrappedSyncKey: body.wrappedSyncKey,
-        registeredAt: existing?.registeredAt ?? now,
-        lastSeenAt: now,
-        acknowledgedCursor: existing?.acknowledgedCursor ?? state.compactedThrough,
-        lastDeviceSequence: existing?.lastDeviceSequence ?? 0,
-      };
-      state.devices[device.deviceId] = device;
-      await this.save(state);
-      return response(
-        { ok: true, device, currentKeyEpoch: state.currentKeyEpoch },
-        existing ? 200 : 201,
-      );
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const actorId = deviceHeader(request)!;
+        const existing = current.devices[body.deviceId];
+        if (
+          actorId === body.deviceId &&
+          existing !== undefined &&
+          existing.publicKey !== requestAuth.publicKey
+        ) {
+          return response(
+            { error: 'The device key changed before this request could be accepted.' },
+            403,
+          );
+        }
+        if (existing?.revokedAt !== undefined) {
+          return response(
+            { error: 'A revoked device identifier cannot be registered again.' },
+            409,
+          );
+        }
+        if (body.keyEpoch !== current.currentKeyEpoch) {
+          return response({ error: 'Device registration uses a stale sync-key epoch.' }, 409);
+        }
+        if (
+          existing !== undefined &&
+          (existing.publicKey !== body.publicKey ||
+            existing.publicKeyFingerprint !== body.publicKeyFingerprint)
+        ) {
+          return response({ error: 'A registered device public key cannot be replaced.' }, 409);
+        }
+        if (
+          actorId === body.deviceId &&
+          existing !== undefined &&
+          requestAuth.requestSequence <= existing.lastRequestSequence
+        ) {
+          return response({ error: 'The device request sequence is stale.' }, 409);
+        }
+        if (
+          actorId !== body.deviceId &&
+          (Object.keys(current.devices).length === 0 ||
+            activeDevice(current, actorId, requestAuth.publicKey) === undefined)
+        ) {
+          return response({ error: 'An active approving device is required.' }, 403);
+        }
+        if (
+          actorId === body.deviceId &&
+          existing === undefined &&
+          Object.keys(current.devices).length !== 0
+        ) {
+          return response(
+            { error: 'A new device must be approved by an active trusted device.' },
+            403,
+          );
+        }
+        const device: SyncDevice = {
+          deviceId: body.deviceId,
+          label: body.label.trim(),
+          publicKey: body.publicKey,
+          publicKeyFingerprint: body.publicKeyFingerprint,
+          keyEpoch: body.keyEpoch,
+          wrappedSyncKey: body.wrappedSyncKey,
+          registeredAt: existing?.registeredAt ?? now,
+          lastSeenAt: now,
+          acknowledgedCursor: existing?.acknowledgedCursor ?? current.compactedThrough,
+          lastDeviceSequence: existing?.lastDeviceSequence ?? 0,
+          // A later device enrollment is signed by the approving device; it must not advance the
+          // newly enrolled device's own request counter before that device has ever signed.
+          lastRequestSequence:
+            actorId === body.deviceId
+              ? requestAuth.requestSequence
+              : (existing?.lastRequestSequence ?? 0),
+        };
+        current.devices[device.deviceId] = device;
+        if (actorId !== body.deviceId) {
+          const actor = activeDevice(current, actorId, requestAuth.publicKey);
+          if (actor === undefined || requestAuth.requestSequence <= actor.lastRequestSequence) {
+            return response({ error: 'An active approving device is required.' }, 403);
+          }
+          current.devices[actorId] = {
+            ...actor,
+            lastRequestSequence: requestAuth.requestSequence,
+            lastSeenAt: now,
+          };
+        }
+        await this.save(current, storage);
+        return response(
+          { ok: true, device, currentKeyEpoch: current.currentKeyEpoch },
+          existing ? 200 : 201,
+        );
+      });
     }
 
     const revokeMatch = /^\/v1\/sync\/devices\/([a-f0-9]{32})\/revoke$/.exec(url.pathname);
     if (revokeMatch !== null && request.method === 'POST') {
       const targetId = revokeMatch[1]!;
-      const actorId = deviceHeader(request);
-      const actor = actorId === null ? undefined : activeDevice(state, actorId);
-      const target = state.devices[targetId];
       const body = await jsonBody(request);
-      if (
-        actor === undefined ||
-        target === undefined ||
-        target.revokedAt !== undefined ||
-        !validRotation(body, state.currentKeyEpoch + 1)
-      ) {
-        return response({ error: 'Device revoke and key rotation request is invalid.' }, 400);
-      }
-      if (actorId === targetId) {
-        return response({ error: 'A device cannot revoke itself.' }, 409);
-      }
-      const remainingIds = Object.values(state.devices)
-        .filter((device) => device.revokedAt === undefined && device.deviceId !== targetId)
-        .map((device) => device.deviceId)
-        .sort();
-      const suppliedIds = Object.keys(body.wrappedKeys).sort();
-      if (
-        remainingIds.length !== suppliedIds.length ||
-        remainingIds.some((deviceId, index) => suppliedIds[index] !== deviceId)
-      ) {
-        return response(
-          { error: 'A rotated sync key must be wrapped for every remaining active device.' },
-          409,
-        );
-      }
-      state.devices[targetId] = { ...target, revokedAt: now, lastSeenAt: now };
-      for (const deviceId of remainingIds) {
-        const device = state.devices[deviceId]!;
-        state.devices[deviceId] = {
-          ...device,
-          keyEpoch: body.newKeyEpoch,
-          wrappedSyncKey: body.wrappedKeys[deviceId]!,
+      const actorId = deviceHeader(request);
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const actor =
+          actorId === null ? undefined : activeDevice(current, actorId, requestAuth.publicKey);
+        const target = current.devices[targetId];
+        if (
+          actor === undefined ||
+          target === undefined ||
+          target.revokedAt !== undefined ||
+          !validRotation(body, current.currentKeyEpoch + 1)
+        ) {
+          return response({ error: 'Device revoke and key rotation request is invalid.' }, 400);
+        }
+        if (actorId === targetId) {
+          return response({ error: 'A device cannot revoke itself.' }, 409);
+        }
+        if (requestAuth.requestSequence <= actor.lastRequestSequence) {
+          return response({ error: 'The device request sequence is stale.' }, 409);
+        }
+        const remainingIds = Object.values(current.devices)
+          .filter((device) => device.revokedAt === undefined && device.deviceId !== targetId)
+          .map((device) => device.deviceId)
+          .sort();
+        const suppliedIds = Object.keys(body.wrappedKeys).sort();
+        if (
+          remainingIds.length !== suppliedIds.length ||
+          remainingIds.some((deviceId, index) => suppliedIds[index] !== deviceId)
+        ) {
+          return response(
+            { error: 'A rotated sync key must be wrapped for every remaining active device.' },
+            409,
+          );
+        }
+        current.devices[targetId] = { ...target, revokedAt: now, lastSeenAt: now };
+        for (const deviceId of remainingIds) {
+          const device = current.devices[deviceId]!;
+          current.devices[deviceId] = {
+            ...device,
+            keyEpoch: body.newKeyEpoch,
+            wrappedSyncKey: body.wrappedKeys[deviceId]!,
+          };
+        }
+        const rotatedActor = current.devices[actor.deviceId]!;
+        current.devices[actor.deviceId] = {
+          ...rotatedActor,
+          lastRequestSequence: requestAuth.requestSequence,
+          lastSeenAt: now,
         };
-      }
-      state.currentKeyEpoch = body.newKeyEpoch;
-      await this.save(state);
-      return response({
-        ok: true,
-        revokedDeviceId: targetId,
-        revokedAt: now,
-        currentKeyEpoch: state.currentKeyEpoch,
+        current.currentKeyEpoch = body.newKeyEpoch;
+        await this.save(current, storage);
+        return response({
+          ok: true,
+          revokedDeviceId: targetId,
+          revokedAt: now,
+          currentKeyEpoch: current.currentKeyEpoch,
+        });
       });
     }
 
@@ -185,175 +294,263 @@ export class SyncWorkspace {
       if ((await sha256Base64(body.ciphertext)) !== body.ciphertextSha256) {
         return response({ error: 'Encrypted operation checksum did not match.' }, 400);
       }
-      const replayCursor = await this.storage.get<number>(idempotencyKey(body.idempotencyKey));
-      if (replayCursor !== undefined) {
-        const replay = await this.storage.get<StoredOperation>(operationKey(replayCursor));
-        if (replay === undefined || replay.ciphertextSha256 !== body.ciphertextSha256) {
-          return response(
-            { error: 'Idempotency key was already used for different ciphertext.' },
-            409,
-          );
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const currentActor = activeDevice(current, actorId!, requestAuth.publicKey);
+        if (currentActor === undefined) {
+          return response({ error: 'Encrypted operation request is invalid.' }, 400);
         }
-        return response({
-          ok: true,
-          duplicate: true,
-          cursor: replayCursor,
-          headCursor: state.headCursor,
-        });
-      }
-      if (
-        body.keyEpoch !== state.currentKeyEpoch ||
-        body.deviceSequence !== actor.lastDeviceSequence + 1
-      ) {
-        return response({ error: 'Encrypted operation sequence or key epoch is stale.' }, 409);
-      }
-      const cursor = state.headCursor + 1;
-      const operation: StoredOperation = { ...body, cursor };
-      await this.storage.put(operationKey(cursor), operation);
-      await this.storage.put(idempotencyKey(body.idempotencyKey), cursor);
-      state.headCursor = cursor;
-      state.devices[actor.deviceId] = {
-        ...actor,
-        lastDeviceSequence: body.deviceSequence,
-        lastSeenAt: now,
-      };
-      await this.save(state);
-      return response({ ok: true, duplicate: false, cursor, headCursor: cursor }, 201);
+        if (requestAuth.requestSequence <= currentActor.lastRequestSequence) {
+          return response({ error: 'This signed sync request was already used.' }, 409);
+        }
+        const replayCursor = await storage.get<number>(idempotencyKey(body.idempotencyKey));
+        if (replayCursor !== undefined) {
+          const replay = await storage.get<StoredOperation>(operationKey(replayCursor));
+          if (
+            replay === undefined ||
+            replay.deviceId !== body.deviceId ||
+            replay.deviceSequence !== body.deviceSequence ||
+            replay.keyEpoch !== body.keyEpoch ||
+            replay.ciphertext !== body.ciphertext ||
+            replay.ciphertextSha256 !== body.ciphertextSha256
+          ) {
+            return response(
+              { error: 'Idempotency key was already used for different ciphertext.' },
+              409,
+            );
+          }
+          current.devices[currentActor.deviceId] = {
+            ...currentActor,
+            lastRequestSequence: requestAuth.requestSequence,
+            lastSeenAt: now,
+          };
+          await this.save(current, storage);
+          return response({
+            ok: true,
+            duplicate: true,
+            cursor: replayCursor,
+            headCursor: current.headCursor,
+          });
+        }
+        if (
+          body.keyEpoch !== current.currentKeyEpoch ||
+          body.deviceSequence !== currentActor.lastDeviceSequence + 1
+        ) {
+          return response({ error: 'Encrypted operation sequence or key epoch is stale.' }, 409);
+        }
+        const cursor = current.headCursor + 1;
+        const operation: StoredOperation = { ...body, cursor };
+        await storage.put(operationKey(cursor), operation);
+        await storage.put(idempotencyKey(body.idempotencyKey), cursor);
+        current.headCursor = cursor;
+        current.devices[currentActor.deviceId] = {
+          ...currentActor,
+          lastDeviceSequence: body.deviceSequence,
+          lastRequestSequence: requestAuth.requestSequence,
+          lastSeenAt: now,
+        };
+        await this.save(current, storage);
+        return response({ ok: true, duplicate: false, cursor, headCursor: cursor }, 201);
+      });
     }
 
     if (url.pathname === '/v1/sync/operations' && request.method === 'GET') {
       const actorId = deviceHeader(request);
-      if (actorId === null || activeDevice(state, actorId) === undefined) {
-        return response({ error: 'An active registered device is required.' }, 403);
-      }
       const after = queryCursor(url.searchParams.get('after'));
       if (after === null) return response({ error: 'Operation cursor is invalid.' }, 400);
-      if (after < state.compactedThrough) {
-        return response(
-          {
-            error: 'Encrypted snapshot restore is required before operation replay.',
-            code: 'snapshot_required',
-            compactedThrough: state.compactedThrough,
-            snapshot: state.latestSnapshot ?? null,
-          },
-          409,
-        );
-      }
       const limit = pageSize(url.searchParams.get('limit'));
       if (limit === null) return response({ error: 'Operation page size is invalid.' }, 400);
-      const listed = await this.storage.list<StoredOperation>({
-        prefix: OPERATION_PREFIX,
-        startAfter: operationKey(after),
-        limit: limit + 1,
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const actor =
+          actorId === null ? undefined : activeDevice(current, actorId, requestAuth.publicKey);
+        if (actor === undefined) {
+          return response({ error: 'An active registered device is required.' }, 403);
+        }
+        if (requestAuth.requestSequence <= actor.lastRequestSequence) {
+          return response({ error: 'This signed sync request was already used.' }, 409);
+        }
+        current.devices[actor.deviceId] = {
+          ...actor,
+          lastRequestSequence: requestAuth.requestSequence,
+          lastSeenAt: now,
+        };
+        if (after < current.compactedThrough) {
+          await this.save(current, storage);
+          return response(
+            {
+              error: 'Encrypted snapshot restore is required before operation replay.',
+              code: 'snapshot_required',
+              compactedThrough: current.compactedThrough,
+              snapshot: current.latestSnapshot ?? null,
+            },
+            409,
+          );
+        }
+        const listed = await storage.list<StoredOperation>({
+          prefix: OPERATION_PREFIX,
+          startAfter: operationKey(after),
+          limit: limit + 1,
+        });
+        const operations = [...listed.values()].sort((a, b) => a.cursor - b.cursor);
+        const hasMore = operations.length > limit;
+        if (hasMore) operations.pop();
+        const nextCursor = operations.at(-1)?.cursor ?? after;
+        await this.save(current, storage);
+        return response({ operations, nextCursor, headCursor: current.headCursor, hasMore });
       });
-      const operations = [...listed.values()].sort((a, b) => a.cursor - b.cursor);
-      const hasMore = operations.length > limit;
-      if (hasMore) operations.pop();
-      const nextCursor = operations.at(-1)?.cursor ?? after;
-      return response({ operations, nextCursor, headCursor: state.headCursor, hasMore });
     }
 
     if (url.pathname === '/v1/sync/acknowledgements' && request.method === 'POST') {
       const actorId = deviceHeader(request);
-      const actor = actorId === null ? undefined : activeDevice(state, actorId);
       const body = await jsonBody(request);
-      if (
-        actor === undefined ||
-        !record(body) ||
-        body['deviceId'] !== actorId ||
-        !safeCursor(body['cursor']) ||
-        body['cursor'] < actor.acknowledgedCursor ||
-        body['cursor'] > state.headCursor
-      ) {
-        return response({ error: 'Operation acknowledgement is invalid.' }, 400);
-      }
-      state.devices[actor.deviceId] = {
-        ...actor,
-        acknowledgedCursor: body['cursor'],
-        lastSeenAt: now,
-      };
-      await this.save(state);
-      return response({
-        ok: true,
-        acknowledgedCursor: body['cursor'],
-        headCursor: state.headCursor,
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const actor =
+          actorId === null ? undefined : activeDevice(current, actorId, requestAuth.publicKey);
+        if (
+          actor === undefined ||
+          !record(body) ||
+          body['deviceId'] !== actorId ||
+          !safeCursor(body['cursor']) ||
+          body['cursor'] < actor.acknowledgedCursor ||
+          body['cursor'] > current.headCursor
+        ) {
+          return response({ error: 'Operation acknowledgement is invalid.' }, 400);
+        }
+        if (requestAuth.requestSequence <= actor.lastRequestSequence) {
+          return response({ error: 'This signed sync request was already used.' }, 409);
+        }
+        current.devices[actor.deviceId] = {
+          ...actor,
+          acknowledgedCursor: body['cursor'],
+          lastRequestSequence: requestAuth.requestSequence,
+          lastSeenAt: now,
+        };
+        await this.save(current, storage);
+        return response({
+          ok: true,
+          acknowledgedCursor: body['cursor'],
+          headCursor: current.headCursor,
+        });
       });
     }
 
     if (url.pathname === '/v1/sync/snapshot' && request.method === 'PUT') {
       const actorId = deviceHeader(request);
-      const actor = actorId === null ? undefined : activeDevice(state, actorId);
       const body = await jsonBody(request);
-      if (
-        actor === undefined ||
-        !validSnapshot(body) ||
-        body.deviceId !== actorId ||
-        body.keyEpoch !== state.currentKeyEpoch ||
-        body.cursor > state.headCursor ||
-        body.cursor < state.compactedThrough ||
-        request.headers.get('x-melo-internal-backup-verified') !== 'true'
-      ) {
-        return response({ error: 'Encrypted snapshot checkpoint is invalid.' }, 400);
-      }
-      state.previousSnapshot = state.latestSnapshot;
-      state.latestSnapshot = body;
-      await this.save(state);
-      return response({ ok: true, snapshot: body }, 201);
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const actor =
+          actorId === null ? undefined : activeDevice(current, actorId, requestAuth.publicKey);
+        if (
+          actor === undefined ||
+          !validSnapshot(body) ||
+          body.deviceId !== actorId ||
+          body.keyEpoch !== current.currentKeyEpoch ||
+          body.cursor > current.headCursor ||
+          body.cursor < current.compactedThrough ||
+          request.headers.get('x-melo-internal-backup-verified') !== 'true'
+        ) {
+          return response({ error: 'Encrypted snapshot checkpoint is invalid.' }, 400);
+        }
+        if (requestAuth.requestSequence <= actor.lastRequestSequence) {
+          return response({ error: 'This signed sync request was already used.' }, 409);
+        }
+        current.previousSnapshot = current.latestSnapshot;
+        current.latestSnapshot = body;
+        current.devices[actor.deviceId] = {
+          ...actor,
+          lastRequestSequence: requestAuth.requestSequence,
+          lastSeenAt: now,
+        };
+        await this.save(current, storage);
+        return response({ ok: true, snapshot: body }, 201);
+      });
     }
 
     if (url.pathname === '/v1/sync/snapshot' && request.method === 'GET') {
-      return response({
-        exists: state.latestSnapshot !== undefined,
-        snapshot: state.latestSnapshot ?? null,
+      const actorId = deviceHeader(request);
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const actor =
+          actorId === null ? undefined : activeDevice(current, actorId, requestAuth.publicKey);
+        if (actor === undefined)
+          return response({ error: 'An active registered device is required.' }, 403);
+        if (requestAuth.requestSequence <= actor.lastRequestSequence) {
+          return response({ error: 'This signed sync request was already used.' }, 409);
+        }
+        current.devices[actor.deviceId] = {
+          ...actor,
+          lastRequestSequence: requestAuth.requestSequence,
+          lastSeenAt: now,
+        };
+        await this.save(current, storage);
+        return response({
+          exists: current.latestSnapshot !== undefined,
+          snapshot: current.latestSnapshot ?? null,
+        });
       });
     }
 
     if (url.pathname === '/v1/sync/compaction' && request.method === 'POST') {
       const actorId = deviceHeader(request);
-      if (actorId === null || activeDevice(state, actorId) === undefined) {
-        return response({ error: 'An active registered device is required.' }, 403);
-      }
       const body = await jsonBody(request);
       if (!record(body) || !safeCursor(body['throughCursor'])) {
         return response({ error: 'Compaction cursor is invalid.' }, 400);
       }
-      const throughCursor = body['throughCursor'];
-      const active = Object.values(state.devices).filter(
-        (device) => device.revokedAt === undefined,
-      );
-      const minimumActiveAck = Math.min(...active.map((device) => device.acknowledgedCursor));
-      if (
-        state.latestSnapshot === undefined ||
-        throughCursor > state.latestSnapshot.cursor ||
-        throughCursor > minimumActiveAck ||
-        throughCursor < state.compactedThrough
-      ) {
-        return response(
-          {
-            error: 'Compaction is not safe for every active device and encrypted snapshot.',
-            minimumActiveAck,
-            snapshotCursor: state.latestSnapshot?.cursor ?? null,
-          },
-          409,
+      const throughCursor = body['throughCursor'] as number;
+      return this.transaction(async (storage) => {
+        const current = await this.state(storage);
+        const actor =
+          actorId === null ? undefined : activeDevice(current, actorId, requestAuth.publicKey);
+        if (actor === undefined) {
+          return response({ error: 'An active registered device is required.' }, 403);
+        }
+        if (requestAuth.requestSequence <= actor.lastRequestSequence) {
+          return response({ error: 'This signed sync request was already used.' }, 409);
+        }
+        const active = Object.values(current.devices).filter(
+          (device) => device.revokedAt === undefined,
         );
-      }
-      const doomed = await this.storage.list<StoredOperation>({ prefix: OPERATION_PREFIX });
-      let deletedCount = 0;
-      for (const [key, operation] of doomed) {
-        if (operation.cursor <= throughCursor && (await this.storage.delete(key)))
-          deletedCount += 1;
-      }
-      state.compactedThrough = throughCursor;
-      await this.save(state);
-      return response({ ok: true, compactedThrough: throughCursor, deletedCount });
+        const minimumActiveAck = Math.min(...active.map((device) => device.acknowledgedCursor));
+        if (
+          current.latestSnapshot === undefined ||
+          throughCursor > current.latestSnapshot.cursor ||
+          throughCursor > minimumActiveAck ||
+          throughCursor < current.compactedThrough
+        ) {
+          return response(
+            {
+              error: 'Compaction is not safe for every active device and encrypted snapshot.',
+              minimumActiveAck,
+              snapshotCursor: current.latestSnapshot?.cursor ?? null,
+            },
+            409,
+          );
+        }
+        const doomed = await storage.list<StoredOperation>({ prefix: OPERATION_PREFIX });
+        let deletedCount = 0;
+        for (const [key, operation] of doomed) {
+          if (operation.cursor <= throughCursor && (await storage.delete(key))) deletedCount += 1;
+        }
+        current.compactedThrough = throughCursor;
+        current.devices[actor.deviceId] = {
+          ...actor,
+          lastRequestSequence: requestAuth.requestSequence,
+          lastSeenAt: now,
+        };
+        await this.save(current, storage);
+        return response({ ok: true, compactedThrough: throughCursor, deletedCount });
+      });
     }
 
     return response({ error: 'Route not found.' }, 404);
   }
 
-  private async state(): Promise<WorkspaceState> {
+  private async state(storage: SyncWorkspaceStorage = this.storage): Promise<WorkspaceState> {
     return (
-      (await this.storage.get<WorkspaceState>(STATE_KEY)) ?? {
+      (await storage.get<WorkspaceState>(STATE_KEY)) ?? {
         version: 1,
         headCursor: 0,
         compactedThrough: 0,
@@ -363,16 +560,41 @@ export class SyncWorkspace {
     );
   }
 
-  private async save(state: WorkspaceState): Promise<void> {
-    await this.storage.put(STATE_KEY, state);
+  private async save(
+    state: WorkspaceState,
+    storage: SyncWorkspaceStorage = this.storage,
+  ): Promise<void> {
+    await storage.put(STATE_KEY, state);
   }
+
+  private async transaction<T>(work: (storage: SyncWorkspaceStorage) => Promise<T>): Promise<T> {
+    return this.storage.transaction(work);
+  }
+}
+
+export function storageAdapter(
+  storage: DurableObjectStorage | DurableObjectTransaction,
+): SyncWorkspaceStorage {
+  return {
+    get: (key) => storage.get(key),
+    put: (key, value) => storage.put(key, value),
+    delete: (key) => storage.delete(key),
+    list: (options) => storage.list(options),
+    deleteAll: 'deleteAll' in storage ? () => storage.deleteAll() : async () => undefined,
+    transaction:
+      'transaction' in storage
+        ? (work) => storage.transaction((transaction) => work(storageAdapter(transaction)))
+        : async () => {
+            throw new Error('A Durable Object transaction is required at the workspace root.');
+          },
+  };
 }
 
 export class SyncWorkspaceDurableObject implements DurableObject {
   private readonly handler: SyncWorkspace;
 
   constructor(state: DurableObjectState) {
-    this.handler = new SyncWorkspace(state.storage);
+    this.handler = new SyncWorkspace(storageAdapter(state.storage));
   }
 
   fetch(request: Request): Promise<Response> {
@@ -403,6 +625,16 @@ function validDeviceRegistration(value: unknown): value is {
     value['keyEpoch'] >= 1 &&
     safeOpaque(value['wrappedSyncKey'], 2048)
   );
+}
+
+async function deviceFingerprintMatches(value: {
+  publicKey: string;
+  publicKeyFingerprint: string;
+}): Promise<boolean> {
+  const publicKey = decodeBase64Url(value.publicKey);
+  if (publicKey === null || publicKey.byteLength !== 32) return false;
+  const digest = await crypto.subtle.digest('SHA-256', publicKey);
+  return `sha256:${hexBytes(new Uint8Array(digest))}` === value.publicKeyFingerprint;
 }
 
 function validRotation(
@@ -455,9 +687,16 @@ function validSnapshot(value: unknown): value is SyncSnapshot {
   );
 }
 
-function activeDevice(state: WorkspaceState, deviceId: string): SyncDevice | undefined {
+function activeDevice(
+  state: WorkspaceState,
+  deviceId: string,
+  expectedKey?: string,
+): SyncDevice | undefined {
   const device = state.devices[deviceId];
-  return device?.revokedAt === undefined ? device : undefined;
+  return device?.revokedAt === undefined &&
+    (expectedKey === undefined || device?.publicKey === expectedKey)
+    ? device
+    : undefined;
 }
 
 function deviceHeader(request: Request): string | null {
@@ -526,9 +765,140 @@ function isIso(value: string): boolean {
   return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
 }
 
-async function sha256Base64(value: string): Promise<string> {
-  const binary = atob(value);
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+async function verifySignedRequest(
+  request: Request,
+  state: WorkspaceState,
+  now: string,
+): Promise<RequestAuth | null> {
+  const version = request.headers.get('x-melo-signature-version');
+  const signedAt = request.headers.get('x-melo-signed-at');
+  const nonce = request.headers.get('x-melo-nonce');
+  const sequenceRaw = request.headers.get('x-melo-request-sequence');
+  const expectedBodyHash = request.headers.get('x-melo-body-sha256')?.toLowerCase();
+  const encodedSignature = request.headers.get('x-melo-signature');
+  const actorId = deviceHeader(request);
+  if (
+    version !== '1' ||
+    signedAt === null ||
+    !isIso(signedAt) ||
+    nonce === null ||
+    !/^[A-Za-z0-9_-]{16,128}$/.test(nonce) ||
+    sequenceRaw === null ||
+    !/^\d+$/.test(sequenceRaw) ||
+    expectedBodyHash === undefined ||
+    !CHECKSUM_PATTERN.test(expectedBodyHash) ||
+    encodedSignature === null ||
+    actorId === null
+  ) {
+    return null;
+  }
+  const requestSequence = Number.parseInt(sequenceRaw, 10);
+  if (!safePositiveInt(requestSequence)) return null;
+  const signedMs = Date.parse(signedAt);
+  const nowMs = Date.parse(now);
+  if (
+    !Number.isFinite(signedMs) ||
+    !Number.isFinite(nowMs) ||
+    Math.abs(signedMs - nowMs) > 5 * 60_000
+  ) {
+    return null;
+  }
+  const bodyBytes = new Uint8Array(await request.clone().arrayBuffer());
+  const actualBodyHash = await sha256Base64(bodyBytes);
+  if (actualBodyHash !== expectedBodyHash) return null;
+
+  let publicKeyValue: string | undefined;
+  if (state.devices[actorId] !== undefined) {
+    const actor = activeDevice(state, actorId);
+    if (actor === undefined || requestSequence <= actor.lastRequestSequence) return null;
+    publicKeyValue = actor.publicKey;
+  } else if (new URL(request.url).pathname === '/v1/sync/devices' && request.method === 'POST') {
+    const body = (await request
+      .clone()
+      .json()
+      .catch(() => null)) as Record<string, unknown> | null;
+    if (
+      Object.keys(state.devices).length !== 0 ||
+      typeof body?.['deviceId'] !== 'string' ||
+      body['deviceId'] !== actorId
+    ) {
+      return null;
+    }
+    publicKeyValue = typeof body['publicKey'] === 'string' ? body['publicKey'] : undefined;
+    if (publicKeyValue === undefined) return null;
+  } else {
+    return null;
+  }
+  const publicKey = decodeBase64Url(publicKeyValue);
+  const signature = decodeBase64Url(encodedSignature);
+  if (publicKey === null || signature === null || signature.byteLength !== 64) return null;
+  const url = new URL(request.url);
+  const query = [...url.searchParams.entries()]
+    .sort(([leftKey, leftValue], [rightKey, rightValue]) =>
+      leftKey === rightKey
+        ? compareCanonicalText(leftValue, rightValue)
+        : compareCanonicalText(leftKey, rightKey),
+    )
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  const message = [
+    'melo.sync.v1',
+    request.method.toUpperCase(),
+    url.pathname,
+    query,
+    request.headers.get('x-melo-workspace-ref') ?? '',
+    actorId,
+    expectedBodyHash,
+    signedAt,
+    nonce,
+    String(requestSequence),
+  ].join('\n');
+  try {
+    const key = await crypto.subtle.importKey('raw', publicKey, { name: 'Ed25519' }, false, [
+      'verify',
+    ]);
+    const valid = await crypto.subtle.verify(
+      { name: 'Ed25519' },
+      key,
+      signature,
+      new TextEncoder().encode(message),
+    );
+    return valid ? { requestSequence, publicKey: publicKeyValue } : null;
+  } catch {
+    return null;
+  }
+}
+
+function decodeBase64Url(value: string): Uint8Array | null {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) return null;
+  try {
+    const padded = `${value.replace(/-/g, '+').replace(/_/g, '/')}${'='.repeat((4 - (value.length % 4)) % 4)}`;
+    return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
+async function sha256Base64(value: string | Uint8Array): Promise<string> {
+  const bytes =
+    typeof value === 'string'
+      ? Uint8Array.from(atob(value), (character) => character.charCodeAt(0))
+      : value;
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function hexBytes(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function compareCanonicalText(left: string, right: string): number {
+  if (left === right) return 0;
+  const leftPoints = Array.from(left, (character) => character.codePointAt(0)!);
+  const rightPoints = Array.from(right, (character) => character.codePointAt(0)!);
+  const length = Math.min(leftPoints.length, rightPoints.length);
+  for (let index = 0; index < length; index += 1) {
+    if (leftPoints[index]! !== rightPoints[index]!) return leftPoints[index]! - rightPoints[index]!;
+  }
+  return leftPoints.length - rightPoints.length;
 }

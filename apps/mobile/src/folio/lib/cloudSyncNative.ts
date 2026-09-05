@@ -10,6 +10,11 @@ import {
 import { workspaceBackupRef } from './cloudBackup';
 import { getCloudVaultUrl, getOrCreateCloudDeviceId } from './cloudBackupNative';
 import { openCloudSyncOperation, sealCloudSyncOperation } from './cloudSync';
+import {
+  cloudSyncRequestSigner,
+  getOrCreateCloudSyncIdentity,
+  serializeCloudSyncRequest,
+} from './cloudSyncSigning';
 import { GCM_NONCE_BYTES } from './cryptoBlob';
 
 export async function authenticatedCloudSyncApi(
@@ -19,12 +24,30 @@ export async function authenticatedCloudSyncApi(
   const baseUrl = getCloudVaultUrl();
   if (baseUrl === undefined)
     throw new Error('Encrypted cloud sync is not configured in this build.');
+  const deviceId = await getOrCreateCloudDeviceId();
+  const identity = await getOrCreateCloudSyncIdentity(deviceId);
   return createCloudSyncApi({
     baseUrl,
     bearerToken,
     workspaceRef: workspaceBackupRef(workspaceId),
-    deviceId: await getOrCreateCloudDeviceId(),
-    fetch: (url, init) => fetch(url, init),
+    deviceId,
+    requestSigner: cloudSyncRequestSigner(workspaceBackupRef(workspaceId), identity),
+    serializeRequest: (work) => serializeCloudSyncRequest(deviceId, work),
+    fetch: async (url, init) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20_000);
+      try {
+        const response = await fetch(url, { ...init, signal: controller.signal });
+        const body = await response.text();
+        return {
+          ok: response.ok,
+          status: response.status,
+          json: async () => JSON.parse(body) as unknown,
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
   });
 }
 

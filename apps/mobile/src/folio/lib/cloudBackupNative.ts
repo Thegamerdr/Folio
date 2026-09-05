@@ -25,6 +25,7 @@ const LEGACY_PERSONAL_RECOVERY_CODE_ID = 'melo.cloudBackupRecovery.v1';
 const RECOVERY_CODE_PREFIX = 'melo.cloudBackupRecovery.v2';
 const DEVICE_ID = 'melo.cloudBackupDevice.v1';
 const REQUEST_TIMEOUT_MS = 20_000;
+let deviceIdentityCreation: Promise<string> | null = null;
 
 export type CloudBackupStatus =
   | { exists: false }
@@ -250,6 +251,14 @@ function recoveryCodeId(workspaceRef: string): string {
 }
 
 export async function getOrCreateCloudDeviceId(): Promise<string> {
+  if (deviceIdentityCreation !== null) return deviceIdentityCreation;
+  deviceIdentityCreation = loadOrCreateCloudDeviceId().finally(() => {
+    deviceIdentityCreation = null;
+  });
+  return deviceIdentityCreation;
+}
+
+async function loadOrCreateCloudDeviceId(): Promise<string> {
   const existing = await SecureStore.getItemAsync(DEVICE_ID);
   if (existing !== null && /^[a-f0-9]{32}$/.test(existing)) return existing;
   const generated = recoveryCodeFromBytes(
