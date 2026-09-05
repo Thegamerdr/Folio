@@ -6,6 +6,11 @@ import { describe, expect, it } from 'vitest';
 const source = readFileSync(fileURLToPath(new URL('./Sheet.tsx', import.meta.url).href), 'utf8');
 
 describe('shared sheet parity geometry', () => {
+  it('allows every panel to shrink inside the keyboard-reduced safe viewport', () => {
+    expect(source).toMatch(/panel: \{[\s\S]*?flexShrink: 1,/);
+    expect(source).toContain('paddingTop: insets.top');
+  });
+
   it('keeps the pinned 36x3 grip and 27px content start across every sheet', () => {
     expect(source).toContain('const HANDLE_WIDTH = 36;');
     expect(source).toContain('const HANDLE_HEIGHT = 3;');

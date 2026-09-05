@@ -94,6 +94,18 @@ const DESTINATIONS: readonly MoreSearchResult[] = [
 
 const ACTIONS: readonly MoreSearchResult[] = [
   {
+    id: 'transfer',
+    label: 'Log a transfer',
+    meta: 'move money between your accounts',
+    target: { kind: 'sheet', sheet: 'transfer' },
+  },
+  {
+    id: 'refund',
+    label: 'Pair a refund',
+    meta: 'link a returned payment to its original spend',
+    target: { kind: 'sheet', sheet: 'refund' },
+  },
+  {
     id: 'appearance',
     label: 'Appearance',
     meta: 'light, dark or device theme',

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { buildMoreSearchResults } from '@/folio/lib/moreSearchModel';
@@ -26,6 +26,7 @@ export function MoreSearchScreen({ nav }: { nav: Nav }) {
   );
 
   function openResult(result: MoreSearchResult) {
+    Keyboard.dismiss();
     if (result.target.kind === 'screen') nav.go(result.target.screen);
     else nav.openSheet(result.target.sheet);
   }

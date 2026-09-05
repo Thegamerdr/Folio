@@ -288,7 +288,7 @@ export function Sheet({ visible, onClose, children, reduceMotion, scrollable = t
               style={[
                 s.panel,
                 { maxHeight, paddingBottom: panelBottomPadding },
-                !scrollable && { height: maxHeight, flexShrink: 1 },
+                !scrollable && { height: maxHeight },
                 { transform: [{ translateY }] },
               ]}
             >
@@ -426,6 +426,9 @@ function makeStyles(t: Palette) {
       backgroundColor: t.ink,
     },
     panel: {
+      // The IME can make the avoider's available height smaller than maxHeight. Let both
+      // scrollable forms and fixed-chrome sheets shrink inside the top safe-area boundary.
+      flexShrink: 1,
       backgroundColor: t.surface,
       borderTopLeftRadius: SHEET_RADIUS,
       borderTopRightRadius: SHEET_RADIUS,

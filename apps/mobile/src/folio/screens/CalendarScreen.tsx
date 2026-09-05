@@ -63,7 +63,7 @@
  *   • Reduced motion → every animation resolves straight to its final state.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Pressable,
@@ -493,6 +493,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   // The agenda jump scrolls the screen ScrollView; the ref + a registry of measured row offsets are
   // owned here so AgendaView can ask for a scroll without owning the scroller.
   const scrollRef = useRef<ScrollView>(null);
+  const [agendaContentOffsetY, setAgendaContentOffsetY] = useState<number | null>(null);
 
   // A display-mode change starts the agenda at its top. Keep this scoped to the tab change so an
   // explicit Go there / Route-focus jump can still apply its measured target offset afterwards.
@@ -661,7 +662,14 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
           ) : null}
 
           {/* Body — switch views without temporarily hiding money records. */}
-          <View style={layout.body}>
+          <View
+            style={layout.body}
+            onLayout={(event: LayoutChangeEvent) => {
+              // This y is relative to the ScrollView content container, unlike the day-card y
+              // measured by AgendaView (which is relative to agendaStack).
+              setAgendaContentOffsetY(event.nativeEvent.layout.y);
+            }}
+          >
             {isEmpty ? (
               <CalendarEmptyState
                 s={s}
@@ -681,6 +689,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
                 jumpDate={jumpDate}
                 jumpPulse={jumpPulse}
                 scrollRef={scrollRef}
+                contentOffsetY={agendaContentOffsetY}
               />
             ) : view === 'week' ? (
               <WeekView
@@ -920,6 +929,7 @@ function AgendaView({
   jumpDate,
   jumpPulse,
   scrollRef,
+  contentOffsetY,
 }: {
   nav: Nav;
   t: Palette;
@@ -931,22 +941,57 @@ function AgendaView({
   jumpDate: string | null;
   jumpPulse: number;
   scrollRef: React.RefObject<ScrollView | null>;
+  contentOffsetY: number | null;
 }) {
   const todayIso = isoDay(today);
-  // onLayout-measured y offset per day card (relative to the scroll content), so a jump can centre it.
+  // Day-card onLayout y is relative to agendaStack. Keep the stack's parent offset separately so
+  // the ScrollView receives a true content-space coordinate rather than a local row coordinate.
   const offsets = useRef<Record<string, number>>({});
+  const pendingJump = useRef<{ date: string; pulse: number } | null>(null);
+  const requestedPulse = useRef(0);
+
+  const attemptJump = useCallback(() => {
+    const request = pendingJump.current;
+    if (!request || contentOffsetY === null || groups.length === 0 || !scrollRef.current) return;
+    const targetMs = Date.parse(`${request.date}T00:00:00Z`);
+    if (!Number.isFinite(targetMs)) return;
+    // Tight points can land on a date with no event card. Choose the nearest dated group, preferring
+    // the later group on an exact tie, so a requested Go There still has a useful visible destination.
+    const groupDate = groups.reduce<string | null>((closest, group) => {
+      if (closest === null) return group.date;
+      const distance = Math.abs(Date.parse(`${group.date}T00:00:00Z`) - targetMs);
+      const closestDistance = Math.abs(Date.parse(`${closest}T00:00:00Z`) - targetMs);
+      return distance < closestDistance || (distance === closestDistance && group.date > closest)
+        ? group.date
+        : closest;
+    }, null);
+    if (groupDate === null) return;
+    const rowOffset = offsets.current[groupDate];
+    if (typeof rowOffset !== 'number') return;
+    pendingJump.current = null;
+    // Stack row y + body y is the ScrollView-content coordinate. A small upward bias keeps the
+    // dated header clear of the title while preserving the explicit jump request.
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, contentOffsetY + rowOffset - 120),
+      animated: true,
+    });
+  }, [contentOffsetY, groups, scrollRef]);
 
   useEffect(() => {
     // Only a user's Go there / Route-focus request may move the viewport. An initial
     // tightest-date calculation is not a scroll instruction.
     const target = jumpDate;
-    if (!target || jumpPulse === 0) return;
-    const y = offsets.current[target];
-    if (typeof y !== 'number') return;
-    // block:center → scroll so the card sits a little above middle. A small upward bias keeps the
-    // day header in view rather than the card's vertical centre vanishing under the title.
-    scrollRef.current?.scrollTo({ y: Math.max(0, y - 120), animated: true });
-  }, [jumpPulse, jumpDate, scrollRef]);
+    if (!target || jumpPulse === 0) {
+      pendingJump.current = null;
+      return;
+    }
+    // New layout/data can retry an outstanding request, but must not recreate a completed one.
+    if (requestedPulse.current !== jumpPulse) {
+      requestedPulse.current = jumpPulse;
+      pendingJump.current = { date: target, pulse: jumpPulse };
+    }
+    attemptJump();
+  }, [attemptJump, jumpPulse, jumpDate]);
 
   return (
     <View style={layout.agendaStack}>
@@ -959,6 +1004,7 @@ function AgendaView({
             key={g.date}
             onLayout={(e: LayoutChangeEvent) => {
               offsets.current[g.date] = e.nativeEvent.layout.y;
+              attemptJump();
             }}
             style={[
               s.dayCard,
