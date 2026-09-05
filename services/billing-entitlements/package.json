@@ -2,7 +2,7 @@
   "name": "@melo/billing-entitlements",
   "version": "0.0.0",
   "private": true,
-  "description": "Server-verified Google Play entitlement grants for Melo.",
+  "description": "Server-verified Google Play and App Store entitlement grants for Melo.",
   "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",

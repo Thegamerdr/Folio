@@ -21,8 +21,10 @@ The private Google key and entitlement signing key must never be placed in the a
 Wrangler variables, logs, or release evidence. The APK receives only the Worker URL and Ed25519
 public key. A client-created or unsigned entitlement is never accepted.
 
-Apple setup uses only App Store Connect server credentials on the Worker. `APPLE_PRIVATE_KEY` is
-the escaped PEM downloaded for the App Store Connect API key; it never ships to mobile. Apple
+Apple setup uses an **In-App Purchase key**, generated under App Store Connect → Users and Access →
+Integrations → In-App Purchase, not a general App Store Connect API key.
+See [Apple's key instructions](https://developer.apple.com/documentation/appstoreserverapi/creating-api-keys-to-authorize-api-requests).
+`APPLE_PRIVATE_KEY` is its downloaded PEM; it never ships to mobile. Apple
 verification dynamically loads the official App Store Server Library inside the request handler,
 pins the bundled Apple Root CA G2/G3 trust anchors, and requires an explicit `APPLE_ENVIRONMENT`
 (`Production` or `Sandbox`) with exact bundle ID (and app ID in Production). It verifies the supplied

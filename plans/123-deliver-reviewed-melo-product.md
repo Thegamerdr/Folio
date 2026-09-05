@@ -70,15 +70,40 @@ Reconcile audit IDs as VERIFIED, IMPLEMENTED-EXTERNAL-PROOF-REQUIRED, IN-PROGRES
 | Work | Status | Acceptance |
 | --- | --- | --- |
 | Money safety and dates | SOURCE REVIEWED — corrections applied | Included in controller's 34 passing focused cases; candidate/device checks pending |
-| Android billing/runtime | SOURCE REVIEWED — controller corrections integrated | Lifecycle mounted; 23 focused cases and mobile no-emit pass. Real Play proof and Apple implementation remain open |
+| Android/Apple billing/runtime | SOURCE REVIEWED — `de18d8da`, `7309b3f` | Lifecycle, exact store terms, verified Apple API/JWS and bounded transport. Local Worker/packaging pass; real store/iOS evidence open |
 | Cloud protocol A04/A05 | SOURCE REVIEWED — controller corrections integrated | Atomic coordinator and real native-signature integration checks pass; no deployment or shipping sync claim |
-| Backup/Business recovery A03/A13 | QUEUED | Must fix overwrite/default recovery and clean-device discovery |
+| Backup/Business recovery A03/A13 | LUNA IMPLEMENTING; controller reviews protocol | Atomic generation/catalog, retained recovery anchor, migration fence and durable Business activation required |
 | Banking durable delivery | QUEUED | Next free worker |
-| Mobile UI/voice | SOURCE REVIEWED; Luna now implements A14 | New search/debt routes, notifications and chat require S9 check; transfer/refund in progress |
+| Mobile UI/voice and financial actions | SOURCE REVIEWED — `2ab349cf`, `80f03835` | Real transfer/refund routes, metadata persistence, safe Undo and manual-money parsing; S9 checks pending |
 | Shipping sync wiring | QUEUED | After protocol/recovery checkpoint |
 | Integration, candidate, S9 | QUEUED | After reviewed code |
 
 The controller maintains this file; workers do not change the index. The broader audit is not repeated. Scope changes require an explicit controller decision with the reason recorded.
+
+Financial-action checkpoint: controller reviewed Luna's implementation and corrected reentrant
+confirmation, penny arithmetic, refund edits exceeding their original, false successful Undo,
+refund history cashflow and unbounded refund selection rendering. Internal transfers update both
+owned cash accounts together, retain structural links through the canonical/SQLite round trip, and
+stay out of income/spend inference. Refund pairing changes no balances and now has a real Unpair
+action. The final named financial/structural checks passed 10 cases; mobile no-emit passed. Two small
+manual-money parser cases cover formatted GBP and malformed/non-finite input; prefills retain pennies.
+Metro now resolves reviewed local calendar/finance/sync/today packages to source instead of stale dist.
+
+Apple checkpoint `7309b3f`: official SDK 3.1.0 dynamically loads inside requests; production roots
+match Apple PKI byte-for-byte. Controller fixed StoreKit proof length, current signed-chain selection,
+Sandbox test labeling, grace expiry, iOS product/period gating, incomplete-response cancellation,
+oversized-response limits and Worker-incompatible redirect mode. Five named files passed 21 cases;
+after redirect correction the two transport cases passed. Service no-emit and Wrangler 4.105.0 local
+packaging dry run passed (177.75 KiB gzip; no deployment). The real local Worker starts and verifies
+Apple's synthetic signed certificate/JWS fixture using the actual SDK and aliased transport. This
+does not claim online OCSP/App Store account or iOS device evidence. Worker mobile no-emit passed;
+controller's later check found only in-flight backup helper names, so combined mobile acceptance
+waits for that lane. The owner must provide Apple's In-App Purchase key, not a general Connect key.
+
+Bank deletion boundary `da91eda`: a disabled connection flag no longer fabricates deletion success.
+Native account deletion requires a real server receipt; the authenticated server route remains usable
+when new connections are disabled or provider configuration is absent. Two named client/handler cases
+and banking service no-emit passed. Race-safe account tombstones remain part of the A07 work.
 
 Controller review, 5 September: the first M checkpoint was not accepted blindly. Existing `isRealUser`
 already protects extra/business state missed by a new record-list classifier; that existing boundary
