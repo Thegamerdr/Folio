@@ -10,7 +10,7 @@ Repository: `C:/dev/melo-native-today-batch1-2026-08-24`. Audit: [21 findings](C
 
 ## Execution contract
 
-- Owner direction, 2026-09-05: finish implementation first, then send ONE complete current screenshot + source/behavior context package to the existing Lovable project `d8323aca-d14c-4f6d-bb89-6d41bcefab7b` for UI/UX judgment, then fix its findings. Do not submit per-screen reviews or spend review credits on intermediate drafts. Lovable is the design authority; the controller does not self-approve visual regressions based on code checks. Local interim evidence is not visual approval. No Lovable review request has been sent at this checkpoint.
+- Owner direction, 2026-09-05: finish implementation first, then send ONE complete current screenshot + source/behavior context package to the existing Lovable project `d8323aca-d14c-4f6d-bb89-6d41bcefab7b` for UI/UX judgment, then fix its findings. Do not submit per-screen reviews or spend review credits on intermediate drafts. Lovable is the design authority; the controller does not self-approve visual regressions based on code checks. Local interim evidence is not visual approval. One consolidated request was subsequently accepted on 5 September; its 15 corrections were returned for one credit and implemented. Do not send another review request.
 - Target three Luna workers, no nested workers and no workers reviewing workers. The app currently retains two completed audit-agent slots and refuses new workers after one Luna dispatch; until capacity changes, the same Luna executes lanes sequentially. Do not substitute a more expensive model. The controller reads every diff and its callers, tests the integration, and checks the actual S9 build.
 - Use the existing checkout and installed dependencies with exclusive file ownership. This avoids rebuilding dependency environments; no overlapping edits without controller approval. Never revert another worker's changes. Source is clean at the starting SHA; existing dirty design evidence, OPEN_BANKING_PLAN.md and plans/README.md belong to the owner.
 - Read before editing; use `rg` and `apply_patch`; reuse existing domain/store/native patterns. No new framework, generic abstraction layer, mass refactor, dependency upgrade or visual redesign.
@@ -72,12 +72,12 @@ Reconcile audit IDs as VERIFIED, IMPLEMENTED-EXTERNAL-PROOF-REQUIRED, IN-PROGRES
 | --- | --- | --- |
 | Money safety and dates | SOURCE REVIEWED — corrections applied | Included in controller's 34 passing focused cases; candidate/device checks pending |
 | Android/Apple billing/runtime | SOURCE REVIEWED — `de18d8da`, `7309b3f` | Lifecycle, exact store terms, verified Apple API/JWS and bounded transport. Local Worker/packaging pass; real store/iOS evidence open |
-| Cloud protocol A04/A05 | SOURCE REVIEWED — controller corrections integrated | Atomic coordinator and real native-signature integration checks pass; no deployment or shipping sync claim |
+| Cloud protocol A04/A05 | SOURCE REVIEWED — controller corrections integrated | Atomic coordinator and native-signature integration pass; shipping mobile sync is mounted at `c857321`, but deployed/two-device proof is open |
 | Backup/Business recovery A03/A13 | SOURCE REVIEWED — `025ee05` | Actual SQLite authority plus 6 named native/migration/activation cases pass; deployment/device recovery proof remains open |
 | Banking durable delivery | SOURCE REVIEWED — `c25640e` | Real routed SQLite delivery/replay/ack, multi-account pagination, failed-read resume, disconnect and account deletion checks pass; local inbox auth-independent mount reviewed |
 | Mobile UI/voice and financial actions | SOURCE REVIEWED — `2ab349cf`, `80f03835` | Real transfer/refund routes, metadata persistence, safe Undo and manual-money parsing; S9 checks pending |
 | Shipping sync wiring | CONTROLLER INTEGRATION REVIEWED — device proof pending | Root rewrote replay/conflict UI after rejecting worker checkpoints; native-save/CAS and real ciphertext runner boundaries pass; deployed and physical-device proofs remain open |
-| Integration, candidate, S9 | PREVIEW RUNNING; release candidate pending | Separate emulator debug preview loads current source; signed final APK/AAB and S9 update await reviewed integration |
+| Integration, candidate, S9 | SIGNED LOCAL REVIEW CANDIDATE DELIVERED — `516ee6b` | Final APK/AAB validated; exact APK hash matches S9 installation and launches. No uninstall/data clear. Remaining acceptance is recorded in the closure map. |
 
 The controller maintains this file; workers do not change the index. The broader audit is not repeated. Scope changes require an explicit controller decision with the reason recorded.
 
@@ -94,9 +94,9 @@ Account now uses strict signed money parsing, a synchronous duplicate-save guard
 entitlement display. Today's payday caption and amount now use the route's actual payday instead of
 a hard-coded 28-day date and invented lowest-plus-income amount. Its existing crowded chrome,
 signature chart geometry, oversized composition and contradictory mode wording remain explicit
-Lovable review concerns; code acceptance is not UI acceptance. One final screenshot/source review
-request is still pending. A separate data-preserving emulator preview is running; the S9 still needs
-the final signed reviewed candidate. No OTA, store upload, service deployment or owner-data reset.
+Lovable review concerns; code acceptance is not UI acceptance. That screenshot/source review was subsequently completed as one Lovable batch; see
+`docs/ui-review/2026-09-05-lovable/05-lovable-corrections.md` and `06-correction-disposition.md`.
+A separate data-preserving emulator preview remains running. Final signed candidate evidence follows below. No OTA, store upload, service deployment or owner-data reset.
 
 Backup checkpoint `025ee05`: controller corrected deletion resurrection, lost-response rotation,
 old-generation key preview, missing native streaming support, missing scoped Business migration,
@@ -356,3 +356,22 @@ case against the shipping `SyncWorkspaceDurableObject` in local workerd/SQLite s
 devices uploaded concurrently and both durable operations/cursors survived. This is stronger than
 the clone-backed unit storage checks but still does not prove deployed JWT configuration or mobile
 sync integration. No Cloudflare service was deployed or queried by this check.
+
+### Final device follow-up — 5 September
+
+Lovable reviewed 34 synthetic screenshots plus full-stack/source context in one accepted batch
+(one credit). Its 15 corrections were dispositioned at `a8e05e02`. Root checked corrected light/dark
+compositions, four selected files/27 cases and mobile no-emit. No second Lovable call was made.
+
+The first signed build was rejected after an actual S9 launch exposed missing `assets/fingerprint`.
+Expo SDK 56 had treated generated update resources as up-to-date after a runtime-policy change.
+`400aa4b` durably regenerates only that metadata task at native build time; a rebuilt replacement
+contains the hash and launches. S9 update installs retain the original 14 August first-install timestamp;
+no uninstall, application-data clear, account change or financial save was performed.
+
+Actual S9 checks opened Today, Plan, Review, More, Search and keyboard-open Melo chat, with hardware
+Back dismissing keyboard/chat. That pass exposed a scrollable onboarding sheet height issue and missing
+Search entries for the new transfer/refund actions. `516ee6b` fixes those plus Calendar's agenda jump
+coordinate space and pre-layout retry, with a consumed-request guard. Nine targeted cases and mobile
+no-emit passed. Final artifact hashes, installation and verification belong in
+`docs/release-evidence/MELO_ANDROID_REVIEW_CANDIDATE_2026-09-05.md`; do not infer public release approval.

@@ -1,0 +1,2 @@
+# PDFs may be ASCII-encoded but their byte offsets must never undergo line-ending conversion.
+*.pdf binary

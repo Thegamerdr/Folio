@@ -1,0 +1,14 @@
+{
+  "projectId": "d8323aca-d14c-4f6d-bb89-6d41bcefab7b",
+  "messageId": "umsg_01m1s0kjbrf4atmdqpz39wn0mq",
+  "threadId": "main",
+  "acceptedAt": "2026-09-05T14:47:20Z",
+  "planMode": true,
+  "acceptedReviewRequests": 1,
+  "attachments": 9,
+  "screenshotsInPdf": 34,
+  "note": "Initial requests were rejected before acceptance for schema/attachment-count constraints; one consolidated batch was accepted and returned 15 corrections for one reported credit. No per-screen reviews or second accepted review request; final independent visual approval is not asserted.",
+  "reportedReviewCostCredits": 1,
+  "assistantMessageId": "aimsg_01m1s0kk5me6fs0pf5g28rdyqy",
+  "correctionsReturned": 15
+}

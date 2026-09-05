@@ -1,0 +1,1025 @@
+
+
+===== apps/mobile/src/folio/sheets/TransferSheet.tsx =====
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
+import { recordInternalTransfer, useAppStore, type Account } from '@/folio/store';
+import { useUndo } from '@/folio/ui/useUndo';
+import { parseManualMoney } from '@/folio/lib/manualMoney';
+
+const EMPTY_ACCOUNTS: Account[] = [];
+
+export type TransferSheetProps = { visible: boolean; onClose: () => void };
+
+export function TransferSheet({ visible, onClose }: TransferSheetProps) {
+  const palette = useTheme();
+  const { showUndo } = useUndo();
+  const commitStarted = useRef(false);
+  const accounts = useAppStore((state) => state.accounts) ?? EMPTY_ACCOUNTS;
+  const workspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const activeAccounts = useMemo(
+    () =>
+      accounts.filter(
+        (account) =>
+          !account.closed &&
+          !account.isLiability &&
+          (account.workspaceId === undefined || account.workspaceId === workspaceId),
+      ),
+    [accounts, workspaceId],
+  );
+  const [fromAccountId, setFromAccountId] = useState<string>();
+  const [toAccountId, setToAccountId] = useState<string>();
+  const [amount, setAmount] = useState('');
+  const [reviewing, setReviewing] = useState(false);
+  const [error, setError] = useState<string>();
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    if (!visible) return;
+    setFromAccountId(undefined);
+    setToAccountId(undefined);
+    setAmount('');
+    setReviewing(false);
+    setError(undefined);
+    setConfirming(false);
+    commitStarted.current = false;
+  }, [visible, workspaceId]);
+  const from = activeAccounts.find((account) => account.id === fromAccountId);
+  const to = activeAccounts.find((account) => account.id === toAccountId);
+  const parsedAmount = parseManualMoney(amount) ?? 0;
+  const validAmount = parsedAmount > 0;
+  const canReview = from !== undefined && to !== undefined && from.id !== to.id && validAmount;
+
+  function review() {
+    if (!canReview) return;
+    setError(undefined);
+    setReviewing(true);
+  }
+
+  function confirm() {
+    if (commitStarted.current || !canReview || from === undefined || to === undefined) return;
+    commitStarted.current = true;
+    setConfirming(true);
+    setError(undefined);
+    try {
+      const result = recordInternalTransfer({
+        fromAccountId: from.id,
+        toAccountId: to.id,
+        amount: parsedAmount,
+      });
+      setReviewing(false);
+      onClose();
+      showUndo('Transfer recorded', () => {
+        if (!result.undo())
+          Alert.alert(
+            'Transfer kept',
+            'An affected account changed after this transfer. Nothing was undone.',
+          );
+      });
+    } catch (cause) {
+      commitStarted.current = false;
+      setError(cause instanceof Error ? cause.message : 'Transfer could not be recorded.');
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <Sheet visible={visible} onClose={onClose}>
+      <View style={styles.body}>
+        <Text style={[styles.eyebrow, { color: palette.muted }]}>Record a transfer</Text>
+        <Text style={[styles.title, { color: palette.ink }]}>Between your accounts</Text>
+        <Text style={[styles.copy, { color: palette.muted }]}>
+          This records a transfer you already made. Melo does not move money at your bank.
+        </Text>
+        {activeAccounts.length < 2 ? (
+          <Text style={[styles.copy, { color: palette.muted }]}>
+            Add two active cash accounts before recording a transfer.
+          </Text>
+        ) : reviewing && from !== undefined && to !== undefined ? (
+          <View>
+            <Text style={[styles.copy, { color: palette.ink }]}>
+              Review this internal transfer:
+            </Text>
+            <Text style={[styles.review, { color: palette.ink }]}>
+              £{parsedAmount.toFixed(2)} from {from.name} to {to.name}
+            </Text>
+            <Text style={[styles.copy, { color: palette.muted }]}>
+              Recorded effect: {from.name} decreases by £{parsedAmount.toFixed(2)} and {to.name}{' '}
+              increases by £{parsedAmount.toFixed(2)}. Your overall bank total stays the same.
+            </Text>
+            {error ? <Text style={[styles.error, { color: palette.calm }]}>{error}</Text> : null}
+            <Action
+              label={confirming ? 'Saving…' : 'Confirm transfer'}
+              onPress={confirm}
+              palette={palette}
+              primary
+              disabled={confirming}
+            />
+            <Action label="Back" onPress={() => setReviewing(false)} palette={palette} />
+          </View>
+        ) : (
+          <>
+            <Text style={[styles.label, { color: palette.muted }]}>From</Text>
+            <AccountChoices
+              accounts={activeAccounts}
+              selected={fromAccountId}
+              onSelect={setFromAccountId}
+              palette={palette}
+            />
+            <Text style={[styles.label, { color: palette.muted }]}>To</Text>
+            <AccountChoices
+              accounts={activeAccounts}
+              selected={toAccountId}
+              onSelect={setToAccountId}
+              palette={palette}
+            />
+            <TextInput
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="decimal-pad"
+              placeholder="Amount"
+              placeholderTextColor={palette.muted}
+              style={[styles.input, { borderColor: palette.hairline, color: palette.ink }]}
+              accessibilityLabel="Transfer amount"
+            />
+            {amount.length > 0 && !validAmount ? (
+              <Text style={[styles.error, { color: palette.repairInk }]}>
+                Enter a positive amount with at most two decimal places.
+              </Text>
+            ) : null}
+            {from !== undefined && to !== undefined && from.id === to.id ? (
+              <Text style={[styles.error, { color: palette.calm }]}>
+                Choose two different accounts.
+              </Text>
+            ) : null}
+            {error ? <Text style={[styles.error, { color: palette.calm }]}>{error}</Text> : null}
+            <Action
+              label="Review transfer"
+              onPress={review}
+              palette={palette}
+              primary
+              disabled={!canReview}
+            />
+            <Action label="Not yet" onPress={onClose} palette={palette} />
+          </>
+        )}
+      </View>
+    </Sheet>
+  );
+}
+
+function AccountChoices({
+  accounts,
+  selected,
+  onSelect,
+  palette,
+}: {
+  accounts: Account[];
+  selected?: string | undefined;
+  onSelect: (id: string) => void;
+  palette: Palette;
+}) {
+  return (
+    <View style={styles.choices}>
+      {accounts.map((account) => (
+        <Pressable
+          key={account.id}
+          onPress={() => onSelect(account.id)}
+          style={[
+            styles.choice,
+            { backgroundColor: selected === account.id ? palette.ink : palette.inset },
+          ]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: selected === account.id }}
+        >
+          <Text style={{ color: selected === account.id ? palette.inverse : palette.ink }}>
+            {account.name}
+          </Text>
+          <Text style={{ color: selected === account.id ? palette.inverse : palette.muted }}>
+            £{account.balanceMinor.toFixed(2)}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function Action({
+  label,
+  onPress,
+  palette,
+  primary,
+  disabled = false,
+}: {
+  label: string;
+  onPress: () => void;
+  palette: Palette;
+  primary?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.action,
+        { backgroundColor: primary ? palette.calm : palette.inset, opacity: disabled ? 0.45 : 1 },
+      ]}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+    >
+      <Text style={{ color: primary ? palette.inverse : palette.ink, fontFamily: serif.display }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  body: { padding: gap.xl, gap: gap.md },
+  eyebrow: { fontFamily: serif.display, fontSize: 14 },
+  title: { fontFamily: serif.display, fontSize: 30, lineHeight: 36 },
+  copy: { fontSize: 15, lineHeight: 22 },
+  label: { fontSize: 13, marginTop: gap.sm },
+  choices: { gap: gap.sm },
+  choice: {
+    minHeight: 44,
+    borderRadius: radius.md,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  input: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: gap.md,
+    fontSize: 18,
+  },
+  review: { fontFamily: serif.display, fontSize: 20, lineHeight: 28, marginVertical: gap.md },
+  error: { fontSize: 14, lineHeight: 20 },
+  action: {
+    minHeight: 48,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: gap.lg,
+    marginTop: gap.sm,
+  },
+});
+
+
+===== apps/mobile/src/folio/sheets/RefundSheet.tsx =====
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
+import {
+  accountIdOf,
+  pairRefund,
+  useAppStore,
+  type Account,
+  type Transaction,
+} from '@/folio/store';
+import { useUndo } from '@/folio/ui/useUndo';
+
+const EMPTY_TRANSACTIONS: Transaction[] = [];
+const EMPTY_ACCOUNTS: Account[] = [];
+
+export type RefundSheetProps = { visible: boolean; onClose: () => void };
+
+export function RefundSheet({ visible, onClose }: RefundSheetProps) {
+  const palette = useTheme();
+  const { showUndo } = useUndo();
+  const commitStarted = useRef(false);
+  const transactions = useAppStore((state) => state.transactions) ?? EMPTY_TRANSACTIONS;
+  const accounts = useAppStore((state) => state.accounts) ?? EMPTY_ACCOUNTS;
+  const workspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const accountName = useMemo(
+    () => new Map(accounts.map((account) => [account.id, account.name])),
+    [accounts],
+  );
+  const [creditQuery, setCreditQuery] = useState('');
+  const [outflowQuery, setOutflowQuery] = useState('');
+  const pairedTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const row of transactions) {
+      if (!owned(row, workspaceId) || row.financialAction?.kind !== 'refund') continue;
+      const id = row.financialAction.originalTransactionId;
+      totals.set(id, (totals.get(id) ?? 0) + row.amount);
+    }
+    return totals;
+  }, [transactions, workspaceId]);
+  const incoming = useMemo(
+    () =>
+      transactions.filter(
+        (row) =>
+          Number.isFinite(row.amount) &&
+          row.amount > 0 &&
+          row.financialAction?.kind !== 'refund' &&
+          row.financialAction?.kind !== 'transfer' &&
+          owned(row, workspaceId),
+      ),
+    [transactions, workspaceId],
+  );
+  const outflows = useMemo(
+    () =>
+      transactions.filter(
+        (row) =>
+          Number.isFinite(row.amount) &&
+          row.amount < 0 &&
+          row.financialAction?.kind !== 'transfer' &&
+          owned(row, workspaceId) &&
+          refundRemaining(row, pairedTotals) > 0,
+      ),
+    [transactions, workspaceId, pairedTotals],
+  );
+  const matchingCredits = useMemo(
+    () => incoming.filter((row) => matches(row, creditQuery)),
+    [incoming, creditQuery],
+  );
+  const matchingOutflows = useMemo(
+    () => outflows.filter((row) => matches(row, outflowQuery)),
+    [outflows, outflowQuery],
+  );
+  const [incomingId, setIncomingId] = useState<string>();
+  const [originalId, setOriginalId] = useState<string>();
+  const [reviewing, setReviewing] = useState(false);
+  const [error, setError] = useState<string>();
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    if (!visible) return;
+    setIncomingId(undefined);
+    setOriginalId(undefined);
+    setReviewing(false);
+    setError(undefined);
+    setConfirming(false);
+    commitStarted.current = false;
+    setCreditQuery('');
+    setOutflowQuery('');
+  }, [visible, workspaceId]);
+  const selectedIncoming = incoming.find((row) => row.id === incomingId);
+  const selectedOriginal = outflows.find((row) => row.id === originalId);
+  const canReview = selectedIncoming !== undefined && selectedOriginal !== undefined;
+
+  function confirm() {
+    if (
+      commitStarted.current ||
+      !canReview ||
+      selectedIncoming === undefined ||
+      selectedOriginal === undefined
+    )
+      return;
+    commitStarted.current = true;
+    setConfirming(true);
+    setError(undefined);
+    try {
+      const result = pairRefund({
+        incomingTransactionId: selectedIncoming.id,
+        originalTransactionId: selectedOriginal.id,
+      });
+      onClose();
+      showUndo('Refund paired', () => {
+        if (!result.undo())
+          Alert.alert('Refund link kept', 'The linked records changed. Nothing was undone.');
+      });
+    } catch (cause) {
+      commitStarted.current = false;
+      setError(cause instanceof Error ? cause.message : 'Refund pairing failed.');
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <Sheet visible={visible} onClose={onClose}>
+      <View style={styles.body}>
+        <Text style={[styles.eyebrow, { color: palette.muted }]}>Match a refund</Text>
+        <Text style={[styles.title, { color: palette.ink }]}>Pair the money in</Text>
+        {incoming.length === 0 ? (
+          <Text style={[styles.copy, { color: palette.muted }]}>
+            There is no incoming credit to pair yet. Record or import the refund first, then return
+            here.
+          </Text>
+        ) : reviewing && selectedIncoming !== undefined && selectedOriginal !== undefined ? (
+          <View>
+            <Text style={[styles.copy, { color: palette.ink }]}>Review this link:</Text>
+            <Text style={[styles.review, { color: palette.ink }]}>
+              £{selectedIncoming.amount.toFixed(2)} from {selectedIncoming.merchant}
+            </Text>
+            <Text style={[styles.copy, { color: palette.muted }]}>
+              Original outflow: £{Math.abs(selectedOriginal.amount).toFixed(2)} at{' '}
+              {selectedOriginal.merchant}. No new transaction or money is created.
+            </Text>
+            {error ? <Text style={[styles.error, { color: palette.calm }]}>{error}</Text> : null}
+            <Action
+              label={confirming ? 'Saving…' : 'Confirm pairing'}
+              onPress={confirm}
+              palette={palette}
+              primary
+              disabled={confirming}
+            />
+            <Action label="Back" onPress={() => setReviewing(false)} palette={palette} />
+          </View>
+        ) : (
+          <>
+            <Text style={[styles.label, { color: palette.muted }]}>Incoming credit</Text>
+            <TextInput
+              accessibilityLabel="Find incoming credit"
+              placeholder="Find by name, date or amount"
+              placeholderTextColor={palette.muted}
+              value={creditQuery}
+              onChangeText={setCreditQuery}
+              style={[styles.search, { color: palette.ink, borderColor: palette.hairline }]}
+            />
+            {matchingCredits.slice(0, 40).map((row) => (
+              <TransactionChoice
+                key={row.id}
+                row={row}
+                selected={row.id === incomingId}
+                accountName={accountName}
+                onPress={() => setIncomingId(row.id)}
+                palette={palette}
+              />
+            ))}
+            {matchingCredits.length === 0 ? (
+              <Text style={[styles.copy, { color: palette.muted }]}>No matching credit.</Text>
+            ) : null}
+            {matchingCredits.length > 40 ? (
+              <Text style={[styles.copy, { color: palette.muted }]}>
+                Showing 40 of {matchingCredits.length}. Narrow your search to find another credit.
+              </Text>
+            ) : null}
+            <Text style={[styles.label, { color: palette.muted }]}>Original outflow</Text>
+            <TextInput
+              accessibilityLabel="Find original outflow"
+              placeholder="Find by name, date or amount"
+              placeholderTextColor={palette.muted}
+              value={outflowQuery}
+              onChangeText={setOutflowQuery}
+              style={[styles.search, { color: palette.ink, borderColor: palette.hairline }]}
+            />
+            {matchingOutflows.length === 0 ? (
+              <Text style={[styles.copy, { color: palette.muted }]}>
+                No matching eligible outflow in this workspace.
+              </Text>
+            ) : (
+              matchingOutflows
+                .slice(0, 40)
+                .map((row) => (
+                  <TransactionChoice
+                    key={row.id}
+                    row={row}
+                    selected={row.id === originalId}
+                    accountName={accountName}
+                    detail={`£${refundRemaining(row, pairedTotals).toFixed(2)} remaining`}
+                    onPress={() => setOriginalId(row.id)}
+                    palette={palette}
+                  />
+                ))
+            )}
+            {matchingOutflows.length > 40 ? (
+              <Text style={[styles.copy, { color: palette.muted }]}>
+                Showing 40 of {matchingOutflows.length}. Narrow your search to find another outflow.
+              </Text>
+            ) : null}
+            {error ? <Text style={[styles.error, { color: palette.calm }]}>{error}</Text> : null}
+            <Action
+              label="Review pairing"
+              onPress={() => {
+                if (canReview) {
+                  setError(undefined);
+                  setReviewing(true);
+                }
+              }}
+              palette={palette}
+              primary
+              disabled={!canReview}
+            />
+            <Action label="Not yet" onPress={onClose} palette={palette} />
+          </>
+        )}
+      </View>
+    </Sheet>
+  );
+}
+
+function owned(row: Transaction, workspaceId: string): boolean {
+  return row.workspaceId === undefined || row.workspaceId === workspaceId;
+}
+
+function refundRemaining(row: Transaction, pairedTotals: ReadonlyMap<string, number>): number {
+  const paired = pairedTotals.get(row.id) ?? 0;
+  return Math.max(0, Math.round((Math.abs(row.amount) - paired) * 100) / 100);
+}
+
+function matches(row: Transaction, query: string): boolean {
+  return `${row.merchant} ${row.when.slice(0, 10)} ${Math.abs(row.amount).toFixed(2)}`
+    .toLowerCase()
+    .includes(query.trim().toLowerCase());
+}
+
+function TransactionChoice({
+  row,
+  selected,
+  accountName,
+  detail,
+  onPress,
+  palette,
+}: {
+  row: Transaction;
+  selected: boolean;
+  accountName: ReadonlyMap<string, string>;
+  detail?: string;
+  onPress: () => void;
+  palette: Palette;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.choice, { backgroundColor: selected ? palette.ink : palette.inset }]}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+    >
+      <View style={styles.choiceCopy}>
+        <Text style={{ color: selected ? palette.inverse : palette.ink }}>{row.merchant}</Text>
+        <Text style={{ color: selected ? palette.inverse : palette.muted }}>
+          {row.when.slice(0, 10)} · {accountName.get(accountIdOf(row)) ?? accountIdOf(row)}
+          {detail ? ` · ${detail}` : ''}
+        </Text>
+      </View>
+      <Text style={{ color: selected ? palette.inverse : palette.ink }}>
+        £{Math.abs(row.amount).toFixed(2)}
+      </Text>
+    </Pressable>
+  );
+}
+
+function Action({
+  label,
+  onPress,
+  palette,
+  primary,
+  disabled = false,
+}: {
+  label: string;
+  onPress: () => void;
+  palette: Palette;
+  primary?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.action,
+        { backgroundColor: primary ? palette.calm : palette.inset, opacity: disabled ? 0.45 : 1 },
+      ]}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+    >
+      <Text style={{ color: primary ? palette.inverse : palette.ink, fontFamily: serif.display }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  body: { padding: gap.xl, gap: gap.md },
+  eyebrow: { fontFamily: serif.display, fontSize: 14 },
+  title: { fontFamily: serif.display, fontSize: 30, lineHeight: 36 },
+  copy: { fontSize: 15, lineHeight: 22 },
+  label: { fontSize: 13, marginTop: gap.sm },
+  search: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: gap.md,
+    fontSize: 16,
+  },
+  choice: {
+    minHeight: 52,
+    borderRadius: radius.md,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: gap.sm,
+  },
+  choiceCopy: { flex: 1, gap: 2 },
+  review: { fontFamily: serif.display, fontSize: 20, lineHeight: 28, marginVertical: gap.md },
+  error: { fontSize: 14, lineHeight: 20 },
+  action: {
+    minHeight: 48,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: gap.lg,
+    marginTop: gap.sm,
+  },
+});
+
+
+===== apps/mobile/src/folio/sheets/CloudSyncSheet.tsx =====
+
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Pressable, Share, Text, TextInput, View } from 'react-native';
+import { useAuth, useUser } from '@clerk/clerk-expo';
+import type { CloudSyncDevice } from '@folio/sync';
+import { Sheet, Surface, gap, useTheme } from '@/folio/theme';
+import { getState, useAppStore } from '@/folio/store';
+import { isClerkConfigured } from '@/folio/lib/clerkAuth';
+import {
+  approveCloudSyncDevice,
+  authenticatedCloudSyncApi,
+  ensureCloudSyncEnrollment,
+  getCloudSyncDeviceId,
+  getCloudSyncProjection,
+  resolveCloudSyncConflict,
+  revokeCloudSyncDevice,
+  setCloudSyncEnabled,
+  syncCloudWorkspace,
+  withCloudSyncWorkspaceLock,
+} from '@/folio/lib/cloudSyncNative';
+import {
+  getOrCreateCloudSyncIdentity,
+  type CloudSyncDeviceIdentity,
+} from '@/folio/lib/cloudSyncSigning';
+import { loadCloudSyncLocalState } from '@/folio/lib/cloudSyncLocalNative';
+import type { CloudSyncLocalState } from '@/folio/lib/cloudSyncLocal';
+import { loadActiveEntitlement } from '@/folio/lib/billing/entitlements';
+import { parseShareableCloudSyncProjection } from '@/folio/lib/cloudSyncProjection';
+
+type Props = { visible: boolean; onClose: () => void };
+export function CloudSyncSheet(props: Props) {
+  const t = useTheme();
+  if (!props.visible) return null;
+  if (!isClerkConfigured())
+    return (
+      <Sheet {...props}>
+        <Text style={{ color: t.muted }}>
+          Cloud sync is not configured in this build. Your local workspace remains available.
+        </Text>
+      </Sheet>
+    );
+  return <ConnectedCloudSyncSheet {...props} />;
+}
+
+function ConnectedCloudSyncSheet({ visible, onClose }: Props) {
+  const t = useTheme();
+  const { isSignedIn, user } = useUser();
+  const { getToken } = useAuth();
+  const workspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const [local, setLocal] = useState<CloudSyncLocalState | null>(null);
+  const [identity, setIdentity] = useState<CloudSyncDeviceIdentity | null>(null);
+  const [devices, setDevices] = useState<readonly CloudSyncDevice[]>([]);
+  const [approvalText, setApprovalText] = useState('');
+  const [trusted, setTrusted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('Sync is optional. Local money stays available offline.');
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  const generation = useRef(0);
+  const scopeRef = useRef('');
+  const scope = String(workspaceId) + ':' + (user?.id ?? '') + ':' + visible;
+  scopeRef.current = scope;
+  useEffect(() => {
+    const requested = ++generation.current;
+    let mounted = true;
+    setLocal(null);
+    setDevices([]);
+    setIdentity(null);
+    setTrusted(false);
+    setDetailId(null);
+    void loadCloudSyncLocalState(workspaceId)
+      .then((saved) => {
+        if (mounted && requested === generation.current) setLocal(saved);
+      })
+      .catch((reason: unknown) => {
+        if (mounted) setMessage(errorMessage(reason));
+      });
+    return () => {
+      mounted = false;
+      generation.current += 1;
+    };
+  }, [workspaceId, user?.id, visible]);
+
+  const action = async (work: (current: () => boolean) => Promise<string>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    const requested = generation.current;
+    const current = () =>
+      requested === generation.current &&
+      scopeRef.current === scope &&
+      getState().activeWorkspaceId === workspaceId;
+    try {
+      const notice = await work(current);
+      const saved = await loadCloudSyncLocalState(workspaceId);
+      if (current()) {
+        setLocal(saved);
+        setMessage(notice);
+      }
+    } catch (reason) {
+      if (current()) setMessage(errorMessage(reason));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
+  const tokenFor = async (current: () => boolean) => {
+    if (!isSignedIn) throw new Error('Sign in before connecting this workspace to sync.');
+    const token = await getToken();
+    if (!token || !current()) throw new Error('Sign in or workspace changed. Try again.');
+    return token;
+  };
+  const inspect = async (token: string, current: () => boolean) => {
+    await withCloudSyncWorkspaceLock(workspaceId, async () => {
+      if (!current()) return;
+      const enrollment = await ensureCloudSyncEnrollment(workspaceId, token);
+      const publicIdentity = await getOrCreateCloudSyncIdentity(enrollment.deviceId);
+      if (!current()) return;
+      setIdentity(publicIdentity);
+      setTrusted(enrollment.status === 'active');
+      if (enrollment.status === 'active') {
+        const api = await authenticatedCloudSyncApi(workspaceId, token);
+        const registry = await api.listDevices();
+        if (current()) setDevices(registry.devices);
+      }
+    });
+  };
+  const toggle = () =>
+    void action(async (current) => {
+      if (local?.enabled) {
+        await setCloudSyncEnabled(workspaceId, null, false);
+        return 'Sync is paused on this phone. Local data and queued changes are kept.';
+      }
+      const token = await tokenFor(current);
+      if ((await loadActiveEntitlement('live')) === null)
+        throw new Error('Cloud sync needs an active Melo Live subscription.');
+      if (!current()) throw new Error('The selected account changed.');
+      await setCloudSyncEnabled(workspaceId, token, true);
+      await inspect(token, current);
+      return 'This workspace is linked to your account. Tap Sync now to review existing cloud history or send its first encrypted copy.';
+    });
+  const syncNow = () =>
+    void action(async (current) => {
+      const token = await tokenFor(current);
+      if ((await loadActiveEntitlement('live')) === null)
+        throw new Error('Cloud sync needs an active Melo Live subscription.');
+      const result = await syncCloudWorkspace(workspaceId, token, current);
+      await inspect(token, current);
+      return result.pendingApproval
+        ? 'This phone needs approval from an existing trusted phone. Share its public identity below.'
+        : result.conflicts
+          ? 'Both versions are saved. Review the differences below before choosing.'
+          : result.hasMore
+            ? 'Progress saved. More changes will continue in the background.'
+            : 'Sync is up to date for this workspace.';
+    });
+  const approve = () =>
+    void action(async (current) => {
+      const token = await tokenFor(current);
+      let input: CloudSyncDeviceIdentity;
+      try {
+        input = JSON.parse(approvalText) as CloudSyncDeviceIdentity;
+      } catch {
+        throw new Error('Paste the complete public identity shared by the new phone.');
+      }
+      if (
+        !input ||
+        typeof input.deviceId !== 'string' ||
+        typeof input.publicKey !== 'string' ||
+        typeof input.publicKeyFingerprint !== 'string'
+      )
+        throw new Error('The shared identity is incomplete.');
+      await withCloudSyncWorkspaceLock(workspaceId, async () => {
+        if (!current()) throw new Error('The selected account changed.');
+        await approveCloudSyncDevice({
+          workspaceId,
+          bearerToken: token,
+          deviceId: input.deviceId,
+          publicKey: input.publicKey,
+          publicKeyFingerprint: input.publicKeyFingerprint,
+          label: 'Trusted phone',
+        });
+      });
+      if (current()) setApprovalText('');
+      await inspect(token, current);
+      return 'The phone is approved. It can now recover this workspace’s sync key.';
+    });
+  const revoke = (device: CloudSyncDevice) =>
+    Alert.alert(
+      'Remove this trusted phone?',
+      'It will not receive future sync keys. Copies already on that phone cannot be remotely erased.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove phone',
+          style: 'destructive',
+          onPress: () =>
+            void action(async (current) => {
+              const token = await tokenFor(current);
+              await withCloudSyncWorkspaceLock(workspaceId, async () => {
+                if (!current()) throw new Error('The selected account changed.');
+                await revokeCloudSyncDevice({
+                  workspaceId,
+                  bearerToken: token,
+                  deviceId: device.deviceId,
+                });
+              });
+              await inspect(token, current);
+              return 'Phone removed and future sync keys rotated.';
+            }),
+        },
+      ],
+    );
+  const choose = (conflictId: string, choice: 'local' | 'remote') =>
+    Alert.alert(
+      'Use this workspace version?',
+      'This resolves the saved conflicts and replaces any unsent changes with the selected version. Other local workspaces stay unchanged.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: choice === 'local' ? 'Use this phone' : 'Use received version',
+          onPress: () =>
+            void action(async (current) => {
+              await resolveCloudSyncConflict(workspaceId, conflictId, choice, current);
+              return 'Your choice is saved. Tap Sync now to send any resulting change.';
+            }),
+        },
+      ],
+    );
+  const shareVersions = (remoteState: string) =>
+    void Share.share({
+      title: 'Melo sync versions',
+      message: JSON.stringify(
+        {
+          thisPhone: parseShareableCloudSyncProjection(getCloudSyncProjection(workspaceId)).state,
+          received: JSON.parse(remoteState),
+        },
+        null,
+        2,
+      ),
+    }).catch(() => setMessage('The versions could not be shared.'));
+  const button = (label: string, onPress: () => void, disabled = busy) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={{ minHeight: 44, justifyContent: 'center', opacity: disabled ? 0.5 : 1 }}
+    >
+      <Text style={{ color: t.calm, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+    </Pressable>
+  );
+  const card = { padding: gap.md, gap: gap.sm, borderColor: t.hairline };
+  return (
+    <Sheet visible={visible} onClose={onClose}>
+      <View style={{ gap: gap.md }}>
+        <Text style={{ color: t.ink, fontSize: 24, fontWeight: '600' }}>Sync this workspace</Text>
+        <Text style={{ color: t.muted, fontSize: 14, lineHeight: 20 }}>
+          Encrypted money records sync between trusted phones. Sign-in, purchases, bank consent and
+          original attachments stay separate on each device.
+        </Text>
+        <Surface style={card}>
+          <Text style={{ color: t.ink, fontSize: 15, fontWeight: '600' }}>
+            {local?.enabled ? 'Sync is on' : 'Sync is paused'}
+          </Text>
+          <Text style={{ color: t.muted, fontSize: 13 }}>
+            {(local?.outbox.length ?? 0) + (local?.pendingDeltas.length ?? 0)} queued changes ·{' '}
+            {local?.conflictRecords.length ?? 0} decisions
+          </Text>
+          {button(local?.enabled ? 'Pause sync' : 'Enable sync', toggle)}
+          {local?.enabled && isSignedIn ? button('Sync now', syncNow) : null}
+        </Surface>
+        {identity ? (
+          <Surface style={card}>
+            <Text style={{ color: t.ink, fontWeight: '600' }}>
+              {trusted ? 'This phone is trusted' : 'Approve this phone from a trusted phone'}
+            </Text>
+            <Text style={{ color: t.muted, fontSize: 13 }}>
+              Compare this fingerprint directly with the other phone before approving. Only the
+              public identity is shared.
+            </Text>
+            <Text selectable style={{ color: t.ink, fontSize: 12 }}>
+              {identity.publicKeyFingerprint}
+            </Text>
+            {button(
+              'Share this phone’s public identity',
+              () =>
+                void Share.share({
+                  message: JSON.stringify(identity),
+                  title: 'Melo public phone identity',
+                }).catch(() => setMessage('The public identity could not be shared.')),
+            )}
+          </Surface>
+        ) : null}
+        {trusted ? (
+          <Surface style={card}>
+            <Text style={{ color: t.ink, fontWeight: '600' }}>Trusted phones</Text>
+            {devices
+              .filter(
+                (device) =>
+                  device.revokedAt === undefined && device.deviceId !== identity?.deviceId,
+              )
+              .map((device) => (
+                <View key={device.deviceId}>
+                  <Text selectable style={{ color: t.muted, fontSize: 12 }}>
+                    {device.label} · {device.publicKeyFingerprint}
+                  </Text>
+                  {button('Remove this phone', () => revoke(device))}
+                </View>
+              ))}
+            <Text style={{ color: t.muted, fontSize: 13 }}>
+              Paste the new phone’s public identity. Check its fingerprint before approving.
+            </Text>
+            <TextInput
+              accessibilityLabel="Public identity of the new phone"
+              value={approvalText}
+              onChangeText={setApprovalText}
+              multiline
+              autoCorrect={false}
+              autoCapitalize="none"
+              placeholder="Public identity JSON"
+              placeholderTextColor={t.muted}
+              style={{
+                minHeight: 60,
+                color: t.ink,
+                fontSize: 13,
+                borderWidth: 1,
+                borderColor: t.hairline,
+                padding: gap.sm,
+              }}
+            />
+            {button('I compared the fingerprint — approve', approve, busy || !approvalText.trim())}
+          </Surface>
+        ) : null}
+        {local?.conflictRecords.map((conflict) => {
+          const current = parseShareableCloudSyncProjection(
+            getCloudSyncProjection(workspaceId),
+          ).state;
+          const received = JSON.parse(conflict.remoteState) as Record<string, unknown>;
+          const keys = [...new Set([...Object.keys(current), ...Object.keys(received)])].filter(
+            (key) => JSON.stringify(current[key]) !== JSON.stringify(received[key]),
+          );
+          return (
+            <Surface key={conflict.id} style={card}>
+              <Text style={{ color: t.ink, fontSize: 16, fontWeight: '600' }}>
+                Choose a workspace version
+              </Text>
+              <Text style={{ color: t.muted, fontSize: 13 }}>
+                {keys.length} fields differ. Neither version has been silently discarded.
+              </Text>
+              {keys.slice(0, detailId === conflict.id ? 12 : 3).map((key) => (
+                <View key={key} style={{ gap: 4 }}>
+                  <Text style={{ color: t.ink, fontSize: 13, fontWeight: '600' }}>
+                    {key.replace(/([A-Z])/g, ' $1')}
+                  </Text>
+                  <Text selectable style={{ color: t.muted, fontSize: 12 }}>
+                    This phone: {previewValue(current[key])}
+                  </Text>
+                  <Text selectable style={{ color: t.muted, fontSize: 12 }}>
+                    Received: {previewValue(received[key])}
+                  </Text>
+                </View>
+              ))}
+              {button(
+                detailId === conflict.id ? 'Show fewer differences' : 'Show more differences',
+                () => setDetailId(detailId === conflict.id ? null : conflict.id),
+              )}
+              <Text style={{ color: t.muted, fontSize: 12 }}>
+                Large fields are shortened here. Export both complete versions to inspect every
+                record.
+              </Text>
+              {button('Export both versions for review', () => shareVersions(conflict.remoteState))}
+              {button('Use this phone’s version', () => choose(conflict.id, 'local'))}
+              {button('Use received version', () => choose(conflict.id, 'remote'))}
+            </Surface>
+          );
+        })}
+        <Text
+          accessibilityLiveRegion="polite"
+          style={{ color: t.muted, fontSize: 13, lineHeight: 19 }}
+        >
+          {busy ? 'Saving and checking…' : message}
+        </Text>
+      </View>
+    </Sheet>
+  );
+}
+function errorMessage(reason: unknown): string {
+  return reason instanceof Error ? reason.message : 'Sync is unavailable. Your local data is kept.';
+}
+function previewValue(value: unknown): string {
+  if (value === undefined) return 'not present';
+  const text = JSON.stringify(value);
+  return text.length <= 240 ? text : text.slice(0, 240) + '… (shortened)';
+}

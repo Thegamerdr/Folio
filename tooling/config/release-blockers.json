@@ -26,11 +26,16 @@
     "aiScope": "local deterministic core; raw document/chat transport retired; enum-only future route",
     "evidenceAuthority": "plans/AUDIT_UI_UX_AND_RELEASE_2026-09-05.md and plans/123-deliver-reviewed-melo-product.md supersede earlier engineering-complete claims; OWNER_ACTION_PACK.md retains external actions"
   },
-  "classificationVocabulary": ["CLOSED", "IN PROGRESS LOCAL", "BLOCKED EXTERNAL", "BLOCKED OWNER DECISION"],
+  "classificationVocabulary": [
+    "CLOSED",
+    "IN PROGRESS LOCAL",
+    "BLOCKED EXTERNAL",
+    "BLOCKED OWNER DECISION"
+  ],
   "blockerDispositions": {
     "RB-AUDIT-2026-09-05-LOCAL-DELIVERY": {
       "classification": "IN PROGRESS LOCAL",
-      "action": "Close audit A01-A21 through reviewed production changes and focused verification; build and verify the resulting Android candidate on S9. Credentials and independent sign-off cannot substitute for these local fixes."
+      "action": "Reviewed shipping fixes, one Lovable batch and a signed S9 review candidate are delivered. Close the remaining populated/Business/large-text/permission/date-boundary and actual speech acceptance gaps in the audit closure map; credentials and independent sign-off cannot substitute for unrun local checks."
     },
     "RB-P0-IOS-NATIVE-SMOKE": {
       "classification": "BLOCKED EXTERNAL",
@@ -74,7 +79,7 @@
     },
     "RB-CLOUD-SYNC-RECOVERY": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "First close local A03-A06/A13 under RB-AUDIT-2026-09-05-LOCAL-DELIVERY. Then deploy approved production bindings and run two-device encrypted backup/restore, revoke and offline recovery proof."
+      "action": "Local A03-A06/A13 shipping integration is reviewed. Deploy approved new bindings/migrations and run two-device encrypted sync/backup/restore, revoke, conflict and offline recovery proof."
     },
     "RB-AI-GATEWAY-EVALUATION": {
       "classification": "BLOCKED OWNER DECISION",
@@ -82,7 +87,7 @@
     },
     "RB-OPEN-BANKING-PROVIDER": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "First close local A07 durable delivery. Complete TrueLayer Data v3 contracting and regulatory-route approval, install sandbox/production credentials server-side, and pass consent, deletion and incident proof."
+      "action": "Local A07 durable delivery is reviewed. Complete TrueLayer contracting/regulatory-route approval, deploy approved migrations, install credentials server-side and pass consent/import/deletion/incident proof."
     },
     "RB-BUSINESS-TAX-BETA": {
       "classification": "BLOCKED OWNER DECISION",
@@ -90,11 +95,11 @@
     },
     "RB-T183-STORE-DECLARATIONS": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "Android AAB/hash match is complete; finish Play developer verification and console review, then match the future iOS binary and App Store declarations."
+      "action": "September 5 local review AAB identity is verified, but declarations require fresh exact-binary review. Finish Play developer verification/console review and obtain the future iOS binary/App Store declarations."
     },
     "RB-T184-NATIVE-BILLING": {
       "classification": "BLOCKED EXTERNAL",
-      "action": "First close local A08-A11/A20 billing implementation. Create current store products and run sandbox/license-test purchase, pending completion, restore and expiry proof with provider credentials."
+      "action": "Local Android/Apple lifecycle and verification source is reviewed. Deploy approved billing source, configure store credentials/products, then prove sandbox/license-test purchase, pending completion, restore and expiry on devices."
     },
     "RB-T185-INCIDENT-RUNBOOKS": {
       "classification": "BLOCKED OWNER DECISION",
@@ -130,9 +135,12 @@
       "blockerId": "RB-AUDIT-2026-09-05-LOCAL-DELIVERY",
       "paths": [
         "plans/AUDIT_UI_UX_AND_RELEASE_2026-09-05.md",
-        "plans/123-deliver-reviewed-melo-product.md"
+        "plans/123-deliver-reviewed-melo-product.md",
+        "docs/release-evidence/MELO_AUDIT_CLOSURE_2026-09-05.md",
+        "docs/release-evidence/MELO_ANDROID_REVIEW_CANDIDATE_2026-09-05.md",
+        "docs/ui-review/2026-09-05-lovable/06-correction-disposition.md"
       ],
-      "note": "Independent controller audit of source and the installed September 1 S9 candidate found 21 local defects/gaps. Implementation is in progress with Luna and controller review. No new candidate or closure is claimed yet."
+      "note": "Audit fixes integrated through 516ee6b; one Lovable review/15 corrections, focused checks, signed APK/AAB, exact S9 APK match and launch. Some local/device acceptance remains open; all A01-A21 are not declared verified and production release remains blocked."
     },
     {
       "blockerId": "RB-P0-IOS-NATIVE-SMOKE",

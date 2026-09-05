@@ -1,8 +1,8 @@
-# Melo owner action pack — current release gate (1 September 2026)
+# Melo owner action pack — current release gate (5 September 2026)
 
-> **5 September correction:** this remains the external-action list, not a claim that only external
-> actions remain. The [audit](plans/AUDIT_UI_UX_AND_RELEASE_2026-09-05.md) reopened local money,
-> UI, billing, banking and cloud implementation. Follow
+> **5 September delivery:** the [current signed Android review candidate](docs/release-evidence/MELO_ANDROID_REVIEW_CANDIDATE_2026-09-05.md) is installed on S9. Lovable's one-batch corrections are implemented. This remains the external-action list, not a claim that only external
+> actions remain. The [audit closure map](docs/release-evidence/MELO_AUDIT_CLOSURE_2026-09-05.md) records reviewed money,
+> UI, billing, banking and cloud fixes and the remaining local/device verification. Follow
 > [Plan 123](plans/123-deliver-reviewed-melo-product.md) for reviewed engineering delivery before
 > treating secrets, provider testing and independent sign-off as the final steps.
 

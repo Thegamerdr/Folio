@@ -1,0 +1,9 @@
+// Optional local preview: keep release installs and their data untouched.
+// gradlew :app:assembleDebug -PreactNativeArchitectures=x86_64 -I ../../../tooling/scripts/emulator-preview.init.gradle
+gradle.beforeProject { project ->
+    if (project.path == ':app') {
+        project.pluginManager.withPlugin('com.android.application') {
+            project.android.buildTypes.getByName('debug').applicationIdSuffix = '.preview'
+        }
+    }
+}
