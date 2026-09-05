@@ -55,6 +55,11 @@ const SUB_PRODUCT_IDS: readonly string[] = [
 ];
 
 const ALL_PRODUCT_IDS: readonly string[] = [PRODUCT_IDS.full, ...SUB_PRODUCT_IDS];
+const SELLABLE_PRODUCT_IDS: readonly string[] = [
+  PRODUCT_IDS.full,
+  PRODUCT_IDS.live.monthly,
+  PRODUCT_IDS.live.yearly,
+];
 
 export function productIdFor(tier: BillingTier, cadence: BillingCadence): string {
   return tier === 'full' ? PRODUCT_IDS.full : PRODUCT_IDS.live[cadence];
@@ -103,6 +108,8 @@ export function metadataForProducts(
 ): StoreProductMetadata[] {
   return products.flatMap((product) => {
     if (typeof product.id !== 'string' || typeof product.displayPrice !== 'string') return [];
+    if (product.type !== productTypeFor(product.id) || product.displayPrice.trim().length === 0)
+      return [];
     const metadata: StoreProductMetadata = {
       productId: product.id,
       displayPrice: product.displayPrice,
@@ -140,6 +147,24 @@ export function metadataForProducts(
       }
       return [];
     }
+    if (product.platform === 'ios') {
+      if (product.type === 'in-app') return product.typeIOS === 'non-consumable' ? [metadata] : [];
+      const expectedUnit = product.id.endsWith('.yearly') ? 'year' : 'month';
+      const period = product.subscriptionInfoIOS?.subscriptionPeriod;
+      const unit = product.subscriptionPeriodUnitIOS ?? period?.unit;
+      const count = Number(product.subscriptionPeriodNumberIOS ?? period?.value);
+      // Commitment plans need their own disclosure. Sell only ordinary monthly/yearly terms here.
+      if (
+        product.typeIOS !== 'auto-renewable-subscription' ||
+        unit !== expectedUnit ||
+        count !== 1 ||
+        (product.pricingTermsIOS?.length ??
+          product.subscriptionInfoIOS?.pricingTerms?.length ??
+          0) > 0
+      )
+        return [];
+      return [{ ...metadata, billingPeriod: expectedUnit === 'year' ? 'P1Y' : 'P1M' }];
+    }
     return [metadata];
   });
 }
@@ -159,7 +184,8 @@ export function subscribeToPurchaseUpdates(handler: PurchaseUpdateHandler): () =
 }
 
 export function ensurePurchaseListeners(): void {
-  if (Platform.OS !== 'android' || purchaseUpdatesSubscription !== null) return;
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
+  if (purchaseUpdatesSubscription !== null) return;
   purchaseUpdatesSubscription = purchaseUpdatedListener((purchase) => {
     // Play is the durable queue, including pending purchases across restarts. Never suppress a
     // redelivery merely because the paywall saw it: verification/persistence may have failed.
@@ -201,7 +227,7 @@ export function ensurePurchaseListeners(): void {
  * memoized for the session.
  */
 export async function probeAvailability(): Promise<AvailabilityResult> {
-  if (Platform.OS !== 'android') {
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
     return {
       available: false,
       products: {},
@@ -234,7 +260,12 @@ export async function probeAvailability(): Promise<AvailabilityResult> {
     cachedProducts = Object.fromEntries(products.map((product) => [product.productId, product]));
     const availableProductIds = products
       .filter(
-        (product) => product.productId === PRODUCT_IDS.full || product.offerToken !== undefined,
+        (product) =>
+          SELLABLE_PRODUCT_IDS.includes(product.productId) &&
+          (product.productId === PRODUCT_IDS.full ||
+            (Platform.OS === 'ios'
+              ? product.billingPeriod !== undefined
+              : product.offerToken !== undefined)),
       )
       .map((product) => product.productId);
     return availableProductIds.length === 0
@@ -290,10 +321,10 @@ export type PurchaseOutcome =
  * (./entitlements.ts) and calling `finishPurchase` after their own verification step.
  */
 export function purchase(productId: string, offerToken?: string): Promise<PurchaseOutcome> {
-  if (Platform.OS !== 'android')
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios')
     return Promise.resolve({
       status: 'failed',
-      message: 'Google Play purchases are unavailable on this platform.',
+      message: 'Store purchases are unavailable on this platform.',
     });
   if (
     ![PRODUCT_IDS.full, PRODUCT_IDS.live.monthly, PRODUCT_IDS.live.yearly].some(
@@ -312,7 +343,7 @@ export function purchase(productId: string, offerToken?: string): Promise<Purcha
     });
   }
   const selectedOfferToken = offerToken ?? cachedProducts[productId]?.offerToken;
-  if (productTypeFor(productId) === 'subs' && !selectedOfferToken) {
+  if (Platform.OS === 'android' && productTypeFor(productId) === 'subs' && !selectedOfferToken) {
     return Promise.resolve({
       status: 'failed',
       message: 'This subscription has no eligible Play offer.',
@@ -327,21 +358,37 @@ export function purchase(productId: string, offerToken?: string): Promise<Purcha
     });
   }
   return new Promise((resolve) => {
-    pendingResolvers.set(productId, resolve);
+    // A lost native event must not leave the paywall permanently busy. Later events still reach
+    // the app-wide verifier; timing out never finishes a purchase or fabricates ownership.
+    const timeout = setTimeout(() => {
+      if (pendingResolvers.get(productId) === settle) pendingResolvers.delete(productId);
+      resolve({
+        status: 'failed',
+        message: 'No store result arrived yet. Check Restore purchases before trying again.',
+      });
+    }, 120_000);
+    const settle = (outcome: PurchaseOutcome) => {
+      clearTimeout(timeout);
+      resolve(outcome);
+    };
+    pendingResolvers.set(productId, settle);
 
     requestPurchase({
-      request: {
-        google: {
-          skus: [productId],
-          ...(selectedOfferToken
-            ? { subscriptionOffers: [{ sku: productId, offerToken: selectedOfferToken }] }
-            : {}),
-        },
-      },
+      request:
+        Platform.OS === 'ios'
+          ? { apple: { sku: productId, andDangerouslyFinishTransactionAutomatically: false } }
+          : {
+              google: {
+                skus: [productId],
+                ...(selectedOfferToken
+                  ? { subscriptionOffers: [{ sku: productId, offerToken: selectedOfferToken }] }
+                  : {}),
+              },
+            },
       type: productTypeFor(productId),
     }).catch((err: unknown) => {
-      pendingResolvers.delete(productId);
-      resolve({
+      if (pendingResolvers.get(productId) === settle) pendingResolvers.delete(productId);
+      settle({
         status: 'failed',
         message: err instanceof Error ? err.message : 'Purchase could not be started.',
       });

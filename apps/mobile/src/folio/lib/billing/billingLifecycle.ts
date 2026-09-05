@@ -9,7 +9,7 @@ import {
   restore,
   subscribeToPurchaseUpdates,
 } from './iap';
-import { verifyGooglePurchase, type BillingVerificationOutcome } from './billingVerification';
+import { verifyPurchase, type BillingVerificationOutcome } from './billingVerification';
 import {
   reconcileEntitlements,
   saveVerifiedEntitlement,
@@ -40,7 +40,7 @@ export function acceptVerifiedPurchase(purchase: Purchase): Promise<AcceptedPurc
   const existing = processing.get(key);
   if (existing) return existing;
   const work = (async (): Promise<AcceptedPurchase> => {
-    const result = await verifyGooglePurchase(purchase);
+    const result = await verifyPurchase(purchase);
     if (result.status !== 'verified') return result;
     if ((await saveVerifiedEntitlement(result.grant)) === null) {
       return {
@@ -113,7 +113,7 @@ export async function reconcileBillingPurchases(): Promise<void> {
     try {
       // Offline time bounds run before any potentially failing native/network operation.
       await refreshLocalEntitlements(false);
-      if (Platform.OS !== 'android') return;
+      if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
       ensurePurchaseListeners();
       const availability = await probeAvailability();
       retry = !availability.available;

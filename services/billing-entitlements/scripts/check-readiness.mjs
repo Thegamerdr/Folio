@@ -2,9 +2,11 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const DEFAULT_URL = 'https://melo-billing-entitlements.tgdroppin.workers.dev';
+const apple = process.argv.includes('--apple');
 const REQUIRED_SECRETS = [
-  'GOOGLE_SERVICE_ACCOUNT_EMAIL',
-  'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY',
+  ...(apple
+    ? ['APPLE_ISSUER_ID', 'APPLE_KEY_ID', 'APPLE_PRIVATE_KEY']
+    : ['GOOGLE_SERVICE_ACCOUNT_EMAIL', 'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY']),
   'ENTITLEMENT_SIGNING_PRIVATE_KEY',
 ];
 const EXPECTED_PRODUCTS = ['folio.full', 'folio.live.monthly', 'folio.live.yearly'];
@@ -39,9 +41,11 @@ try {
   } else {
     report('deployed billing health', 'PASS', baseUrl);
     report(
-      'Google Play provider',
-      body.providerConfigured === true ? 'PASS' : 'WAIT',
-      body.providerConfigured === true ? 'configured' : 'credentials missing',
+      apple ? 'Apple provider' : 'Google Play provider',
+      (apple ? body.appleProviderConfigured : body.providerConfigured) === true ? 'PASS' : 'WAIT',
+      (apple ? body.appleProviderConfigured : body.providerConfigured) === true
+        ? 'configured'
+        : 'credentials or app configuration missing',
     );
     report(
       'entitlement signer',
@@ -61,7 +65,20 @@ try {
       products.length === EXPECTED_PRODUCTS.length ? 'PASS' : 'FAIL',
       `${products.length}/${EXPECTED_PRODUCTS.length} current products advertised`,
     );
-    if (strict && body.providerConfigured !== true) failed = true;
+    if (apple) {
+      report(
+        'Apple production environment',
+        body.appleEnvironment === 'Production' ? 'PASS' : 'WAIT',
+        body.appleEnvironment === 'Sandbox'
+          ? 'Sandbox proofs are not production activation'
+          : body.appleEnvironment === 'Production'
+            ? 'Production'
+            : 'not configured',
+      );
+      if (strict && body.appleEnvironment !== 'Production') failed = true;
+    }
+    if (strict && (apple ? body.appleProviderConfigured : body.providerConfigured) !== true)
+      failed = true;
     if (strict && body.signerConfigured !== true) failed = true;
   }
 } catch (error) {

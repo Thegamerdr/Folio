@@ -6,8 +6,9 @@ const native = vi.hoisted(() => ({
   request: vi.fn(),
   available: vi.fn(),
   updated: null as null | ((purchase: Purchase) => void),
+  platform: { OS: 'android' },
 }));
-vi.mock('react-native', () => ({ Platform: { OS: 'android' } }));
+vi.mock('react-native', () => ({ Platform: native.platform }));
 vi.mock('expo-iap', () => ({
   fetchProducts: native.fetch,
   requestPurchase: native.request,
@@ -25,9 +26,50 @@ beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   native.request.mockResolvedValue(undefined);
+  native.platform.OS = 'android';
 });
 
 describe('native purchase adapter', () => {
+  it('uses iOS store-localized ordinary periods and leaves finishing to verification', async () => {
+    native.platform.OS = 'ios';
+    const product = {
+      id: 'folio.live.monthly',
+      type: 'subs',
+      platform: 'ios',
+      typeIOS: 'auto-renewable-subscription',
+      currency: 'EUR',
+      displayPrice: '€4.99',
+      subscriptionPeriodUnitIOS: 'month',
+      subscriptionPeriodNumberIOS: '1',
+    } as ProductOrSubscription;
+    native.fetch.mockImplementation(async ({ type }: { type: string }) =>
+      type === 'subs' ? [product] : [],
+    );
+    const { probeAvailability, metadataForProducts, purchase } = await import('./iap');
+    expect((await probeAvailability()).products['folio.live.monthly']).toMatchObject({
+      displayPrice: '€4.99',
+      billingPeriod: 'P1M',
+    });
+    expect(
+      metadataForProducts([
+        { ...product, subscriptionPeriodUnitIOS: 'year' } as ProductOrSubscription,
+      ]),
+    ).toEqual([]);
+    const outcome = purchase('folio.live.monthly');
+    expect(native.request).toHaveBeenCalledWith({
+      request: {
+        apple: { sku: 'folio.live.monthly', andDangerouslyFinishTransactionAutomatically: false },
+      },
+      type: 'subs',
+    });
+    native.updated?.({
+      productId: 'folio.live.monthly',
+      purchaseToken: 'signed-jws',
+      purchaseState: 'purchased',
+    } as Purchase);
+    expect((await outcome).status).toBe('purchased');
+  });
+
   it('uses the exact regular base-plan price and offer, independently of Full availability', async () => {
     const { probeAvailability, purchase } = await import('./iap');
     const phase = {

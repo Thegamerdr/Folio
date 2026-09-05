@@ -4,8 +4,14 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-07-14",
   "compatibility_flags": ["nodejs_compat"],
+  "alias": {
+    "node-fetch": "./src/apple-fetch.ts"
+  },
   "vars": {
     "PACKAGE_NAME": "com.folio.v2.greenfield",
+    "APPLE_BUNDLE_ID": "com.folio.v2.greenfield",
+    "APPLE_APP_ID": "",
+    "APPLE_ENVIRONMENT": "",
     "GOOGLE_TOKEN_URI": "https://oauth2.googleapis.com/token",
     "ENTITLEMENT_ISSUER": "https://melo-billing-entitlements.tgdroppin.workers.dev",
     "ENTITLEMENT_AUDIENCE": "com.folio.v2.greenfield",

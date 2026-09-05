@@ -17,7 +17,7 @@ export type PurchaseProvider = Readonly<{
 
 export type EntitlementGrantClaims = Readonly<{
   v: 1;
-  platform: 'google-play';
+  platform: 'google-play' | 'app-store';
   tier: EntitlementTier;
   productId: string;
   tokenHash: string;
@@ -47,6 +47,12 @@ export type RuntimeEnv = Readonly<{
   GOOGLE_TOKEN_URI: string;
   GOOGLE_SERVICE_ACCOUNT_EMAIL?: string;
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?: string;
+  APPLE_ISSUER_ID?: string;
+  APPLE_KEY_ID?: string;
+  APPLE_PRIVATE_KEY?: string;
+  APPLE_BUNDLE_ID?: string;
+  APPLE_APP_ID?: string;
+  APPLE_ENVIRONMENT?: string;
   ENTITLEMENT_ISSUER: string;
   ENTITLEMENT_AUDIENCE: string;
   ENTITLEMENT_SIGNING_KEY_ID: string;

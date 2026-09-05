@@ -199,4 +199,24 @@ describe('billing entitlement worker', () => {
     ).catch((error: unknown) => error);
     expect(response).toMatchObject({ code: 'provider_not_configured', status: 503 });
   });
+
+  it('routes Apple proof verification separately and signs an App Store grant', async () => {
+    const claims: EntitlementGrantClaims[] = [];
+    const response = await handleRequest(
+      new Request('https://billing.example.test/v1/apple/verify', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: 'folio.full',
+          purchaseToken: 'signed-apple-jws-'.repeat(400),
+        }),
+      }),
+      null,
+      provider(),
+      signer(claims),
+      env,
+      provider(),
+    );
+    expect(response.status).toBe(200);
+    expect(claims[0]?.platform).toBe('app-store');
+  });
 });

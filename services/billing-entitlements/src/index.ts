@@ -1,4 +1,5 @@
 import { BillingProviderError, googlePlayProvider } from './google';
+import { appleProvider } from './apple';
 import { entitlementSigner } from './signing';
 import { BILLING_CATALOG, BILLING_PRODUCT_TIERS, SELLABLE_BILLING_PRODUCTS } from './catalog';
 import type {
@@ -17,10 +18,11 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const runtimeEnv = env as RuntimeEnv;
     const provider = googlePlayProvider(runtimeEnv);
+    const apple = appleProvider(runtimeEnv);
     const signer = entitlementSigner(runtimeEnv);
     const store = env.ENTITLEMENTS === undefined ? null : kvStore(env.ENTITLEMENTS);
     try {
-      return await handleRequest(request, store, provider, signer, runtimeEnv);
+      return await handleRequest(request, store, provider, signer, runtimeEnv, apple);
     } catch (reason: unknown) {
       const known = reason instanceof BillingProviderError ? reason : null;
       console.error(
@@ -49,6 +51,7 @@ export async function handleRequest(
   provider: PurchaseProvider,
   signer: GrantSigner,
   env: RuntimeEnv,
+  apple?: PurchaseProvider,
 ): Promise<Response> {
   const url = new URL(request.url);
   if (request.method === 'OPTIONS') return preflight(request, env);
@@ -58,8 +61,10 @@ export async function handleRequest(
         ok: true,
         service: 'melo-billing-entitlements',
         packageName: env.PACKAGE_NAME,
-        provider: 'google-play-developer-api',
+        provider: 'google-play-developer-api + app-store-server-api',
         providerConfigured: provider.configured,
+        appleProviderConfigured: apple?.configured ?? false,
+        appleEnvironment: env.APPLE_ENVIRONMENT ?? null,
         signerConfigured: signer.configured,
         tokenStoreConfigured: store !== null,
         clientGrantsAccepted: false,
@@ -104,14 +109,19 @@ export async function handleRequest(
       env,
     );
   }
-  if (request.method !== 'POST' || url.pathname !== '/v1/google/verify') {
+  const isGoogleVerify = request.method === 'POST' && url.pathname === '/v1/google/verify';
+  const isAppleVerify = request.method === 'POST' && url.pathname === '/v1/apple/verify';
+  if (!isGoogleVerify && !isAppleVerify) {
     return json({ error: 'Route not found.', code: 'not_found' }, 404, request, env);
   }
-  if (!provider.configured) {
+  const selectedProvider = isAppleVerify ? apple : provider;
+  if (selectedProvider === undefined || !selectedProvider.configured) {
     throw new BillingProviderError(
       'provider_not_configured',
       503,
-      'Google Play verification is not configured.',
+      isAppleVerify
+        ? 'Apple verification is not configured.'
+        : 'Google Play verification is not configured.',
     );
   }
   if (!signer.configured) {
@@ -131,7 +141,7 @@ export async function handleRequest(
     catalogProduct === undefined ||
     (!catalogProduct.sellable && catalogProduct.tier !== 'full') ||
     purchaseToken.length < 8 ||
-    purchaseToken.length > 4096
+    purchaseToken.length > (isAppleVerify ? 32768 : 4096)
   ) {
     return json(
       { error: 'The purchase proof is invalid.', code: 'invalid_request' },
@@ -140,7 +150,7 @@ export async function handleRequest(
       env,
     );
   }
-  const proof = await provider.verify(productId, purchaseToken);
+  const proof = await selectedProvider.verify(productId, purchaseToken);
   if (proof.productId !== productId || proof.tier !== expectedTier) {
     throw new BillingProviderError('proof_mismatch', 409, 'The verified purchase did not match.');
   }
@@ -156,7 +166,7 @@ export async function handleRequest(
   ).toISOString();
   const claims: EntitlementGrantClaims = {
     v: 1,
-    platform: 'google-play',
+    platform: isAppleVerify ? 'app-store' : 'google-play',
     tier: proof.tier,
     productId,
     tokenHash,
@@ -169,7 +179,7 @@ export async function handleRequest(
   const grant = await signer.sign(claims);
   const acknowledgedByBackend = proof.acknowledged
     ? true
-    : await provider.acknowledge(productId, purchaseToken).catch(() => false);
+    : await selectedProvider.acknowledge(productId, purchaseToken).catch(() => false);
   if (store !== null) {
     const retentionSeconds =
       graceUntil === null
@@ -208,15 +218,43 @@ function kvStore(namespace: KVNamespace): EntitlementStore {
 
 async function safeJsonBody(request: Request): Promise<Record<string, unknown>> {
   const contentLength = Number(request.headers.get('content-length') ?? '0');
-  if (contentLength > 8192) {
+  const limit = 36 * 1024;
+  if (contentLength > limit) {
     throw new BillingProviderError('request_too_large', 413, 'Request too large.');
   }
   try {
-    const body: unknown = await request.json();
+    // Content-Length may be omitted or false. Count actual streamed bytes before JSON parsing.
+    const reader = request.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    if (reader !== undefined) {
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          size += chunk.value.byteLength;
+          if (size > limit) {
+            await reader.cancel();
+            throw new BillingProviderError('request_too_large', 413, 'Request too large.');
+          }
+          chunks.push(chunk.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.length;
+    }
+    const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
     return body !== null && typeof body === 'object' && !Array.isArray(body)
       ? (body as Record<string, unknown>)
       : {};
-  } catch {
+  } catch (reason) {
+    if (reason instanceof BillingProviderError) throw reason;
     return {};
   }
 }
@@ -230,14 +268,14 @@ async function sha256Base64Url(value: string): Promise<string> {
 }
 
 function userMessage(code: string | undefined): string {
-  if (code === 'purchase_pending') return 'Google Play is still processing this purchase.';
+  if (code === 'purchase_pending') return 'The store is still processing this purchase.';
   if (
     code === 'purchase_not_found' ||
     code === 'purchase_not_owned' ||
     code === 'purchase_not_active' ||
     code === 'purchase_expired'
   ) {
-    return 'Google Play could not confirm an active purchase.';
+    return 'The store could not confirm an active purchase.';
   }
   if (code === 'provider_not_configured' || code === 'signer_not_configured') {
     return 'Store verification is not configured for this Melo build yet.';

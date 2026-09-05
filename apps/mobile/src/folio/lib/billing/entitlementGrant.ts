@@ -2,7 +2,7 @@ import { ed25519 } from '@noble/curves/ed25519';
 
 export type VerifiedEntitlementGrant = Readonly<{
   v: 1;
-  platform: 'google-play';
+  platform: 'google-play' | 'app-store';
   tier: 'full' | 'live';
   productId: string;
   tokenHash: string;
@@ -44,6 +44,7 @@ export function verifyEntitlementGrant(
   config: GrantVerificationConfig,
   now: Date,
   expectedProductId?: string,
+  expectedPlatform?: 'google-play' | 'app-store',
 ): VerifiedEntitlementGrant | null {
   try {
     if (config.publicKey.length === 0) return null;
@@ -73,11 +74,12 @@ export function verifyEntitlementGrant(
     const expectedTier = typeof productId === 'string' ? PRODUCT_TIERS.get(productId) : undefined;
     if (
       payload['v'] !== 1 ||
-      payload['platform'] !== 'google-play' ||
+      (payload['platform'] !== 'google-play' && payload['platform'] !== 'app-store') ||
       (tier !== 'full' && tier !== 'live') ||
       typeof productId !== 'string' ||
       expectedTier !== tier ||
       (expectedProductId !== undefined && productId !== expectedProductId) ||
+      (expectedPlatform !== undefined && payload['platform'] !== expectedPlatform) ||
       payload['iss'] !== config.issuer ||
       payload['aud'] !== config.audience ||
       typeof payload['tokenHash'] !== 'string' ||
@@ -115,7 +117,7 @@ export function verifyEntitlementGrant(
     }
     return {
       v: 1,
-      platform: 'google-play',
+      platform: payload['platform'] as 'google-play' | 'app-store',
       tier,
       productId,
       tokenHash: payload['tokenHash'],

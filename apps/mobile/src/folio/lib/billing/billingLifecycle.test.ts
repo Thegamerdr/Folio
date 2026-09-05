@@ -34,7 +34,7 @@ vi.mock('./iap', () => ({
     };
   },
 }));
-vi.mock('./billingVerification', () => ({ verifyGooglePurchase: native.verify }));
+vi.mock('./billingVerification', () => ({ verifyPurchase: native.verify }));
 vi.mock('./entitlements', () => ({
   saveVerifiedEntitlement: native.save,
   reconcileEntitlements: native.reconcile,

@@ -36,7 +36,7 @@
 // render once probeAvailability() proves the store is reachable. Every row/button ≥44px.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccessibilityInfo } from 'react-native';
 import Animated, {
@@ -81,6 +81,8 @@ export type PaywallScreenProps = {
   nav: Nav;
   state?: PaywallScreenState;
 };
+
+const STORE_NAME = Platform.OS === 'ios' ? 'Apple' : 'Google Play';
 
 type TierKey = 'free' | 'full' | 'live';
 type Cadence = 'monthly' | 'yearly';
@@ -398,7 +400,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
                 : 'Purchase not confirmed';
           const message =
             verification.status === 'pending'
-              ? 'Google Play is still processing it. Melo will not unlock or finish the purchase until Play confirms it.'
+              ? `${STORE_NAME} is still processing it. Melo will not unlock or finish the purchase until the store confirms it.`
               : verification.message;
           showStatusDialog('dialog.paywall-purchase-verification', { title, message });
           return;
@@ -476,7 +478,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
             ? 'Restore needs verification'
             : undefined,
         message: pending
-          ? 'Google Play is still processing this purchase.'
+          ? `${STORE_NAME} is still processing this purchase.`
           : (unavailableMessage ?? undefined),
       });
       return;
@@ -843,7 +845,7 @@ export function PaywallScreen({ nav, state = 'populated' }: PaywallScreenProps) 
               </Pressable>
               <Text style={[styles.ctaFootnote, { color: t.muted }]}>
                 {selected === 'full'
-                  ? 'Charged once by Google Play. Nothing renews.'
+                  ? `Charged once by ${STORE_NAME}. Nothing renews.`
                   : `Renews every ${priceFor('live').per} at ${priceFor('live').display}. Cancel renewal anytime in your store subscriptions; access lasts through the paid period.`}
               </Text>
             </>

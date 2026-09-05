@@ -1,4 +1,9 @@
 # Local-only example. Never commit real values; use `wrangler secret put` for deployed Workers.
 GOOGLE_SERVICE_ACCOUNT_EMAIL=
 GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=
+# App Store Connect server API credentials (secrets; never ship to mobile).
+APPLE_ISSUER_ID=
+APPLE_KEY_ID=
+APPLE_PRIVATE_KEY=
+APPLE_ENVIRONMENT=Sandbox
 ENTITLEMENT_SIGNING_PRIVATE_KEY=

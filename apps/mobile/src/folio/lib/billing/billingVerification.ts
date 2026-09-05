@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import type { Purchase } from 'expo-iap';
+import { Platform } from 'react-native';
 
 import {
   verifyEntitlementGrant,
@@ -21,13 +22,29 @@ export type BillingVerificationOutcome =
 export async function verifyGooglePurchase(
   purchase: Purchase,
 ): Promise<BillingVerificationOutcome> {
+  return verifyPurchaseAtRoute(purchase, '/v1/google/verify', 'Google Play');
+}
+
+export async function verifyApplePurchase(purchase: Purchase): Promise<BillingVerificationOutcome> {
+  return verifyPurchaseAtRoute(purchase, '/v1/apple/verify', 'Apple');
+}
+
+export async function verifyPurchase(purchase: Purchase): Promise<BillingVerificationOutcome> {
+  return Platform.OS === 'ios' ? verifyApplePurchase(purchase) : verifyGooglePurchase(purchase);
+}
+
+async function verifyPurchaseAtRoute(
+  purchase: Purchase,
+  route: '/v1/google/verify' | '/v1/apple/verify',
+  providerName: 'Google Play' | 'Apple',
+): Promise<BillingVerificationOutcome> {
   if (purchase.purchaseState === 'pending') return { status: 'pending' };
   if (purchase.purchaseState !== 'purchased') {
-    return { status: 'rejected', message: 'Google Play has not completed this purchase.' };
+    return { status: 'rejected', message: `${providerName} has not completed this purchase.` };
   }
   const purchaseToken = purchase.purchaseToken;
   if (typeof purchaseToken !== 'string' || purchaseToken.length === 0) {
-    return { status: 'rejected', message: 'Google Play returned no purchase proof.' };
+    return { status: 'rejected', message: `${providerName} returned no purchase proof.` };
   }
   const config = billingVerificationConfig();
   if (config === null) {
@@ -39,7 +56,7 @@ export async function verifyGooglePurchase(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20_000);
   try {
-    const response = await fetch(`${billingUrl()}/v1/google/verify`, {
+    const response = await fetch(`${billingUrl()}${route}`, {
       signal: controller.signal,
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -52,13 +69,19 @@ export async function verifyGooglePurchase(
       const message =
         typeof body?.['error'] === 'string'
           ? body['error']
-          : 'Google Play could not confirm this purchase.';
+          : `${providerName} could not confirm this purchase.`;
       return response.status >= 500
         ? { status: 'unavailable', message }
         : { status: 'rejected', message };
     }
     const grant = typeof body?.['grant'] === 'string' ? body['grant'] : '';
-    const entitlement = verifyEntitlementGrant(grant, config, new Date(), purchase.productId);
+    const entitlement = verifyEntitlementGrant(
+      grant,
+      config,
+      new Date(),
+      purchase.productId,
+      route === '/v1/apple/verify' ? 'app-store' : 'google-play',
+    );
     if (entitlement === null) {
       return {
         status: 'rejected',
