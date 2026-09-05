@@ -156,6 +156,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-iap',
       '@sentry/react-native',
       './plugins/withUploadSigning.cjs',
+      './plugins/withFreshUpdatesResources.cjs',
       [
         // R8 code + resource shrinking for release builds (the 68MB sideload APK problem).
         // If a release build ever crashes on boot after a new native dep, suspect missing
