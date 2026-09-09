@@ -21,13 +21,14 @@
  *               reused verbatim so the shell reads as one product.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { useDayClock } from '@/folio/lib/useDayClock';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { presentStabilityCanonicalPlan } from '@/folio/lib/stabilityPresentation';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
@@ -74,8 +75,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const { style: chartStyle } = useChartStyle();
   const lens = useLens();
 
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => setNow(new Date()), []);
+  const now = useDayClock();
 
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;

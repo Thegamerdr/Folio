@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type DebtStrategy } from '@folio/finance-engine';
 import { useAppStore } from '@/folio/store';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
+import { useDayClock } from '@/folio/lib/useDayClock';
 import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
 import {
@@ -45,6 +46,7 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
   const insets = useSafeAreaInsets();
   const debts = useAppStore((state) => state.debts) ?? [];
   const appState = useAppStore((state) => state);
+  const now = useDayClock();
   const [strategy, setStrategy] = useState<DebtStrategy>('hybrid');
   const [selectedDebtId, setSelectedDebtId] = useState<string | undefined>(debts[0]?.id);
   const [extraInput, setExtraInput] = useState('');
@@ -56,7 +58,7 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
     return parsed === undefined ? undefined : Math.round(parsed * 100);
   }, [extraInput]);
   const extraInputInvalid = extraInput.trim() !== '' && extraPayment === undefined;
-  let planOptions: FinancialPlanAdapterOptions = { strategy };
+  let planOptions: FinancialPlanAdapterOptions = { strategy, ...(now ? { now } : {}) };
   if (strategy === 'user-selected' && selectedDebtId !== undefined) {
     planOptions = { ...planOptions, selectedDebtId };
   }

@@ -11,22 +11,15 @@
 // Faithful 1:1 RN port of the web design source
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetLogPayment.tsx).
 //
-// FIDELITY DECISION: the web's `logDebtPayment` returns `{ remaining, paid }` which feeds a toast.
-// RN's `logDebtPayment` (apps/mobile/src/folio/store.ts) is `void` — it only writes the new
-// balance. This sheet computes the "cleared" / remaining figures itself (from the debt's balance
-// before the call) so the confirmation copy stays honest without needing a store-return-value
-// change outside this batch's file list.
-//
-// PARITY_GAPS Group 2 fix: the web shows a confirmation toast after logging a payment ("{name}
-// cleared" / "Payment logged · {name}", with the paid/remaining figures). RN previously showed no
-// acknowledgment at all. This reuses the existing undo/toast lib (useUndo/showUndo) — Undo re-applies
-// the payment amount back onto the balance, a faithful (if stronger) analogue of a plain toast.
+// Every confirmed payment uses the shared canonical posting: cash, principal, linked liability
+// and transaction history change together. The returned scoped undo reverses the recorded effects,
+// including an overpayment's full cash amount and its smaller principal reduction.
 
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
-import { useAppStore, logDebtPayment, undoDebtPayment } from '@/folio/store';
+import { useAppStore, logDebtPayment } from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
 
 export type LogPaymentSheetProps = {
@@ -38,27 +31,47 @@ export function LogPaymentSheet({ visible, onClose }: LogPaymentSheetProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const debts = useAppStore((st) => st.debts ?? []);
+  const accounts = useAppStore((st) => st.accounts);
+  const cashAccounts = useMemo(
+    () => (accounts ?? []).filter((account) => !account.isLiability && account.closed !== true),
+    [accounts],
+  );
   const { showUndo } = useUndo();
 
   const [selectedId, setSelectedId] = useState<string>(debts[0]?.id ?? '');
   const [amount, setAmount] = useState<string>(debts[0] ? String(debts[0].minPayment) : '');
+  const [cashAccountId, setCashAccountId] = useState(
+    cashAccounts.length === 1 ? cashAccounts[0]!.id : '',
+  );
+  const effectiveCashAccountId = cashAccounts.length === 1 ? cashAccounts[0]!.id : cashAccountId;
 
   const selected = debts.find((d) => d.id === selectedId);
   const amt = Number(amount) || 0;
-  const canLog = Boolean(selected) && amt > 0;
+  const canLog =
+    Boolean(selected) &&
+    Number.isFinite(amt) &&
+    amt > 0 &&
+    cashAccounts.some((account) => account.id === effectiveCashAccountId);
 
   function handleLog() {
     if (!canLog || !selected) return;
     // Mirrors the store's own clamp (balance never goes negative) so the confirmation figures agree
     // with what actually landed, even on an overpay.
-    const paid = Math.min(amt, selected.balance);
     const remaining = Math.max(0, selected.balance - amt);
     const cleared = remaining <= 0;
     const name = selected.name;
-    logDebtPayment(selected.id, amt);
+    const result = logDebtPayment(selected.id, amt, effectiveCashAccountId);
+    if (!result.applied) {
+      Alert.alert('Payment not recorded', result.reason);
+      return;
+    }
     onClose();
     showUndo(cleared ? `${name} cleared` : `Payment logged · ${name}`, () => {
-      undoDebtPayment(selected.id, paid);
+      if (result.undo() === false)
+        Alert.alert(
+          'Payment kept',
+          'The payment changed. Review its latest transaction before undoing it.',
+        );
     });
   }
 
@@ -94,6 +107,34 @@ export function LogPaymentSheet({ visible, onClose }: LogPaymentSheetProps) {
         </Text>
         <Text style={s.subline}>Balance drops. Transaction posts. Payoff recalculates.</Text>
 
+        {cashAccounts.length !== 1 ? (
+          <View style={s.field}>
+            <Text style={s.label}>Paid from</Text>
+            <ScrollView style={s.debtList} contentContainerStyle={s.debtListContent}>
+              {cashAccounts.map((account) => (
+                <Pressable
+                  key={account.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Pay from ${account.name}`}
+                  accessibilityState={{ selected: cashAccountId === account.id }}
+                  onPress={() => setCashAccountId(account.id)}
+                  style={[
+                    s.debtRow,
+                    {
+                      backgroundColor: cashAccountId === account.id ? t.calmSoft : t.inset,
+                      borderColor: cashAccountId === account.id ? t.calm : t.hairline,
+                    },
+                  ]}
+                >
+                  <Text style={s.debtName}>{account.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            {cashAccounts.length === 0 ? (
+              <Text style={s.warnLine}>Add an active cash account before recording a payment.</Text>
+            ) : null}
+          </View>
+        ) : null}
         <View style={s.field}>
           <Text style={s.label}>Which one</Text>
           <ScrollView style={s.debtList} contentContainerStyle={s.debtListContent}>
@@ -145,8 +186,8 @@ export function LogPaymentSheet({ visible, onClose }: LogPaymentSheetProps) {
           </View>
           {selected && amt > selected.balance ? (
             <Text style={s.warnLine}>
-              That's more than the balance — Melo will only pay off the £
-              {selected.balance.toLocaleString('en-GB')} left.
+              The full £{amt.toLocaleString('en-GB')} leaves cash. Only the £
+              {selected.balance.toLocaleString('en-GB')} outstanding reduces this debt.
             </Text>
           ) : null}
         </View>

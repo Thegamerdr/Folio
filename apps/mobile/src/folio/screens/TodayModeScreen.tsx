@@ -21,13 +21,14 @@
  *               caveat needed).
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { useAppStore, type Debt } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { useDayClock } from '@/folio/lib/useDayClock';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
@@ -765,8 +766,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   const hasRealData = useAppStore((st) => hasAnyUserData(st));
   const appState = useAppStore((st) => st);
 
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => setNow(new Date()), []);
+  const now = useDayClock();
 
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;

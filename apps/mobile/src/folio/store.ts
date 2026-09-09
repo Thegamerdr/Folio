@@ -3847,217 +3847,47 @@ export function removeDebt(id: string) {
   );
 }
 
-/** Log a payment against a debt — decrements the balance, never below £0. A card-linked Debt
- *  mirrors an Account (see `Debt.linkedAccountId`'s doc) — a payment must land on BOTH in one
- *  write, or the next `syncCardDebt` (statement import) erases it. */
-export function logDebtPayment(id: string, amount: number) {
-  if (!(amount > 0)) return;
-  const target = (state.debts ?? []).find((d) => d.id === id);
-  if (target === undefined) return;
-  const nextDebts = (state.debts ?? []).map((d) =>
-    d.id === id ? { ...d, balance: Math.max(0, d.balance - amount) } : d,
-  );
-  const linkedId = target.linkedAccountId;
-  if (linkedId !== undefined) {
-    const linkedAccount = (state.accounts ?? []).find((account) => account.id === linkedId);
-    const changedAt = new Date().toISOString();
-    const accounts = (state.accounts ?? []).map((a) =>
-      a.id === linkedId
-        ? {
-            ...a,
-            balanceMinor: Math.max(0, a.balanceMinor - amount),
-            balanceAsOfISO: changedAt,
-          }
-        : a,
-    );
-    setPartialWithTypedCommand(
-      { debts: nextDebts, accounts },
-      {
-        commandType: 'folio.debt.payment.record.v1',
-        actorKind: 'user',
-        entityRefs: [
-          { type: 'debt', id },
-          ...(linkedAccount === undefined ? [] : [{ type: 'account', id: linkedId }]),
-        ],
-        before: {
-          debt: target,
-          ...(linkedAccount === undefined ? {} : { account: linkedAccount }),
-        },
-        after: {
-          debt: nextDebts.find((debt) => debt.id === id),
-          ...(linkedAccount === undefined
-            ? {}
-            : { account: accounts.find((account) => account.id === linkedId) }),
-        },
-        invalidatedProjectionKinds: ['account-balances', 'debt-summary', 'cashflow'],
-        occurredAt: changedAt,
-      },
-    );
-    return;
-  }
-  setPartialWithTypedCommand(
-    { debts: nextDebts },
-    {
-      commandType: 'folio.debt.payment.record.v1',
-      actorKind: 'user',
-      entityRefs: [{ type: 'debt', id }],
-      before: { debt: target },
-      after: { debt: nextDebts.find((debt) => debt.id === id) },
-      invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
-    },
-  );
+/** The manual payment sheet shares the same atomic posting and scoped undo as confirmed Melo
+ * payments. No payment path may adjust a debt independently of cash and its transaction. */
+export function logDebtPayment(id: string, amount: number, cashAccountId?: string): MeloToolResult {
+  return applyMeloTool('log_debt_payment', {
+    debtId: id,
+    amount,
+    source: 'manual',
+    ...(cashAccountId === undefined ? {} : { cashAccountId }),
+  });
 }
 
-/** Reverses a logged payment — increments the balance back by `amount`. Used by LogPaymentSheet's
- *  Tier-1 undo window (useUndo/showUndo) so tapping Undo restores exactly what was paid, mirroring
- *  the pattern EditTxnSheet uses for its own undo snapshot-restore. Mirrors `logDebtPayment`'s
- *  linked-account sync so an undo restores BOTH sides. */
-export function undoDebtPayment(id: string, amount: number) {
-  if (!(amount > 0)) return;
-  const target = (state.debts ?? []).find((d) => d.id === id);
-  if (target === undefined) return;
-  const nextDebts = (state.debts ?? []).map((d) =>
-    d.id === id ? { ...d, balance: d.balance + amount } : d,
+/** Compatibility for older callers: reverse one unambiguous recorded effect, never synthesize
+ * an arbitrary balance increase. The payment sheet uses the exact returned undo closure. */
+export function undoDebtPayment(id: string, amount: number): boolean {
+  if (!isMeloMoney(amount)) return false;
+  const matches = state.transactions.filter(
+    (row) =>
+      isDebtPayment(row) &&
+      row.financialAction.debtId === id &&
+      row.financialAction.principalAppliedMinor === Math.round(amount * 100),
   );
-  const linkedId = target.linkedAccountId;
-  if (linkedId !== undefined) {
-    const linkedAccount = (state.accounts ?? []).find((account) => account.id === linkedId);
-    const changedAt = new Date().toISOString();
-    const accounts = (state.accounts ?? []).map((a) =>
-      a.id === linkedId
-        ? { ...a, balanceMinor: a.balanceMinor + amount, balanceAsOfISO: changedAt }
-        : a,
-    );
-    setPartialWithTypedCommand(
-      { debts: nextDebts, accounts },
-      {
-        commandType: 'folio.debt.payment.reverse.v1',
-        actorKind: 'user',
-        entityRefs: [
-          { type: 'debt', id },
-          ...(linkedAccount === undefined ? [] : [{ type: 'account', id: linkedId }]),
-        ],
-        before: {
-          debt: target,
-          ...(linkedAccount === undefined ? {} : { account: linkedAccount }),
-        },
-        after: {
-          debt: nextDebts.find((debt) => debt.id === id),
-          ...(linkedAccount === undefined
-            ? {}
-            : { account: accounts.find((account) => account.id === linkedId) }),
-        },
-        invalidatedProjectionKinds: ['account-balances', 'debt-summary', 'cashflow'],
-        occurredAt: changedAt,
-      },
-    );
-    return;
+  if (matches.length !== 1) return false;
+  try {
+    removeTransaction(matches[0]!.id);
+    return true;
+  } catch {
+    return false;
   }
-  setPartialWithTypedCommand(
-    { debts: nextDebts },
-    {
-      commandType: 'folio.debt.payment.reverse.v1',
-      actorKind: 'user',
-      entityRefs: [{ type: 'debt', id }],
-      before: { debt: target },
-      after: { debt: nextDebts.find((debt) => debt.id === id) },
-      invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
-    },
-  );
 }
 
-/** ACCOUNTS_MODEL.md §2.4 point 3 — the payment-path seam for a credit-card `Account` linked to a
- *  `Debt` row (`kind: 'credit-card'`, synced via `syncCardDebt`/`addCardPayoffDetails`). Paying a
- *  card down from a bank account is a TRANSFER, not two independent edits: it must reduce the card's
- *  owed amount AND reduce the paying bank account's balance by the same amount, atomically (a single
- *  `setPartial` call), so `totalDebtMinor`/`selectNetPositionMinor` never observe a half-applied
- *  state where money has vanished from the bank side without yet landing on the card side (or vice
- *  versa).
- *
- *  This does NOT post a `Transaction` on either account — that's a deliberate scope line for this
- *  phase (see ACCOUNTS_MODEL.md §2.4 point 3's "leave a clean seam" instruction): a future
- *  payment-tracking phase can decide whether a card payment should also show up in the ledger as a
- *  paired transfer pair (bank outflow + card inflow) the way a real transfer would; for now this
- *  function is the single source of truth for "a card payment happened" and every caller (a future
- *  "pay my card" UI action) should route through here rather than calling `setAccountBalance` twice
- *  by hand, which would not be atomic and would not touch the linked `Debt` row.
- *
- *  No-op (returns `false`) if: `amount` isn't positive, `bankAccountId` isn't a non-liability
- *  account, or `cardAccountId` isn't a `kind: 'credit-card'` account. Never overdraws the bank
- *  account below the amount available is NOT enforced here (mirrors `logDebtPayment`'s existing
- *  "trust the amount the user typed" contract) — the caller's confirm-sheet is responsible for any
- *  "you don't have that much" warning copy, this function only does the arithmetic honestly. The
- *  card's balance is clamped at £0 (can't go negative from overpaying), matching every other
- *  debt-balance write in this file. */
+/** Account-based entry point for a card with confirmed payoff details. It posts the same
+ * reversible payment as the debt sheet; configuring payoff details creates the linked debt. */
 export function payCreditCardFromBank(
   bankAccountId: string,
   cardAccountId: string,
   amount: number,
 ): boolean {
-  if (!(amount > 0)) return false;
-  const accounts = state.accounts ?? [];
-  const bank = accounts.find((a) => a.id === bankAccountId);
-  const card = accounts.find((a) => a.id === cardAccountId);
-  if (bank === undefined || bank.isLiability) return false;
-  if (card === undefined || card.kind !== 'credit-card') return false;
-
-  const now = new Date().toISOString();
-  const nextCardBalance = Math.max(0, card.balanceMinor - amount);
-  const nextAccounts = accounts.map((a) => {
-    if (a.id === bankAccountId) {
-      return { ...a, balanceMinor: a.balanceMinor - amount, balanceAsOfISO: now };
-    }
-    if (a.id === cardAccountId) {
-      return { ...a, balanceMinor: nextCardBalance, balanceAsOfISO: now };
-    }
-    return a;
-  });
-  const linkedId = cardDebtId(cardAccountId);
-  const debts = (state.debts ?? []).map((d) =>
-    d.id === linkedId ? { ...d, balance: nextCardBalance } : d,
-  );
-  // Same two-way sync invariant as `setAccountBalance`: the bank side moved, so the legacy
-  // `currentBalance` scalar must move with it in the SAME atomic write — its readers would
-  // otherwise show the pre-payment bank balance.
-  const bankTotal = nextAccounts
-    .filter((a) => !a.isLiability)
-    .reduce((sum, a) => sum + a.balanceMinor, 0);
-  setPartialWithTypedCommand(
-    {
-      accounts: nextAccounts,
-      debts,
-      currentBalance: {
-        amount: bankTotal,
-        source: 'corrected',
-        confidence: 'corrected',
-        setAt: now,
-      },
-    },
-    {
-      commandType: 'folio.credit_card.payment.record.v1',
-      actorKind: 'user',
-      entityRefs: [
-        { type: 'account', id: bankAccountId },
-        { type: 'account', id: cardAccountId },
-        ...(debts.some((debt) => debt.id === linkedId) ? [{ type: 'debt', id: linkedId }] : []),
-      ],
-      before: {
-        bankAccount: bank,
-        cardAccount: card,
-        debt: (state.debts ?? []).find((debt) => debt.id === linkedId) ?? null,
-      },
-      after: {
-        bankAccount: nextAccounts.find((account) => account.id === bankAccountId),
-        cardAccount: nextAccounts.find((account) => account.id === cardAccountId),
-        debt: debts.find((debt) => debt.id === linkedId) ?? null,
-      },
-      invalidatedProjectionKinds: ['account-balances', 'debt-summary', 'cashflow'],
-      occurredAt: now,
-    },
-  );
-  return true;
+  const debt = (state.debts ?? []).find((candidate) => candidate.linkedAccountId === cardAccountId);
+  if (debt === undefined) return false;
+  return logDebtPayment(debt.id, amount, bankAccountId).applied;
 }
-
 /* ---------- Plans (Planning lens) ---------- */
 
 export function addPlan(p: Omit<Plan, 'id' | 'addedAt'> & { id?: string; addedAt?: string }): Plan {
@@ -5607,7 +5437,9 @@ export function addCalendarEvent(e: Omit<CalendarEvent, 'id'> & { id?: string })
       : {}),
   };
   setPartialWithTypedCommand(
-    { calendarEvents: [full, ...state.calendarEvents].slice(0, 100) },
+    // Calendar outflows are obligations. Adding another event must never silently delete an
+    // unpaid bill and release its protected money; removal remains an explicit user action.
+    { calendarEvents: [full, ...state.calendarEvents] },
     {
       commandType: 'folio.calendar_event.add.v1',
       actorKind: 'user',
@@ -7700,7 +7532,7 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
         merchant: `Debt payment: ${beforeDebt.name}`,
         amount: -amount,
         category: 'bills',
-        source: 'melo',
+        source: input.source === 'manual' ? 'manual' : 'melo',
         accountId: cashAccount.id,
         financialAction: { kind: 'debt-payment', debtId: beforeDebt.id, principalAppliedMinor: 0 },
       };

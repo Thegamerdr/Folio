@@ -1096,6 +1096,11 @@ describe('credit-cards as liabilities (ACCOUNTS_MODEL.md P2)', () => {
     expect(selectBankBalanceMinor(getState())).toBe(800);
     expect(getState().accounts?.find((a) => a.id === card.id)?.balanceMinor).toBe(300);
     expect(getState().debts?.find((d) => d.linkedAccountId === card.id)?.balance).toBe(300);
+    expect(getState().transactions[0]).toMatchObject({
+      accountId: DEFAULT_ACCOUNT_ID,
+      amount: -200,
+      financialAction: { kind: 'debt-payment', linkedAccountId: card.id },
+    });
   });
 
   it('payCreditCardFromBank clamps the card balance at £0 on overpayment and is a no-op for invalid inputs', () => {
@@ -1146,7 +1151,7 @@ describe('logDebtPayment — card-linked debt/account sync', () => {
     expect(getState().accounts?.find((a) => a.id === card.id)?.balanceMinor).toBe(200);
   });
 
-  it('logDebtPayment on an unlinked debt changes only the debt; accounts are untouched', () => {
+  it('logDebtPayment on an unlinked debt updates debt, cash and the posted ledger together', () => {
     resetToEmpty();
     const accountsBefore = getState().accounts;
     const loan = addDebt({
@@ -1161,10 +1166,16 @@ describe('logDebtPayment — card-linked debt/account sync', () => {
     logDebtPayment(loan.id, 100);
 
     expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(2300);
-    expect(getState().accounts).toEqual(accountsBefore);
+    expect(getState().accounts?.[0]?.balanceMinor).toBe(
+      (accountsBefore?.[0]?.balanceMinor ?? 0) - 100,
+    );
+    expect(getState().transactions[0]).toMatchObject({
+      amount: -100,
+      financialAction: { kind: 'debt-payment', debtId: loan.id },
+    });
   });
 
-  it('logDebtPayment/undoDebtPayment on an unlinked debt keep their existing no-op and clamp behaviour', () => {
+  it('logDebtPayment/undoDebtPayment preserve capped effects and reject invented reversals', () => {
     resetToEmpty();
     const loan = addDebt({
       name: 'Personal loan',
@@ -1181,12 +1192,15 @@ describe('logDebtPayment — card-linked debt/account sync', () => {
     logDebtPayment(loan.id, 100); // clamps at £0, never negative
     expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(0);
 
-    undoDebtPayment(loan.id, 25); // adds back, no clamp
-    expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(25);
+    expect(undoDebtPayment(loan.id, 25)).toBe(false); // no matching recorded effect
+    expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(0);
+    expect(undoDebtPayment(loan.id, 40)).toBe(true); // reverses £100 cash and actual £40 principal
+    expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(40);
+    expect(getState().currentBalance.amount).toBe(0);
 
     logDebtPayment('debt-nope', 10); // unknown id: no-op, no throw
     undoDebtPayment('debt-nope', 10);
-    expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(25);
+    expect(getState().debts?.find((d) => d.id === loan.id)?.balance).toBe(40);
   });
 });
 

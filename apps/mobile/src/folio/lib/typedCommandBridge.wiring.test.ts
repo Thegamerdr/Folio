@@ -238,7 +238,7 @@ describe('shipping AppState typed-command wiring', () => {
       'folio.cycle.close.v1',
       'folio.debt.add.v1',
       'folio.debt.payment.record.v1',
-      'folio.debt.payment.reverse.v1',
+      'folio.transaction.remove.v1',
       'folio.debt.remove.v1',
     ]);
     expect(

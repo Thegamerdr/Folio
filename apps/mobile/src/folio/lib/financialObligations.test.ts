@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getState, resetToEmpty, setPartial, togglePaused, type AppState } from '../store';
+import {
+  addCalendarEvent,
+  getPersistBlob,
+  getState,
+  hydrateFromBlob,
+  resetToEmpty,
+  setPartial,
+  togglePaused,
+  type AppState,
+} from '../store';
 import { buildFinancialPlanFromState, toFinancialPlanInput } from './financialPlan';
 import { reanchorRenewals } from './renewalMath';
 import {
@@ -52,6 +61,50 @@ function fixture(overrides: Partial<AppState> = {}): AppState {
 }
 
 describe('unpaid occurrence financial release regressions', () => {
+  it('adding the 101st calendar event cannot delete the oldest unpaid bill or release its money', () => {
+    setPartial(
+      fixture({
+        subs: [],
+        calendarEvents: [
+          {
+            id: 'oldest-unpaid-rent',
+            date: '2026-09-12',
+            title: 'Rent',
+            kind: 'out',
+            amount: -950,
+          },
+        ],
+      }),
+    );
+    for (let index = 0; index < 100; index += 1) {
+      addCalendarEvent({
+        id: `calendar-note-${index}`,
+        date: '2026-09-14',
+        title: 'Review',
+        kind: 'review',
+      });
+    }
+    const now = new Date('2026-09-13T12:00:00Z');
+    expect(buildFinancialPlanFromState(getState(), { now }).safeToSpendMinor).toBe(50_000);
+    expect(getState().calendarEvents).toHaveLength(101);
+    const persisted = getPersistBlob();
+    hydrateFromBlob(persisted);
+    expect(getState().calendarEvents).toHaveLength(101);
+    expect(buildFinancialPlanFromState(getState(), { now }).safeToSpendMinor).toBe(50_000);
+    const state = getState();
+    const workspace = state.workspaces[0]!;
+    const canonical = createCanonicalAppStateProjection(state, workspace, '2026-09-13T12:00:00Z');
+    const read = readCanonicalAppStateMoneyProjection(
+      canonical.repositorySnapshot,
+      String(workspace.id),
+      '2026-09-13',
+    );
+    expect(read.calendarEvents).toHaveLength(101);
+    expect(buildFinancialPlanFromState({ ...state, ...read }, { now }).safeToSpendMinor).toBe(
+      50_000,
+    );
+  });
+
   it('a skipped future cycle stays resolved after resume, while undo before due restores it', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-09T12:00:00Z'));

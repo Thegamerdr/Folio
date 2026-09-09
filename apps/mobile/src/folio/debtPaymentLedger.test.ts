@@ -6,6 +6,8 @@ import {
   getPersistBlob,
   getState,
   hydrateFromBlob,
+  logDebtPayment,
+  undoDebtPayment,
   removeTransaction,
   resetToEmpty,
   setPartial,
@@ -83,6 +85,45 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('debt payment canonical ledger corrections', () => {
+  it('posts the reachable LogPaymentSheet API to cash, debt and editable canonical history', () => {
+    logDebtPayment('card', 40);
+    expect(balances()).toEqual({ cash: 1760, debt: 280, safe: 340 });
+    const payment = getState().transactions[0]!;
+    expect(payment).toMatchObject({
+      amount: -40,
+      financialAction: { kind: 'debt-payment', debtId: 'card' },
+    });
+    editTransaction(payment.id, { amount: -100 }, 'user');
+    expect(balances()).toEqual({ cash: 1700, debt: 220, safe: 280 });
+    removeTransaction(payment.id);
+    expect(balances()).toEqual({ cash: 1800, debt: 320, safe: 380 });
+  });
+  it('uses the manual sheet scoped undo to restore the full cash effect on an overpayment', () => {
+    const result = logDebtPayment('card', 400);
+    expect(result.applied).toBe(true);
+    expect(getState().currentBalance.amount).toBe(1400);
+    expect(getState().debts?.[0]?.balance).toBe(0);
+    if (result.applied) expect(result.undo()).toBe(true);
+    expect(balances()).toEqual({ cash: 1800, debt: 320, safe: 380 });
+    expect(getState().transactions).toHaveLength(0);
+    if (result.applied) expect(result.undo()).toBe(false);
+    expect(undoDebtPayment('card', 320)).toBe(false);
+  });
+  it('requires an explicit cash account for ambiguous manual payments and posts only the selected account', () => {
+    setPartial({
+      accounts: [
+        ...getState().accounts!,
+        { ...getState().accounts![0]!, id: 'savings', name: 'Savings', balanceMinor: 500 },
+      ],
+    });
+    const before = getPersistBlob();
+    expect(logDebtPayment('card', 40).applied).toBe(false);
+    expect(getPersistBlob()).toBe(before);
+    expect(logDebtPayment('card', 40, 'savings').applied).toBe(true);
+    expect(getState().accounts?.map((account) => account.balanceMinor)).toEqual([1800, 460]);
+    expect(getState().transactions[0]?.accountId).toBe('savings');
+    expect(getState().transactions[0]?.source).toBe('manual');
+  });
   it('closes the exact £40 to £100 Fixture B reproduction and matches direct £100', () => {
     const { txn } = pay(40);
     expect(balances()).toEqual({ cash: 1760, debt: 280, safe: 340 });
