@@ -1,0 +1,187 @@
+ M OPEN_BANKING_PLAN.md
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/melo/metadata.json
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/melo/source-frame-1104x2160.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/melo/source-product-1080x2004.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/more/metadata.json
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/more/source-frame-1104x2160.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/more/source-product-1080x2004.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today/metadata.json
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today/source-frame-1104x2160.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today/source-product-1080x2004.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/melo/metadata.json
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/melo/source-frame-1104x2160.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/melo/source-product-1080x2004.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/more/metadata.json
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/more/source-frame-1104x2160.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/more/source-product-1080x2004.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today/metadata.json
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today/source-frame-1104x2160.png
+ M docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today/source-product-1080x2004.png
+ M plans/README.md
+?? docs/parity-recovery/artifacts/
+?? docs/parity-recovery/evidence/comparisons/0a9b709/
+?? docs/parity-recovery/evidence/comparisons/0e811c5/
+?? docs/parity-recovery/evidence/comparisons/180d27f/
+?? docs/parity-recovery/evidence/comparisons/220a4c4/
+?? docs/parity-recovery/evidence/comparisons/3ca13b9/
+?? docs/parity-recovery/evidence/comparisons/4a398e3/
+?? docs/parity-recovery/evidence/comparisons/4aa1f18/
+?? docs/parity-recovery/evidence/comparisons/4d382ab/
+?? docs/parity-recovery/evidence/comparisons/5315646/
+?? docs/parity-recovery/evidence/comparisons/5b54a2b/
+?? docs/parity-recovery/evidence/comparisons/5b81279/
+?? docs/parity-recovery/evidence/comparisons/63458ab/
+?? docs/parity-recovery/evidence/comparisons/659b15c/
+?? docs/parity-recovery/evidence/comparisons/692e5ac/
+?? docs/parity-recovery/evidence/comparisons/6a6cc8b/
+?? docs/parity-recovery/evidence/comparisons/7cb29c7/
+?? docs/parity-recovery/evidence/comparisons/7f29062/
+?? docs/parity-recovery/evidence/comparisons/8091540/
+?? docs/parity-recovery/evidence/comparisons/835a3f6/
+?? docs/parity-recovery/evidence/comparisons/8a85de2/
+?? docs/parity-recovery/evidence/comparisons/93862fc/business-empty/light/business-more/
+?? docs/parity-recovery/evidence/comparisons/97ec3c0/pending-review/
+?? docs/parity-recovery/evidence/comparisons/97ff8dc/
+?? docs/parity-recovery/evidence/comparisons/9a52e34/pending-review/
+?? docs/parity-recovery/evidence/comparisons/9e76cab/
+?? docs/parity-recovery/evidence/comparisons/a256c4b/
+?? docs/parity-recovery/evidence/comparisons/a75db5f/
+?? docs/parity-recovery/evidence/comparisons/a8fa592/
+?? docs/parity-recovery/evidence/comparisons/b3c291c/
+?? docs/parity-recovery/evidence/comparisons/b99162c/
+?? docs/parity-recovery/evidence/comparisons/bec3dfc/
+?? docs/parity-recovery/evidence/comparisons/cc103b4/
+?? docs/parity-recovery/evidence/comparisons/e3ecdc8/
+?? docs/parity-recovery/evidence/comparisons/e5b3c49/
+?? docs/parity-recovery/evidence/comparisons/e9e6e11/
+?? docs/parity-recovery/evidence/comparisons/ea0280b/
+?? docs/parity-recovery/evidence/comparisons/ea08cfa/business-ltd/
+?? docs/parity-recovery/evidence/comparisons/edf4215/
+?? docs/parity-recovery/evidence/comparisons/f2379d1/
+?? docs/parity-recovery/evidence/comparisons/f3a1319/
+?? docs/parity-recovery/evidence/comparisons/f9d228d/
+?? docs/parity-recovery/evidence/comparisons/fdc3f84/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/dialog.account-delete-gate-1/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/dialog.account-delete-gate-2/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/dialog.account-delete-gate-3/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/dialog.account-sign-out-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/dialog.account-source-remove-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/dialog.bank-disconnect-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/dialog.bank-imported-history-choice/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/dialog.cloud-backup-delete-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/dialog.cloud-backup-local-replace-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/dialog.cloud-backup-recovery-code-replace-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.account-delete-gate-1/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.account-delete-gate-2/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.account-delete-gate-3/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.account-sign-out-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.account-source-remove-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.bank-disconnect-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.bank-imported-history-choice/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.cloud-backup-delete-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.cloud-backup-local-replace-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.cloud-backup-recovery-code-replace-confirm/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/dialog.edit-txn-receipt-source-choice/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today/source-frame-1080x2136.png
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/first-run/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/dark/review-item/
+?? docs/parity-recovery/evidence/design/ad90b4-matched-v1/pending-review/light/review-item/
+?? docs/parity-recovery/evidence/design/ad90b4/safe/light/today/source-direct-360x668.png
+?? docs/parity-recovery/evidence/design/ad90b4/safe/light/today/source-phone.png
+?? docs/parity-recovery/evidence/design/ad90b4/safe/light/today/source-viewport.png
+?? docs/parity-recovery/evidence/emulator-5554/
+?? docs/parity-recovery/evidence/emulator-5570/
+?? docs/parity-recovery/evidence/native/harness-0162d6d/
+?? docs/parity-recovery/evidence/native/harness-0337dab/
+?? docs/parity-recovery/evidence/native/harness-082ab9b/
+?? docs/parity-recovery/evidence/native/harness-0a9b709/
+?? docs/parity-recovery/evidence/native/harness-0e811c5/
+?? docs/parity-recovery/evidence/native/harness-180d27f/
+?? docs/parity-recovery/evidence/native/harness-1c0e4a2/
+?? docs/parity-recovery/evidence/native/harness-220a4c4/
+?? docs/parity-recovery/evidence/native/harness-3ca13b9/
+?? docs/parity-recovery/evidence/native/harness-4a398e3/
+?? docs/parity-recovery/evidence/native/harness-4aa1f18/
+?? docs/parity-recovery/evidence/native/harness-4d382ab/
+?? docs/parity-recovery/evidence/native/harness-5315646/
+?? docs/parity-recovery/evidence/native/harness-53bc934/
+?? docs/parity-recovery/evidence/native/harness-5b54a2b/
+?? docs/parity-recovery/evidence/native/harness-5b81279/
+?? docs/parity-recovery/evidence/native/harness-63458ab/
+?? docs/parity-recovery/evidence/native/harness-6582762/
+?? docs/parity-recovery/evidence/native/harness-659b15c/
+?? docs/parity-recovery/evidence/native/harness-692e5ac/
+?? docs/parity-recovery/evidence/native/harness-6a6cc8b/
+?? docs/parity-recovery/evidence/native/harness-7628133/
+?? docs/parity-recovery/evidence/native/harness-7cb29c7/
+?? docs/parity-recovery/evidence/native/harness-7f29062/
+?? docs/parity-recovery/evidence/native/harness-8091540/
+?? docs/parity-recovery/evidence/native/harness-835a3f6/
+?? docs/parity-recovery/evidence/native/harness-8a85de2/
+?? docs/parity-recovery/evidence/native/harness-8d08c8a/
+?? docs/parity-recovery/evidence/native/harness-93862fc/business-empty/light/business-more/
+?? docs/parity-recovery/evidence/native/harness-97ec3c0/pending-review/
+?? docs/parity-recovery/evidence/native/harness-97ff8dc/
+?? docs/parity-recovery/evidence/native/harness-9a52e34/pending-review/
+?? docs/parity-recovery/evidence/native/harness-9e76cab/
+?? docs/parity-recovery/evidence/native/harness-a256c4b/
+?? docs/parity-recovery/evidence/native/harness-a75db5f/
+?? docs/parity-recovery/evidence/native/harness-a8fa592/
+?? docs/parity-recovery/evidence/native/harness-b3c291c/
+?? docs/parity-recovery/evidence/native/harness-b87f809/
+?? docs/parity-recovery/evidence/native/harness-b99162c/
+?? docs/parity-recovery/evidence/native/harness-bec3dfc/
+?? docs/parity-recovery/evidence/native/harness-cc103b4/
+?? docs/parity-recovery/evidence/native/harness-d621556/
+?? docs/parity-recovery/evidence/native/harness-e2fb76f/confirmed-safe/
+?? docs/parity-recovery/evidence/native/harness-e3ecdc8/
+?? docs/parity-recovery/evidence/native/harness-e5b3c49/
+?? docs/parity-recovery/evidence/native/harness-e9e6e11/
+?? docs/parity-recovery/evidence/native/harness-ea0280b/
+?? docs/parity-recovery/evidence/native/harness-ea08cfa/business-ltd/
+?? docs/parity-recovery/evidence/native/harness-edf4215/
+?? docs/parity-recovery/evidence/native/harness-f2379d1/
+?? docs/parity-recovery/evidence/native/harness-f3a1319/
+?? docs/parity-recovery/evidence/native/harness-f9d228d/
+?? docs/parity-recovery/evidence/native/harness-fdc3f84/
+?? docs/parity-recovery/evidence/s9/baseline/
+?? docs/parity-recovery/evidence/s9/foundation-3fa8af0/
+?? docs/parity-recovery/evidence/s9/normal-e2fb76f/
+?? docs/parity-recovery/evidence/source/
+?? docs/parity-recovery/tooling/__pycache__/
+?? docs/release-evidence/s9-2026-09-01-voice-listening.png
+?? docs/release-evidence/s9-2026-09-01-voice-transcript.png
+?? docs/release-evidence/s9-temp-more.png
+?? docs/ui-review/2026-09-05-lovable/after/debts-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/debts-light.png
+?? docs/ui-review/2026-09-05-lovable/after/intake-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/intake-light.png
+?? docs/ui-review/2026-09-05-lovable/after/paywall-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/paywall-light.png
+?? docs/ui-review/2026-09-05-lovable/after/review-item-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/review-item-light.png
+?? docs/ui-review/2026-09-05-lovable/after/search-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/search-light.png
+?? docs/ui-review/2026-09-05-lovable/after/today--declare-debt-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/today--declare-debt-light.png
+?? docs/ui-review/2026-09-05-lovable/after/today--log-spend-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/today--log-spend-light.png
+?? docs/ui-review/2026-09-05-lovable/after/today--melo-chat-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/today--melo-chat-light.png
+?? docs/ui-review/2026-09-05-lovable/after/today--onboarding-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/today--onboarding-light.png
+?? docs/ui-review/2026-09-05-lovable/after/today--refund-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/today--refund-light.png
+?? docs/ui-review/2026-09-05-lovable/after/today--transfer-dark.png
+?? docs/ui-review/2026-09-05-lovable/after/today--transfer-light.png
+?? docs/ui-review/2026-09-05-lovable/build-review-pack.py
+?? docs/ui-review/2026-09-05-lovable/capture-fixtures.mjs
+?? docs/ui-review/2026-09-05-lovable/current/
+?? docs/ui-review/2026-09-05-lovable/fixture/
+?? plans/116-close-release-foundation-gate.md
+?? plans/117-complete-hosted-calendar.md
+?? plans/118-activate-open-banking-pilot.md
+?? plans/119-production-identity-cloud-deletion.md
+?? plans/120-production-billing-proof.md
+?? plans/121-build-current-store-candidates.md
+?? plans/122-close-external-release-gates.md

@@ -1,0 +1,15 @@
+{
+  "sourceCommit": "c74daf58c9c1f0c7c231d4a85c557ee60764c7d1",
+  "artifactPath": "C:\\dev\\melo-release-artifacts-2026-09-09\\Melo-manual-c74daf58-arm64-x86_64.apk",
+  "sha256": "fee8888e004264fd828cea7be17cac0514ad277416b1665197b52d895acba71c",
+  "bytes": 155752170,
+  "package": "com.folio.v2.greenfield",
+  "abis": [
+    "arm64-v8a",
+    "x86_64"
+  ],
+  "fingerprint": "51cab0b9e1f441348c5dc22d52db333f06e37022",
+  "certificateSha256": "547396e1fd99681c2a6d768b8b7d1b4484b5f42a17597cad6c495221267a5488",
+  "build": "assembleRelease PASS, 1m49s",
+  "deviceAcceptance": "PASS: emulator retained/fresh profile, offline restart; Galaxy S9 update and launch"
+}

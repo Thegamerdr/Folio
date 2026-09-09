@@ -1,0 +1,15 @@
+C:/dev/folio-v2-greenfield                            68def346 [claude/folio-rn-faithful-port]
+C:/dev/folio-v2-greenfield/.claude/worktrees/melo-mvp 2c028dd6 [claude/melo-mvp]
+C:/dev/m                                              2c028dd6 (detached HEAD)
+C:/dev/melo-clean-replay-2026-08-17                   7ffe6202 [codex/melo-one-app-convergence-2026-08-15]
+C:/dev/melo-e2-local-android-1f4f082                  b8bb8469 (detached HEAD)
+C:/dev/melo-native-android-build-2026-08-25           3fa8af04 (detached HEAD)
+C:/dev/melo-native-runtime-audit-20260718             cd6985fc (detached HEAD)
+C:/dev/melo-native-today-batch1-2026-08-24            0ff5d9c3 [codex/melo-manual-release-2026-09-09]
+C:/dev/melo-native-ux                                 8cf2f9ba [codex/melo-native-ux]
+C:/dev/melo-phase-d-work                              71caffc5 [backup/melo-one-app-convergence-pre-publication-2026-08-17]
+C:/dev/melo-phase0-fixes                              2c028dd6 [codex/melo-phase0]
+C:/dev/melo-release-build-2026-08-24                  752e1509 (detached HEAD)
+C:/dev/melo-release-final-build-2026-08-24            c6817536 (detached HEAD)
+C:/dev/melo-release-sdk56-build-2026-08-24            8e305291 (detached HEAD)
+C:/dev/mp                                             c966598d (detached HEAD)

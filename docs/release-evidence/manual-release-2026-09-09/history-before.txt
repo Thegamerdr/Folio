@@ -1,0 +1,66 @@
+* 0ff5d9c3 (HEAD -> codex/melo-manual-release-2026-09-09, origin/codex/melo-native-true-parity-2026-08-25, safety/melo-pre-manual-release-2026-09-09, codex/melo-native-true-parity-2026-08-25) docs(delivery): record recovered visible emulator preview
+* 400f4deb docs(delivery): record Lovable corrections and signed S9 candidate
+* 516ee6b4 fix(mobile): finish device navigation and keyboard layout
+* 400aa4b8 fix(android): regenerate embedded Expo runtime metadata
+* a8e05e02 Apply consolidated Lovable UI corrections and truthful forecast windows
+* 9be20345 fix(storage): reject corrupt sync journals before ordinary saves
+* c8573217 feat(sync): integrate durable account-bound replay and conflict review
+* c25640e1 fix(banking): make provider delivery and local review durable
+* 7c56dc98 docs(delivery): record backup acceptance and bounded sync contract
+* 10526ea7 fix(account): keep plan summaries consistent with store pricing
+* 025ee056 fix(backup): preserve recoverable generations and activate Business safely
+* 3572a36a fix(banking): retain unreviewed deliveries in encrypted workspace state
+* cc602ef0 docs(delivery): record reviewed billing and financial checkpoints
+* 7309b3fb feat(billing): verify Apple purchases through bounded Worker transport
+* da91eda2 fix(banking): require confirmed deletion when connect is disabled
+* 80f03835 fix(mobile): parse complete manual amounts and retain pennies
+* 2ab349cf fix(money): link transfers and refunds with safe reversible actions
+* 1452b482 docs(release): track audited local delivery and verify sync runtime
+* 706883ce fix(sync): authenticate devices and commit coordinator changes atomically
+* a8b6379b fix(mobile): preserve income edits and complete reviewed navigation
+* de18d8da fix(billing): reconcile verified purchases and use store offers
+* 2effcd73 Complete voice identity and encrypted sync readiness
+* 799de947 Record Galaxy S9 calendar export proof
+* 28562afd Record interactive Galaxy S9 release evidence
+* 582f97b9 Add unified provider activation readiness
+* ffa8acd6 Record locked-device Android security evidence
+* 4656044e Bind current Android release candidate evidence
+* d1ba2bb1 Complete release service and review readiness
+* fb459254 Prepare TrueLayer Open Banking activation
+* c966598d fix(mobile): retain full imported transaction history
+* f87f2ec9 test(mobile): preserve scale fixture across capture routes
+* 54fae8e1 feat(mobile): scale statement review and free Melo drag
+* 4693c9ae fix(mobile): repair stale canonical bindings
+* 5079279e diag(mobile): classify persistence write failures
+* 58163e23 fix(melo): keep header perches clear of titles
+* 8812b3ae test(mobile): close integrated coverage registry
+* e6a305a5 fix(mobile): align safe zone sheet hierarchy
+* c3ca8c2f fix(melo): respect reduced motion while repositioning
+* 73031ec9 docs: record unavailable S9 normal-state audit
+* c698a846 fix(mobile): align intake acquisition source hierarchy
+* f08bb8e3 fix(mobile): require canonical pots for set-aside claims
+* 7cf7a508 test(mobile): prove normal build fixture isolation
+* 553363d6 feat(mobile): restore money sources registry
+* fa9bd343 fix(mobile): require import attempt for parser publication
+* 93968042 perf(mobile): avoid synchronous partition cloning
+* fbaa2f4c fix(mobile): make PDF import terminal result authoritative
+* 1efb566c fix(melo): restore draggable contextual companion
+* 21f5bdf5 chore(parity): record 150-surface owner candidate
+* c2c1d1c1 fix(parity): neutralize capture autofocus resize
+* e5b3c497 fix(parity): stabilize Android sheet viewport
+* 8a85de2d fix(parity): mount pinned global captures
+* 8f59c918 tooling(parity): filter pinned source batches
+* a318b50f tooling(parity): add global capture family
+* 75311bfb fix(parity): restore personal companion perches
+* 306810a7 evidence(parity): prepare owner outlier signoff
+* ae88eb11 fix(parity): align personal sheet content insets
+* effde198 evidence(parity): register dialog contract families
+* 66a79226 evidence(parity): record family convergence batches
+* b11e3d0e evidence(parity): record matched family sources
+* f0f2c81c tooling(parity): overlay family recapture ledgers
+* d90bb196 fix(parity): align invoice sheet rhythm
+* 2de19e51 fix(parity): anchor sheet family above system nav
+* fc82de3d fix(parity): settle owned capture frames
+* d55f03b2 perf(parity): resume family captures
+| * 4323c879 (refs/stash) On (no branch): capture-resume-tooling-duplicate
+|/|

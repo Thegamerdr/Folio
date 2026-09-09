@@ -1,0 +1,9 @@
+apps/mobile/src/folio/lib/canonicalAppStateReadProjection.test.ts(190,41): error TS2353: Object literal may only specify known properties, and 'bundledCommitmentName' does not exist in type 'Onboarding'.
+apps/mobile/src/folio/lib/canonicalAppStateReadProjection.test.ts(213,28): error TS2339: Property 'bundledCommitmentName' does not exist on type 'Onboarding'.
+apps/mobile/src/folio/lib/canonicalAppStateReadProjection.ts(1130,28): error TS2339: Property 'bundledCommitmentName' does not exist on type 'Onboarding'.
+apps/mobile/src/folio/lib/canonicalAppStateReadProjection.ts(1132,53): error TS2339: Property 'bundledCommitmentName' does not exist on type 'Onboarding'.
+apps/mobile/src/folio/lib/canonicalStateProjection.ts(458,28): error TS2339: Property 'bundledCommitmentName' does not exist on type 'Onboarding'.
+apps/mobile/src/folio/lib/canonicalStateProjection.ts(460,67): error TS2339: Property 'bundledCommitmentName' does not exist on type 'Onboarding'.
+apps/mobile/src/folio/lib/onboardingMutations.ts(133,50): error TS2339: Property 'bundledCommitmentName' does not exist on type 'Onboarding'.
+apps/mobile/src/folio/lib/onboardingMutations.ts(170,46): error TS2339: Property 'bundledCommitmentName' does not exist on type 'Onboarding'.
+apps/mobile/src/folio/sheets/OnboardingSheet.tsx(474,37): error TS2339: Property 'bundledCommitmentName' does not exist on type 'Onboarding'.

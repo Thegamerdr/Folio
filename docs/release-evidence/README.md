@@ -4,6 +4,8 @@ Phase checkpoints are recorded here using `docs/source-package/agent/AGENT_CHECK
 
 Current records:
 
+- `MELO_FINANCE_BEHAVIOR_MATRIX_2026-09-09.md` — 21 focused store → canonical finance behavior cases, 21/21 passed; final gates and signed APK are in manual-release-2026-09-09/RELEASE_REPORT.md.
+
 - `C0-greenfield-proof.md`
 - `C0-native-smoke.md`
 - `C1-native-risk-spikes.md`

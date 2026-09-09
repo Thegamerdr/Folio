@@ -1,0 +1,16 @@
+  audit-checkpoint/melo-pre-convergence-2026-07-20           17a912ed Archive checkpoint: Melo pre-convergence 2026-07-20
++ backup/melo-one-app-convergence-pre-publication-2026-08-17 71caffc5 (C:/dev/melo-phase-d-work) docs: record blocked authority publication
++ claude/folio-rn-faithful-port                              68def346 (C:/dev/folio-v2-greenfield) [origin/claude/folio-rn-faithful-port] feat(security): encrypt the local store at rest (AES-256-GCM + keystore key)
+  claude/folio-web-parity                                    6c120ff7 [origin/claude/folio-web-parity] fix: Insights + subscription value made honest on real data (value-delivery batch 3)
++ claude/melo-mvp                                            2c028dd6 (C:/dev/folio-v2-greenfield/.claude/worktrees/melo-mvp) [origin/claude/melo-mvp] docs(plans): record 114 (reset truth leaks) + 115 (Melo brand sweep) DONE
+* codex/melo-manual-release-2026-09-09                       0ff5d9c3 docs(delivery): record recovered visible emulator preview
+  codex/melo-native-port-2026-08-24                          d3f188b1 [origin/codex/melo-native-port-2026-08-24] Update evidence for SDK-aligned candidate
+  codex/melo-native-true-parity-2026-08-25                   0ff5d9c3 [origin/codex/melo-native-true-parity-2026-08-25] docs(delivery): record recovered visible emulator preview
++ codex/melo-native-ux                                       8cf2f9ba (C:/dev/melo-native-ux) feat(melo): finish business evidence and native feedback
++ codex/melo-one-app-convergence-2026-08-15                  7ffe6202 (C:/dev/melo-clean-replay-2026-08-17) [origin/codex/melo-one-app-convergence-2026-08-15: ahead 32] feat(mobile): give persistent Melo semantic content perches
++ codex/melo-phase0                                          2c028dd6 (C:/dev/melo-phase0-fixes) docs(plans): record 114 (reset truth leaks) + 115 (Melo brand sweep) DONE
+  codex/melo-trusted-core-convergence-2026-07-20             80790408 docs(mobile): record phase e2 android runtime evidence
+  master                                                     6afcbaca [origin/master] Factory batch: §14 intake tests + Today/route UX fixes + Data human-language
+  replay/melo-one-app-convergence-2026-08-17                 c60db2ed [origin/master: ahead 13] docs: record clean authority replay
+  safety/melo-pre-manual-release-2026-09-09                  0ff5d9c3 docs(delivery): record recovered visible emulator preview
+  staging                                                    6afcbaca Factory batch: §14 intake tests + Today/route UX fixes + Data human-language
