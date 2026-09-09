@@ -19,6 +19,7 @@
  */
 import type { ModeInputs, ModeState, ModeStrategy, MeloVoiceTint, MeloWeather } from '../types';
 import type { MeloMood, MeloPose } from '../../../melo/Melo';
+import { isDiscretionarySubscription } from '../../discretionarySubscription';
 
 const VOICE: MeloVoiceTint = {
   archetype: 'dry analyst',
@@ -38,6 +39,7 @@ export function computeLeaks(inputs: ModeInputs): OptimizerLeak[] {
   const leaks: OptimizerLeak[] = [];
   for (const s of subs) {
     if (subPaused[s.name]) continue;
+    if (!isDiscretionarySubscription(s)) continue;
     if (s.usesPerMonth === 0 || s.lastUsedDaysAgo > 21) {
       leaks.push({
         name: s.name,

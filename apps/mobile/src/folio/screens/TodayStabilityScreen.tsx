@@ -29,6 +29,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
+import { presentStabilityCanonicalPlan } from '@/folio/lib/stabilityPresentation';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
 import { useChartStyle } from '@/folio/lib/chartStyle';
 import { LensRhythm } from '@/folio/ui/LensRhythm';
@@ -120,7 +121,26 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
     ],
   );
 
-  const safeAmount = modeState.safeZone.amount;
+  // Stability's headline must share the same protected, dated plan as Debts/Safe Zone. The
+  // strategy's month proxy omits essentials and debt minimums, so it can overstate a user's room.
+  // Keep the strategy's framing/weather when the route is unavailable during the mount gate, then
+  // replace the amount and claims with the canonical protected result as soon as it is available.
+  const canonicalSafeToSpend = route?.safeToSpend;
+  const canonicalPresentation = presentStabilityCanonicalPlan(canonicalSafeToSpend, bufferAmount);
+  const presentedModeState =
+    canonicalPresentation === null
+      ? modeState
+      : {
+          ...modeState,
+          safeZone: {
+            ...modeState.safeZone,
+            amount: canonicalPresentation.amount,
+            formula: canonicalPresentation.formula,
+          },
+          verdict: canonicalPresentation.verdict,
+          weather: canonicalPresentation.negative ? 'storm' : modeState.weather,
+        };
+  const safeAmount = presentedModeState.safeZone.amount;
   const safeDisplay = useCountUp(safeAmount, 700);
 
   const weeks = useMemo(() => {
@@ -138,7 +158,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const upcomingCount = weeks.reduce((n, w) => n + w.count, 0);
   const heaviest = weeks.reduce((iMax, w, i, arr) => (w.total > arr[iMax]!.total ? i : iMax), 0);
 
-  const [accentWord, ...restVerdict] = modeState.verdict.split(' ');
+  const [accentWord, ...restVerdict] = presentedModeState.verdict.split(' ');
   const verdictTail = restVerdict.join(' ');
 
   const balanceSourceLabel = BALANCE_SOURCE_LABEL[currentBalance.source] ?? 'sample data';
@@ -180,7 +200,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
             accessibilityLabel="Lens stability — tap to switch lens"
           >
             <MoneyModeChip mode="stability" />
-            <MeloWeatherGlyph weather={modeState.weather} size={12} />
+            <MeloWeatherGlyph weather={presentedModeState.weather} size={12} />
           </Pressable>
         </View>
       </View>
@@ -218,25 +238,30 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
             <Text style={[s.modeLabel, { color: t.muted }]}>Stability Mode</Text>
           </View>
 
-          {/* The hero stays non-interactive: its number is the STABILITY strategy's own accounting
-              (balance − pots earmarked − 30-day bills − buffer) which the generic SafeZoneSheet
-              does NOT decompose — a "see the math" tap here would open a sheet asserting a
-              different total than the figure it claims to explain. The Safe Zone door lives in
-              the CTA row below, labelled as its own destination. Unifying the two accountings is
-              a mode-engine change, deliberately out of Phase-0 scope. */}
+          {/* The hero stays non-interactive and reads the canonical protected plan when available.
+              The Safe Zone door below remains the place to inspect the dated commitments. */}
           <Text style={[s.headline, { color: t.muted }]}>Your safe zone</Text>
           <View style={s.numberRow}>
             <Text style={[s.number, { color: t.ink }]}>
-              £{Math.round(safeDisplay).toLocaleString('en-GB')}
+              {canonicalPresentation?.headline ??
+                `£${Math.round(safeDisplay).toLocaleString('en-GB')}`}
             </Text>
-            <Text style={[s.spareLabel, { color: t.muted }]}>{modeState.spareLabel}</Text>
+            <Text style={[s.spareLabel, { color: t.muted }]}>{presentedModeState.spareLabel}</Text>
           </View>
           <Text style={[s.verdict, { color: t.ink }]}>
-            <Text style={{ color: t.positive, fontWeight: '600' }}>{accentWord}</Text> {verdictTail}
+            <Text
+              style={{
+                color: canonicalPresentation?.negative ? t.repair : t.positive,
+                fontWeight: '600',
+              }}
+            >
+              {accentWord}
+            </Text>{' '}
+            {verdictTail}
           </Text>
           {/* The strategy owns the whole caption (incl. the buffer claim) so it can never
               contradict its own accounting — see stability.ts `formula`. */}
-          <Text style={[s.formula, { color: t.muted }]}>{modeState.safeZone.formula}</Text>
+          <Text style={[s.formula, { color: t.muted }]}>{presentedModeState.safeZone.formula}</Text>
 
           <View style={s.rhythmBlock}>
             <View style={s.rhythmHeaderRow}>

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Debt } from '@/folio/store';
+import type { FinancialPlanResult } from '@folio/finance-engine';
 import * as debtEngine from '@/folio/lib/modes/debtEngine';
 import { gap, radius, serif, type Palette } from '@/folio/theme';
 
@@ -17,6 +18,7 @@ export function DebtCommitmentSurface({
   debts,
   today,
   tightestSpare,
+  canonicalPlan,
   t,
   onAddDebt,
   onLogPayment,
@@ -24,6 +26,7 @@ export function DebtCommitmentSurface({
   debts: readonly Debt[];
   today: Date;
   tightestSpare: number;
+  canonicalPlan?: FinancialPlanResult | null | undefined;
   t: Palette;
   onAddDebt: () => void;
   onLogPayment: () => void;
@@ -56,10 +59,27 @@ export function DebtCommitmentSurface({
   }
 
   const maxApr = Math.max(...list.map((debt) => debt.apr));
-  const interestAtMinimums = debtEngine.totalInterest(summary.total, maxApr, summary.minSum);
-  const monthsAtMin = Number.isFinite(summary.monthsAtMin)
-    ? `${summary.monthsAtMin} mo`
-    : 'minimums do not clear interest';
+  const unknownApr = list.some((debt) => debt.aprKnown === false);
+  const projection = canonicalPlan?.debtProjection;
+  const interestAtMinimums = projection
+    ? projection.interestKnown && projection.payoffMonths !== null && projection.totalInterestMinor !== null
+      ? projection.totalInterestMinor / 100
+      : null
+    : unknownApr
+      ? null
+      : debtEngine.totalInterest(summary.total, maxApr, summary.minSum);
+  const interestUnknown = projection ? !projection.interestKnown : unknownApr;
+  const monthsAtMin = projection
+    ? !projection.interestKnown
+      ? 'APR unknown · payoff not modelled'
+      : projection.payoffMonths !== null
+        ? `${projection.payoffMonths} mo`
+        : 'not cleared within forecast horizon'
+    : unknownApr
+      ? 'APR unknown · payoff not modelled'
+      : Number.isFinite(summary.monthsAtMin)
+        ? `${summary.monthsAtMin} mo`
+        : 'minimums do not clear interest';
   const nextDueLabel =
     summary.daysToNextDue === null
       ? 'not scheduled'
@@ -83,9 +103,11 @@ export function DebtCommitmentSurface({
       <View style={[styles.detailBox, { borderColor: t.hairline }]}>
         <Text style={[styles.detailText, { color: t.muted }]}>At the current pace</Text>
         <Text style={[styles.detailValue, { color: t.ink }]}>
-          {Number.isFinite(interestAtMinimums)
+          {interestAtMinimums !== null && Number.isFinite(interestAtMinimums)
             ? `About ${formatGBP(interestAtMinimums)} interest before the balance clears.`
-            : 'The current minimums do not clear the interest.'}
+            : interestUnknown
+              ? 'APR unknown · payoff is not modelled.'
+              : 'No payoff within the forecast horizon at the current minimums.'}
         </Text>
         <Text style={[styles.detailText, styles.pathDetail, { color: t.muted }]}>
           After every commitment

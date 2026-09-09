@@ -1,6 +1,9 @@
 import type { AppState, Sub } from '../store';
 import { routeFromStore } from './storeRoute';
 import type { RoutePoint } from './moneyPath';
+import { isDiscretionarySubscription } from './discretionarySubscription';
+
+export { isDiscretionarySubscription } from './discretionarySubscription';
 
 export const RECOVERY_BILL_NUDGE_DAYS = 5;
 export const RECOVERY_HOLD_DAYS = 3;
@@ -12,51 +15,6 @@ const DISCRETIONARY: ReadonlySet<string> = new Set([
   'shopping',
 ]);
 
-/** Names that describe protected household obligations, not optional subscriptions. */
-const PROTECTED_SUBSCRIPTION_TERMS = [
-  'rent',
-  'mortgage',
-  'housing',
-  'utility',
-  'utilities',
-  'council tax',
-  'childcare',
-  'child care',
-  'energy',
-  'electric',
-  'gas',
-  'water',
-  'insurance',
-  'essential',
-  'priority',
-  'bill',
-  'transport',
-  'travel',
-  'phone',
-  'mobile',
-  'child maintenance',
-  'maintenance',
-  'tax',
-  'loan',
-];
-const OPTIONAL_SUBSCRIPTION_TERMS = [
-  'entertainment',
-  'streaming',
-  'netflix',
-  'spotify',
-  'disney',
-  'prime video',
-  'youtube',
-  'audible',
-  'music',
-  'gaming',
-  'game',
-  'playstation',
-  'xbox',
-  'nintendo',
-  'cinema',
-  'gym',
-];
 
 export type RecoveryRoutePreview = Readonly<{
   baseTight: number;
@@ -80,13 +38,6 @@ export type RecoveryRoutePreview = Readonly<{
 /** A recovery move may pause a subscription only when its existing name explicitly signals an
  * optional service. Protected terms always win, and an ambiguous name is withheld from automatic
  * recovery suggestions so the user can review it manually in Subscriptions. */
-export function isDiscretionarySubscription(subscription: Sub): boolean {
-  const name = subscription.name.trim().toLocaleLowerCase();
-  if (name.length === 0 || PROTECTED_SUBSCRIPTION_TERMS.some((term) => name.includes(term)))
-    return false;
-  return OPTIONAL_SUBSCRIPTION_TERMS.some((term) => name.includes(term));
-}
-
 function nearestActiveSubscription(
   subs: readonly Sub[],
   subPaused: Readonly<Record<string, boolean>>,

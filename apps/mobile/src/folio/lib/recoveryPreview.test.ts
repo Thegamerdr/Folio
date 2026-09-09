@@ -13,19 +13,11 @@ describe('buildRecoveryRoutePreview', () => {
     expect(
       isDiscretionarySubscription({
         name: 'Rent + bills',
-        cost: 950,
-        nextRenewalDaysAway: 2,
-        lastUsedDaysAgo: 0,
-        usesPerMonth: 1,
       }),
     ).toBe(false);
     expect(
       isDiscretionarySubscription({
         name: 'Entertainment streaming',
-        cost: 12,
-        nextRenewalDaysAway: 2,
-        lastUsedDaysAgo: 0,
-        usesPerMonth: 1,
       }),
     ).toBe(true);
   });

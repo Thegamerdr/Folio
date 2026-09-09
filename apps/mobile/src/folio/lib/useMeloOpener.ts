@@ -21,6 +21,7 @@ import { useMemo } from 'react';
 import { pickOpener } from '@/folio/lib/modes';
 import { useAppStore } from '@/folio/store';
 import type { MoneyMode } from '@/folio/store';
+import { isDiscretionarySubscription } from './discretionarySubscription';
 
 const DAY_MS = 86_400_000;
 const RECENT_WINDOW_DAYS = 14;
@@ -42,15 +43,18 @@ export function useMeloOpener(overrideMode?: MoneyMode): string {
   return useMemo(() => {
     const liveSubs = subs.filter((s) => !subPaused[s.name]);
     const quiet = liveSubs.find(
-      (s) => s.usesPerMonth === 0 || s.lastUsedDaysAgo > QUIET_SUB_IDLE_DAYS,
+      (s) =>
+        isDiscretionarySubscription(s) &&
+        (s.usesPerMonth === 0 || s.lastUsedDaysAgo > QUIET_SUB_IDLE_DAYS),
     );
     const soon = [...liveSubs].sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway)[0];
     const totalLeaks = liveSubs
       .filter(
         (s) =>
-          s.usesPerMonth === 0 ||
-          s.lastUsedDaysAgo > QUIET_SUB_IDLE_DAYS ||
-          (s.cost >= 15 && s.usesPerMonth <= 2),
+          isDiscretionarySubscription(s) &&
+          (s.usesPerMonth === 0 ||
+            s.lastUsedDaysAgo > QUIET_SUB_IDLE_DAYS ||
+            (s.cost >= 15 && s.usesPerMonth <= 2)),
       )
       .reduce((sum, s) => sum + s.cost, 0);
     const potsPace = pots.filter((p) => p.perWeek > 0).reduce((sum, p) => sum + p.perWeek, 0);

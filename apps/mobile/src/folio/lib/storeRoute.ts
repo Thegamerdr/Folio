@@ -358,6 +358,7 @@ export function useRoute(now: Date | string): RouteResult {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       state.currentBalance,
+      state.accounts,
       state.onboarding,
       state.subs,
       state.subPaused,

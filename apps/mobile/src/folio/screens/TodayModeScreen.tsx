@@ -28,6 +28,7 @@ import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/
 import { Melo } from '@/folio/melo/Melo';
 import { useAppStore, type Debt } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
 import { useChartStyle, type ChartStyle } from '@/folio/lib/chartStyle';
@@ -91,6 +92,7 @@ type HeroCtx = {
   openLogPayment: () => void;
   openHouseholdSetup: () => void;
   debts: readonly Debt[];
+  canonicalPlan?: ReturnType<typeof buildFinancialPlanFromState> | null;
   today: Date;
   householdSplits?: BillSplit[] | undefined;
   householdPartner?: string | undefined;
@@ -132,8 +134,14 @@ const HERO: Record<
     render: (c, t) => {
       const pots = c.growthPots ?? [];
       const goal = c.potsTarget || Math.max(500, c.monthlyIn);
+      const declaredWeeklyPace = pots.reduce((sum, pot) => sum + Math.max(0, pot.perWeek), 0);
+      const declaredMonthlyPace = (declaredWeeklyPace * 52) / 12;
       const monthsToGoal =
-        c.amount > 0 ? Math.ceil((goal - c.potsSaved) / Math.max(1, c.amount)) : null;
+        goal <= c.potsSaved
+          ? 0
+          : declaredMonthlyPace > 0
+            ? Math.ceil((goal - c.potsSaved) / declaredMonthlyPace)
+            : null;
       const pct = goal > 0 ? Math.round((c.potsSaved / goal) * 100) : 0;
       return (
         <View style={heroStyles.block}>
@@ -217,6 +225,7 @@ const HERO: Record<
         debts={c.debts}
         today={c.today}
         tightestSpare={c.tightestSpare}
+        canonicalPlan={c.canonicalPlan}
         t={t}
         onAddDebt={c.openAddDebt}
         onLogPayment={c.openLogPayment}
@@ -754,12 +763,20 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   const { style: chartStyle } = useChartStyle();
   const lens = useLens();
   const hasRealData = useAppStore((st) => hasAnyUserData(st));
+  const appState = useAppStore((st) => st);
 
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => setNow(new Date()), []);
 
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
+  const canonicalPlan = useMemo(
+    () =>
+      now && (moneyMode === 'growth' || moneyMode === 'debt')
+        ? buildFinancialPlanFromState(appState, { now })
+        : null,
+    [appState, moneyMode, now],
+  );
   const tight = useMemo(
     () => ({
       tightestSpare: route ? route.tightPoint.amount : 0,
@@ -820,9 +837,39 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
     ],
   );
 
-  const amount = modeState.safeZone.amount;
+  const canonicalMoneyMode = moneyMode === 'growth' || moneyMode === 'debt';
+  const canonicalSafeToSpendMinor = canonicalMoneyMode
+    ? (canonicalPlan?.safeToSpendMinor ?? null)
+    : null;
+  const canonicalShortfallMinor =
+    canonicalSafeToSpendMinor === null ? 0 : Math.max(0, -canonicalSafeToSpendMinor);
+  const canonicalDebtUnknown = Boolean(
+    moneyMode === 'debt' && canonicalPlan?.debtProjection?.interestKnown === false,
+  );
+  const amount =
+    canonicalSafeToSpendMinor === null
+      ? modeState.safeZone.amount
+      : Math.max(0, canonicalSafeToSpendMinor) / 100;
+  const outerVerdict =
+    canonicalSafeToSpendMinor === null
+      ? modeState.verdict
+      : canonicalShortfallMinor > 0
+        ? `£${formatCanonicalPounds(canonicalShortfallMinor / 100)} projected shortfall before payday.${canonicalDebtUnknown ? ' APR unknown; payoff not modelled.' : ''}`
+        : moneyMode === 'debt'
+          ? `Known commitments covered until payday.${canonicalDebtUnknown ? ' APR unknown; payoff not modelled.' : ''}`
+          : modeState.verdict;
+  const outerSpareLabel =
+    moneyMode === 'debt' && canonicalSafeToSpendMinor !== null
+      ? 'safe to spend until payday'
+      : modeState.spareLabel;
+  const outerFormula =
+    canonicalSafeToSpendMinor === null
+      ? modeState.safeZone.formula
+      : canonicalShortfallMinor > 0
+        ? `safe to spend until payday · £${formatCanonicalPounds(canonicalShortfallMinor / 100)} projected shortfall before payday`
+        : `safe to spend until payday · buffer £${bufferAmount} protected`;
   const animated = useCountUp(amount, 700);
-  const [accentWord, ...restVerdict] = modeState.verdict.split(' ');
+  const [accentWord, ...restVerdict] = outerVerdict.split(' ');
   const verdictTail = restVerdict.join(' ');
 
   const monthlyIn = monthlyIncome;
@@ -881,9 +928,9 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
     mode: moneyMode,
     amount,
     animated,
-    spareLabel: modeState.spareLabel,
-    verdict: modeState.verdict,
-    formula: modeState.safeZone.formula,
+    spareLabel: outerSpareLabel,
+    verdict: outerVerdict,
+    formula: outerFormula,
     bufferAmount,
     currentBalance: currentBalance.amount,
     monthlyIn,
@@ -909,6 +956,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
     openSubs: () => nav.go('subs'),
     openRecovery: () => nav.go('recovery'),
     debts,
+    canonicalPlan,
     today: now ?? EPOCH,
     growthPots,
     planProgresses: moneyMode === 'planning' ? plansSummary?.progresses : undefined,
@@ -992,14 +1040,24 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
             <Text style={[s.number, { color: t.ink }]}>
               {moneyMode === 'irregular' || moneyMode === 'lowVis'
                 ? Math.round(animated).toLocaleString('en-GB')
-                : `£${Math.round(animated).toLocaleString('en-GB')}`}
+                : canonicalSafeToSpendMinor !== null
+                  ? `£${formatCanonicalPounds(animated)}`
+                  : `£${Math.round(animated).toLocaleString('en-GB')}`}
             </Text>
-            <Text style={[s.spareLabel, { color: t.muted }]}>{modeState.spareLabel}</Text>
+            <Text style={[s.spareLabel, { color: t.muted }]}>{outerSpareLabel}</Text>
           </View>
           <Text style={[s.verdict, { color: t.ink }]}>
-            <Text style={{ color: heroTone, fontWeight: '600' }}>{accentWord}</Text> {verdictTail}
+            <Text
+              style={{
+                color: canonicalShortfallMinor > 0 ? t.repair : heroTone,
+                fontWeight: '600',
+              }}
+            >
+              {accentWord}
+            </Text>{' '}
+            {verdictTail}
           </Text>
-          <Text style={[s.formula, { color: t.muted }]}>{modeState.safeZone.formula}</Text>
+          <Text style={[s.formula, { color: t.muted }]}>{outerFormula}</Text>
 
           {cfg.render(ctx, t)}
 
@@ -1124,6 +1182,13 @@ const lockChipStyles = StyleSheet.create({
 });
 
 const EPOCH = new Date(0);
+
+function formatCanonicalPounds(amount: number): string {
+  return amount.toLocaleString('en-GB', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Small shared hero pieces
