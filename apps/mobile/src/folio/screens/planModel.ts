@@ -1,4 +1,5 @@
 import { computeSpareAndTightest, groupByDay, type DerivedEvent } from '../lib/calendarEvents';
+import type { FinancialPlanResult } from '@folio/finance-engine';
 
 /** The pinned Plan Hub's forward-looking row shape. */
 export type PlanUpcoming = Readonly<{
@@ -8,6 +9,23 @@ export type PlanUpcoming = Readonly<{
   amount: number;
   note: string;
 }>;
+
+/** The live Plan list uses the same outstanding occurrences and boundary as safe to spend. */
+export function buildCanonicalPlanUpcoming(plan: FinancialPlanResult | null): PlanUpcoming[] {
+  if (plan === null) return [];
+  return plan.pendingObligations.map((event) => ({
+    id: event.id,
+    date: event.date,
+    name: event.label,
+    amount: event.amountMinor / 100,
+    note:
+      event.date < plan.asOf
+        ? 'overdue · still unpaid'
+        : event.source === 'debt-minimum'
+          ? 'minimum payment'
+          : 'spoken for',
+  }));
+}
 
 /**
  * Exact ScreenPlanHub event selection: every real negative `out` event in the

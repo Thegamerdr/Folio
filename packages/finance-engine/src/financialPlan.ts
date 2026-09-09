@@ -160,6 +160,14 @@ export type FinancialPlanResult = Readonly<{
   protectedBeforeIncomeMinor: number;
   debtMinimumMinor: number;
   livingCostMinor: number;
+  /** Outstanding bills and debt minima before next income; dates retain the original due day. */
+  pendingObligations: readonly Readonly<{
+    id: string;
+    date: LocalDate;
+    label: string;
+    amountMinor: number;
+    source: 'commitment' | 'debt-minimum';
+  }>[];
   /** Number of requested extra payments before next income (weekly cadence) or one otherwise. */
   extraPaymentCountBeforeIncome: number;
   /** Total of the capped requested extras across that pre-income window. */
@@ -189,6 +197,7 @@ export type AffordabilityResult = Readonly<{
 type PlanEvent = Readonly<{
   id: string;
   date: LocalDate;
+  originalDate?: LocalDate;
   amountMinor: number;
   label: string;
   protectedOutflowMinor: number;
@@ -342,7 +351,7 @@ function makeEvents(input: FinancialPlanInput, asOf: LocalDate, end: LocalDate):
     // due and must be reserved today so an overdue bill cannot disappear from the plan.
     if (event.date < asOf) {
       if (event.source === 'actual' || event.source === 'income') return;
-      events.push({ ...event, date: asOf });
+      events.push({ ...event, originalDate: event.date, date: asOf });
       return;
     }
     events.push(event);
@@ -460,6 +469,7 @@ function makeEvents(input: FinancialPlanInput, asOf: LocalDate, end: LocalDate):
         append({
           id: `debt-minimum:${debt.id}:overdue`,
           date: asOf,
+          originalDate: dueAnchor,
           amountMinor: -paymentMinor,
           label: debtLabel,
           protectedOutflowMinor: paymentMinor,
@@ -1164,6 +1174,24 @@ function calculatePlan(
     protectedBeforeIncomeMinor,
     debtMinimumMinor,
     livingCostMinor,
+    pendingObligations: events
+      .filter(
+        (event) =>
+          (event.source === 'commitment' || event.source === 'debt-minimum') &&
+          event.protectedOutflowMinor > 0 &&
+          (next === null || event.date < next),
+      )
+      .map((event) => ({
+        id: event.id,
+        date: event.originalDate ?? event.date,
+        label: event.label,
+        amountMinor: event.protectedOutflowMinor,
+        source:
+          event.source === 'debt-minimum' ? ('debt-minimum' as const) : ('commitment' as const),
+      }))
+      .sort(
+        (left, right) => left.date.localeCompare(right.date) || left.id.localeCompare(right.id),
+      ),
     extraPaymentCountBeforeIncome: datedExtrasBeforeIncome?.length ?? weeklyExtraOccurrences,
     extraPaymentTotalBeforeIncomeMinor: datedExtrasBeforeIncome
       ? datedExtrasBeforeIncome.reduce((sum, payment) => sum + payment.amountMinor, 0)

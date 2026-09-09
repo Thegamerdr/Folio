@@ -27,11 +27,9 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { selectPaydayTightPoint, tightPointDayLabel } from '@/folio/lib/moneyPath';
-import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
 import { useDayClock } from '@/folio/lib/useDayClock';
-import { utcMidnightForLocalDay } from '@/folio/lib/dayClock';
 import type { Nav } from '@/folio/types';
-import { buildPlanUpcoming, shortPlanDay } from './planModel';
+import { buildCanonicalPlanUpcoming, shortPlanDay } from './planModel';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 
 // ---------------------------------------------------------------------------
@@ -133,16 +131,11 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   const { width } = useWindowDimensions();
   const stackDominantActions = width < 380;
 
-  // Real store reads — the slices the derived timeline depends on (subs · subPaused · subOverrides ·
-  // onboarding · pots · manual calendarEvents). The route's own inputs are read inside `useRoute`.
+  // Supporting facts alongside the canonical plan. The route reads its own store inputs.
   const subs = useAppStore((st) => st.subs);
   const subPaused = useAppStore((st) => st.subPaused);
-  const subOverrides = useAppStore((st) => st.subOverrides);
   const onboarding = useAppStore((st) => st.onboarding);
   const pots = useAppStore((st) => st.pots);
-  const calendarEvents = useAppStore((st) => st.calendarEvents);
-  const incomeSources = useAppStore((st) => st.incomeSources ?? []);
-  const whatIfHolds = useAppStore((st) => st.whatIfHolds ?? []);
   const debts = useAppStore((st) => st.debts ?? []);
   const appState = useAppStore((st) => st);
   // Demo example bills only while the seed is untouched; a cleared/real user sees only their own.
@@ -151,13 +144,8 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   // Mount-gate the clock (mirrors TodayScreen): defer `new Date()` to an effect so nothing reads the
   // wall clock during the first render. Until it opens, the screen holds the loading branch.
   const now = useDayClock();
-  const engineNow = useMemo(() => (now ? utcMidnightForLocalDay(now) : null), [now]);
 
-  // The shared store→money-path bridge — same curve every surface reads. The hook can't be called
-  // conditionally, so it always runs against `now ?? EPOCH`; before the mount-gate opens we discard
-  // that transient result (`route = null`). `daysToPayday` (and the resolved payday it implies) come
-  // from here; the dated list + the marker date come from `deriveCalendarEvents`, which resolves the
-  // SAME payday through `resolvePayday` (and the same `now`), so the two never disagree.
+  // Keep the mounted route current; the list and headline share the canonical financial plan below.
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
   const financialPlan = useMemo(
@@ -165,52 +153,16 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
     [appState, now],
   );
 
-  // The real derived timeline — bills + sub renewals + pot top-ups, payday, deadlines, reviews. We
-  // read its "out" events (money spoken for) and its `payday` event (the next-payday marker date).
-  const events = useMemo<DerivedEvent[]>(
-    () =>
-      now
-        ? deriveCalendarEvents({
-            subs,
-            subPaused,
-            subOverrides,
-            onboarding,
-            manualEvents: calendarEvents,
-            pots,
-            incomeSources,
-            whatIfHolds,
-            now: engineNow!,
-            includeSampleBills,
-          })
-        : [],
-    [
-      now,
-      engineNow,
-      subs,
-      subPaused,
-      subOverrides,
-      onboarding,
-      calendarEvents,
-      pots,
-      incomeSources,
-      whatIfHolds,
-      includeSampleBills,
-    ],
-  );
-
-  // Income-free routes still resolve a payday fallback for the caption. Reconstruct that same
-  // inclusive period end from the route's day count when no payday event exists in the 35-day list.
-  const nextPayday =
-    events.find((event) => event.source === 'payday')?.date ??
-    (engineNow && route
-      ? new Date(engineNow.getTime() + route.daysToPayday * 86_400_000).toISOString().slice(0, 10)
-      : null);
-  const upcoming = useMemo(() => buildPlanUpcoming(events, nextPayday), [events, nextPayday]);
+  const upcoming = useMemo(() => buildCanonicalPlanUpcoming(financialPlan), [financialPlan]);
   const total = useMemo(() => upcoming.reduce((sum, u) => sum + u.amount, 0), [upcoming]);
   const planTightPoint = useMemo(() => (route ? selectPaydayTightPoint(route) : null), [route]);
   const tightDate = planTightPoint?.date ?? null;
   const tightSpare = planTightPoint?.amount ?? null;
-  const daysToPayday = route?.daysToPayday ?? null;
+  const daysToPayday = financialPlan?.nextIncomeDate
+    ? Math.round(
+        (Date.parse(financialPlan.nextIncomeDate) - Date.parse(financialPlan.asOf)) / 86_400_000,
+      )
+    : null;
   const potsSaved = useMemo(() => pots.reduce((sum, pot) => sum + pot.saved, 0), [pots]);
   const liveSubs = useMemo(() => subs.filter((sub) => !subPaused[sub.name]), [subs, subPaused]);
   const showSampleMarker = !onboarding.done || includeSampleBills;
@@ -380,9 +332,9 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
               <Money value={formatGBP(total)} size="lg" t={t} />
             </View>
             <Text style={[styles.dominantCaption, { color: t.muted }]}>
-              {daysToPayday === 0
-                ? 'payday is today'
-                : `over the ${daysToPayday ?? 0} day${daysToPayday === 1 ? '' : 's'} to payday`}
+              {daysToPayday === null
+                ? 'within this forecast, including unpaid bills'
+                : `over the ${daysToPayday} day${daysToPayday === 1 ? '' : 's'} to payday, including unpaid bills`}
             </Text>
             {financialPlan ? (
               <View style={[styles.safePlan, { borderTopColor: t.hairline }]}>
@@ -454,14 +406,16 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
             <View style={styles.timelineList}>
               {upcoming.length === 0 ? (
                 <Text style={[styles.timelineEmpty, { color: t.muted }]}>
-                  Nothing is scheduled to leave before payday.
+                  {daysToPayday === null
+                    ? 'No unpaid bills or debt minimums are recorded within this forecast.'
+                    : 'No unpaid bills or debt minimums are recorded before payday.'}
                 </Text>
               ) : null}
               {upcoming.slice(0, 4).map((u, i) => (
                 <Pressable
                   key={u.id}
                   accessibilityRole="button"
-                  accessibilityLabel={`${u.name}, ${formatGBP(u.amount)}, ${shortPlanDay(u.date)}`}
+                  accessibilityLabel={`${u.name}, ${formatGBP(u.amount)}, ${shortPlanDay(u.date)}, ${u.note}`}
                   accessibilityHint="Opens Calendar."
                   onPress={() => nav.go('calendar')}
                   style={({ pressed: isPressed }) => [

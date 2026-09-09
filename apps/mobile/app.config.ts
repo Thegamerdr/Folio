@@ -73,7 +73,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: 'Melo',
     slug: 'folio-v2-greenfield',
     scheme: 'folio',
-    version: '0.0.3',
+    version: '0.0.4',
     icon: './assets/brand/app-icon-1024.png',
     orientation: 'portrait',
     platforms: ['ios', 'android'],
@@ -116,7 +116,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       ...config.android,
-      versionCode: 3,
+      versionCode: 4,
       adaptiveIcon: {
         foregroundImage: './assets/brand/adaptive-foreground.png',
         backgroundColor: '#EFE9DD',

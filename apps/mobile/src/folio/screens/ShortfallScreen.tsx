@@ -1,9 +1,9 @@
 // @rn-engine money-path — the gap (£) + days-to-payday verdict and the tight-point recompute are the
 // real money-path engine (ENGINES §6), read through the shared `useRoute` bridge
 // (@/folio/lib/storeRoute → computeRoute) exactly as Today and the Calendar read it, so every surface
-// computes the same curve. The gap is the depth of the route's tight point below zero
-// (max(0, −route.tightPoint.amount)); daysLeft is route.daysToPayday; the spendable anchor the daily
-// cap divides over is route.spare (the balance on payday). The borrow card's `lendingPot.saved >= gap`
+// computes the same curve. The gap and daily discretionary cap use canonical safe-to-spend after
+// protected obligations and buffer; daysLeft is route.daysToPayday. Closing cash on payday includes
+// future income and cannot fund spending before it arrives. The borrow card's `lendingPot.saved >= gap`
 // gate, the dailyCap formula, and the borrow preview→commit math all read these engine numbers — never
 // a hard-coded literal. Borrow LIFTS the route (a "shortfall-borrow" draw lowers pot.saved → less
 // earmarked cash → the recomputed tight point rises); Shortfall AUTO-CLOSES the borrow move the moment
@@ -37,12 +37,9 @@
 //               Every motion resolves to its FINAL STATE under reduce-motion.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit / store / sibling screens):
-//   • REAL DATA, REAL ENGINE STATE. The web prototype hard-coded gap=86 / daysLeft=9 / a 280 budget
-//     constant with a "// Synthetic prototype values" comment. RN binds to the live store and reads
-//     the gap/daysLeft/spendable straight off the real route engine (useRoute → computeRoute): the gap
-//     is how far the route's tight point sits below zero, daysLeft is route.daysToPayday, and the 280
-//     anchor becomes route.spare (the balance on payday). The screen is gated upstream so it is "only
-//     shown when short"; the empty branch is the calm doorway for the no-gap case.
+//   • REAL DATA, REAL ENGINE STATE. RN reads the protected gap and daily discretionary budget from
+//     the canonical route's safe-to-spend. The screen is gated upstream so it is only shown when
+//     short; the empty branch is the calm doorway for the no-gap case.
 //   • CARDS ARE STATE BRANCHES. Card 1 (Pause one sub) renders only when a pausable sub exists; card 2
 //     (Borrow from a pot) only when the highest-saved pot can cover the gap; card 3 (Spend a little
 //     less) ALWAYS renders. The stack spaces with `gap`, so one / two / three cards each read
@@ -89,6 +86,8 @@ import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { deriveShortfallBudget } from '@/folio/lib/shortfallBudget';
+import { useDayClock } from '@/folio/lib/useDayClock';
 import { isDiscretionarySubscription } from '@/folio/lib/recoveryPreview';
 import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
 import { getShortfallCopy } from '@/folio/lib/modes/action';
@@ -180,13 +179,8 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   const moneyMode = useAppStore((s) => s.moneyMode ?? 'survival');
   const modeCopy = getShortfallCopy(moneyMode);
 
-  // Mount-gate (mirrors TodayScreen): defer `new Date()` so the route's "today" is honest and nothing
-  // reads the clock on the first frame. `useRoute` can't be called conditionally, so it always runs
-  // against `now ?? EPOCH`; the pre-gate transient is discarded (`route = null`) for that one frame.
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-  }, []);
+  // Refresh the financial horizon at local midnight and foreground, matching Today and Plan.
+  const now = useDayClock();
 
   // @rn-engine money-path — the REAL route, via the shared `useRoute` bridge (@/folio/lib/storeRoute →
   // computeRoute), the same curve Today and the Calendar read. Recomputes as pots/subs change, so a
@@ -194,14 +188,8 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
 
-  // The gap is the depth of the route's tight point below zero (whole pounds — money reads as money);
-  // daysLeft is route.daysToPayday; the spendable anchor the daily cap divides over is route.spare
-  // (the balance on payday). Before the mount-gate opens (`route === null`) the screen has no honest
-  // "today" yet, so the figures rest at 0 for that single frame (the screen is gated upstream so it is
-  // "only shown when short", and the populated branch never flashes a different number on a real open).
-  const gapNow = route ? Math.max(0, Math.round(-route.tightPoint.amount)) : 0;
-  const daysLeft = route ? route.daysToPayday : 0;
-  const spendable = route ? Math.max(0, Math.round(route.spare)) : 0;
+  // The same protected budget as Today; never count the future salary visible at the chart's payday.
+  const { gap: gapNow, daysLeft, dailyCap } = deriveShortfallBudget(route);
 
   // The borrow preview→commit is a single store write; the route recompute (not a screen-local
   // counter) is what narrows the gap. Borrow AUTO-CLOSES when the recomputed tight point reaches 0
@@ -216,10 +204,6 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   );
   // The highest-saved pot — the lender. The Borrow card renders only when it can cover the live gap.
   const lendingPot = useMemo(() => pots.slice().sort((a, b) => b.saved - a.saved)[0], [pots]);
-
-  // The daily spend cap = the spendable anchor minus the gap, spread across the days left. Floored at
-  // 0; days-left floored at 1 so we never divide by zero (web Math.max(1, daysLeft)). Whole pounds.
-  const dailyCap = Math.max(0, Math.floor((spendable - gapNow) / Math.max(1, daysLeft)));
 
   // The route gives us the low date; the shared Calendar derivation gives us the honest event that
   // created that dip. Keeping this read on the same event authority prevents Shortfall from inventing
@@ -269,7 +253,9 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
       ? `${lendingPot.name} could cover the whole gap.`
       : pausableSub
         ? `Pausing ${pausableSub.name} is the first named move in hand.`
-        : `A daily cap is the clearest move in hand for ${daysLeft} ${dayLabel}.`;
+        : gapNow > 0
+          ? 'There is no room for extra spending. The protected costs still need a change.'
+          : `A daily cap is the clearest move in hand for ${daysLeft} ${dayLabel}.`;
 
   const resolvedState: ShortfallState = state ?? 'populated';
 
@@ -554,13 +540,16 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
           {/* Spend a little less — ALWAYS renders. Routes to the WhatIf surface (nav.go('whatif')). */}
           <MoveCard
             t={t}
-            accessibilityLabel={copy.short.move.cap(formatGBP(dailyCap))}
+            accessibilityLabel={`Hold extra spending at ${formatGBP(dailyCap)}/day`}
             onPress={() => nav.go('whatif')}
             eyebrow={modeCopy.holdLabel}
             value={`${formatGBP(dailyCap)}/day`}
           >
             <Text style={[styles.cardBody, { color: t.ink }]}>
-              {`Keep daily spend at ${formatGBP(dailyCap)} for ${daysLeft} ${dayLabel}`}
+              {`Keep extra spending at ${formatGBP(dailyCap)} for ${daysLeft} ${dayLabel}`}
+            </Text>
+            <Text style={[styles.cardCaption, { color: t.muted }]}>
+              {`Your essentials are included in the plan. This does not close the ${formatGBP(gapNow)} gap.`}
             </Text>
           </MoveCard>
         </View>
