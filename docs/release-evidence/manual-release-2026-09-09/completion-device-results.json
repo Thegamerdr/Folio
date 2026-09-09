@@ -1,0 +1,33 @@
+{
+  "sourceCommit": "390574198dbdfca4706683428e37a8b53750cb75",
+  "apkSha256": "c313eb289213228f4442b650e6484bbd5eb116687f346b3f347409bd200a2d76",
+  "emulator": {
+    "serial": "emulator-5554",
+    "install": "Success",
+    "installedBaseApkHashMatches": true,
+    "syntheticFinanceProfile": 10,
+    "initialCashMinor": 178000,
+    "initialSafeMinor": 36000,
+    "extraPreviewMinor": 5000,
+    "monthlyPreview": {"remainingSafeMinor": 31000, "payoffDate": "2026-11-18"},
+    "oncePreview": {"remainingSafeMinor": 31000, "payoffDate": "2026-12-18"},
+    "weeklyPreview": {"paymentsBeforeIncome": 3, "remainingSafeMinor": 21000, "payoffDate": "2026-10-07"},
+    "previewsMutatedCashOrDebt": false,
+    "confirmedUnplannedSpendMinor": 20000,
+    "finalCashMinor": 158000,
+    "finalSafeMinor": 16000,
+    "offlineRestart": {"status": "ok", "launchState": "COLD", "totalTimeMs": 14493, "stateRetained": true},
+    "freshProfile": {"userId": 11, "emptyManualSetupVisuallyVerified": true, "activityWaitTimedOutDuringProfileInitialization": true},
+    "restoredSettings": {"currentUser": 0, "airplaneMode": 0, "wifi": 1, "mobileData": 1, "stayOnWhilePluggedIn": 1, "animationScale": 1, "acPowered": false, "storageThresholdPercentage": null},
+    "ownerDataCleared": false
+  },
+  "galaxyS9": {
+    "serial": "2af26a2c19017ece",
+    "install": "Success",
+    "installedBaseApkHashMatches": true,
+    "launch": {"status": "ok", "launchState": "WARM", "totalTimeMs": 4082},
+    "financialDataEntered": false,
+    "appDataCleared": false
+  },
+  "observations": "Root inspected final emulator screenshots. Earlier candidate and Android system delays are documented separately in DEVICE_ACCEPTANCE.md. No fresh-profile launch-speed or large-import Android benchmark is claimed."
+}

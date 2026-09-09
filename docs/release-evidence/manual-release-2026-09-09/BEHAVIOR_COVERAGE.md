@@ -1,6 +1,6 @@
 # Financial behavior coverage
 
-This matrix maps the brief's exact 30 required cases to focused assertions in the authoritative branch. “Partial” means the available assertion does not exercise the requested behavior exactly. The final core/adapter edge run passed 18/18; its machine-readable result is `financial-plan-focused-results.json`. Other focused runs and their counts are recorded in `RELEASE_REPORT.md`. Counts from overlapping runs must not be added together as distinct tests.
+This matrix maps the brief's exact 30 required cases to focused assertions in the authoritative branch. “Partial” means the available assertion does not exercise the requested behavior exactly. The follow-up source is committed at `390574198dbdfca4706683428e37a8b53750cb75`. The final core/adapter edge run passed 18/18; its machine-readable result is `financial-plan-focused-results.json`. Other focused runs and their counts are recorded in `RELEASE_REPORT.md`. Counts from overlapping runs must not be added together as distinct tests.
 
 The compact fixtures are dated as follows:
 
@@ -58,6 +58,18 @@ These are focused engine/adapter edge regressions beyond the exact required case
 | Unknown post-promo rate | Core — “keeps debt due dates, promo uncertainty, and extra-payment cascade explicit” | PASS |
 | Current balance/no replay and closed accounts | Adapter — “uses corrected active cash once and keeps weekly/monthly renewal dates anchored” | PASS |
 | Distinct debt due dates and extra cascade | Core — “keeps debt due dates, promo uncertainty, and extra-payment cascade explicit” | PASS |
+
+## Follow-up dated debt and conversation coverage
+
+The dated debt follow-up adds explicit evidence beyond the original 30-case mapping:
+
+- `packages/finance-engine/test/financialPlan.test.ts` — “retains a debt day-31 anchor across February in minima and payoff rows” verifies January 31 → February 28 → March 31 in both minimum events and payoff rows; the mobile adapter passes the declared `dueDayOfMonth`.
+- The same engine test — “applies a one-off debt extra once while monthly extras recur” verifies one-off payment timing, daily dated interest, promotional-rate split and no monthly repetition.
+- The same engine test — “counts weekly debt extras on their real seven-day schedule and caps all pre-income payments” verifies actual weekly dates, mid-cycle payoff truncation, and the canonical count/total before income.
+- `apps/mobile/src/folio/lib/financialPlan.test.ts` verifies adapter cadence pass-through, February day-31 anchoring, and the small-debt weekly case: £100 debt, £80 requested weekly, two actual payments totaling £100, and £900 safe-to-spend remaining.
+- Exact parser phrases covered by `apps/mobile/src/local/financeProposal.test.ts` include: “I spent £200 I wasn't supposed to”, “I don't have a car”, “I've got £500 spare. What should I do?”, “My bill went up”, “I'm behind on this one”, “I actually spend about £70 a week on food”, “Change my rent and bills to £1000”, “What happens if I pay £400?”, “I want to pay £400”, “I just cleared Klarna” and “I got paid £300 less than usual”. Queries remain non-mutating and ambiguous clearance asks for the payment-versus-balance distinction.
+
+Finance-engine and contract package dist outputs were refreshed before the completion checks; native Metro sources the package source directly. Completion-focused checks passed **66/66**, completion-contract checks **51/51**, completion-shell checks **21/21**, and final mobile typecheck passed. Root verified the final `39057419` APK identity on both installed devices, all three native debt-preview cadences, the confirmed £200 unplanned spend, offline retained £1,580 cash/£160 safe, and empty fresh manual setup. See `ARTIFACT.json`, `completion-device-results.json` and `DEVICE_ACCEPTANCE.md`. The c74 native evidence is retained as the earlier candidate.
 
 Additional exact support assertions are present in apps/mobile/src/folio/meloFinanceTools.test.ts (“records a completed debt payment against debt, cash and the ledger, with scoped undo”; “rejects an ambiguous debt target and protects against stale undo”; “persists pence and converts non-weekly essentials into the weekly engine input”; “updates an existing recurring commitment without changing its cadence”) and apps/mobile/src/local/financeProposal.test.ts (“proposes a named debt payment without writing it”; “keeps questions and income variance away from a false ledger inflow”; “asks for the clearance distinction before proposing a balance write”).
 
