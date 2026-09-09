@@ -1,9 +1,10 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // Caught-annual tests — pure-logic coverage for lib/caughtAnnual.ts, plus the store-level
 // "confirm adds a dated calendar event" contract AnnualCaughtSheet's confirm() relies on.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { addCalendarEvent, getState, resetAll, type Transaction } from '../store';
+import { addCalendarEvent, getState, type Transaction } from '../store';
 import { expectedMonthLabel, findCaughtAnnual, nextAnnualOccurrenceIso } from './caughtAnnual';
 
 function txn(merchant: string, amountPounds: number, iso: string): Transaction {

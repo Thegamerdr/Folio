@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // storeRoute bridge tests — the shared store→money-path mapping
 // (apps/mobile/src/folio/lib/storeRoute.ts).
 //
@@ -37,7 +38,6 @@ import {
   addAccount,
   addTransaction,
   getState,
-  resetAll,
   resetToEmpty,
   selectBankBalanceMinor,
   setAccountBalance,
@@ -55,7 +55,7 @@ beforeEach(() => {
   resetAll();
 });
 
-/** The seed AppState — exactly what a first-run device loads. */
+/** Explicit test fixture; production fresh profiles are empty. */
 function seedState(): AppState {
   return getState();
 }
@@ -144,24 +144,14 @@ describe('routeFromStore — seed state', () => {
     expect(full.tightestSpare - route.tightPoint.amount).toBeCloseTo(sigmaSaved, 10);
   });
 
-  it('seed tight point goes negative once pots are earmarked; Today clamps the hero to £0', () => {
+  it('earmarks recorded pot cash without inventing a recurring rent bill', () => {
     const route = routeFromStore(seedState(), NOW);
 
-    // Earmarking £620 of saved pot cash drops the lowest point £620 below the old
-    // full-balance figure (£136.03 → −£483.97), the honest "tight before payday"
-    // signal: this person's spendable money runs out before payday once the pots
-    // are set aside. The raw curve is allowed negative — it is the truth.
-    expect(route.tightPoint.amount).toBeLessThan(0);
-    expect(Math.round(route.tightPoint.amount)).toBe(-484);
-
-    // The Today hero applies the existing floor `Math.max(0, round(tightestSpare))`
-    // (TodayScreen.tsx) — so the headline reads £0, not a negative number, while
-    // the underlying route stays honest.
-    expect(Math.max(0, Math.round(route.tightPoint.amount))).toBe(0);
-
-    // It still lands before payday (the start-of-month bill cluster lands after),
-    // so payday is NOT where the curve bottoms out. The earmark is a flat offset,
-    // so the tight DAY is unchanged from the full-balance model.
+    // The explicit test fixture contains £620 saved pot cash and its own subscriptions. The old
+    // calendar silently injected another £540 Rent row; production projections now use recorded
+    // entities only, leaving £56.03 at the low point.
+    expect(route.tightPoint.amount).toBeCloseTo(56.03, 2);
+    expect(Math.max(0, Math.round(route.tightPoint.amount))).toBe(56);
     expect(route.tightPoint.date < '2026-06-25').toBe(true);
   });
 
@@ -319,16 +309,11 @@ describe('isOverspentLanding', () => {
     expect(isOverspentLanding(state, NOW)).toBe(false);
   });
 
-  it('agrees with derivePressure on the seed state (whichever way that resolves)', () => {
-    // The seed state's tight point is honestly negative (see the "routeFromStore — seed state" suite
-    // above: −£484 once pots are earmarked), so the seed itself IS the overspent band under
-    // `derivePressure`. Pinning this against the route directly (rather than a hardcoded boolean) keeps
-    // this test truthful to whatever the seed numbers are, while still proving the gate agrees with the
-    // route instead of drifting to a second, hand-picked notion of "overspent".
+  it('agrees with the explicit fixture route after implicit demo bills are excluded', () => {
     const state = seedState();
     const overspentByRoute = routeFromStore(state, NOW).tightPoint.amount < 0;
     expect(isOverspentLanding(state, NOW)).toBe(overspentByRoute);
-    expect(isOverspentLanding(state, NOW)).toBe(true); // pinned: the documented seed tight point is negative
+    expect(isOverspentLanding(state, NOW)).toBe(false);
   });
 
   it('a real negative tightest-projected-spare state IS overspent', () => {

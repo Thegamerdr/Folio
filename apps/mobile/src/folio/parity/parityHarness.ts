@@ -379,7 +379,7 @@ function applyParityRuntimeUrl(url: string): void {
     return;
   }
   if (
-    parsed.protocol !== 'folio:' ||
+    (parsed.protocol !== 'folio-qa:' && parsed.protocol !== 'folio:') ||
     (parsed.hostname !== 'parity' && parsed.searchParams.get('capture') !== '1')
   )
     return;
@@ -393,7 +393,7 @@ function applyParityRuntimeUrl(url: string): void {
 }
 
 /**
- * Enables capture-only runtime navigation through `folio://parity?...` deep links. A single
+ * Enables capture-only runtime navigation through `folio-qa://parity?...` deep links. A single
  * fixture APK can therefore render an entire family in both themes without rebuilding for every
  * surface. The listener is never installed in an ordinary build.
  */
@@ -750,6 +750,9 @@ function configureScaleFixture(): void {
 /** Applies one deterministic state through real store authorities. Must run before persistence is
  *  started; app/index.tsx deliberately skips persistence entirely in capture mode. */
 export function activateParityHarness(config: ParityHarnessConfig): void {
+  // Keep the authority itself inert in ordinary builds, even if a future caller forgets the
+  // app-entry guard. Checking before clock installation also preserves the real user's date.
+  if (getParityHarnessConfig() === null) return;
   installCaptureClock(config.nowISO);
 
   const fixture = fixtureManifest.fixtures[config.fixture];

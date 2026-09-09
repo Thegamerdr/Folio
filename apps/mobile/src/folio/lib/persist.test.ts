@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // Native-persistence PURE-helper tests.
 //
 // `persist.ts` itself imports `expo-file-system` and resolves the `@/` alias,
@@ -15,7 +16,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getPersistBlob, getState, hydrateFromBlob, resetAll, setPartial } from '../store';
+import { getPersistBlob, getState, hydrateFromBlob, setPartial } from '../store';
 
 // Mirror of persist.ts `makeDebounced` — kept in lockstep with the original.
 // Pure (global timers only); copied so this test imports no expo.

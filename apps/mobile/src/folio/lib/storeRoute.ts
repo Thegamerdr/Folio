@@ -198,9 +198,8 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
     whatIfHolds: state.whatIfHolds ?? [],
     windowDays: ROUTE_WINDOW_DAYS,
     now: utcMidnightOf(todayIso),
-    // Sample/demo bills only while the seed is untouched (currentBalance still 'sample'). A cleared or
-    // real user's money path must reflect ONLY their own outflows — never the hardcoded example bills.
-    includeSampleBills: state.currentBalance.source === 'sample',
+    // Only recorded outflows participate. Capture builds provide their own isolated fixture events.
+    includeSampleBills: false,
   });
 
   // Split the derived timeline into the engine's buckets by sign: positive = income (payday),

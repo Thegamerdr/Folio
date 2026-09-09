@@ -86,7 +86,7 @@ import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import type { Nav, Pressure } from '@/folio/types';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 
-import { derivePressure, pressureLine, pressureLow } from './today/pressure';
+import { derivePressure, pressureLine } from './today/pressure';
 import { selectPaydayTightPoint, tightPointDayLabel } from '@/folio/lib/moneyPath';
 import { formatDayProse, formatGBP, groupedPounds } from './today/format';
 import { TodayNudges } from './today/TodayNudges';
@@ -220,13 +220,13 @@ export function TodayScreen({
     () =>
       paydayTight
         ? { tightestSpare: paydayTight.amount, tightestDate: paydayTight.date }
-        : { tightestSpare: pressureLow[pressure], tightestDate: null as string | null },
+        : { tightestSpare: 0, tightestDate: null as string | null },
     [paydayTight, pressure],
   );
 
   // Days to payday — the live count from the route engine (whole calendar days, today → payday),
   // falling back to the sample literal until the mount-gate opens.
-  const daysToPayday = route ? route.daysToPayday : 11;
+  const daysToPayday = route ? route.daysToPayday : 0;
 
   const sinceLastOpen = useMemo(() => {
     if (!prevOpenIso || !now) return null;
@@ -347,7 +347,7 @@ export function TodayScreen({
             whatIfHolds,
             windowDays: 35,
             now: engineNow!,
-            includeSampleBills: currentBalance.source === 'sample',
+            includeSampleBills: false,
           })
         : [],
     [
@@ -441,26 +441,26 @@ export function TodayScreen({
     financialPlan !== null
       ? 'safe to spend until payday'
       : heroUnit === 'currency' && routeTightestAmount < 0
-      ? `spare · £${groupedPounds(Math.abs(routeTightestAmount) + Math.round(scrub * 120))} short`
-      : heroUnit === 'days'
-        ? 'days of essentials covered'
-        : heroUnit === 'weeks'
-          ? 'weeks of bills covered'
-          : heroUnit === 'signal'
-            ? modeState.safeZone.formula
-            : modeState.spareLabel;
+        ? `spare · £${groupedPounds(Math.abs(routeTightestAmount) + Math.round(scrub * 120))} short`
+        : heroUnit === 'days'
+          ? 'days of essentials covered'
+          : heroUnit === 'weeks'
+            ? 'weeks of bills covered'
+            : heroUnit === 'signal'
+              ? modeState.safeZone.formula
+              : modeState.spareLabel;
   const heroProvisional =
     modeState.safeZone.confidence !== 'high' || currentBalance.source === 'sample';
   const heroBase =
     financialPlan !== null
       ? Math.max(0, Math.floor(financialPlan.safeToSpendMinor / 100))
       : heroUnit === 'currency'
-      ? Math.max(
-          0,
-          (routeTightestAmount < 0 ? 0 : Math.round(modeState.safeZone.amount)) -
-            Math.round(scrub * 120),
-        )
-      : Math.max(0, Math.round(modeState.safeZone.amount));
+        ? Math.max(
+            0,
+            (routeTightestAmount < 0 ? 0 : Math.round(modeState.safeZone.amount)) -
+              Math.round(scrub * 120),
+          )
+        : Math.max(0, Math.round(modeState.safeZone.amount));
   const lowDisplay = useCountUp(heroBase, 400, reduceMotion);
   const heroFigure =
     financialPlan !== null
@@ -616,12 +616,12 @@ export function TodayScreen({
         ) : !onboarding.done && !hasMoneyPicture ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="The numbers on this screen are sample data — tap to make them yours"
+            accessibilityLabel="Complete your money setup"
             onPress={() => nav.openSheet('onboarding')}
             style={({ pressed: p }) => [styles.sampleTruth, p ? pressed : undefined]}
           >
-            <Text style={[styles.sampleTruthText, { color: t.muted }]}>Sample numbers</Text>
-            <Text style={[styles.sampleTruthText, { color: t.muted }]}> · make them yours →</Text>
+            <Text style={[styles.sampleTruthText, { color: t.muted }]}>Add your money</Text>
+            <Text style={[styles.sampleTruthText, { color: t.muted }]}> · finish setup →</Text>
           </Pressable>
         ) : null}
 

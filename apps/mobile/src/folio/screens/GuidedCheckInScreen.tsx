@@ -77,6 +77,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { setCurrentBalance, useAppStore } from '@/folio/store';
+import { guidedBalanceDraft } from '@/folio/lib/guidedBalance';
 import type { Nav } from '@/folio/types';
 
 // The render states this screen can occupy. Per the spec, Guided is populated-only and offline is
@@ -108,10 +109,6 @@ const COUNT_UP_MS = 220;
 
 // The caret's blink half-cycle. A gentle opacity breath, not an attention-grab.
 const CARET_BLINK_MS = 720;
-
-// The default rough figure when the store has no user-entered balance yet. The web seeded the literal
-// "1240"; we keep that as the fallback display seed only, never as a persisted number.
-const SEED_FALLBACK = '1240';
 
 // Local reduce-motion read, mirroring Melo.tsx / StartScreen / IntakeScreen exactly: read once, then
 // subscribe to changes. Kept self-contained so this screen pulls no heavy module graph.
@@ -145,13 +142,10 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
-  // Seed the rough figure from the store's current account position (honest: the same number the rest
-  // of the app reads). A 'sample'/zero balance falls back to the web's rough seed so the field is
-  // never blank on first run. Read once for the initial value; edits live in local state from there.
-  const seededAmount = useAppStore((s) => s.currentBalance.amount);
-  const [value, setValue] = useState(() =>
-    seededAmount > 0 ? String(Math.round(seededAmount)) : SEED_FALLBACK,
-  );
+  // Prefill only an existing real balance. Continue confirms the displayed amount; a fresh
+  // profile must never silently turn a design example into user-entered money.
+  const currentBalance = useAppStore((s) => s.currentBalance);
+  const [value, setValue] = useState(() => guidedBalanceDraft(currentBalance));
 
   // The grouped display string — Number(value).toLocaleString('en-GB'), exactly as the web computes
   // it. Number("12.")→12, leading "0" already replaced on input, backspace-to-empty → "0".

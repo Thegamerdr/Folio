@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from './test/sampleFixture';
 // Folio data-spine tests — pure-logic coverage for the RN store port
 // (apps/mobile/src/folio/store.ts).
 //
@@ -72,7 +73,6 @@ import {
   removeIncomeSource,
   removeTransaction,
   renameAccount,
-  resetAll,
   resetToEmpty,
   resolveReviewItem,
   rollbackWorkspaceOwnerTransferLeg,

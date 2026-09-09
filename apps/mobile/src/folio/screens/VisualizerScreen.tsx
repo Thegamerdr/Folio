@@ -105,9 +105,7 @@ import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
 // Candidate money item — the shape a statement / photo / text reader produces.
-// The reader is built later (@rn-engine above); this UI-only wave renders the
-// LOCAL SAMPLE below (the web's exact eight rows, verbatim) so the design states
-// are faithful without fabricating new data.
+// Only real reader candidates reach the production review flow.
 // ---------------------------------------------------------------------------
 
 export type CandidateMoneyItem = {
@@ -130,43 +128,21 @@ export type CandidateMoneyItem = {
   whenIso?: string;
 };
 
-// Per-merchant display metadata the reader layers on top of the money facts: the web's exact short
-// date label, suggested type label, and "to check" flag. The engine owns merchant + signed amount;
-// these restate the web's exact displayed labels (no new data) so the render stays byte-identical.
-type RowMeta = { date: string; type: string; status: 'ok' | 'check' };
-const SAMPLE_ROW_META: Readonly<Record<string, RowMeta>> = {
-  Tesco: { date: '26 Jun', type: 'Groceries', status: 'ok' },
-  'Salary — Whitstone Ltd': { date: '25 Jun', type: 'Income', status: 'ok' },
-  'Octopus Energy': { date: '24 Jun', type: 'Bill', status: 'ok' },
-  'Transfer to Sarah': { date: '24 Jun', type: 'Unknown', status: 'check' },
-  'Pret a Manger': { date: '23 Jun', type: 'Eating out', status: 'ok' },
-  Klarna: { date: '22 Jun', type: 'Debt', status: 'check' },
-  Spotify: { date: '22 Jun', type: 'Subscription', status: 'ok' },
-  'Refund — ASOS': { date: '21 Jun', type: 'Unknown', status: 'check' },
-};
-
-// Map the engine's candidates → this screen's render shape. The merchant + signed amount are the
-// real `parseSheet` output; the short date / type label / status are restated from the web's exact
-// per-merchant metadata (fallbacks keep a live, non-sample paste honest rather than throwing).
+// Render only facts supplied by the reader; missing facts stay unknown and require review.
 function toRenderCandidates(candidates: readonly SheetCandidate[]): CandidateMoneyItem[] {
   return candidates.map((candidate) => {
-    const meta = SAMPLE_ROW_META[candidate.merchant];
-    // REAL candidate data wins; the sample metadata is a FALLBACK for the demo paste only
-    // (whose candidates carry no date/category). The old precedence let a real statement
-    // containing e.g. "Octopus Energy" pick up the demo's fake "24 Jun" label.
     return {
       merchant: candidate.merchant,
-      date: candidate.date ?? meta?.date ?? '',
+      date: candidate.date ?? '',
       amount: candidate.amount,
-      type: candidate.category ?? meta?.type ?? 'Unknown',
-      // A real read's confidence drives the "wants a glance" flag; the demo rows (no
-      // confidence field) fall back to the web's hand-written flags.
+      type: candidate.category ?? 'Unknown',
+      // Missing confidence requires a glance rather than borrowing a fixture's certainty.
       status:
         candidate.confidence !== undefined
           ? candidate.confidence === 'low'
             ? 'check'
             : 'ok'
-          : (meta?.status ?? 'ok'),
+          : 'check',
       // Carry the real ISO statement date through to Accept (exactOptionalPropertyTypes: omit when absent).
       ...(candidate.date ? { whenIso: candidate.date } : {}),
     };

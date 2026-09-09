@@ -21,6 +21,7 @@ import {
   workspaceBackupRef,
 } from './cloudBackup';
 import { GCM_NONCE_BYTES } from './cryptoBlob';
+import { isCaptureBuild } from './captureBuild';
 
 const LEGACY_PERSONAL_RECOVERY_CODE_ID = 'melo.cloudBackupRecovery.v1';
 const RECOVERY_CODE_PREFIX = 'melo.cloudBackupRecovery.v2';
@@ -76,6 +77,7 @@ export type StagedCloudRestore = Readonly<{
 }>;
 
 export function getCloudVaultUrl(): string | undefined {
+  if (isCaptureBuild()) return undefined;
   const fromEnv = process.env.EXPO_PUBLIC_MELO_CLOUD_VAULT_URL;
   if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) {
     const normalized = normalizeCloudVaultUrl(fromEnv);

@@ -20,7 +20,7 @@ import {
   totalOutstandingInvoicesMinor,
 } from '@folio/business-workspace';
 
-import { purgeSeedIfReal, type AppState } from '../store';
+import { hasConfiguredMoneyPicture, purgeSeedIfReal, type AppState } from '../store';
 import { deriveCalendarEvents } from './calendarEvents';
 import { selectMonthlyIncome } from './income';
 import { routeFromStore } from './storeRoute';
@@ -60,8 +60,9 @@ function protectedItemLabels(state: AppState): readonly string[] {
 
 function hasRealMoneyPicture(state: AppState): boolean {
   return (
-    state.currentBalance.source !== 'sample' ||
-    state.transactions.some((transaction) => transaction.source !== 'seed')
+    hasConfiguredMoneyPicture(state) &&
+    (state.currentBalance.source !== 'sample' ||
+      state.transactions.some((transaction) => transaction.source !== 'seed'))
   );
 }
 

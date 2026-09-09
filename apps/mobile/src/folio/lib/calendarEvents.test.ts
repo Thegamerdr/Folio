@@ -37,7 +37,7 @@ function ids(events: DerivedEvent[]): string[] {
 }
 
 describe('deriveCalendarEvents — window membership', () => {
-  it('renders payday, a bill, and a sub renewal all inside the 35-day window', () => {
+  it('supports explicitly requested historical demo fixtures inside the 35-day window', () => {
     const now = at('2026-07-01');
     const subs: Sub[] = [
       { name: 'Spotify', cost: 11, nextRenewalDaysAway: 5, lastUsedDaysAgo: 0, usesPerMonth: 28 },
@@ -48,6 +48,7 @@ describe('deriveCalendarEvents — window membership', () => {
       onboarding: ONBOARDING,
       manualEvents: [],
       now,
+      includeSampleBills: true,
     });
 
     // Payday rule = 25th, +£2,180 in. The payday engine clamps off weekends
@@ -539,5 +540,60 @@ describe('deriveHistoricalDayEvents — past-day real-transaction grouping', () 
     const snapshot = JSON.parse(JSON.stringify(input));
     deriveHistoricalDayEvents(input, TODAY_ISO);
     expect(input).toEqual(snapshot);
+  });
+});
+
+describe('production calendar data hygiene', () => {
+  const emptyOnboarding: Onboarding = { done: false, name: '', payday: 0, monthlyIncome: 0 };
+
+  it('defaults to zero events without recorded money or an explicit fixture option', () => {
+    expect(
+      deriveCalendarEvents({
+        subs: [],
+        subPaused: {},
+        onboarding: emptyOnboarding,
+        manualEvents: [],
+        now: at('2026-07-01'),
+      }),
+    ).toEqual([]);
+  });
+
+  it('derives only the entered subscription and income without inserting demo bills or reviews', () => {
+    const events = deriveCalendarEvents({
+      subs: [
+        {
+          name: 'Entered bill',
+          cost: 50,
+          nextRenewalDaysAway: 2,
+          lastUsedDaysAgo: 0,
+          usesPerMonth: 0,
+        },
+      ],
+      subPaused: {},
+      onboarding: { ...emptyOnboarding, done: true, payday: 20, monthlyIncome: 400 },
+      manualEvents: [],
+      windowDays: 25,
+      now: at('2026-07-01'),
+    });
+    expect(events.map((event) => [event.title, event.amount])).toEqual([
+      ['Entered bill', -50],
+      ['Payday', 400],
+    ]);
+  });
+
+  it('keeps an empty subscription-nudge preview independent of historical fixture bills', () => {
+    expect(
+      previewSubNudge({
+        subName: 'Not recorded',
+        deltaDays: 7,
+        subs: [],
+        subPaused: {},
+        subOverrides: {},
+        onboarding: emptyOnboarding,
+        manualEvents: [],
+        startingSpare: 0,
+        now: at('2026-07-01'),
+      }),
+    ).toBe(0);
   });
 });

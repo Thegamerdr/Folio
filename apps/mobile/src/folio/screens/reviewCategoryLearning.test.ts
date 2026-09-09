@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // ReviewScreen onAdd → rememberMerchantCategory store contract tests — DATA_INTELLIGENCE.md phase ③
 // "Merchant→category memory".
 //
@@ -14,7 +15,6 @@ import {
   addTransaction,
   getState,
   rememberMerchantCategory,
-  resetAll,
   setPartial,
   type Transaction,
 } from '../store';

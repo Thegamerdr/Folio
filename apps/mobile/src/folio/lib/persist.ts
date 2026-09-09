@@ -1585,7 +1585,7 @@ export async function persistEmptyWorkspaceSetAfterLocalClear(): Promise<void> {
       activeWorkspaceId: workspace.id,
       dataWorkspaceId: workspace.id,
     };
-    const empty = createEmptyWorkspacePartition(root, workspace.id, createdAt);
+    const empty = createEmptyWorkspacePartition(root, workspace.id, createdAt, current);
     await writePartitionState(workspace, serializeWorkspacePartition(empty, workspace.id));
   }
   await commitWorkspaceManifest();

@@ -3,14 +3,10 @@
  * `src/lib/calendar-events.ts`. Turns the existing money model (subs, payday,
  * pots, manual events) into a sorted timeline. Pure functions, no I/O.
  *
- * Parity-first: this mirrors the web prototype in behaviour so the Calendar
- * screen renders the same shape of derived events the web design did. The
- * static seeds below remain deliberate web stand-ins, each tagged @rn-engine
- * where the real RN engine will eventually take over. Two derivations now wire
- * the real pure engines: payday/bill day-of-month resolution goes through
- * `resolvePayday` (Feb-31 clamp + weekend-previous) and pot top-ups follow each
- * pot's own `cadence` via `resolveNextTopUp` (defaulting to after-payday). The
- * windowing/sorting/recurrence/sub-nudge behaviour is otherwise unchanged.
+ * Production derives events only from recorded user inputs. Historical demo bill constants are
+ * available solely through an explicit test option; isolated visual captures materialize their
+ * own fixture events. Payday resolution uses `resolvePayday`, and pot top-ups follow each pot's
+ * cadence through `resolveNextTopUp` (defaulting to after-payday).
  *
  * Types come from the data spine: `@/folio/store` (alias `@/*` -> `src/*`),
  * imported relatively as `../store` so the pure-logic test runner resolves it.
@@ -106,10 +102,7 @@ function nextDayOfMonth(fromIso: string, dayOfMonth: number): string {
   return resolvePayday({ dayOfMonth, weekendRule: 'previous' }, nextYearMonth(fromIso));
 }
 
-// @rn-engine bills — RN swaps for the real engines (faithful web stand-in)
-/** Static personal recurring bills — anchored to day-of-month.
- *  Stands in for the RN Bills engine; values match the synthetic figures
- *  used elsewhere in the prototype so the Route and Calendar agree. */
+/** Historical test fixture bills, anchored to day-of-month. Never enabled by a production caller. */
 const RECURRING_BILLS: { name: string; dayOfMonth: number; amount: number; note?: string }[] = [
   { name: 'Octopus Energy', dayOfMonth: 1, amount: 118.4, note: 'Variable — could land lower' },
   { name: 'Council Tax', dayOfMonth: 1, amount: 162, note: 'Monthly direct debit' },
@@ -117,8 +110,7 @@ const RECURRING_BILLS: { name: string; dayOfMonth: number; amount: number; note?
   { name: 'Rent', dayOfMonth: 12, amount: 540, note: 'Monthly' },
 ];
 
-// @rn-engine deadlines — RN swaps for the real engines (faithful web stand-in)
-/** UK personal deadlines that don't depend on user data. */
+/** Historical test fixture deadlines; they are not assumed to apply to a real user. */
 const PERSONAL_DEADLINES: { mmdd: string; title: string; note: string }[] = [
   { mmdd: '01-31', title: 'Self Assessment due', note: 'HMRC online deadline' },
   { mmdd: '07-31', title: 'Payment on account', note: 'Second instalment' },
@@ -137,7 +129,7 @@ export function deriveCalendarEvents({
   whatIfHolds = [],
   windowDays = 35,
   now = new Date(),
-  includeSampleBills = true,
+  includeSampleBills = false,
 }: {
   subs: Sub[];
   subPaused: Record<string, boolean>;
@@ -162,11 +154,9 @@ export function deriveCalendarEvents({
   whatIfHolds?: WhatIfHold[];
   windowDays?: number;
   now?: Date;
-  /** Whether to inject the hardcoded DEMO example bills (RECURRING_BILLS). True for the seeded demo
-   *  regime so its money path is rich; the live callers pass FALSE once the app holds real/cleared
-   *  data, so a real user never sees phantom Octopus/Council Tax/Rent they never entered. A real
-   *  user's own recurring bills come through `subs` (Add a bill → setSubs), not this const. Defaults
-   *  true for back-compat with the engine's own tests + the relative nudge helper. */
+  /** Test-only compatibility for historical demo derivation fixtures. Production callers always
+   *  pass false; isolated visual captures materialize their own fixture events. Missing arguments
+   *  must never inject example bills, Klarna reviews or generic deadlines into a real profile. */
   includeSampleBills?: boolean;
 }): DerivedEvent[] {
   const out: DerivedEvent[] = [];
@@ -525,6 +515,7 @@ export function previewSubNudge(args: {
         subOverrides: args.subOverrides,
         onboarding: args.onboarding,
         manualEvents: args.manualEvents,
+        includeSampleBills: false,
         ...optional,
       }),
     ),
@@ -541,6 +532,7 @@ export function previewSubNudge(args: {
         },
         onboarding: args.onboarding,
         manualEvents: args.manualEvents,
+        includeSampleBills: false,
         ...optional,
       }),
     ),

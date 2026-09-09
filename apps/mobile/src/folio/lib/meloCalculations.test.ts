@@ -1,7 +1,8 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
-import { getState, resetAll, setPartial } from '../store';
+import { getState, setPartial } from '../store';
 import { buildMeloLocalCalculation } from './meloCalculations';
 import { buildLocalMeloTurn } from '../../local/localMeloTurn';
 

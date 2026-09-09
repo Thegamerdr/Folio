@@ -1,6 +1,7 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { getState, resetAll, setPartial } from '../store';
+import { getState, setPartial } from '../store';
 import { buildRecoveryRoutePreview, isDiscretionarySubscription } from './recoveryPreview';
 import { routeFromStore } from './storeRoute';
 

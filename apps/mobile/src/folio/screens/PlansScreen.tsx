@@ -258,8 +258,6 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
   const incomeSources = useAppStore((st) => st.incomeSources ?? []);
   const whatIfHolds = useAppStore((st) => st.whatIfHolds ?? []);
   const debts = useAppStore((st) => st.debts ?? []);
-  // Demo example bills only while the seed is untouched; a cleared/real user sees only their own.
-  const includeSampleBills = useAppStore((st) => st.currentBalance.source === 'sample');
 
   // Mount-gate the clock (mirrors TodayScreen): defer `new Date()` to an effect so nothing reads the
   // wall clock during the first render. Until it opens, the screen holds the loading branch.
@@ -291,7 +289,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
             incomeSources,
             whatIfHolds,
             now,
-            includeSampleBills,
+            includeSampleBills: false,
           })
         : [],
     [
@@ -304,7 +302,6 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
       pots,
       incomeSources,
       whatIfHolds,
-      includeSampleBills,
     ],
   );
 

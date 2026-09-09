@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // "Add all" batch-accept contract — the Visualizer's bulk option
 // (apps/mobile/src/folio/screens/VisualizerScreen.tsx, `acceptAll` → `commit`).
 //
@@ -22,7 +23,6 @@ import {
   addTransaction,
   clearReaderCandidates,
   getState,
-  resetAll,
   setReaderCandidates,
 } from '../store';
 import type { CandidateMoneyItem } from '../lib/importSheet';

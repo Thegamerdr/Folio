@@ -1,6 +1,7 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { getState, resetAll, setPartial } from '../store';
+import { getState, setPartial } from '../store';
 import { resolveMeloAccountSelection } from './meloAccountSelection';
 
 const NOW = '2026-07-15T12:00:00.000Z';

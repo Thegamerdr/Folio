@@ -64,16 +64,20 @@ export function openBankingUrlForBuild(): string | undefined {
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const clerkFrontendApiHost = clerkFrontendApiHostForBuild();
+  // QA fixtures have their own OS sandbox, keychain identity and URL scheme. A capture build
+  // cannot upgrade the real app or access its canonical vault, even through secondary screens.
+  const capture = process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true';
+  const applicationId = capture ? 'com.folio.v2.greenfield.capture' : 'com.folio.v2.greenfield';
 
   return {
     ...config,
     // The app IS Melo (owner D4; brand sweep completed 2026-07-11). The slug (EAS project),
     // scheme (existing deep links) and Android package id (com.folio.v2.greenfield — changing it
     // would orphan every installed device) deliberately keep the folio name.
-    name: 'Melo',
+    name: capture ? 'Melo QA' : 'Melo',
     slug: 'folio-v2-greenfield',
-    scheme: 'folio',
-    version: '0.0.4',
+    scheme: capture ? 'folio-qa' : 'folio',
+    version: '0.0.5',
     icon: './assets/brand/app-icon-1024.png',
     orientation: 'portrait',
     platforms: ['ios', 'android'],
@@ -90,7 +94,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // the NEXT launch. Locally-built APKs pin the 'production' channel via requestHeaders;
       // EAS-built profiles get their channel from eas.json. Native/config changes still need a
       // full rebuild — runtimeVersion (fingerprint policy) fences incompatible updates.
-      enabled: true,
+      enabled: !capture,
       url: 'https://u.expo.dev/ef69039d-abaf-48e9-b35a-52d80b03a96a',
       fallbackToCacheTimeout: 0,
       requestHeaders: {
@@ -107,7 +111,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             ],
           }
         : {}),
-      bundleIdentifier: 'com.folio.v2.greenfield',
+      bundleIdentifier: applicationId,
       infoPlist: {
         ...config.ios?.infoPlist,
         NSFaceIDUsageDescription: 'Melo uses device authentication to lock local money data.',
@@ -116,7 +120,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       ...config.android,
-      versionCode: 4,
+      versionCode: 5,
       adaptiveIcon: {
         foregroundImage: './assets/brand/adaptive-foreground.png',
         backgroundColor: '#EFE9DD',
@@ -139,7 +143,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'android.permission.SYSTEM_ALERT_WINDOW',
         'android.permission.WRITE_EXTERNAL_STORAGE',
       ],
-      package: 'com.folio.v2.greenfield',
+      package: applicationId,
     },
     plugins: [
       'expo-router',
@@ -158,6 +162,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       '@sentry/react-native',
       './plugins/withUploadSigning.cjs',
       './plugins/withFreshUpdatesResources.cjs',
+      './plugins/withCaptureIsolation.cjs',
       [
         // R8 code + resource shrinking for release builds (the 68MB sideload APK problem).
         // If a release build ever crashes on boot after a new native dep, suspect missing

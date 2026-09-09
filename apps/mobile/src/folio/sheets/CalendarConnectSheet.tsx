@@ -179,8 +179,6 @@ function CalendarConnectBody({
   const onboarding = useAppStore((state) => state.onboarding);
   const pots = useAppStore((state) => state.pots);
   const manualEvents = useAppStore((state) => state.calendarEvents);
-  // Demo example bills only while the seed is untouched; a cleared/real feed carries only real events.
-  const includeSampleBills = useAppStore((state) => state.currentBalance.source === 'sample');
 
   const events: DerivedEvent[] = useMemo(
     () =>
@@ -191,9 +189,9 @@ function CalendarConnectBody({
         onboarding,
         manualEvents,
         pots,
-        includeSampleBills,
+        includeSampleBills: false,
       }),
-    [subs, subPaused, subOverrides, onboarding, manualEvents, pots, includeSampleBills],
+    [subs, subPaused, subOverrides, onboarding, manualEvents, pots],
   );
 
   const hasDates = events.length > 0;

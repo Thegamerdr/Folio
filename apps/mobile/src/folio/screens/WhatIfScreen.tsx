@@ -65,6 +65,7 @@ import {
   addWhatIfHold,
   removeWhatIfHold,
   useAppStore,
+  hasConfiguredMoneyPicture,
   type Transaction,
   type WhatIfHold,
 } from '@/folio/store';
@@ -193,21 +194,6 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 // ---------------------------------------------------------------------------
 // Constants — ported verbatim from the web source.
 // ---------------------------------------------------------------------------
-
-// The pre-mount-gate fallback lowest-to-payday spare for each route pressure band. The web WhatIf
-// imported this from types.ts (`pressureLow`); the RN `@/folio/types` defines the `Pressure` union but
-// not the derived maps (the Today wave keeps its own copy in screens/today/pressure.ts for the same
-// reason). WhatIf is strictly read-only and can only edit its own file, so it keeps the WhatIf-local
-// copy here. The real baseLow now comes from the route engine's tight point (route.tightPoint.amount);
-// this map is only the honest per-pressure sample shown for the single frame before the mount-gate
-// opens — the same fallback TodayScreen uses, so a normal open never flashes a different figure.
-const pressureLow: Readonly<Record<Pressure, number>> = {
-  safe: 612,
-  calm: 325,
-  soft: 184,
-  pressured: 42,
-  overspent: -86,
-};
 
 // Stepper bounds (web Math.max(0, v - 5) / Math.min(500, v + 5)).
 const AMOUNT_MIN = 0;
@@ -385,7 +371,7 @@ export type WhatIfScreenProps = {
 // WhatIfScreen
 // ---------------------------------------------------------------------------
 
-export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: WhatIfScreenProps) {
+export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
   const insets = useSafeAreaInsets();
@@ -393,6 +379,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
 
   // Live store reads (read-only — WhatIf writes nothing).
   const tightPointGoal = useAppStore((s) => s.tightPointGoal);
+  const hasMoneyPicture = useAppStore(hasConfiguredMoneyPicture);
   const potsTotal = useAppStore((s) => s.pots.reduce((sum, p) => sum + p.saved, 0));
   const transactions = useAppStore((s) => s.transactions);
   const whatIfHolds = useAppStore((s) => s.whatIfHolds ?? []);
@@ -427,7 +414,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // The affordability stat is protected headroom, not raw closing cash. Keep the raw route points
   // for the SVG, but subtract the spend from the canonical safe-to-spend figure so a buffer or
   // dated commitment cannot be bypassed by this preview (Fixture B: £380 − £400 = −£20).
-  const baseLow = route ? (route.safeToSpend ?? route.tightPoint.amount) : pressureLow[pressure];
+  const baseLow = route ? (route.safeToSpend ?? route.tightPoint.amount) : 0;
 
   // Days this would last — newLow ÷ the real daily burn (trailing-28-day average spend from
   // transactions, ENGINES §6). With no recent spend there is no defensible duration, so the screen
@@ -527,7 +514,7 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // empty — no money to preview yet (STATES.md WhatIf empty = "Add some moves first"). The web body has
   // no empty guard; the port adds the calm doorway (Melo + Fraunces line + one CTA → intake) so the
   // experiment never opens onto an empty path. The CTA routes to intake (add what you have).
-  if (state === 'empty') {
+  if (state === 'empty' || !hasMoneyPicture) {
     return (
       <EmptyState
         mood="curious"

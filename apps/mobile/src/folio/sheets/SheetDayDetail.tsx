@@ -102,6 +102,7 @@ export function SheetDayDetail({ visible, onClose, nav, date }: SheetDayDetailPr
         subOverrides,
         onboarding,
         manualEvents: manual,
+        includeSampleBills: false,
         pots,
         now,
       }),

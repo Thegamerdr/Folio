@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // Lens trial-end tests — the 21-day trial floor (lib/lens.ts's `trialEndDate`).
 //
 // Pure, deterministic, Node-safe: `trialEndDate` has no react-native/DOM dependency (only
@@ -11,7 +12,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { endLensTrialIfExpired, trialEndDate, trialEndIsoFor } from './lens';
-import { getState, resetAll, setIncomeSources, setOnboarding, startLensTrial } from '../store';
+import { getState, setIncomeSources, setOnboarding, startLensTrial } from '../store';
 import type { IncomeSource } from '../store';
 
 function source(

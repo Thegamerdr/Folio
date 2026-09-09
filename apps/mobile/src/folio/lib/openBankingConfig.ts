@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { isCaptureBuild } from './captureBuild';
 
 /**
  * Open Banking is deliberately opt-in at build time. The current Melo release candidate does
@@ -6,6 +7,7 @@ import Constants from 'expo-constants';
  * button or send a request. A future approved build must set both the feature flag and URL.
  */
 export function isOpenBankingEnabled(): boolean {
+  if (isCaptureBuild()) return false;
   const flag = publicValue('EXPO_PUBLIC_MELO_OPEN_BANKING_ENABLED');
   const endpoint = validEndpoint(publicValue('EXPO_PUBLIC_MELO_OPEN_BANKING_URL'));
   return flag === 'true' && endpoint !== null;
@@ -18,6 +20,7 @@ export function getOpenBankingUrl(): string | undefined {
 
 /** A paused connection feature does not prove that this account has no historical bank data. */
 export function getOpenBankingDeletionUrl(): string | undefined {
+  if (isCaptureBuild()) return undefined;
   const endpoint = validEndpoint(publicValue('EXPO_PUBLIC_MELO_OPEN_BANKING_URL'));
   return endpoint === null ? undefined : endpoint;
 }

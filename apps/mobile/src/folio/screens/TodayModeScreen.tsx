@@ -878,7 +878,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
     .reduce((sum, sub) => sum + sub.cost, 0);
   const potsSaved = pots.reduce((sum, p) => sum + Math.max(0, p.saved), 0);
   const potsTarget = pots.reduce((sum, p) => sum + (p.goal ?? 0), 0);
-  const daysToPayday = route ? route.daysToPayday : 11;
+  const daysToPayday = route ? route.daysToPayday : 0;
 
   const optimizerLeaks = useMemo(
     () =>
@@ -1019,8 +1019,8 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
           style={[s.sampleChip, { backgroundColor: t.inset, borderColor: t.hairline }]}
         >
           <View style={[s.sampleDot, { backgroundColor: t.caution }]} />
-          <Text style={[s.sampleText, { color: t.muted }]}>Sample numbers</Text>
-          <Text style={[s.sampleText, { color: t.calm }]}>make them yours →</Text>
+          <Text style={[s.sampleText, { color: t.muted }]}>Add your money</Text>
+          <Text style={[s.sampleText, { color: t.calm }]}>finish setup →</Text>
         </Pressable>
       ) : null}
 

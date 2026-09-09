@@ -26,6 +26,7 @@ import {
   type Purchase,
 } from 'expo-iap';
 import { Platform } from 'react-native';
+import { isCaptureBuild } from '../captureBuild';
 
 /** Billing tiers since the Free/Full/Live restructure (MONEY_MODEL.md §2b): 'full' is a ONE-TIME
  *  non-consumable ("yours forever" — zero marginal cost), 'live' is the only subscription
@@ -184,6 +185,7 @@ export function subscribeToPurchaseUpdates(handler: PurchaseUpdateHandler): () =
 }
 
 export function ensurePurchaseListeners(): void {
+  if (isCaptureBuild()) return;
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
   if (purchaseUpdatesSubscription !== null) return;
   purchaseUpdatesSubscription = purchaseUpdatedListener((purchase) => {
@@ -227,6 +229,14 @@ export function ensurePurchaseListeners(): void {
  * memoized for the session.
  */
 export async function probeAvailability(): Promise<AvailabilityResult> {
+  if (isCaptureBuild()) {
+    return {
+      available: false,
+      products: {},
+      availableProductIds: [],
+      reason: 'unsupported-platform',
+    };
+  }
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
     return {
       available: false,
@@ -294,6 +304,7 @@ export async function probeAvailability(): Promise<AvailabilityResult> {
 export async function queryProducts(
   skus: readonly string[] = ALL_PRODUCT_IDS,
 ): Promise<ProductOrSubscription[]> {
+  if (isCaptureBuild()) return [];
   try {
     const inAppSkus = skus.filter((sku) => productTypeFor(sku) === 'in-app');
     const subSkus = skus.filter((sku) => productTypeFor(sku) === 'subs');
@@ -321,6 +332,12 @@ export type PurchaseOutcome =
  * (./entitlements.ts) and calling `finishPurchase` after their own verification step.
  */
 export function purchase(productId: string, offerToken?: string): Promise<PurchaseOutcome> {
+  if (isCaptureBuild()) {
+    return Promise.resolve({
+      status: 'failed',
+      message: 'Store purchases are disabled in Melo QA.',
+    });
+  }
   if (Platform.OS !== 'android' && Platform.OS !== 'ios')
     return Promise.resolve({
       status: 'failed',
@@ -400,6 +417,7 @@ export function purchase(productId: string, offerToken?: string): Promise<Purcha
  *  non-consumable nor the Live subscription is consumable. Swallows failure — a stuck unfinished
  *  transaction just replays harmlessly next launch, it must never crash the app. */
 export async function finishPurchase(p: Purchase): Promise<boolean> {
+  if (isCaptureBuild()) return false;
   try {
     await finishTransaction({ purchase: p, isConsumable: false });
     return true;
@@ -412,6 +430,7 @@ export async function finishPurchase(p: Purchase): Promise<boolean> {
 /** Play owns the durable unfinished/pending queue. A query failure is not an empty queue;
  * callers must catch it and offer retry instead of claiming no purchases exist. */
 export async function restore(): Promise<Purchase[]> {
+  if (isCaptureBuild()) return [];
   const all = await getAvailablePurchases();
   return all.filter((p) => ALL_PRODUCT_IDS.includes(p.productId));
 }
@@ -419,6 +438,7 @@ export async function restore(): Promise<Purchase[]> {
 /** Release the store connection. Call on app background/unmount if the app ever opens one
  *  explicitly outside of `probeAvailability()`; safe to call even if never connected. */
 export async function closeConnection(): Promise<void> {
+  if (isCaptureBuild()) return;
   try {
     await endConnection();
   } catch {

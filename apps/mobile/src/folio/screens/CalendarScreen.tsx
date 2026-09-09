@@ -349,9 +349,6 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const startingSpare = useAppStore(
     (st) => st.currentBalance.amount - st.pots.reduce((acc, p) => acc + p.saved, 0),
   );
-  // Demo example bills (RECURRING_BILLS) only while the seed is untouched; a cleared/real user's
-  // calendar shows only their own bills (added as subs), never phantom ones.
-  const includeSampleBills = useAppStore((st) => st.currentBalance.source === 'sample');
 
   // Events / groups / spare are memoised ABOVE the view branch so switching views never re-derives
   // the data (STATES: "switching never reloads"). Only the presentational subview swaps.
@@ -369,7 +366,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
             spendHold,
             whatIfHolds,
             now: engineToday!,
-            includeSampleBills,
+            includeSampleBills: false,
           })
         : [],
     [
@@ -384,7 +381,6 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
       whatIfHolds,
       today,
       engineToday,
-      includeSampleBills,
     ],
   );
 

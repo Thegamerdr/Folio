@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHash, randomBytes } from 'node:crypto';
 import {
   buildCloudBackupEnvelope,
@@ -43,7 +43,13 @@ vi.mock('@/folio/store', () => ({
 }));
 vi.mock('@/folio/lib/restoreNative', () => ({ applyBusinessCloudRestore: mocks.apply }));
 vi.mock('@/folio/lib/restore', async () => import('./restore'));
-import { applyCloudRestore, createCloudBackup, stageCloudRestore } from './cloudBackupNative';
+import {
+  applyCloudRestore,
+  createCloudBackup,
+  stageCloudRestore,
+  getCloudVaultUrl,
+  fetchCloudBackupStatus,
+} from './cloudBackupNative';
 
 const ref = workspaceBackupRef(PERSONAL_WORKSPACE_ID);
 const keyId = `melo.cloudBackupRecovery.v2.${ref}`;
@@ -68,8 +74,24 @@ beforeEach(() => {
   mocks.fetch.mockReset();
   mocks.apply.mockClear();
 });
+afterEach(() => vi.unstubAllEnvs());
 
 describe('native backup recovery boundaries', () => {
+  it.each(['env', 'extra'])(
+    'blocks fixture backup and the shared sync endpoint despite configured %s URL',
+    async (source) => {
+      vi.stubEnv('EXPO_PUBLIC_MELO_PARITY_CAPTURE', 'true');
+      vi.stubEnv(
+        'EXPO_PUBLIC_MELO_CLOUD_VAULT_URL',
+        source === 'env' ? 'https://backup-env.example.test' : '',
+      );
+      expect(getCloudVaultUrl()).toBeUndefined();
+      await expect(
+        fetchCloudBackupStatus(PERSONAL_WORKSPACE_ID, 'synthetic-token'),
+      ).rejects.toThrow('not configured');
+      expect(mocks.fetch).not.toHaveBeenCalled();
+    },
+  );
   it('recovers a lost rotation response without losing the old-key anchor on its retry', async () => {
     mocks.secrets.set(keyId, oldCode);
     let current = envelope(oldCode),

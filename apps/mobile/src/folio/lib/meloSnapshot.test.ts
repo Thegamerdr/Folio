@@ -1,12 +1,17 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { buildMeloSnapshot } from './meloSnapshot';
 import { routeFromStore } from './storeRoute';
 import {
   createEmptyWorkspacePartition,
+  getPersistBlob,
   getState,
+  hydrateFromBlob,
+  resetToEmpty,
+  setBufferAmount,
+  setCurrentBalance,
   purgeSeedIfReal,
-  resetAll,
   setOnboarding,
   setPartial,
 } from '../store';
@@ -466,5 +471,46 @@ describe('buildMeloSnapshot privacy boundary', () => {
     };
 
     expect(() => buildMeloSnapshot(state, 'calm', NOW)).toThrow(/unavailable/);
+  });
+});
+
+describe('Melo fresh-profile context', () => {
+  it.each([false, true])(
+    'keeps an empty profile onboarding-driven after restart (onboarding done: %s)',
+    (onboardingDone) => {
+      resetToEmpty({ onboardingDone });
+      const blob = getPersistBlob();
+      resetToEmpty();
+      hydrateFromBlob(blob);
+      const snapshot = buildMeloSnapshot(getState(), 'calm', NOW);
+      expect(snapshot.hasMoneyPicture).toBe(false);
+      expect(snapshot.availableNowMinor).toBe(0);
+      expect(snapshot.tightestBalanceMinor).toBe(0);
+      expect(snapshot.monthlyIncomeMinor).toBe(0);
+      expect(snapshot.monthlyOutgoingsMinor).toBe(0);
+      expect(snapshot.totalDebtMinor).toBe(0);
+      expect(snapshot.goalSavedMinor).toBe(0);
+      expect(snapshot.goalTargetMinor).toBe(0);
+      expect(snapshot.accountCount).toBe(0);
+      expect(snapshot.upcomingCalendarCount).toBe(0);
+      expect(snapshot.pendingReviewCount).toBe(0);
+      expect(snapshot.nextPaydayLabel).toBe('not set up yet');
+      expect(snapshot.tightestDay).toBe('not set up yet');
+    },
+  );
+
+  it('uses only the balance and buffer entered after fresh setup', () => {
+    resetToEmpty({ onboardingDone: false });
+    setCurrentBalance({ amount: 100, source: 'user-entered', confidence: 'rough' });
+    setBufferAmount(20);
+    const snapshot = buildMeloSnapshot(getState(), 'calm', NOW);
+    expect(snapshot.hasMoneyPicture).toBe(true);
+    expect(snapshot.availableNowMinor).toBe(8_000);
+    expect(snapshot.monthlyIncomeMinor).toBe(0);
+    expect(snapshot.monthlyOutgoingsMinor).toBe(0);
+    expect(snapshot.debtCount).toBe(0);
+    expect(snapshot.subscriptionCount).toBe(0);
+    expect(snapshot.goalCount).toBe(0);
+    expect(snapshot.upcomingCalendarCount).toBe(0);
   });
 });

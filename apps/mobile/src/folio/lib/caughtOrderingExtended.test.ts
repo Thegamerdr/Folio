@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // Extended caught-signal ORDERING contract — DATA_INTELLIGENCE.md phase ⑥ ("drift ranks BELOW
 // income-caught and bill-caught in the one-sheet-per-landing ordering").
 //
@@ -10,7 +11,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { addTransactionsBatch, getState, resetAll, setSubs, upsertIncomeSource } from '../store';
+import { addTransactionsBatch, getState, setSubs, upsertIncomeSource } from '../store';
 import { findCaughtBills } from './caughtBills';
 import { findCaughtIncome } from './caughtIncome';
 import { findDriftCandidates } from './caughtDrift';

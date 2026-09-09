@@ -17,10 +17,12 @@
 
 import Constants from 'expo-constants';
 import { tokenCache as clerkSecureTokenCache } from '@clerk/clerk-expo/token-cache';
+import { isCaptureBuild } from './captureBuild';
 
 /** Publishable key (not a secret — safe on the client). Env override wins; the app.config.ts
  *  `extra` embed is the reliable default in built APKs. */
 export function getClerkPublishableKey(): string | undefined {
+  if (isCaptureBuild()) return undefined;
   const fromEnv = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   if (typeof fromEnv === 'string' && fromEnv.length > 0) return fromEnv;
   const fromExtra = (Constants.expoConfig?.extra as Record<string, unknown> | undefined)?.[

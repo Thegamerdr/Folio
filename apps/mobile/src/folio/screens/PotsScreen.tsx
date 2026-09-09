@@ -99,7 +99,6 @@ import {
   type Pot,
 } from '@/folio/store';
 import { routeFromStore } from '@/folio/lib/storeRoute';
-import { pressureLow } from '@/folio/screens/today/pressure';
 import type { Nav, Pressure } from '@/folio/types';
 import { triggerFeedback } from '@/folio/lib/feedback';
 import {
@@ -208,7 +207,7 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
-export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
+export function PotsScreen({ nav, state }: PotsScreenProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const insets = useSafeAreaInsets();
@@ -309,7 +308,7 @@ export function PotsScreen({ nav, pressure = 'calm', state }: PotsScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, transfer, fromPot, toPot, clamped, appState]);
 
-  const tightPointBase = impact ? impact.base : pressureLow[pressure];
+  const tightPointBase = impact ? impact.base : 0;
   const tightDelta = impact ? impact.delta : 0;
 
   function openMove(fromId: string) {

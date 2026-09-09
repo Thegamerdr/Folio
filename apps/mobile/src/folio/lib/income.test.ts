@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // Income-cadence engine tests — Phase ① of the data-intelligence program.
 //
 // Pure, deterministic, Node-safe: exercises only date arithmetic on plain
@@ -25,7 +26,6 @@ import {
   addStatementAsHistory,
   addTransaction,
   getState,
-  resetAll,
   resetToEmpty,
   setCurrentBalance,
   setIncomeSources,

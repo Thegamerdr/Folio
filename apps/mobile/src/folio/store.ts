@@ -21,6 +21,14 @@
 //     ENGINES.md §6 "Melo — tool name matching". The four tools' BEHAVIOUR is
 //     byte-for-byte the web original.
 
+import {
+  LEGACY_SAMPLE_BALANCE,
+  LEGACY_SAMPLE_CYCLES,
+  LEGACY_SAMPLE_DEBTS,
+  LEGACY_SAMPLE_PLANS,
+  LEGACY_SAMPLE_POTS,
+  LEGACY_SAMPLE_SUBS,
+} from './lib/legacySampleData';
 import { dedupeKey } from '../local/statementReaderDedup';
 import { readCacheEvictions, READ_CACHE_MAX_CANDIDATES } from './lib/billing/readAllowance';
 import { anchorIsoFor, reanchorRenewals } from './lib/renewalMath';
@@ -312,22 +320,6 @@ export type LensState = {
   trialEndedCycleId: string | null;
   trialEndAcknowledged: boolean;
 };
-
-const DEFAULT_SUBS: Sub[] = [
-  { name: 'Spotify', cost: 11.0, nextRenewalDaysAway: 2, lastUsedDaysAgo: 0, usesPerMonth: 28 },
-  { name: 'Netflix', cost: 12.99, nextRenewalDaysAway: 9, lastUsedDaysAgo: 21, usesPerMonth: 2 },
-  { name: 'Notion', cost: 8.0, nextRenewalDaysAway: 11, lastUsedDaysAgo: 0, usesPerMonth: 30 },
-  {
-    name: 'Disney+',
-    cost: 8.99,
-    nextRenewalDaysAway: 6,
-    lastUsedDaysAgo: 42,
-    usesPerMonth: 0,
-    trialEndsInDays: 6,
-  },
-  { name: 'iCloud', cost: 2.99, nextRenewalDaysAway: 13, lastUsedDaysAgo: 0, usesPerMonth: 30 },
-  { name: 'Strava', cost: 9.99, nextRenewalDaysAway: 17, lastUsedDaysAgo: 18, usesPerMonth: 1 },
-];
 
 export type CycleRecord = {
   workspaceId?: WorkspaceId;
@@ -1022,7 +1014,7 @@ const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
 const DEFAULT_MONEY_MODE: MoneyMode = 'survival';
 
 /** Non-optional fallback for `AppState.bufferAmount` — same widening issue. */
-const DEFAULT_BUFFER_AMOUNT = 100;
+const DEFAULT_BUFFER_AMOUNT = 0;
 
 /** Non-optional fallback for `AppState.debts` — same widening issue. Empty,
  *  not the DEFAULTS fixture data, since this is used by `load()`/`migrate()`
@@ -1065,13 +1057,6 @@ const DEFAULT_HOUSEHOLD: Household = { partnerName: '', defaultShare: 0.5, subSh
  *  `AppState` for shape back-compat). */
 const DEFAULT_MELO: MeloState = { quietMode: false, wardrobe: [], tone: 'calm' };
 
-const SAMPLE_BALANCE: CurrentBalance = {
-  amount: 720,
-  source: 'sample',
-  confidence: 'sample',
-  setAt: '2026-06-27T00:00:00.000Z',
-};
-
 /** A genuinely empty, honest starting balance for a CLEAN-EMPTY reset. £0 with a
  *  `user-entered` source + `rough` confidence — NOT `sample` (sample implies demo
  *  data the user never entered). A returning clean user has chosen to start from
@@ -1104,184 +1089,22 @@ function synthesizeDefaultAccount(currentBalance: CurrentBalance): Account {
   };
 }
 
-const DEFAULTS: AppState = normaliseWorkspaceRows(
-  {
-    schemaVersion: CURRENT_SCHEMA_VERSION,
-    ...createPersonalWorkspaceRoot(),
-    pots: [
-      {
-        id: 'holiday',
-        name: 'Holiday · September',
-        saved: 420,
-        goal: 1200,
-        perWeek: 35,
-        accent: true,
-      },
-      { id: 'buffer', name: 'Buffer', saved: 140, goal: 500, perWeek: 20, accent: false },
-      { id: 'christmas', name: 'Christmas', saved: 60, goal: 300, perWeek: 15, accent: false },
-    ],
-    subs: DEFAULT_SUBS,
-    subPaused: {},
-    subOverrides: {},
-    cycles: [
-      // Seed two prior cycles so Insights has something to show on first run.
-      {
-        closedAt: '2026-05-25',
-        label: 'May',
-        spare: 142,
-        tightPoint: 38,
-        setAside: 60,
-        note: 'Held the line on takeaway.',
-      },
-      {
-        closedAt: '2026-04-25',
-        label: 'April',
-        spare: 88,
-        tightPoint: 24,
-        setAside: 50,
-        note: 'Tight one — buffer saved it.',
-      },
-    ],
-    onboarding: { done: false, name: '', payday: 25, monthlyIncome: 2180 },
-    currentBalance: SAMPLE_BALANCE,
-    accounts: [synthesizeDefaultAccount(SAMPLE_BALANCE)],
-    potLedger: [],
-    nextYouNote: '',
-    tightPointGoal: null,
-    transactions: [],
-    droppedTransactionCount: 0,
-    edits: [],
-    calendarEvents: [],
-    calendarFocusDate: null,
-    routeFocusDate: null,
-    readerCandidates: [],
-    readerClosingBalance: null,
-    ignoredReviewSigs: [],
-    reviewQueue: [],
-    reviewQueueSpillover: [],
-    statementImports: [],
-    evidenceDocuments: [],
-    moneyMode: 'survival',
-    bufferAmount: 100,
-    modeExtras: {},
-    // Sentinel monthKey '' never matches a real month, so the counter reads as 0 used until the
-    // first recorded read stamps the real month.
-    aiReads: { monthKey: '', used: 0 },
-    aiReadCache: {},
-    whatChangedSeenISO: null,
-    // Two seed debts so the Debt lens has honest numbers on first run, mirroring
-    // the Lovable design's DEFAULTS. Klarna is interest-free; the loan is a
-    // mid-APR personal loan. Balances are rough — the user replaces via a
-    // future SheetAddDebt (not yet wired on RN).
-    debts: [
-      {
-        id: 'seed-loan',
-        name: 'Personal loan',
-        kind: 'loan',
-        balance: 2400,
-        apr: 12.9,
-        minPayment: 120,
-        dueDom: 5,
-        addedAt: '2026-03-01T00:00:00.000Z',
-      },
-      {
-        id: 'seed-klarna',
-        name: 'Klarna sofa',
-        kind: 'bnpl',
-        balance: 320,
-        apr: 0,
-        minPayment: 80,
-        dueDom: 15,
-        addedAt: '2026-05-01T00:00:00.000Z',
-      },
-    ],
-    household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
-    // One seed plan so the Planning lens has an honest number on first run,
-    // mirroring the Lovable design's DEFAULTS. Illustrative — the user
-    // replaces via a future SheetAddPlan (not yet wired on RN).
-    plans: [
-      {
-        id: 'seed-macbook',
-        name: 'New MacBook',
-        target: 1600,
-        saved: 240,
-        byDate: '2026-12-15',
-        perWeek: 40,
-        addedAt: '2026-06-01T00:00:00.000Z',
-      },
-    ],
-    cancelledSubs: [],
-    spendHold: null,
-    whatIfHolds: [],
-    meloPrimerSeen: false,
-    lastOpenedAt: null,
-    oneMoveHistory: [],
-    meloDismissLog: [],
-    business: emptyBusinessOperationsState(),
-    lens: {
-      plusUnlocked: false,
-      proUnlocked: false,
-      trialCycleId: null,
-      trialEndedCycleId: null,
-      trialEndAcknowledged: true,
-    },
-    melo: { quietMode: false, wardrobe: [], tone: 'calm' },
-    tinyWins: [],
-    timelineEvents: [],
-    // Empty by default — a fresh install has NOT declared income sources yet, so
-    // every caller falls back to the legacy `onboarding.payday`/`monthlyIncome`
-    // single-lump derivation until the user (or the v7→v8 migration, for an
-    // existing install) populates this list.
-    incomeSources: [],
-    dismissedIncomeSignals: [],
-    dismissedBillSignals: [],
-    dismissedDriftSignals: [],
-    dismissedAnnualSignals: [],
-    merchantCategories: DEFAULT_MERCHANT_CATEGORIES,
-  },
-  PERSONAL_WORKSPACE_ID,
-);
-
-/** Seed ~10 days of recent activity so Today/Insights have something honest to render.
- *  Called only when there is no persisted blob (uses Date.now). */
-function seedTransactions(): Transaction[] {
-  const now = Date.now();
-  const day = 86_400_000;
-  const t = (
-    d: number,
-    merchant: string,
-    amount: number,
-    category: Transaction['category'],
-  ): Transaction => ({
-    id: `seed-${merchant}-${d}`.toLowerCase().replace(/\s+/g, '-'),
-    when: new Date(now - d * day).toISOString(),
-    merchant,
-    amount,
-    category,
-    source: 'seed',
-  });
-  return [
-    t(0, 'Pret', -4.2, 'food'),
-    t(0, 'Tube', -2.8, 'transport'),
-    t(1, 'Tesco', -42.1, 'food'),
-    t(2, 'Pub', -18.5, 'fun'),
-    t(3, 'Coffee', -3.2, 'food'),
-    t(4, 'Amazon', -27.99, 'shopping'),
-    t(5, 'Spotify', -11.0, 'bills'),
-    t(6, 'Uber', -14.3, 'transport'),
-    t(7, 'Tesco', -36.4, 'food'),
-    t(8, 'Cinema', -16.0, 'fun'),
-    t(11, 'Salary', 1840.0, 'income'),
-  ];
-}
+/** Neutral production defaults. Legacy sample values are only removal fingerprints. */
+const DEFAULTS: AppState = {
+  ...createEmptyWorkspacePartition(
+    createPersonalWorkspaceRoot(),
+    PERSONAL_WORKSPACE_ID,
+    '1970-01-01T00:00:00.000Z',
+  ),
+  onboarding: { done: false, name: '', payday: 25, monthlyIncome: 0 },
+};
 
 /** Per-version migration steps. Each function receives the previously-
  *  migrated blob and returns the next-version blob. Never mutate in place.
  *  Add a new entry for every `CURRENT_SCHEMA_VERSION` bump. */
 const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<string, unknown>> = {
   // v1 → v2: introduce currentBalance, potLedger, nextYouNote, schemaVersion.
-  // Pre-existing installs become "sample"-source balance so the user sees the
-  // honest source label and can correct it from onboarding/More.
+  // Missing balance data starts at zero; a migration cannot invent money.
   // Backfill potLedger from existing pot.saved as a single synthetic deposit
   // per pot dated 30 days ago, so the first ritual after upgrade reads honest
   // recent savings instead of £0 for a month. Source labelled "backfill" so
@@ -1293,7 +1116,7 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
     const backfill: PotLedgerEntry[] =
       existingLedger.length === 0 && Array.isArray(prior.pots)
         ? prior.pots
-            .filter((p) => p && p.saved > 0)
+            .filter((p) => p && p.saved > 0 && !isShippedSeedRecord(p, LEGACY_SAMPLE_POTS))
             .map((p) => ({
               id: `pl-backfill-${p.id}`,
               potId: p.id,
@@ -1306,7 +1129,7 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
     return {
       ...prev,
       schemaVersion: 2,
-      currentBalance: prior.currentBalance ?? SAMPLE_BALANCE,
+      currentBalance: prior.currentBalance ?? { ...EMPTY_BALANCE, setAt: new Date().toISOString() },
       potLedger: existingLedger.length > 0 ? existingLedger : backfill,
       nextYouNote: prior.nextYouNote ?? '',
     };
@@ -1328,17 +1151,15 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
   // design (moneyMode, bufferAmount, debts, household, plans, lens). Every
   // pre-v4 install migrates to the shipped-default Survival lens with no
   // paid entitlement, so behaviour is byte-identical until the user opts
-  // into a different lens. Debts/plans default to the same honest seed data
-  // DEFAULTS uses (not the user's own — this is a migration of a state
-  // *shape*, not user data, so falling back to the documented seed is
-  // consistent with a fresh-install experience for a slot that didn't exist).
+  // into a different lens. Missing debts/plans are empty: a schema upgrade never
+  // creates financial obligations or savings goals on the user's behalf.
   4: (prev) => {
     const prior = prev as Partial<AppState>;
     return {
       ...prev,
       schemaVersion: 4,
       moneyMode: prior.moneyMode ?? 'survival',
-      bufferAmount: prior.bufferAmount ?? 100,
+      bufferAmount: prior.bufferAmount ?? DEFAULT_BUFFER_AMOUNT,
       debts: prior.debts ?? DEFAULTS.debts,
       household: prior.household ?? DEFAULT_HOUSEHOLD,
       plans: prior.plans ?? DEFAULTS.plans,
@@ -1395,16 +1216,19 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
     const onboarding = prior.onboarding;
     const payday = onboarding?.payday ?? DEFAULTS.onboarding.payday;
     const monthlyIncome = onboarding?.monthlyIncome ?? DEFAULTS.onboarding.monthlyIncome;
-    const synthesized: IncomeSource[] = [
-      {
-        id: 'income-migrated-pay',
-        label: 'Pay',
-        cadence: 'monthly',
-        dayOfMonth: payday,
-        amount: monthlyIncome,
-        source: 'onboarding',
-      },
-    ];
+    const synthesized: IncomeSource[] =
+      monthlyIncome > 0 && payday > 0
+        ? [
+            {
+              id: 'income-migrated-pay',
+              label: 'Pay',
+              cadence: 'monthly',
+              dayOfMonth: payday,
+              amount: monthlyIncome,
+              source: 'onboarding',
+            },
+          ]
+        : [];
     return {
       ...prev,
       schemaVersion: 8,
@@ -1528,11 +1352,8 @@ let persistedBlob: Record<string, unknown> | null = null;
 const futureBlobs: Record<string, Record<string, unknown>> = {};
 
 // ---------- Demo/seed containment (owner rule 2026-07-06) ----------
-// The app ships demo/seed data so a fresh DEV build has something to render.
-// It must NEVER be shown as a real user's own money: a released build starts
-// clean (real data required to use the app), and any demo data that already
-// leaked onto a real user's device is stripped on load. These helpers are the
-// single source of truth for WHAT counts as seed and HOW it is safely removed.
+// Every build starts empty. These recognition helpers only clean older persisted
+// prototype records; creation of visual fixtures lives exclusively in test scope.
 
 /** True when a flat record equals one of the SHIPPED seed records (`seeds`)
  *  FIELD-FOR-FIELD. Matching the whole object — not just an id — is what makes
@@ -1554,6 +1375,17 @@ function isShippedSeedRecord(rec: unknown, seeds: readonly unknown[]): boolean {
   });
 }
 
+/** Older releases anchored every subscription during hydration. Those derived date fields and
+ * their rolling day count do not turn the complete historical sample fingerprint into user data.
+ * Retain any other added/changed field, including explicit payment resolutions and pause choices. */
+function isShippedSeedSubscription(sub: Sub): boolean {
+  const { nextRenewalISO, obligationAnchorISO: _anchor, ...rest } = sub;
+  if (nextRenewalISO === undefined) return isShippedSeedRecord(rest, LEGACY_SAMPLE_SUBS);
+  return LEGACY_SAMPLE_SUBS.some((sample) =>
+    isShippedSeedRecord({ ...rest, nextRenewalDaysAway: sample.nextRenewalDaysAway }, [sample]),
+  );
+}
+
 /** True when the state shows ANY sign of real use, so legacy fixture data must never sit
  *  alongside it: onboarding done, a non-`sample` balance, any non-seed
  *  transaction, or any logged statement import. A state matching NONE of these
@@ -1569,14 +1401,14 @@ export function isRealUser(s: AppState): boolean {
     s.onboarding.done === true ||
     s.currentBalance.source !== 'sample' ||
     s.transactions.some((t) => t.source !== 'seed') ||
-    s.pots.some((pot) => !isShippedSeedRecord(pot, DEFAULTS.pots)) ||
-    s.subs.some((subscription) => !isShippedSeedRecord(subscription, DEFAULT_SUBS)) ||
-    s.cycles.some((cycle) => !isShippedSeedRecord(cycle, DEFAULTS.cycles)) ||
+    s.pots.some((pot) => !isShippedSeedRecord(pot, LEGACY_SAMPLE_POTS)) ||
+    s.subs.some((subscription) => !isShippedSeedSubscription(subscription)) ||
+    s.cycles.some((cycle) => !isShippedSeedRecord(cycle, LEGACY_SAMPLE_CYCLES)) ||
     (s.debts ?? []).some(
-      (debt) => !debt.id.startsWith('seed-') && !isShippedSeedRecord(debt, DEFAULTS.debts ?? []),
+      (debt) => !debt.id.startsWith('seed-') && !isShippedSeedRecord(debt, LEGACY_SAMPLE_DEBTS),
     ) ||
     (s.plans ?? []).some(
-      (plan) => !plan.id.startsWith('seed-') && !isShippedSeedRecord(plan, DEFAULTS.plans ?? []),
+      (plan) => !plan.id.startsWith('seed-') && !isShippedSeedRecord(plan, LEGACY_SAMPLE_PLANS),
     ) ||
     (s.accounts ?? []).some(
       (account) =>
@@ -1621,13 +1453,51 @@ export function stripSeedData(s: AppState): AppState {
 
   // Subs stripped by whole-record field-match; also drop their paused/override
   // map entries (keyed by sub name) for exactly the subs that were stripped.
-  const strippedSubNames = new Set(
-    s.subs.filter((sub) => isShippedSeedRecord(sub, DEFAULT_SUBS)).map((sub) => sub.name),
+  const strippedSubNames = new Set(s.subs.filter(isShippedSeedSubscription).map((sub) => sub.name));
+  const retainedSubNames = new Set(
+    s.subs.filter((sub) => !isShippedSeedSubscription(sub)).map((sub) => sub.name),
+  );
+  const strippedPotIds = new Set(
+    s.pots.filter((pot) => isShippedSeedRecord(pot, LEGACY_SAMPLE_POTS)).map((pot) => pot.id),
+  );
+  const strippedTransactionIds = new Set(
+    s.transactions
+      .filter((transaction) => transaction.source === 'seed')
+      .map((transaction) => transaction.id),
   );
   const dropStrippedSubs = <T>(m: Record<string, T>): Record<string, T> =>
-    Object.fromEntries(Object.entries(m).filter(([name]) => !strippedSubNames.has(name)));
+    Object.fromEntries(
+      Object.entries(m).filter(
+        ([name]) => !strippedSubNames.has(name) || retainedSubNames.has(name),
+      ),
+    );
 
   const balanceIsSample = s.currentBalance.source === 'sample';
+  const hasLegacySampleEvidence =
+    balanceIsSample ||
+    strippedSubNames.size > 0 ||
+    strippedPotIds.size > 0 ||
+    strippedTransactionIds.size > 0 ||
+    (s.debts ?? []).some((debt) => debt.id.startsWith('seed-')) ||
+    (s.plans ?? []).some((plan) => plan.id.startsWith('seed-'));
+  const hasRealMoneyInputs =
+    !balanceIsSample ||
+    retainedSubNames.size > 0 ||
+    s.transactions.some((transaction) => transaction.source !== 'seed') ||
+    s.pots.some((pot) => !strippedPotIds.has(pot.id)) ||
+    (s.debts ?? []).some((debt) => !debt.id.startsWith('seed-')) ||
+    (s.plans ?? []).some((plan) => !plan.id.startsWith('seed-')) ||
+    (s.incomeSources ?? []).some((income) => income.id !== 'income-migrated-pay') ||
+    s.calendarEvents.length > 0 ||
+    Object.keys(s.modeExtras ?? {}).length > 0;
+  // The old £2,180 default was not a declared salary. Remove it only alongside positive sample
+  // evidence and an unfinished, unchanged onboarding record; preserve completed real setup.
+  const sampleIncome =
+    hasLegacySampleEvidence &&
+    !s.onboarding.done &&
+    s.onboarding.createdAt === undefined &&
+    s.onboarding.payday === 25 &&
+    s.onboarding.monthlyIncome === 2180;
   const currentBalance: CurrentBalance = balanceIsSample
     ? { ...EMPTY_BALANCE, setAt: now }
     : s.currentBalance;
@@ -1638,28 +1508,55 @@ export function stripSeedData(s: AppState): AppState {
   const remapAccounts = balanceIsSample && Array.isArray(s.accounts);
   return {
     ...s,
+    bufferAmount:
+      hasLegacySampleEvidence && !hasRealMoneyInputs && !s.onboarding.done && s.bufferAmount === 100
+        ? DEFAULT_BUFFER_AMOUNT
+        : (s.bufferAmount ?? DEFAULT_BUFFER_AMOUNT),
+    onboarding: sampleIncome ? { ...s.onboarding, monthlyIncome: 0 } : s.onboarding,
+    incomeSources: sampleIncome
+      ? (s.incomeSources ?? []).filter(
+          (income) =>
+            !(
+              income.id === 'income-migrated-pay' &&
+              income.source === 'onboarding' &&
+              income.amount === 2180 &&
+              income.dayOfMonth === 25
+            ),
+        )
+      : (s.incomeSources ?? []),
     transactions: s.transactions.filter((t) => t.source !== 'seed'),
+    edits: (s.edits ?? []).filter((edit) => !strippedTransactionIds.has(edit.txnId)),
+    potLedger: s.potLedger.filter(
+      (entry) =>
+        !(
+          strippedPotIds.has(entry.potId) &&
+          (entry.source === 'backfill' || entry.source === 'seed')
+        ),
+    ),
     // Debts/plans strip by the unambiguous `seed-*` id marker (robust even if a
     // seed row was later modified — e.g. a field added by another engine — which
     // a field-for-field match would miss), OR a full shipped-seed match. SAFE:
     // a real debt/plan never carries a `seed-*` id (addDebt→`debt-*`, addPlan→
     // `plan-*`, card payoff→`debt-for-*`), so this only ever removes seed rows.
     debts: (s.debts ?? []).filter(
-      (d) => !(d.id.startsWith('seed-') || isShippedSeedRecord(d, DEFAULTS.debts ?? [])),
+      (d) => !(d.id.startsWith('seed-') || isShippedSeedRecord(d, LEGACY_SAMPLE_DEBTS)),
     ),
     plans: (s.plans ?? []).filter(
-      (p) => !(p.id.startsWith('seed-') || isShippedSeedRecord(p, DEFAULTS.plans ?? [])),
+      (p) => !(p.id.startsWith('seed-') || isShippedSeedRecord(p, LEGACY_SAMPLE_PLANS)),
     ),
-    pots: s.pots.filter((p) => !isShippedSeedRecord(p, DEFAULTS.pots)),
-    subs: s.subs.filter((sub) => !strippedSubNames.has(sub.name)),
+    pots: s.pots.filter((p) => !isShippedSeedRecord(p, LEGACY_SAMPLE_POTS)),
+    subs: s.subs.filter((sub) => !isShippedSeedSubscription(sub)),
     subPaused: dropStrippedSubs(s.subPaused),
     subOverrides: dropStrippedSubs(s.subOverrides),
-    cycles: s.cycles.filter((c) => !isShippedSeedRecord(c, DEFAULTS.cycles)),
+    cycles: s.cycles.filter((c) => !isShippedSeedRecord(c, LEGACY_SAMPLE_CYCLES)),
     currentBalance,
     ...(remapAccounts
       ? {
           accounts: (s.accounts ?? []).map((a) =>
-            a.id === DEFAULT_ACCOUNT_ID && !a.isLiability
+            a.id === DEFAULT_ACCOUNT_ID &&
+            !a.isLiability &&
+            a.balanceMinor === LEGACY_SAMPLE_BALANCE.amount &&
+            a.balanceAsOfISO === LEGACY_SAMPLE_BALANCE.setAt
               ? { ...a, balanceMinor: currentBalance.amount, balanceAsOfISO: now }
               : a,
           ),
@@ -1679,28 +1576,14 @@ export function purgeSeedIfReal(s: AppState): AppState {
 /** The state every first run lands on, including development and emulator builds. Sample money is
  *  never an implicit product state; visual fixtures belong in tests and explicit prototypes. */
 function firstRunState(): AppState {
-  const emptyBalance: CurrentBalance = { ...EMPTY_BALANCE, setAt: new Date().toISOString() };
-  return normaliseWorkspaceRows(
-    {
-      ...DEFAULTS,
-      pots: [],
-      subs: [],
-      subPaused: {},
-      subOverrides: {},
-      cycles: [],
-      // Release first-run is genuinely blank. The old demo's £2,180/month must not survive merely
-      // because onboarding has not been completed yet; the onboarding slider now honestly starts at
-      // zero and writes only what the owner chooses.
-      onboarding: { done: false, name: '', payday: 25, monthlyIncome: 0 },
-      debts: [],
-      plans: [],
-      currentBalance: emptyBalance,
-      accounts: [synthesizeDefaultAccount(emptyBalance)],
-      transactions: [],
-      incomeSources: [],
-    },
-    PERSONAL_WORKSPACE_ID,
-  );
+  return {
+    ...createEmptyWorkspacePartition(
+      createPersonalWorkspaceRoot(),
+      PERSONAL_WORKSPACE_ID,
+      new Date().toISOString(),
+    ),
+    onboarding: { done: false, name: '', payday: 25, monthlyIncome: 0 },
+  };
 }
 
 /** True when the LAST load()'s pipeline threw and the state degraded to defaults —
@@ -1743,7 +1626,10 @@ function load(): AppState {
     )!;
     // Resolved once so `accounts` (below) can synthesize the default account from the SAME balance
     // this load is about to publish — never a stale/different one.
-    const resolvedCurrentBalance = migrated.currentBalance ?? SAMPLE_BALANCE;
+    const resolvedCurrentBalance = migrated.currentBalance ?? {
+      ...EMPTY_BALANCE,
+      setAt: new Date().toISOString(),
+    };
     const loaded: AppState = {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       workspaces: [...workspaceRoot.workspaces],
@@ -1859,25 +1745,16 @@ function load(): AppState {
     // Sweep stale sub-nudges on load — an override whose nudged renewal
     // date has already passed is consumed and deleted. Matches ENGINES.md
     // § 6 "sub-nudge clears the day after nudgedDate".
-    // OTA cleanup: strip any demo/seed data that leaked onto a REAL user's
-    // device (idempotent; a no-op for genuine demo/preview states). This is the
-    // step that cleans an already-contaminated install — first-run seeding
-    // changes cannot, since the demo data is already persisted in the blob.
-    const resumed = sweepAutoResume(loaded.subs, loaded.subPaused);
-    const cleaned = purgeSeedIfReal(
-      normaliseWorkspaceRows(
-        {
-          ...loaded,
-          subs: resumed.subs,
-          subPaused: resumed.paused,
-          subOverrides: sweepStaleOverrides(resumed.subs, loaded.subOverrides),
-        },
-        workspaceRoot.dataWorkspaceId,
-      ),
-    );
-    // Older development builds explicitly persisted a complete demo regime. It is not user data and
-    // must not survive as a hidden alternative first-run product after sample mode is removed.
-    return cleaned.currentBalance.source === 'sample' ? firstRunState() : cleaned;
+    // Remove recognized legacy sample rows on every load, including untouched old prototypes.
+    // A real profile never doubles as a demo namespace. The cleanup preserves explicit user rows.
+    const cleaned = stripSeedData(normaliseWorkspaceRows(loaded, workspaceRoot.dataWorkspaceId));
+    const resumed = sweepAutoResume(cleaned.subs, cleaned.subPaused);
+    return {
+      ...cleaned,
+      subs: resumed.subs,
+      subPaused: resumed.paused,
+      subOverrides: sweepStaleOverrides(resumed.subs, cleaned.subOverrides),
+    };
   } catch {
     loadDegraded = true;
     return firstRunState();
@@ -1921,7 +1798,9 @@ function sweepAutoResume(
       pausedAt: _pausedAt,
       ...rest
     } = subscription;
-    return rest as Sub;
+    // Retain the resolved preference after the explicit pause expires. In particular, a user-owned
+    // bill must not become indistinguishable from an old sample when its pause dates are removed.
+    return { ...rest, autoResume: subscription.autoResume ?? 'prompt' } as Sub;
   });
   return {
     subs: resumedNames.length > 0 ? subsNext : subs,
@@ -6659,19 +6538,9 @@ export function updateBusinessOperations(
   });
 }
 
+/** Reset the active production profile. Fixture construction is test-only. */
 export function resetAll() {
-  clearPendingAppStateCommands();
-  state = normaliseWorkspaceRows(
-    {
-      ...DEFAULTS,
-      transactions: seedTransactions(),
-      calendarEvents: [],
-      timelineEvents: [],
-      incomeSources: [],
-    },
-    PERSONAL_WORKSPACE_ID,
-  );
-  emit();
+  resetToEmpty({ onboardingDone: false });
 }
 
 /**
@@ -6683,6 +6552,7 @@ export function createEmptyWorkspacePartition(
   root: WorkspaceRoot,
   workspaceId: WorkspaceId,
   createdAt: string,
+  preferences?: Pick<AppState, 'moneyMode' | 'lens' | 'melo' | 'aiReads' | 'meloPrimerSeen'>,
 ): AppState {
   assertValidWorkspaceRoot(root);
   if (
@@ -6729,10 +6599,10 @@ export function createEmptyWorkspacePartition(
     reviewQueueSpillover: [],
     statementImports: [],
     evidenceDocuments: [],
-    moneyMode: 'survival',
-    bufferAmount: 100,
+    moneyMode: preferences?.moneyMode ?? 'survival',
+    bufferAmount: DEFAULT_BUFFER_AMOUNT,
     modeExtras: {},
-    aiReads: { monthKey: '', used: 0 },
+    aiReads: { ...(preferences?.aiReads ?? { monthKey: '', used: 0 }) },
     aiReadCache: {},
     whatChangedSeenISO: null,
     dismissedIncomeSignals: [],
@@ -6745,13 +6615,21 @@ export function createEmptyWorkspacePartition(
     cancelledSubs: [],
     spendHold: null,
     whatIfHolds: [],
-    meloPrimerSeen: false,
+    meloPrimerSeen: preferences?.meloPrimerSeen ?? false,
     lastOpenedAt: null,
     oneMoveHistory: [],
     meloDismissLog: [],
     business: emptyBusinessOperationsState(),
-    lens: { ...DEFAULT_LENS },
-    melo: { ...DEFAULT_MELO, wardrobe: [] },
+    lens: {
+      ...DEFAULT_LENS,
+      plusUnlocked: preferences?.lens?.plusUnlocked ?? false,
+      proUnlocked: preferences?.lens?.proUnlocked ?? false,
+    },
+    melo: {
+      ...DEFAULT_MELO,
+      ...preferences?.melo,
+      wardrobe: [...(preferences?.melo?.wardrobe ?? [])],
+    },
     tinyWins: [],
     timelineEvents: [],
     incomeSources: [],
@@ -6760,102 +6638,27 @@ export function createEmptyWorkspacePartition(
   return normaliseWorkspaceRows(empty, workspaceId);
 }
 
-/** CLEAN-EMPTY reset — wipe the user's data to a genuinely empty state, with NO
- *  sample/demo reseed (the opposite of `resetAll`, which reseeds the demo set).
- *  Every user-data slot is cleared: transactions, pots, subs, the sub
- *  paused/override maps, ritual cycles, the correction-edit history, calendar
- *  events, the pot ledger, and the staged statement-reader review queue. The
- *  balance becomes a neutral, honest empty (£0, `user-entered`/`rough` — NOT
- *  `sample`). Personally identifying setup values are cleared too; only
- *  `onboarding.done` defaults to true so a returning clean user is NOT re-onboarded. Callers such
- *  as "Skip for now" may explicitly keep it false while still clearing all data.
- *  `schemaVersion` is preserved so the empty state still loads through the same
- *  migration contract. Pure + immutable — builds a brand-new state object, never
- *  mutates the previous one. */
+/** Clear every financial entity, derived history and retained setup identity in the active
+ * profile. Non-financial app preferences, purchases and read allowance survive. Confirmation and
+ * durable cleanup remain the responsibility of the existing Privacy/localDataDeletion flow. */
 export function resetToEmpty(options?: Readonly<{ onboardingDone?: boolean }>) {
   clearPendingAppStateCommands(state.activeWorkspaceId);
-  const emptyBalance: CurrentBalance = { ...EMPTY_BALANCE, setAt: new Date().toISOString() };
   const workspaceRoot = assertValidWorkspaceRoot({
     workspaces: [...state.workspaces],
     activeWorkspaceId: state.activeWorkspaceId,
     dataWorkspaceId: state.dataWorkspaceId,
   });
-  const activeWorkspace = workspaceRoot.workspaces.find(
-    (workspace) => workspace.id === workspaceRoot.activeWorkspaceId,
-  )!;
-  const empty: AppState = {
+  const empty = createEmptyWorkspacePartition(
+    workspaceRoot,
+    state.activeWorkspaceId,
+    new Date().toISOString(),
+    state,
+  );
+  state = {
+    ...empty,
     schemaVersion: state.schemaVersion,
-    ...workspaceRoot,
-    pots: [],
-    subs: [],
-    subPaused: {},
-    subOverrides: {},
-    cycles: [],
-    // Keep only the non-identifying completion flag so a deliberate local wipe does not force the
-    // returning user through onboarding. Name, payday and income are all user data and must not
-    // survive a control labelled "Clear local money & history". The shipped payday default is a
-    // structural placeholder only; no prior user value is retained.
-    onboarding: {
-      done: options?.onboardingDone ?? true,
-      name: '',
-      payday: DEFAULTS.onboarding.payday,
-      monthlyIncome: 0,
-    },
-    currentBalance: emptyBalance,
-    // Personal keeps its neutral Main shell; a Business partition remains genuinely accountless
-    // until the user adds or connects an account.
-    accounts: activeWorkspace.kind === 'personal' ? [synthesizeDefaultAccount(emptyBalance)] : [],
-    potLedger: [],
-    nextYouNote: '',
-    tightPointGoal: null,
-    transactions: [],
-    droppedTransactionCount: 0,
-    edits: [],
-    calendarEvents: [],
-    calendarFocusDate: null,
-    routeFocusDate: null,
-    readerCandidates: [],
-    readerClosingBalance: null,
-    ignoredReviewSigs: [],
-    reviewQueue: [],
-    reviewQueueSpillover: [],
-    statementImports: [],
-    evidenceDocuments: [],
-    moneyMode: 'survival',
-    bufferAmount: 100,
-    modeExtras: {},
-    aiReads: { monthKey: '', used: 0 },
-    aiReadCache: {},
-    whatChangedSeenISO: null,
-    dismissedIncomeSignals: [],
-    dismissedBillSignals: [],
-    dismissedDriftSignals: [],
-    dismissedAnnualSignals: [],
-    debts: [],
-    household: { partnerName: '', defaultShare: 0.5, subShareOverrides: {} },
-    plans: [],
-    cancelledSubs: [],
-    spendHold: null,
-    whatIfHolds: [],
-    meloPrimerSeen: false,
-    lastOpenedAt: null,
-    oneMoveHistory: [],
-    meloDismissLog: [],
-    business: emptyBusinessOperationsState(),
-    lens: {
-      plusUnlocked: false,
-      proUnlocked: false,
-      trialCycleId: null,
-      trialEndedCycleId: null,
-      trialEndAcknowledged: true,
-    },
-    melo: { quietMode: false, wardrobe: [], tone: 'calm' },
-    tinyWins: [],
-    timelineEvents: [],
-    incomeSources: [],
-    merchantCategories: {},
+    onboarding: { ...empty.onboarding, done: options?.onboardingDone ?? true },
   };
-  state = normaliseWorkspaceRows(empty, workspaceRoot.activeWorkspaceId);
   emit();
 }
 

@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // notifyState.ts tests — pins the mode-dedup fix: notifications must derive their ladder from the
 // SAME `@/folio/lib/modes` engine every screen reads (not a private re-derivation), via the one
 // explicit `weatherToLadder` shim, plus the shared `DANGER_FLOOR` constant.
@@ -10,7 +11,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { deriveNotifyInputs, snapshotFromRoute, weatherToLadder } from './notifyState';
 import { routeFromStore } from './storeRoute';
 import { DANGER_FLOOR } from './modes';
-import { getState, resetAll, setCurrentBalance, setMoneyMode, setPartial } from '../store';
+import { getState, setCurrentBalance, setMoneyMode, setPartial } from '../store';
 
 beforeEach(() => {
   resetAll();

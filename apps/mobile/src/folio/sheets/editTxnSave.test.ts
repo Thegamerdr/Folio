@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // EditTxnSheet Save → store contract tests — ENGINES.md §6 "Editing existing transactions —
 // required, never destructive" (and §7 @rn-engine edit-txn).
 //
@@ -20,7 +21,6 @@ import {
   editTransaction,
   getState,
   rememberMerchantCategory,
-  resetAll,
   setPartial,
   type Transaction,
 } from '../store';

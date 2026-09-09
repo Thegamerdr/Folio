@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // Restore-engine tests (plan 113) — pure validation/summary coverage for
 // lib/restore.ts, plus the round-trip that makes an export a REAL recovery
 // path: a persist blob exported from live state, cleared, then restored
@@ -19,7 +20,6 @@ import {
   getPersistBlob,
   getState,
   hydrateFromBlob,
-  resetAll,
   resetToEmpty,
   setOnboarding,
 } from '../store';

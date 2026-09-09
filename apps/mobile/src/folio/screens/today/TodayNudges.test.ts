@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../../test/sampleFixture';
 // TodayNudges — "review-queue" nudge contract (screens/today/TodayNudges.tsx).
 //
 // The nudge builder reads several store slices and returns a priority-ordered nudge list;
@@ -18,7 +19,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { enqueueReviewItems, getState, resetAll, type ReviewItem } from '../../store';
+import { enqueueReviewItems, getState, type ReviewItem } from '../../store';
 
 // The subset of nudge-ordering inputs this test cares about — a minimal, Node-safe re-statement
 // of TodayNudges' own priority chain for the two nudges under test (onboarding, review-queue).

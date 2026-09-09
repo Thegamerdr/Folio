@@ -167,7 +167,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const monthlyOut = subs
     .filter((sub) => !subPaused[sub.name])
     .reduce((sum, sub) => sum + sub.cost, 0);
-  const daysToPayday = route ? route.daysToPayday : 11;
+  const daysToPayday = route ? route.daysToPayday : 0;
 
   const meloOpener = useMeloOpener('stability');
 
@@ -221,8 +221,8 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
           style={[s.sampleChip, { backgroundColor: t.inset, borderColor: t.hairline }]}
         >
           <View style={[s.sampleDot, { backgroundColor: t.caution }]} />
-          <Text style={[s.sampleText, { color: t.muted }]}>Sample numbers</Text>
-          <Text style={[s.sampleText, { color: t.calm }]}>make them yours →</Text>
+          <Text style={[s.sampleText, { color: t.muted }]}>Add your money</Text>
+          <Text style={[s.sampleText, { color: t.calm }]}>finish setup →</Text>
         </Pressable>
       ) : null}
 

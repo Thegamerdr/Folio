@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // Caught-drift tests — pure-logic coverage for lib/caughtDrift.ts, plus the store-level "confirm
 // updates the SAME entity in place" contract DriftCaughtSheet's confirm() relies on (mirrors
 // caughtBillsOrdering.test.ts's pattern of pinning a sheet's exact store writes via the same store
@@ -10,7 +11,6 @@ import {
   confirmDriftSignal,
   dismissDriftSignal,
   getState,
-  resetAll,
   setSubs,
   upsertIncomeSource,
   type DriftCooldownEntry,

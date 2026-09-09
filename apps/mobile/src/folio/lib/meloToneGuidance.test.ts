@@ -1,6 +1,7 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { getState, resetAll, setMelo, type MeloTone } from '../store';
+import { getState, setMelo, type MeloTone } from '../store';
 
 import {
   canSurfaceProactiveMoneySuggestion,

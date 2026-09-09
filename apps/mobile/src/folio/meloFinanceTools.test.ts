@@ -1,6 +1,7 @@
+import { resetSampleFixture as resetAll } from './test/sampleFixture';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { applyMeloTool, getState, resetAll, setPartial } from './store';
+import { applyMeloTool, getState, setPartial } from './store';
 
 beforeEach(() => resetAll());
 

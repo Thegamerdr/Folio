@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // persist.ts recovery-matrix tests — the do-not-destroy contract for the user's ONLY copy of
 // their financial data (staged atomic writes, `.bak.json` backup, `.unreadable.json` parking,
 // tmp-file crash recovery). `persist.test.ts` deliberately covers only the pure blob helpers
@@ -120,7 +121,13 @@ const {
         generations: [],
       }),
     ),
-    saveNativeWorkspaceStateGeneration: vi.fn(async () => ({ generation: 1 })),
+    saveNativeWorkspaceStateGeneration: vi.fn(
+      async (
+        ..._args: Parameters<
+          typeof import('../../local/nativeWorkspaceStateStore').saveNativeWorkspaceStateGeneration
+        >
+      ) => ({ generation: 1 }),
+    ),
     saveNativeWorkspaceManifestGeneration: vi.fn(async () => ({ generation: 1 })),
     quarantineNativeWorkspaceVault: vi.fn(async () => ({
       moved: ['file://db.unreadable'],
@@ -210,7 +217,6 @@ import {
   createEmptyWorkspacePartition,
   getPersistBlob,
   getState,
-  resetAll,
   resetToEmpty,
   setPartial,
 } from '../store';
@@ -526,6 +532,70 @@ describe('SQLCipher workspace authority', () => {
       confidence: 'statement-derived',
       setAt: '2026-07-16T04:00:00.000Z',
     });
+  });
+
+  it('cannot resurrect legacy sample money from a bound canonical SQL snapshot after hygiene migration', async () => {
+    resetAll(); // explicit test-only legacy fixture
+    const nativePayload = getPersistBlob(PERSONAL_WORKSPACE_ID);
+    const workspace = getState().workspaces[0]!;
+    const snapshot = createCanonicalAppStateProjectionFromPayload(
+      nativePayload,
+      workspace,
+      '2026-09-09T00:00:00.000Z',
+    ).repositorySnapshot;
+    const selected = generation(nativePayload);
+    resetToEmpty();
+    loadNativeWorkspaceStateGenerations.mockResolvedValue({
+      status: 'ok',
+      generations: [selected],
+      invalidGenerationCount: 0,
+    });
+    loadNativeCanonicalSnapshotForGeneration.mockResolvedValue({
+      status: 'ok',
+      generation: selected.generation,
+      canonicalSnapshotSha256: 'e'.repeat(64),
+      snapshot,
+    });
+    await loadPersisted(PERSONAL_WORKSPACE_ID);
+    expect(getMoneyHydrationAuthority()).toBe('exact-app-state');
+    const clean = getState();
+    expect(clean.currentBalance.amount).toBe(0);
+    expect(clean.accounts?.[0]?.balanceMinor).toBe(0);
+    expect(clean.onboarding.monthlyIncome).toBe(0);
+    expect(clean.bufferAmount).toBe(0);
+    expect(clean.subs).toEqual([]);
+    expect(clean.pots).toEqual([]);
+    expect(clean.debts).toEqual([]);
+    expect(clean.plans).toEqual([]);
+    expect(clean.cycles).toEqual([]);
+    expect(clean.transactions).toEqual([]);
+    expect(clean.incomeSources).toEqual([]);
+  });
+
+  it('persists an empty clear with app preferences intact in the replacement native generation', async () => {
+    setPartial({
+      melo: { quietMode: true, wardrobe: ['scarf'], tone: 'honest' },
+      moneyMode: 'stability',
+      aiReads: { monthKey: '2026-09', used: 3 },
+    });
+    resetToEmpty();
+    await persistEmptyWorkspaceSetAfterLocalClear();
+    const call = saveNativeWorkspaceStateGeneration.mock.calls.find(
+      (args) => args[0]?.id === PERSONAL_WORKSPACE_ID,
+    );
+    expect(call).toBeDefined();
+    const replacement = JSON.parse(call![1] as string);
+    expect(replacement.melo).toMatchObject({
+      quietMode: true,
+      wardrobe: ['scarf'],
+      tone: 'honest',
+    });
+    expect(replacement.moneyMode).toBe('stability');
+    expect(replacement.aiReads).toEqual({ monthKey: '2026-09', used: 3 });
+    expect(replacement.currentBalance.amount).toBe(0);
+    expect(replacement.transactions).toEqual([]);
+    expect(replacement.subs).toEqual([]);
+    expect(replacement.bufferAmount).toBe(0);
   });
 
   it('does not expose the canonical binding account inside an intentionally empty Business workspace', async () => {

@@ -21,12 +21,8 @@
 //
 // @rn-engine text-reader — WIRED. The found list is now the real pure `parseSheet` engine
 //   (apps/mobile/src/folio/lib/importSheet.ts, ENGINES.md §6) output, not a hand-built array.
-//   The demo has no live clipboard text threaded in (FolioShell renders this screen with `nav`
-//   only), so — per the build task — `parseSheet` is driven from the screen's existing sample
-//   rows, restated faithfully as pasted spreadsheet text (the web source's exact three items: no
-//   fabricated merchants / numbers). The engine returns CandidateMoneyItem[] + honest ColumnIssue[];
-//   the clean sample parses with zero issues. Nothing is counted here — review-before-truth: an
-//   Accept happens only downstream in the Visualizer (which calls store.addTransaction), never here.
+//   Only user-pasted text or the real reader staging slot supplies candidates. An empty input
+//   remains empty; examples belong in test fixtures. Review still precedes every ledger write.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
 //   • Accent word "check." is rendered UPRIGHT terracotta inside the Fraunces headline (web
@@ -116,26 +112,6 @@ export type PasteSuccessScreenProps = {
   state?: PasteSuccessState;
 };
 
-// The short date label each row shows, keyed by merchant — restated labels layered on top of a live
-// parse's money facts (the same metadata-map role SAMPLE_ROW_META plays in the Visualizer). Kept
-// because `toPastedItems` reads it for known merchants; a real paste falls back to the parsed date.
-const SAMPLE_DATE_LABELS: Readonly<Record<string, string>> = {
-  Tesco: '26 Jun',
-  Salary: '25 Jun',
-  Rent: '1 Jul',
-};
-
-// The pinned source keeps a real, user-invoked sample on the cold paste doorway. It is never
-// staged or counted until the user taps the sample link, and even then the parsed rows remain
-// review-before-truth candidates.
-const SAMPLE_PASTE_TEXT = [
-  'Date,Merchant,Amount',
-  '26/06/2026,Tesco,-42.30',
-  '25/06/2026,Salary,1200',
-  '24/06/2026,Rent,-750.00',
-  '23/06/2026,Boots,-8.40',
-].join('\n');
-
 // Format a bare GBP magnitude the way the web preformatted it: whole pounds, thousands grouped, no
 // pence (42 → "£42", 1200 → "£1,200", 750 → "£750"). Pence are shown only when the magnitude isn't
 // whole, so a real pasted "12.50" never silently loses its decimals.
@@ -159,7 +135,7 @@ function toPastedItems(candidates: readonly CandidateMoneyItem[]): PastedItem[] 
     merchant: candidate.merchant,
     flow: candidate.amount >= 0 ? 'in' : 'out',
     amount: formatMagnitude(candidate.amount),
-    date: SAMPLE_DATE_LABELS[candidate.merchant] ?? candidate.date ?? '',
+    date: candidate.date ?? '',
   }));
 }
 
@@ -221,8 +197,7 @@ export function PasteSuccessScreen({
     if (pasteText !== undefined) setDraft(pasteText);
   }, [pasteText]);
 
-  // The real engine derivation. Live pasted text (when threaded in) is read by `parseSheet`;
-  // otherwise we fall back to the faithful sample (the same module-level parse, no re-run). An
+  // The real engine derivation. User-pasted text is read by `parseSheet`. An
   // explicit `items` prop still wins for fixtures. `issues` are the engine's honest fix prompts.
   // `candidates` keeps the raw parse output so the primary CTA can enqueue exactly what the card
   // showed (an `items` fixture carries no raw candidates, so it enqueues nothing — tests only).
@@ -385,13 +360,6 @@ export function PasteSuccessScreen({
             textAlignVertical="top"
             value={draft}
           />
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setDraft(SAMPLE_PASTE_TEXT)}
-            style={({ pressed }) => [styles.sampleButton, pressed ? styles.pressed : undefined]}
-          >
-            <Text style={[styles.sampleLabel, { color: t.muted }]}>or try the sample</Text>
-          </Pressable>
         </ScrollView>
       </Animated.View>
     );
@@ -675,15 +643,6 @@ const styles = StyleSheet.create({
     minHeight: 120,
     paddingHorizontal: gap.lg,
     paddingVertical: gap.md,
-  },
-  sampleButton: {
-    alignSelf: 'flex-start',
-    justifyContent: 'center',
-    minHeight: 44,
-  },
-  sampleLabel: {
-    fontSize: 12.5,
-    textDecorationLine: 'underline',
   },
   // Items card — surface bg, 1px hairline border, 2xl radius, mt-6, rows divided.
   card: {

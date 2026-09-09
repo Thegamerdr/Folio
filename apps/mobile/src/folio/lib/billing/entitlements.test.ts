@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../../test/sampleFixture';
 // entitlements.ts adapter tests — expo-file-system/legacy is mocked (this module reaches into it
 // at import time, which is not Node-safe on its own — same reason persist.ts and clerkAuth.ts are
 // never imported un-mocked in their own test files; see persist.test.ts / clerkAuth.test.ts
@@ -55,7 +56,7 @@ vi.mock('./entitlementGrant', () => ({
         : null,
 }));
 
-import { resetAll, setPartial, getState, type LensState } from '../../store';
+import { setPartial, getState, type LensState } from '../../store';
 import { reconcileEntitlements, saveVerifiedEntitlement } from './entitlements';
 
 // AppState.lens is optional on the type (shape-migration reasons — see store.ts DEFAULT_LENS),

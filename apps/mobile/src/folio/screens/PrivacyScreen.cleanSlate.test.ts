@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // "Clear to empty" clean-slate contract — the Privacy screen's only release reset
 // (apps/mobile/src/folio/screens/PrivacyScreen.tsx, handleClearToEmpty → confirmReset → performReset).
 //
@@ -20,7 +21,6 @@ import {
   addTransaction,
   getState,
   hasAnyUserData,
-  resetAll,
   resetToEmpty,
   setPartial,
   setReaderCandidates,

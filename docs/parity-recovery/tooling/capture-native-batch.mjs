@@ -2,15 +2,15 @@
 
 /**
  * Build one isolated parity APK per fixture, then drive every requested screen/theme through the
- * capture-only folio://parity deep link. This turns N screen/theme rebuilds into F fixture builds.
+ * capture-only folio-qa://parity deep link. This turns N screen/theme rebuilds into F fixture builds.
  */
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '../../..');
-const PACKAGE = 'com.folio.v2.greenfield';
+const PACKAGE = 'com.folio.v2.greenfield.capture';
 const DEFAULT_JAVA_HOME = 'C:/Program Files/Android/Android Studio/jbr';
 const DEFAULT_ANDROID_HOME = 'C:/Users/User/AppData/Local/Android/Sdk';
 
@@ -57,6 +57,11 @@ const nativeRef = nativeSha.slice(0, 7);
 const androidHome =
   process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? DEFAULT_ANDROID_HOME;
 const adb = path.join(androidHome, 'platform-tools/adb.exe');
+const buildToolsVersion = (await readdir(path.join(androidHome, 'build-tools')))
+  .filter((version) => /^\d+\./u.test(version))
+  .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }))[0];
+if (!buildToolsVersion) throw new Error('Android build-tools are required to verify capture APKs.');
+const aapt = path.join(androidHome, 'build-tools', buildToolsVersion, 'aapt.exe');
 const javaHome = process.env.JAVA_HOME ?? DEFAULT_JAVA_HOME;
 const gradle = path.join(ANDROID_ROOT, 'gradlew.bat');
 const builtApk = path.join(ANDROID_ROOT, 'app/build/outputs/apk/release/app-release.apk');
@@ -199,7 +204,9 @@ for (let attempt = 0; attempt < 12; attempt += 1) {
   await wait(250);
 }
 if (navigationMode !== '2') {
-  throw new Error(`Parity capture requires gestural navigation; Android reported ${navigationMode}.`);
+  throw new Error(
+    `Parity capture requires gestural navigation; Android reported ${navigationMode}.`,
+  );
 }
 
 const fixtureRuns = [];
@@ -276,6 +283,16 @@ for (const batch of selectedBatches) {
     apkSha256 = createHash('sha256').update(apkBytes).digest('hex').toUpperCase();
     fixtureApkCache.set(batch.fixture, { artifactPath, apkSha256 });
   }
+  // Older cached parity APKs used the production application ID. Refuse those before install:
+  // otherwise reuse-existing-apks could still replace a real user's app despite the new driver.
+  const apkPackage = run(aapt, ['dump', 'badging', artifactPath]).match(
+    /^package: name='([^']+)'/mu,
+  )?.[1];
+  if (apkPackage !== PACKAGE) {
+    throw new Error(
+      `Refusing capture APK with package ${apkPackage ?? '(unknown)'}; rebuild for ${PACKAGE}.`,
+    );
+  }
   run(adb, ['-s', deviceId, 'install', '-r', artifactPath]);
   // A fixture APK is a disposable deterministic environment. Clearing only this emulator package
   // prevents persisted state from one fixture contaminating the next; the connected S9 is never
@@ -291,7 +308,7 @@ for (const batch of selectedBatches) {
       const dialog = surface.nativeDialog ?? 'none';
       const globalSurface = surface.nativeGlobal ?? 'none';
       const surfaceId = surface.id ?? surface.screen;
-      const deepLink = `folio:///?capture=1&screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&dialog=${encodeURIComponent(dialog)}&global=${encodeURIComponent(globalSurface)}&theme=${theme}`;
+      const deepLink = `folio-qa:///?capture=1&screen=${encodeURIComponent(screen)}&sheet=${encodeURIComponent(sheet)}&dialog=${encodeURIComponent(dialog)}&global=${encodeURIComponent(globalSurface)}&theme=${theme}`;
       // Each dialog is deliberately non-cancelable so the screenshot cannot race an accidental
       // BACK dismissal. Restart the disposable capture process between jobs instead of depending
       // on button coordinates or localized Android chrome to close the preceding dialog.

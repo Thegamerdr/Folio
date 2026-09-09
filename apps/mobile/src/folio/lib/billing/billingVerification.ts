@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import type { Purchase } from 'expo-iap';
 import { Platform } from 'react-native';
+import { isCaptureBuild } from '../captureBuild';
 
 import {
   verifyEntitlementGrant,
@@ -100,6 +101,7 @@ async function verifyPurchaseAtRoute(
 }
 
 export function billingVerificationConfig(): GrantVerificationConfig | null {
+  if (isCaptureBuild()) return null;
   const publicKey = publicValue('EXPO_PUBLIC_MELO_BILLING_ENTITLEMENT_PUBLIC_KEY');
   if (publicKey === null) return null;
   return { issuer: ISSUER, audience: AUDIENCE, keyId: KEY_ID, publicKey };

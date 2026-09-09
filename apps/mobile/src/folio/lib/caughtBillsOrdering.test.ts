@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // Caught-signal ORDERING contract — DATA_INTELLIGENCE.md phase ⑤(B) "Surface after statement batches
 // land — same call sites as income-caught ... income proposal takes precedence if both fire (one
 // sheet per landing, bills queue for the next landing)".
@@ -26,7 +27,6 @@ import {
   addTransactionsBatch,
   dismissBillSignal,
   getState,
-  resetAll,
   setSubs,
   upsertIncomeSource,
   type Sub,

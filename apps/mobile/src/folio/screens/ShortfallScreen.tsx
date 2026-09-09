@@ -225,7 +225,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
       whatIfHolds: appState.whatIfHolds ?? [],
       windowDays: 35,
       now: calendarNow,
-      includeSampleBills: appState.currentBalance.source === 'sample',
+      includeSampleBills: false,
     });
     return (
       events

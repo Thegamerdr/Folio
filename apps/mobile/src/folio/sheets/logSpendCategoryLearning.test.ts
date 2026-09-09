@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // LogSpendSheet save → rememberMerchantCategory store contract test — DATA_INTELLIGENCE.md phase ③.
 //
 // A manual spend log is the user explicitly setting a merchant's category from scratch (no candidate,
@@ -6,7 +7,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { addTransaction, getState, rememberMerchantCategory, resetAll, setPartial } from '../store';
+import { addTransaction, getState, rememberMerchantCategory, setPartial } from '../store';
 
 beforeEach(() => {
   resetAll();

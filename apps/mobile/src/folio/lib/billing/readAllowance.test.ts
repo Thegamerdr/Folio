@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../../test/sampleFixture';
 // AI-read allowance tests — pure logic (readAllowance.ts) plus the store's counter/cache
 // mutators (recordAiRead / cacheAiRead / getCachedAiRead — the store is Node-safe, same style as
 // entitlements.test.ts exercising it directly).
@@ -21,7 +22,6 @@ import {
   getCachedAiRead,
   getState,
   recordAiRead,
-  resetAll,
   type AiReadCacheEntry,
 } from '../../store';
 import type { CandidateMoneyItem } from '../importSheet';

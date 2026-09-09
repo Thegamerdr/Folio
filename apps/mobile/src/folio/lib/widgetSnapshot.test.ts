@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // widgetSnapshot tests — the pure store→SafeZoneWidgetSnapshot builder
 // (apps/mobile/src/folio/lib/widgetSnapshot.ts) that feeds the Android home-screen
 // widget. Node-safe: imports the pure builder + the store singleton (both node-safe,
@@ -7,7 +8,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { buildWidgetSnapshot } from './widgetSnapshot';
-import { getState, resetAll, setBufferAmount, setCurrentBalance } from '../store';
+import { getState, setBufferAmount, setCurrentBalance } from '../store';
 import { PERSONAL_WORKSPACE_ID } from './workspaceRoot';
 
 beforeEach(() => {

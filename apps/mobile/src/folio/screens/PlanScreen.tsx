@@ -138,8 +138,6 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   const pots = useAppStore((st) => st.pots);
   const debts = useAppStore((st) => st.debts ?? []);
   const appState = useAppStore((st) => st);
-  // Demo example bills only while the seed is untouched; a cleared/real user sees only their own.
-  const includeSampleBills = useAppStore((st) => st.currentBalance.source === 'sample');
 
   // Mount-gate the clock (mirrors TodayScreen): defer `new Date()` to an effect so nothing reads the
   // wall clock during the first render. Until it opens, the screen holds the loading branch.
@@ -165,7 +163,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
     : null;
   const potsSaved = useMemo(() => pots.reduce((sum, pot) => sum + pot.saved, 0), [pots]);
   const liveSubs = useMemo(() => subs.filter((sub) => !subPaused[sub.name]), [subs, subPaused]);
-  const showSampleMarker = !onboarding.done || includeSampleBills;
+  const showSampleMarker = !onboarding.done;
   const [showAdd, setShowAdd] = useState(false);
 
   const resolvedState: PlansState = state ?? (now === null ? 'loading' : 'populated');
@@ -309,7 +307,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
           {showSampleMarker ? (
             <View style={styles.sampleMarker}>
               <View style={[styles.sampleDot, { backgroundColor: t.caution }]} />
-              <Text style={[styles.sampleText, { color: t.muted }]}>Sample numbers</Text>
+              <Text style={[styles.sampleText, { color: t.muted }]}>Add your money</Text>
             </View>
           ) : null}
 

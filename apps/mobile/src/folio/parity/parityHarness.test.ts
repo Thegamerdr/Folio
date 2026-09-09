@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => ({
   Linking: {
@@ -28,6 +28,12 @@ function activate(fixture: ParityFixtureId) {
 }
 
 describe('visual parity fixture harness', () => {
+  beforeEach(() => {
+    vi.stubEnv('EXPO_PUBLIC_MELO_PARITY_CAPTURE', 'true');
+    vi.stubEnv('EXPO_PUBLIC_MELO_PARITY_FIXTURE', 'confirmed-safe');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
   it('builds the confirmed, provisional, pressured and negative personal states', () => {
     expect(activate('confirmed-safe')).toMatchObject({
       currentBalance: { amount: 1480, confidence: 'corrected' },

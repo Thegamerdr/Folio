@@ -1,3 +1,4 @@
+import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 // OnboardingSheet complete/skip → clean store contract tests.
 //
 // What this proves: OnboardingSheet.done()/skipForNow() call the shared production mutation seam.
@@ -15,7 +16,6 @@ import {
   getState,
   hasAnyUserData,
   isEmptyForMeloImport,
-  resetAll,
   resetToEmpty,
   setIncomeSources,
   setOnboarding,
@@ -469,7 +469,12 @@ describe('OnboardingSheet returning workspace safety', () => {
       amount: 125,
       source: 'manual',
     });
-    expect(after.onboarding).toMatchObject({ name: 'Updated', payday: 25, monthlyIncome: 2200, done: true });
+    expect(after.onboarding).toMatchObject({
+      name: 'Updated',
+      payday: 25,
+      monthlyIncome: 2200,
+      done: true,
+    });
   });
 
   it('does not treat a sample balance alone as permission to delete a real transaction', () => {
