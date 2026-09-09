@@ -663,6 +663,9 @@ describe('SQLCipher workspace authority', () => {
         collections: expect.objectContaining({ workspaces: expect.any(Array) }),
       }),
       [],
+      undefined,
+      expect.any(Function),
+      undefined,
     );
     expect(JSON.parse(getPersistBlob(PERSONAL_WORKSPACE_ID))).toEqual(JSON.parse(expectedPayload));
     expect(saveNativeWorkspaceManifestGeneration).toHaveBeenCalledTimes(1);
@@ -1129,6 +1132,9 @@ describe('save failure visibility and retry', () => {
       expect.any(String),
       expect.objectContaining({ workspaceId: PERSONAL_WORKSPACE_ID }),
       queued,
+      undefined,
+      expect.any(Function),
+      undefined,
     );
   });
 
@@ -1168,6 +1174,9 @@ describe('save failure visibility and retry', () => {
       expect.any(String),
       expect.any(Object),
       atSaveStart,
+      undefined,
+      expect.any(Function),
+      undefined,
     );
   });
 

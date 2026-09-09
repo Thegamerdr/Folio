@@ -4,7 +4,11 @@ import type {
   MeloLocalFinancialSnapshot,
   MeloLocalIntent,
 } from '@folio/ai-contracts';
-import { projectDebtPortfolio, projectDebtSchedule } from '@folio/finance-engine';
+import {
+  projectDebtSchedule,
+  projectFinancialDebts,
+  type DebtStrategy,
+} from '@folio/finance-engine';
 
 import { purgeSeedIfReal, type AppState } from '../store';
 import { monthlyIncomeSeries, percentile } from './historyStats';
@@ -76,6 +80,12 @@ function debtStrategy(
   return null;
 }
 
+function financialDebtStrategy(
+  strategy: Exclude<MeloDebtProjectionStrategy, 'contractual-minimums'> | null,
+): DebtStrategy {
+  return strategy === 'highest-rate-first' ? 'avalanche' : 'snowball';
+}
+
 function buildDebtCalculation(
   state: AppState,
   snapshot: MeloLocalFinancialSnapshot,
@@ -87,16 +97,15 @@ function buildDebtCalculation(
 
   const engineDebts = debts.map((debt) => ({
     id: debt.id,
-    principalMinor: toMinor(debt.balance),
-    annualRateBps: Math.round(debt.apr * 100),
+    name: debt.name,
+    balanceMinor: toMinor(debt.balance),
+    aprBps: debt.aprKnown === false ? null : Math.round(debt.apr * 100),
     minimumPaymentMinor: toMinor(debt.minPayment),
+    dueDate: nextMonthlyDueDate(now, debt.dueDom),
+    ...(debt.arrears === undefined ? {} : { arrears: debt.arrears }),
+    ...(debt.promoUntil === undefined ? {} : { promoUntil: debt.promoUntil }),
   }));
   const startDate = isoDayLocal(now);
-  const minimums = projectDebtPortfolio({
-    debts: engineDebts,
-    strategy: 'contractual-minimums',
-    startDate,
-  });
   const selectedStrategy = debtStrategy(request.prompt);
   const amount = request.detectedAmountMinor ?? 0;
   const requestsExtra =
@@ -112,35 +121,50 @@ function buildDebtCalculation(
     };
   }
 
+  // Choosing a debt order does not make a payment recurring. Only explicit cadence words opt the
+  // amount into monthly amortisation; a bare amount is applied once to the cash check.
+  const recurringExtra =
+    requestsExtra &&
+    selectedStrategy !== null &&
+    /\b(?:monthly|each month|every month|recurring|repeat(?:s|ed)?|per month)\b/i.test(
+      request.prompt,
+    );
+  const minimums = projectFinancialDebts({ debts: engineDebts, strategy: 'hybrid', startDate });
   const projection =
     requestsExtra && selectedStrategy !== null
-      ? projectDebtPortfolio({
+      ? projectFinancialDebts({
           debts: engineDebts,
-          strategy: selectedStrategy,
+          strategy: financialDebtStrategy(selectedStrategy),
           startDate,
-          extraMonthlyMinor: amount,
+          extraMonthlyMinor: recurringExtra ? amount : 0,
         })
       : minimums;
   const monthsSavedVsMinimums =
-    projection.months !== null && minimums.months !== null
-      ? Math.max(0, minimums.months - projection.months)
+    projection.payoffMonths !== null && minimums.payoffMonths !== null
+      ? Math.max(0, minimums.payoffMonths - projection.payoffMonths)
       : null;
 
   return {
     kind: 'debt-projection',
-    strategy: projection.strategy,
-    debtCount: projection.debtCount,
-    extraMonthlyMinor: projection.extraMonthlyMinor,
-    payoffMonths: projection.months,
+    strategy:
+      projection.strategy === 'avalanche'
+        ? 'highest-rate-first'
+        : projection.strategy === 'snowball'
+          ? 'lowest-balance-first'
+          : 'contractual-minimums',
+    debtCount: debts.length,
+    extraMonthlyMinor: recurringExtra ? projection.extraMonthlyMinor : 0,
+    payoffMonths: projection.payoffMonths,
     payoffDateLabel: formatDay(projection.payoffDate),
-    totalInterestMinor: projection.totalInterestMinor,
+    totalInterestMinor: projection.totalInterestMinor ?? 0,
     monthsSavedVsMinimums,
     interestSavedVsMinimumsMinor: Math.max(
       0,
-      minimums.totalInterestMinor - projection.totalInterestMinor,
+      (minimums.totalInterestMinor ?? 0) - (projection.totalInterestMinor ?? 0),
     ),
-    safeZoneAfterExtraMinor: snapshot.availableNowMinor - projection.extraMonthlyMinor,
-    stalled: projection.stalled,
+    safeZoneAfterExtraMinor:
+      snapshot.availableNowMinor - (recurringExtra ? projection.extraMonthlyMinor : amount),
+    stalled: projection.stalled || projection.totalInterestMinor === null,
   };
 }
 
@@ -151,6 +175,12 @@ function buildBnplSchedule(state: AppState, now: Date): MeloLocalCalculation {
   let stalledCount = 0;
   const payoffDates: string[] = [];
   for (const debt of debts) {
+    if (debt.aprKnown === false) {
+      // Keep the contract's numeric field for compatibility, but never feed an unknown APR into
+      // the legacy schedule (which treats zero as interest-free and would invent certainty).
+      stalledCount += 1;
+      continue;
+    }
     try {
       const schedule = projectDebtSchedule({
         principalMinor: toMinor(debt.balance),

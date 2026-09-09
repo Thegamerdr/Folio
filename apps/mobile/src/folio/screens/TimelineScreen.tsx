@@ -110,6 +110,7 @@ const DOT = 9;
 const HALO = DOT + 6; // 9 + 2×3px ring
 const RAIL_X = 7; // web rail left offset
 const DOT_X = 3; // web dot left offset
+const TIMELINE_PAGE_SIZE = 50;
 
 // ---------------------------------------------------------------------------
 // The calm projection — TimelineRow (lib/timelineEvents.ts) → display row
@@ -281,6 +282,12 @@ export function TimelineScreen({
   const droppedTransactionCount = useAppStore((st) => st.droppedTransactionCount ?? 0);
   const [tab, setTab] = useState<TimelineTab>(initialTab);
   useEffect(() => setTab(initialTab), [initialTab]);
+  const [visibleCount, setVisibleCount] = useState(TIMELINE_PAGE_SIZE);
+  // A new row should return the user to the recent window. Edits in place keep the current page so
+  // correcting an older imported entry does not unexpectedly jump the list.
+  useEffect(() => {
+    setVisibleCount(TIMELINE_PAGE_SIZE);
+  }, [transactions.length, edits.length, events.length]);
 
   // Project once per change. `now` is captured per render so the relative whens stay live without a
   // ticking timer (this is a read projection, not a clock).
@@ -300,6 +307,13 @@ export function TimelineScreen({
       }),
     );
   }, [transactions, edits, events]);
+  const visibleRows = useMemo(() => rows.slice(0, visibleCount), [rows, visibleCount]);
+  const visibleTransactions = useMemo(
+    () => transactions.slice(0, visibleCount),
+    [transactions, visibleCount],
+  );
+  const totalForTab = tab === 'transactions' || isBusiness ? rows.length : transactions.length;
+  const hasOlderRows = visibleCount < totalForTab;
 
   // error → "falls back": this screen invents no error UI; on failure it routes back to More.
   const fallsBack = state === 'error';
@@ -435,7 +449,7 @@ export function TimelineScreen({
           /* Timeline list — a vertical rail behind the nodes, newest first. */
           <View style={s.list}>
             <View style={[s.rail, { backgroundColor: t.hairline }]} pointerEvents="none" />
-            {rows.map((row, i) => (
+            {visibleRows.map((row, i) => (
               <TimelineRowView
                 key={row.id}
                 row={row}
@@ -447,8 +461,33 @@ export function TimelineScreen({
             ))}
           </View>
         ) : (
-          <TimelineActionCards transactions={transactions} styles={s} palette={t} />
+          <TimelineActionCards transactions={visibleTransactions} styles={s} palette={t} />
         )}
+
+        {totalForTab > TIMELINE_PAGE_SIZE ? (
+          <View style={s.pagination}>
+            {hasOlderRows ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Load older timeline entries"
+                onPress={() => setVisibleCount((count) => Math.min(totalForTab, count + TIMELINE_PAGE_SIZE))}
+                style={({ pressed }) => [s.paginationButton, pressed ? s.pressed : undefined]}
+              >
+                <Text style={[s.paginationLabel, { color: t.calm }]}>Load 50 more</Text>
+              </Pressable>
+            ) : null}
+            {visibleCount > TIMELINE_PAGE_SIZE ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Return to recent timeline entries"
+                onPress={() => setVisibleCount(TIMELINE_PAGE_SIZE)}
+                style={({ pressed }) => [s.paginationButton, pressed ? s.pressed : undefined]}
+              >
+                <Text style={[s.paginationLabel, { color: t.muted }]}>Back to recent</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* DATA_INTELLIGENCE.md phase ④(A) — honest disclosure that the list is cut short by the
             live retention window, so a bulk-imported history's trimmed tail is disclosed rather than
@@ -544,7 +583,9 @@ function TimelineActionCards({
     const grouped = new Map<string, Transaction[]>();
     for (const transaction of transactions) {
       const day = actionDayLabel(transaction.when);
-      grouped.set(day, [...(grouped.get(day) ?? []), transaction]);
+      const group = grouped.get(day);
+      if (group === undefined) grouped.set(day, [transaction]);
+      else group.push(transaction);
     }
     return [...grouped.entries()];
   }, [transactions]);
@@ -882,6 +923,21 @@ function makeStyles(_t: Palette) {
       fontFamily: serif.display,
       fontSize: 18,
       fontVariant: ['tabular-nums'],
+    },
+    pagination: {
+      alignItems: 'center',
+      gap: gap.sm,
+      marginTop: gap.lg,
+    },
+    paginationButton: {
+      alignItems: 'center',
+      minHeight: 44,
+      justifyContent: 'center',
+      paddingHorizontal: gap.lg,
+    },
+    paginationLabel: {
+      fontSize: 12.5,
+      letterSpacing: 0.2,
     },
     // Vertical rail — 1px line inset top..bottom, BEHIND the nodes. Sits at the dot's centre column.
     rail: {

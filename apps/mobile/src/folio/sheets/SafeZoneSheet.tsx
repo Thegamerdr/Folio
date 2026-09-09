@@ -16,8 +16,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { useAppStore, setBufferAmount } from '@/folio/store';
-import { useRoute } from '@/folio/lib/storeRoute';
-import { safeZoneMath } from '@/folio/lib/modes/safeZone';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 import { formatGBP } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
 
@@ -31,46 +30,51 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
 
-  const currentBalance = useAppStore((st) => st.currentBalance);
-  const onboarding = useAppStore((st) => st.onboarding);
-  const pots = useAppStore((st) => st.pots);
-  const subs = useAppStore((st) => st.subs);
-  const subPaused = useAppStore((st) => st.subPaused);
-  const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
+  const appState = useAppStore((st) => st);
+  const bufferAmount = appState.bufferAmount ?? 100;
 
   // The sheet mounts fresh per open (FolioShell renders it only while active), so this is the
   // open moment — no module-scope clock that goes stale across midnight.
   const [now] = useState(() => new Date());
-  const route = useRoute(now);
-
-  const zone = useMemo(
-    () =>
-      // Route-fed tightest point, the SAME inputs AffordCheckSheet builds. With `tightestDate:
-      // null` (the old hardcoded value) `shieldedBills` returns 0, so the sheet showed a total
-      // WITHOUT the Bills Shield — a decomposition that contradicted the Today/Stability numbers
-      // it now opens from.
-      safeZoneMath({
-        currentBalance,
-        onboarding,
-        pots,
-        subs,
-        subPaused,
-        tightestSpare: route.tightPoint.amount,
-        tightestDate: route.tightPoint.date,
-        ritualCompletedRecently: false,
-        bufferAmount,
-      }),
-    [
-      currentBalance,
-      onboarding,
-      pots,
-      subs,
-      subPaused,
-      route.tightPoint.amount,
-      route.tightPoint.date,
-      bufferAmount,
+  const plan = useMemo(() => buildFinancialPlanFromState(appState, { now }), [appState, now]);
+  const daysLeft = plan.nextIncomeDate
+    ? Math.max(
+        1,
+        Math.round(
+          (new Date(`${plan.nextIncomeDate}T00:00:00Z`).getTime() -
+            new Date(`${plan.asOf}T00:00:00Z`).getTime()) /
+            86_400_000,
+        ),
+      )
+    : 0;
+  const zone = {
+    total: Math.floor(plan.safeToSpendMinor / 100),
+    perDay: daysLeft > 0 ? Math.max(0, Math.floor(plan.safeToSpendMinor / 100 / daysLeft)) : 0,
+    until: plan.nextIncomeDate,
+    estimating: plan.timeline.length > 0,
+    lines: [
+      {
+        key: 'balance',
+        label: 'In your account',
+        amount: Math.floor(plan.currentBalanceMinor / 100),
+        editable: false,
+      },
+      {
+        key: 'shield',
+        label: 'Protected before income',
+        amount: -Math.floor(plan.protectedBeforeIncomeMinor / 100),
+        editable: false,
+        hint: 'Reserved for bills, essentials and debt minimums',
+      },
+      {
+        key: 'buffer',
+        label: 'Your buffer',
+        amount: -Math.floor(Math.max(0, bufferAmount)),
+        editable: true,
+        hint: "The cushion you'd rather not touch",
+      },
     ],
-  );
+  };
 
   return (
     <Sheet visible={visible} onClose={onClose}>

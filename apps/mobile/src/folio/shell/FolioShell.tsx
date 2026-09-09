@@ -451,6 +451,7 @@ export function FolioShell() {
   // openSheet('edit-txn', { id }) is called, cleared whenever a sheet closes or a navigation
   // supersedes it. `undefined` = no target (cold open) → the sheet keeps its safe inert fallback.
   const [editTxnTarget, setEditTxnTarget] = useState<string | undefined>(undefined);
+  const [debtEditTarget, setDebtEditTarget] = useState<string | undefined>(undefined);
   // Carried into the day-detail sheet when a Month cell / "+N" chip / Week day header opens it with
   // a real subject — the ISO day the tap resolved. Mirrors the editTxnTarget slot exactly: set when
   // openSheet('day-detail', { date }) is called, cleared whenever a sheet closes or a navigation
@@ -486,6 +487,7 @@ export function FolioShell() {
     setWorkspaceSheetVisible(false);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
+    setDebtEditTarget(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
@@ -591,6 +593,7 @@ export function FolioShell() {
     setWorkspaceSheetVisible(false);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
+    setDebtEditTarget(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
@@ -610,6 +613,7 @@ export function FolioShell() {
     setWorkspaceSheetVisible(false);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
+    setDebtEditTarget(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
@@ -625,6 +629,7 @@ export function FolioShell() {
   const openSheet = useCallback((next: SheetId, payload?: SheetPayload) => {
     setWorkspaceSheetVisible(false);
     setEditTxnTarget(next === 'edit-txn' ? payload?.id : undefined);
+    setDebtEditTarget(next === 'declare-debt' ? payload?.debtId : undefined);
     setDayDetailDate(next === 'day-detail' ? payload?.date : undefined);
     setAddEventIntent(next === 'add-event' ? payload : undefined);
     setLogSpendAmount(next === 'log-spend' ? payload?.amount : undefined);
@@ -635,6 +640,7 @@ export function FolioShell() {
     setSheet(null);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
+    setDebtEditTarget(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
@@ -672,6 +678,7 @@ export function FolioShell() {
     setSheet(null);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
+    setDebtEditTarget(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
@@ -854,7 +861,7 @@ export function FolioShell() {
           {/* Declare-debt — the real Debt-lens record (kind/APR/min-payment/due-day), faithful port of the
           web's SheetAddDebt. Distinct from the ScreenId 'add-debt' (AddEntryScreen's unrelated
           recurring bill/debt-payment quick-add) — see the SheetId union's doc-comment in types.ts. */}
-          {sheet === 'declare-debt' && <AddDebtSheet visible onClose={closeSheet} />}
+          {sheet === 'declare-debt' && <AddDebtSheet visible onClose={closeSheet} targetId={debtEditTarget} />}
           {sheet === 'log-payment' && <LogPaymentSheet visible onClose={closeSheet} />}
           {sheet === 'household-setup' && <HouseholdSetupSheet visible onClose={closeSheet} />}
           {/* Lens-picker and Safe-Zone need the shell's nav (paywall/Melo bridges), so they mount as

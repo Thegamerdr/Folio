@@ -122,6 +122,8 @@ export type RouteResult = {
   incomingTotal?: number;
   /** Total outflow magnitude (£, positive) over the window — the Today "Going out" figure. Optional. */
   outgoingTotal?: number;
+  /** Canonical signed safe-to-spend amount from the financial-plan adapter, in pounds. */
+  safeToSpend?: number;
 };
 
 /** A display window, not a new forecast: the engine retains its full sampled route. */

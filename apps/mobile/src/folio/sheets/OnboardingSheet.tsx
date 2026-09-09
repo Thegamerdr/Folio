@@ -1,13 +1,14 @@
 // @rn-sheet     OnboardingSheet
-// @purpose      Seven-step onboarding — name, intent picker (→ Money Mode), mode-specific extra
-//               question, payday, income, balance, pot picker.
+// @purpose      Progressive onboarding — identity, intent, income, current money, essentials,
+//               protected buffer, bundled commitments and optional pots.
 // @writes       setOnboarding, setMoneyMode, setModeExtra, setBufferAmount, setCurrentBalance, setPots
 // @copy         FROZEN (verbatim from '@/folio/copy/copy' + the spec's inline strings)
 // @tokens       --paper (Sheet) · --accent (t.calm) · --accent-soft (t.calmSoft) ·
 //               --inset (t.inset) · --hairline (t.hairline) · --ink (t.ink) · --muted-ink (t.muted)
 // @motion       slide between steps · progress-pip width/colour tween · stamp on completion
 //
-// Faithful 1:1 RN port of the web design source
+// Faithful RN port of the web design source with the manual finance fields added to make a first
+// run useful without Open Banking.
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetOnboarding.tsx) and its
 // spec (plans/rn-port/specs/SheetOnboarding.spec.md). The web source renders SEVEN steps with inline
 // copy that diverges from the COPY_DECK onb.* keys; per the spec the CODE is the rendered truth, so
@@ -65,6 +66,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore, type IncomeSource } from '@/folio/store';
+import { parseManualMoney } from '@/folio/lib/manualMoney';
 import type { MoneyMode } from '@/folio/lib/modes/types';
 import { isBusinessDay } from '@/folio/lib/payday';
 import {
@@ -268,6 +270,8 @@ const PAYDAY_STEP = 1;
 const BALANCE_MIN = 0;
 const BALANCE_MAX = 5000;
 const BALANCE_STEP = 10;
+const COMMITMENT_MAX = 5000;
+const COMMITMENT_STEP = 10;
 
 // Income-per-occurrence slider range/unit, branched on the declared cadence (step 3, STEP_CADENCE)
 // — a monthly range (£500-£8000) is honest for a monthly earner but 4x-wrong for a weekly one, so
@@ -465,14 +469,24 @@ function OnboardingFlow({
   const savedMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const isDark = useIsDark();
   const savedBuffer = useAppStore((st) => st.bufferAmount ?? 100);
+  const savedEssentials = useAppStore((st) => st.modeExtras?.reset ?? 0);
+  const savedBundledCommitment = useAppStore((st) => {
+    const ownedName = st.onboarding.bundledCommitmentName;
+    if (ownedName !== undefined) {
+      return st.subs.find((subscription) => subscription.name === ownedName) ?? null;
+    }
+    return st.subs.find((subscription) => subscription.name === 'Rent + bills') ?? null;
+  });
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState(ob.name);
   const [payday, setPayday] = useState(savedIncomeSource?.dayOfMonth ?? ob.payday);
+  const [paydayInput, setPaydayInput] = useState(String(savedIncomeSource?.dayOfMonth ?? ob.payday));
   // Pay cadence (new step, ahead of the day picker) — see lib/income.ts. Monthly is the honest
   // default: it matches every existing user's behaviour byte-for-byte until they say otherwise.
   const [cadence, setCadence] = useState<PayCadence>(savedIncomeSource?.cadence ?? 'monthly');
   const [income, setIncome] = useState(savedIncomeSource?.amount ?? ob.monthlyIncome);
+  const [incomeInput, setIncomeInput] = useState(String(savedIncomeSource?.amount ?? ob.monthlyIncome));
   // The income slider's range/unit branches on the declared cadence — a weekly earner's
   // per-occurrence figure lives on a much smaller scale than a monthly one (see
   // INCOME_RANGE_BY_CADENCE above). Recomputed, not stored, so it always tracks `cadence`.
@@ -482,7 +496,11 @@ function OnboardingFlow({
   // a switch to weekly, where the max is £2000) — the slider itself only clamps at drag-time, so a
   // cadence change with no further drag would otherwise leave an invisible out-of-range value.
   useEffect(() => {
-    setIncome((prev) => Math.min(incomeRange.max, Math.max(incomeRange.min, prev)));
+    setIncome((prev) => {
+      const next = Math.min(incomeRange.max, Math.max(incomeRange.min, prev));
+      setIncomeInput(String(next));
+      return next;
+    });
   }, [incomeRange]);
   // Anchor date for the three week-based cadences — "when did pay last arrive?" Defaults to today so
   // the date picker never opens on a blank/undefined value.
@@ -493,11 +511,28 @@ function OnboardingFlow({
   // follow-up captured value; EVERY mode's answer persists to `modeExtras` on done() (see there).
   const [intentMode, setIntentMode] = useState<MoneyMode>(savedMode);
   const [modeExtra, setModeExtra] = useState<number>(savedBuffer);
+  const [weeklyEssentials, setWeeklyEssentials] = useState<number>(savedEssentials);
+  const [desiredBuffer, setDesiredBuffer] = useState<number>(savedBuffer);
+  const [bundledCommitmentName, setBundledCommitmentName] = useState(
+    savedBundledCommitment?.name ?? 'Rent + bills',
+  );
+  const [bundledCommitmentAmount, setBundledCommitmentAmount] = useState(
+    savedBundledCommitment?.cost ?? 0,
+  );
+  const [bundledCommitmentDueDay, setBundledCommitmentDueDay] = useState(
+    Number(savedBundledCommitment?.nextRenewalISO?.slice(8, 10) ?? 1),
+  );
   // Pre-seed from the existing balance unless it's still the sample, in which case start blank so the
   // user feels they're entering it fresh (spec BALANCE SEED LOGIC).
   const [balance, setBalance] = useState<number>(
     currentBalance.source === 'sample' ? 0 : currentBalance.amount,
   );
+  const [balanceInput, setBalanceInput] = useState(
+    String(currentBalance.source === 'sample' ? 0 : currentBalance.amount),
+  );
+  const incomeInputValue = parseManualMoney(incomeInput, { allowZero: true });
+  const balanceInputValue = parseManualMoney(balanceInput, { allowZero: true, allowNegative: true });
+  const paydayInputValue = /^\d{1,2}$/.test(paydayInput) ? Number(paydayInput) : undefined;
   // Picked pot templates — pre-select whatever the user already has so a returning user lands on
   // their kept pots and first-timers land on the store defaults (Holiday + Buffer + Christmas).
   const [picked, setPicked] = useState<Set<string>>(
@@ -542,6 +577,17 @@ function OnboardingFlow({
       legacyPayday,
       intentMode,
       modeExtra,
+      desiredBuffer,
+      weeklyEssentials,
+      ...(bundledCommitmentAmount > 0 || isReturning
+        ? {
+            bundledCommitment: {
+              name: bundledCommitmentName,
+              amount: bundledCommitmentAmount,
+              dueDom: bundledCommitmentDueDay,
+            },
+          }
+        : {}),
     });
     onClose();
   }
@@ -555,12 +601,12 @@ function OnboardingFlow({
   // The mode-extra step's copy for the currently-picked intent mode.
   const extra = MODE_EXTRA[intentMode];
 
-  // Typed as a fixed 8-tuple so `steps[0]` is known-defined under noUncheckedIndexedAccess (BREAKS-
+  // Typed as a fixed 10-tuple so `steps[0]` is known-defined under noUncheckedIndexedAccess (BREAKS-
   // PARITY fix — restores the web's intent-picker + mode-extra steps; RN previously skipped both,
   // so `setMoneyMode` never fired during onboarding). A cadence step was inserted ahead of the day
   // picker (extends beyond the Lovable design — the web has no cadence UI). STEP_INDEX below
   // documents each index.
-  const steps: readonly [Step, Step, Step, Step, Step, Step, Step, Step] = [
+  const steps: readonly [Step, Step, Step, Step, Step, Step, Step, Step, Step, Step] = [
     { eyebrow: 'Hello', head: { lead: 'What should Melo ', accent: 'call you?', tail: '' } },
     {
       eyebrow: 'First thing',
@@ -571,17 +617,22 @@ function OnboardingFlow({
     { eyebrow: 'Rhythm', head: { lead: 'When does payday ', accent: 'land?', tail: '' } },
     { eyebrow: 'Rough only', head: { lead: 'What lands, ', accent: 'roughly?', tail: '' } },
     { eyebrow: 'Today', head: { lead: "What's ", accent: 'in your account', tail: ' right now?' } },
+    { eyebrow: 'Essentials', head: { lead: 'What do you need for ', accent: 'the week?', tail: '' } },
+    { eyebrow: 'Bills', head: { lead: 'What needs ', accent: 'protecting?', tail: '' } },
     { eyebrow: 'Pots', head: { lead: 'What are you ', accent: 'saving for?', tail: '' } },
   ];
   // Step indices — mirror the `steps` array above. 0 Hello · 1 intent picker · 2 mode-extra ·
-  // 3 cadence · 4 payday-day/anchor · 5 income · 6 balance · 7 pots.
+  // 3 cadence · 4 payday-day/anchor · 5 income · 6 balance · 7 essentials · 8 commitment · 9 pots.
   const STEP_CADENCE = 3;
   const STEP_PAYDAY = 4;
-  const STEP_POTS = 7;
-  // Returning users only need the fields this route owns: name, cadence, payday and income. The
-  // first-run flow keeps all eight setup steps, while both flows share the same production commit.
+  const STEP_BALANCE = 6;
+  const STEP_ESSENTIALS = 7;
+  const STEP_COMMITMENT = 8;
+  const STEP_POTS = 9;
+  // Returning users keep the payday/income editor and can also correct the essentials, buffer and
+  // bundled bill values that feed the shared plan. The first-run flow keeps all setup steps.
   const visibleStepIndices = isReturning
-    ? [0, STEP_CADENCE, STEP_PAYDAY, 5]
+    ? [0, STEP_CADENCE, STEP_PAYDAY, 5, STEP_BALANCE, STEP_ESSENTIALS, STEP_COMMITMENT]
     : steps.map((_, i) => i);
   const activeStepIndex = visibleStepIndices[step] ?? 0;
   const current = steps[activeStepIndex] ?? steps[0];
@@ -618,6 +669,12 @@ function OnboardingFlow({
   // then close. Under reduce-motion it is a no-op and we close immediately.
   const stamp = useRef(new Animated.Value(1)).current;
   function handlePrimary() {
+    const invalidNumericStep =
+      (activeStepIndex === STEP_PAYDAY &&
+        (paydayInputValue === undefined || paydayInputValue < 1 || paydayInputValue > 31)) ||
+      (activeStepIndex === 5 && incomeInputValue === undefined) ||
+      (activeStepIndex === 6 && balanceInputValue === undefined);
+    if (invalidNumericStep) return;
     if (!isLast) {
       setStep((x) => x + 1);
       return;
@@ -787,12 +844,26 @@ function OnboardingFlow({
                   <Text style={s.bigValue}>{String(payday)}</Text>
                   <Text style={s.unit}>of the month</Text>
                 </View>
+                <TextInput
+                  value={paydayInput}
+                  onChangeText={(value) => {
+                    setPaydayInput(value);
+                    const parsed = /^\d{1,2}$/.test(value) ? Number(value) : undefined;
+                    if (parsed !== undefined && parsed >= 1 && parsed <= 31) setPayday(parsed);
+                  }}
+                  keyboardType="number-pad"
+                  style={s.amountInput}
+                  accessibilityLabel="Exact payday day of month"
+                />
                 <FolioSlider
                   min={PAYDAY_MIN}
                   max={PAYDAY_MAX}
                   step={PAYDAY_STEP}
                   value={payday}
-                  onChange={setPayday}
+                  onChange={(value) => {
+                    setPayday(value);
+                    setPaydayInput(String(value));
+                  }}
                   palette={t}
                   accessibilityLabel="Payday day of the month"
                 />
@@ -844,16 +915,30 @@ function OnboardingFlow({
               min={incomeRange.min}
               max={incomeRange.max}
               step={incomeRange.step}
-              value={income}
-              onChange={setIncome}
+              value={Math.min(incomeRange.max, Math.max(incomeRange.min, income))}
+              onChange={(value) => {
+                setIncome(value);
+                setIncomeInput(String(value));
+              }}
               palette={t}
               accessibilityLabel={`Rough income${incomeRange.unit}`}
+            />
+            <TextInput
+              value={incomeInput}
+              onChangeText={(value) => {
+                setIncomeInput(value);
+                const parsed = parseManualMoney(value, { allowZero: true });
+                if (parsed !== undefined) setIncome(parsed);
+              }}
+              keyboardType="decimal-pad"
+              style={s.amountInput}
+              accessibilityLabel={`Exact income${incomeRange.unit}`}
             />
             <Text style={s.help}>Doesn't need to be exact. Melo adjusts as you go.</Text>
           </View>
         ) : null}
 
-        {!isReturning && activeStepIndex === 6 ? (
+        {activeStepIndex === STEP_BALANCE ? (
           <View style={s.fieldBlock}>
             <View style={s.valueRow}>
               <Text style={s.bigValue}>{poundsTabular(balance)}</Text>
@@ -863,14 +948,135 @@ function OnboardingFlow({
               min={BALANCE_MIN}
               max={BALANCE_MAX}
               step={BALANCE_STEP}
-              value={balance}
-              onChange={setBalance}
+              value={Math.min(BALANCE_MAX, Math.max(BALANCE_MIN, balance))}
+              onChange={(value) => {
+                setBalance(value);
+                setBalanceInput(String(value));
+              }}
               palette={t}
               accessibilityLabel="Rough current account balance"
+            />
+            <TextInput
+              value={balanceInput}
+              onChangeText={(value) => {
+                setBalanceInput(value);
+                const parsed = parseManualMoney(value, { allowZero: true, allowNegative: true });
+                if (parsed !== undefined) setBalance(parsed);
+              }}
+              keyboardType="numbers-and-punctuation"
+              style={s.amountInput}
+              accessibilityLabel="Exact current account balance"
             />
             <Text style={s.help}>
               Your guess is fine. Melo uses this as the starting point — every number you'll see is
               anchored here, not a sample.
+            </Text>
+          </View>
+        ) : null}
+
+        {activeStepIndex === STEP_ESSENTIALS ? (
+          <View style={s.fieldBlock}>
+            <View style={s.valueRow}>
+              <Text style={s.bigValue}>{poundsTabular(weeklyEssentials)}</Text>
+              <Text style={s.unit}>/ week essentials</Text>
+            </View>
+            <TextInput
+              value={String(weeklyEssentials)}
+              onChangeText={(value) => {
+                const parsed = Number(value.replace(/[^0-9.]/g, ''));
+                if (Number.isFinite(parsed)) setWeeklyEssentials(Math.max(0, parsed));
+              }}
+              keyboardType="decimal-pad"
+              style={s.amountInput}
+              accessibilityLabel="Exact weekly essential living allowance"
+            />
+            <FolioSlider
+              min={0}
+              max={500}
+              step={5}
+              value={weeklyEssentials}
+              onChange={setWeeklyEssentials}
+              palette={t}
+              accessibilityLabel="Weekly essential living allowance"
+            />
+            <View style={[s.valueRow, { marginTop: gap.lg }]}>
+              <Text style={s.bigValue}>{poundsTabular(desiredBuffer)}</Text>
+              <Text style={s.unit}>protected buffer</Text>
+            </View>
+            <TextInput
+              value={String(desiredBuffer)}
+              onChangeText={(value) => {
+                const parsed = Number(value.replace(/[^0-9.]/g, ''));
+                if (Number.isFinite(parsed)) setDesiredBuffer(Math.max(0, parsed));
+              }}
+              keyboardType="decimal-pad"
+              style={s.amountInput}
+              accessibilityLabel="Exact protected cash buffer"
+            />
+            <FolioSlider
+              min={0}
+              max={1000}
+              step={10}
+              value={desiredBuffer}
+              onChange={setDesiredBuffer}
+              palette={t}
+              accessibilityLabel="Protected cash buffer"
+            />
+            <Text style={s.help}>
+              Essentials stay available until payday. The buffer can be £0 if you choose.
+            </Text>
+          </View>
+        ) : null}
+
+        {activeStepIndex === STEP_COMMITMENT ? (
+          <View style={s.fieldBlock}>
+            <TextInput
+              value={bundledCommitmentName}
+              onChangeText={setBundledCommitmentName}
+              placeholder="For example, rent + bills"
+              placeholderTextColor={t.muted}
+              style={s.nameInput}
+              accessibilityLabel="Recurring commitment name"
+            />
+            <View style={s.valueRow}>
+              <Text style={s.bigValue}>{poundsTabular(bundledCommitmentAmount)}</Text>
+              <Text style={s.unit}>/ month</Text>
+            </View>
+            <TextInput
+              value={String(bundledCommitmentAmount)}
+              onChangeText={(value) => {
+                const parsed = Number(value.replace(/[^0-9.]/g, ''));
+                if (Number.isFinite(parsed)) setBundledCommitmentAmount(Math.max(0, parsed));
+              }}
+              keyboardType="decimal-pad"
+              style={s.amountInput}
+              accessibilityLabel="Exact recurring commitment amount"
+            />
+            <FolioSlider
+              min={0}
+              max={COMMITMENT_MAX}
+              step={COMMITMENT_STEP}
+              value={bundledCommitmentAmount}
+              onChange={setBundledCommitmentAmount}
+              palette={t}
+              accessibilityLabel="Recurring commitment amount"
+            />
+            <View style={s.valueRow}>
+              <Text style={s.dueLabel}>Paid on the</Text>
+              <Text style={s.dueValue}>{bundledCommitmentDueDay}</Text>
+              <Text style={s.unit}>of each month</Text>
+            </View>
+            <FolioSlider
+              min={1}
+              max={31}
+              step={1}
+              value={bundledCommitmentDueDay}
+              onChange={setBundledCommitmentDueDay}
+              palette={t}
+              accessibilityLabel="Recurring commitment day"
+            />
+            <Text style={s.help}>
+              One bundled payment is fine. Add separate bills later from Plan.
             </Text>
           </View>
         ) : null}
@@ -1151,6 +1357,16 @@ function makeStyles(t: Palette) {
       paddingBottom: gap.sm,
       paddingHorizontal: gap.sm,
     },
+    dueLabel: {
+      color: t.muted,
+      fontSize: 13,
+    },
+    dueValue: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 28,
+      fontVariant: ['tabular-nums'],
+    },
     eyebrowRow: {
       alignItems: 'center',
       flexDirection: 'row',
@@ -1242,6 +1458,17 @@ function makeStyles(t: Palette) {
       minHeight: gap.xxxl, // 48 — matches nameInput's h-12
       paddingHorizontal: gap.lg,
       paddingVertical: gap.md,
+    },
+    amountInput: {
+      backgroundColor: t.inset,
+      borderColor: t.hairline,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      color: t.ink,
+      fontSize: 14,
+      marginTop: gap.sm,
+      minHeight: gap.xxxl,
+      paddingHorizontal: gap.lg,
     },
     footer: {
       color: t.muted,

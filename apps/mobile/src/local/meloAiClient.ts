@@ -4,12 +4,16 @@
 // types needed by existing confirmation flows/tests; it contains no provider config and no network
 // transport. A future remote phrasing feature must use the gateway's enum-only /v1/phrase contract.
 //
-// ADVISORY ONLY. Melo can SUGGEST recording money (log a spend, an income, a refund, or a
-// transfer), but this client never executes them. Suggestions come back as structured
+// ADVISORY ONLY. Melo can SUGGEST recording money or changing a financial assumption, but this
+// client never executes them. Suggestions come back as structured
 // `MeloToolSuggestion[]` for the UI to surface as user-confirmed actions. The client has no
 // access to app state and cannot mutate anything.
 
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
+import {
+  PERSONAL_MELO_TOOL_NAMES,
+  type MeloToolName,
+} from '../folio/lib/melo/toolContract';
 
 // ---------------------------------------------------------------------------
 // Public message + result types
@@ -23,10 +27,11 @@ export type MeloChatMessage = Readonly<{
   text: string;
 }>;
 
-/** The four advisory tools Melo can SUGGEST — the log_* family (record money as a transaction).
+/** Advisory tools Melo can SUGGEST — event logging plus reviewed financial-context changes.
  *  The client never runs them — it hands them to the UI as user-confirmed proposals via onSuggest.
  *  Param shapes + behaviour are documented on `applyMeloTool` in folio/store.ts. */
-export type MeloToolName = 'log_spend' | 'log_income' | 'log_refund' | 'log_transfer';
+export { PERSONAL_MELO_TOOL_NAMES } from '../folio/lib/melo/toolContract';
+export type { MeloToolName } from '../folio/lib/melo/toolContract';
 
 export type MeloToolSuggestion = Readonly<{
   id: string;
@@ -145,7 +150,14 @@ const PERSONA_TOOLS = `You can SUGGEST recording money the user just told you ab
 - log_income(merchant, amount, category): money in — a wage, a payment received, a top-up. merchant is who it came from; amount is a positive number of £; category is optional.
 - log_refund(merchant, amount, original): a refund coming back (money in). merchant is who refunded; amount is a positive number of £; original is optional — the original merchant or purchase it relates to, so the two can be linked. Do not decide whether it cancels out a spend; just record the refund.
 - log_transfer(from, to, amount): the user's own money moving between their accounts/places (not a spend, not income). from and to are the names they used; amount is a positive number of £.
-Only suggest recording something for a real, completed event the user has clearly stated — never a hypothetical or a "what if". If they're vague, ask one short clarifying question first and suggest nothing. Keep the melo-suggest block out of your visible prose — it is parsed, not read aloud.`;
+- log_debt_payment(amount, debtName?): a completed debt payment the user says has already happened.
+- set_commitment(name, amount, cadence?): a rent, bill or other recurring commitment correction.
+- set_living_cost(category, amount, cadence?): a food, transport or essential-living allowance correction.
+- set_buffer_amount(amount): a protected cash-buffer correction; zero is valid when explicitly requested.
+- correct_income(amount, source?): a correction to recorded pay or income.
+- set_income_schedule(payDayOfMonth): a correction to the day of month on which regular pay arrives.
+- set_debt_balance(debtName, balance): a debt balance correction; zero means the user says it is cleared.
+Only suggest an event or change for an explicit user statement — never a hypothetical or a "what if". If they're vague, ask one short clarifying question first and suggest nothing. Keep the melo-suggest block out of your visible prose — it is parsed, not read aloud.`;
 
 export function buildMeloSystemPrompt(
   tone: MeloTone,
@@ -198,12 +210,7 @@ const JSON_BLOCK = /```json\s*([\s\S]*?)```/gi;
 // The four log_* tools each map to a REAL, confirmable action: the store's applyMeloTool records the
 // money as a Transaction (a spend, an inflow, a refund, or a paired transfer), each with undo. The
 // set is the full MeloToolName union; nothing is withheld. Pot moves are NOT a Melo tool here.
-const VALID_TOOL_NAMES: ReadonlySet<string> = new Set<MeloToolName>([
-  'log_spend',
-  'log_income',
-  'log_refund',
-  'log_transfer',
-]);
+const VALID_TOOL_NAMES: ReadonlySet<string> = new Set<MeloToolName>(PERSONAL_MELO_TOOL_NAMES);
 
 /** Numeric trust gate for a conversation where context sharing is OFF. The model may repeat a
  *  currency amount already visible in the thread (including the locally-built opening line), but an
@@ -317,6 +324,28 @@ function describeSuggestion(name: MeloToolName, args: Record<string, unknown>): 
       return `Log a ${stringArg(args.amount) ?? ''} transfer from ${
         stringArg(args.from) ?? 'one place'
       } to ${stringArg(args.to) ?? 'another'}`.replace(/\s+/g, ' ');
+    case 'log_debt_payment':
+      return `Prepare a ${stringArg(args.amount) ?? 'debt'} payment${
+        stringArg(args.debtName) ? ` towards ${stringArg(args.debtName)}` : ''
+      } for review`;
+    case 'set_commitment':
+      return `Set ${stringArg(args.name) ?? 'a commitment'} to ${
+        stringArg(args.amount) ?? 'an amount'
+      } for review`;
+    case 'set_living_cost':
+      return `Set the ${stringArg(args.category) ?? 'living cost'} allowance to ${
+        stringArg(args.amount) ?? 'an amount'
+      } for review`;
+    case 'set_buffer_amount':
+      return `Set the protected buffer to ${stringArg(args.amount) ?? 'an amount'} for review`;
+    case 'correct_income':
+      return `Update recorded income to ${stringArg(args.amount) ?? 'an amount'} for review`;
+    case 'set_income_schedule':
+      return `Set payday to the ${stringArg(args.payDayOfMonth) ?? 'recorded day'} for review`;
+    case 'set_debt_balance':
+      return `Set ${stringArg(args.debtName) ?? 'the debt'} balance to ${
+        stringArg(args.balance) ?? 'an amount'
+      } for review`;
   }
 }
 

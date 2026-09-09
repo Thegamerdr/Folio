@@ -424,7 +424,10 @@ export function WhatIfScreen({ nav, pressure = 'calm', state = 'populated' }: Wh
   // curve Today reads. newLow = baseLow − amount.
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
-  const baseLow = route ? route.tightPoint.amount : pressureLow[pressure];
+  // The affordability stat is protected headroom, not raw closing cash. Keep the raw route points
+  // for the SVG, but subtract the spend from the canonical safe-to-spend figure so a buffer or
+  // dated commitment cannot be bypassed by this preview (Fixture B: £380 − £400 = −£20).
+  const baseLow = route ? (route.safeToSpend ?? route.tightPoint.amount) : pressureLow[pressure];
 
   // Days this would last — newLow ÷ the real daily burn (trailing-28-day average spend from
   // transactions, ENGINES §6). With no recent spend there is no defensible duration, so the screen

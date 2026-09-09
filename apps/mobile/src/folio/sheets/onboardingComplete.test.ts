@@ -345,6 +345,84 @@ describe('OnboardingSheet cadence step → incomeSources + legacy payday equival
   });
 });
 
+describe('OnboardingSheet returning editor → shared essentials, buffer and bill values', () => {
+  it('updates owned planning inputs without wiping existing activity or duplicating the bundled bill', () => {
+    completeOnboarding({
+      name: 'Ada',
+      payday: 28,
+      monthlyIncome: 2400,
+      balance: 600,
+      pickedPots: [{ id: 'buffer', name: 'Buffer', goal: 500, perWeek: 20, accent: false }],
+    });
+    addTransaction({
+      when: '2026-09-08T12:00:00.000Z',
+      merchant: 'Existing activity',
+      amount: -12.5,
+      category: 'food',
+      source: 'manual',
+    });
+    commitOnboarding({
+      name: 'Ada',
+      payday: 28,
+      monthlyIncome: 2400,
+      balance: 600,
+      pickedPots: [],
+      cadence: 'monthly',
+      anchorISO: '2026-09-01',
+      legacyPayday: 28,
+      intentMode: 'survival',
+      modeExtra: 100,
+      desiredBuffer: 200,
+      weeklyEssentials: 72.35,
+      bundledCommitment: { name: 'Council tax', amount: 950, dueDom: 12 },
+    });
+    const beforeReturningEdit = getState();
+
+    commitOnboarding({
+      name: 'Ada',
+      payday: 28,
+      monthlyIncome: 2400,
+      balance: 600,
+      pickedPots: [],
+      cadence: 'monthly',
+      anchorISO: '2026-09-01',
+      legacyPayday: 28,
+      intentMode: 'survival',
+      modeExtra: 100,
+      desiredBuffer: 250,
+      weeklyEssentials: 80.15,
+      bundledCommitment: { name: 'Council tax', amount: 955, dueDom: 12 },
+    });
+
+    // Saving the same custom label again must replace its owned row rather than append a duplicate.
+    commitOnboarding({
+      name: 'Ada',
+      payday: 28,
+      monthlyIncome: 2400,
+      balance: 600,
+      pickedPots: [],
+      cadence: 'monthly',
+      anchorISO: '2026-09-01',
+      legacyPayday: 28,
+      intentMode: 'survival',
+      modeExtra: 100,
+      desiredBuffer: 250,
+      weeklyEssentials: 80.15,
+      bundledCommitment: { name: 'Council tax', amount: 955, dueDom: 12 },
+    });
+
+    const afterReturningEdit = getState();
+    expect(afterReturningEdit.transactions).toEqual(beforeReturningEdit.transactions);
+    expect(afterReturningEdit.pots).toEqual(beforeReturningEdit.pots);
+    expect(afterReturningEdit.bufferAmount).toBe(250);
+    expect(afterReturningEdit.modeExtras?.reset).toBe(80.15);
+    expect(afterReturningEdit.subs.filter((sub) => sub.name === 'Council tax')).toHaveLength(1);
+    expect(afterReturningEdit.subs.find((sub) => sub.name === 'Council tax')).toMatchObject({
+      cost: 955,
+    });
+  });
+});
+
 describe('OnboardingSheet returning workspace safety', () => {
   it('updates only onboarding income context while preserving ledger, other income and pots', () => {
     resetToEmpty();

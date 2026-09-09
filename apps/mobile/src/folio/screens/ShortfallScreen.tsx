@@ -89,6 +89,7 @@ import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { isDiscretionarySubscription } from '@/folio/lib/recoveryPreview';
 import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
 import { getShortfallCopy } from '@/folio/lib/modes/action';
 import { triggerFeedback } from '@/folio/lib/feedback';
@@ -207,9 +208,10 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   // (the `gapNow > 0` gate on the card), so the move disappears the moment it is no longer needed.
   const [borrowPreviewOpen, setBorrowPreviewOpen] = useState(false);
 
-  // The first sub that isn't already paused (fallback: the first sub). Drives the Pause card.
+  // Only optional subscriptions may be offered as a pause move. Names that describe rent, bills,
+  // utilities, care, insurance, or other essentials are protected by the shared classifier.
   const pausableSub = useMemo(
-    () => subs.find((s) => !subPaused[s.name]) ?? subs[0],
+    () => subs.find((s) => !subPaused[s.name] && isDiscretionarySubscription(s)),
     [subs, subPaused],
   );
   // The highest-saved pot — the lender. The Borrow card renders only when it can cover the live gap.

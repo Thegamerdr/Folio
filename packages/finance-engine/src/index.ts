@@ -6,6 +6,27 @@ import {
   type LocalDate,
 } from '@folio/domain';
 
+export {
+  calculateFinancialPlan,
+  projectFinancialDebts,
+  simulateFinancialAffordability,
+} from './financialPlan.js';
+export type {
+  AffordabilityResult,
+  DebtCascadeEvent,
+  DebtProjection,
+  DebtStrategy,
+  DebtRecommendation,
+  FinancialCashflow,
+  FinancialCommitment,
+  FinancialDebt,
+  FinancialLivingCost,
+  FinancialPlanInput,
+  FinancialPlanResult,
+  FinancialTimelinePoint,
+  ShortfallCause,
+} from './financialPlan.js';
+
 export const financeEngineBoundary = {
   packageName: '@folio/finance-engine',
   deterministic: true,

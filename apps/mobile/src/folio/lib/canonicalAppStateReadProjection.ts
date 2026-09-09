@@ -306,6 +306,9 @@ export function readCanonicalAppStateMoneyProjection(
       kind: debt.kind,
       balance: minorToMajor(debt.balance.minorUnits),
       apr: debt.apr,
+      ...(debt.aprKnown === undefined ? {} : { aprKnown: debt.aprKnown }),
+      ...(debt.arrears === undefined ? {} : { arrears: debt.arrears }),
+      ...(debt.promoUntil === undefined ? {} : { promoUntil: String(debt.promoUntil) }),
       minPayment: minorToMajor(debt.minimumPayment.minorUnits),
       dueDom: debt.dueDayOfMonth,
       addedAt: requiredText(debt.sourceAddedAt, 'canonical source debt creation time'),
@@ -534,6 +537,9 @@ export function readCanonicalAppStateMoneyProjection(
       name: financialContext.onboarding.name,
       payday: financialContext.onboarding.payday,
       monthlyIncome: minorToMajor(financialContext.onboarding.monthlyIncome.minorUnits),
+      ...(financialContext.onboarding.bundledCommitmentName === undefined
+        ? {}
+        : { bundledCommitmentName: financialContext.onboarding.bundledCommitmentName }),
     },
     nextYouNote: financialContext.nextYouNote,
     tightPointGoal:
@@ -1088,6 +1094,9 @@ function normalizedSourceMoneyProjection(
     kind: debt.kind,
     balance: debt.balance,
     apr: debt.apr,
+    ...(debt.aprKnown === undefined ? {} : { aprKnown: debt.aprKnown }),
+    ...(debt.arrears === undefined ? {} : { arrears: debt.arrears }),
+    ...(debt.promoUntil === undefined ? {} : { promoUntil: debt.promoUntil }),
     minPayment: debt.minPayment,
     dueDom: debt.dueDom,
     addedAt: debt.addedAt,
@@ -1118,6 +1127,9 @@ function normalizedSourceMoneyProjection(
       name: state.onboarding.name,
       payday: state.onboarding.payday,
       monthlyIncome: state.onboarding.monthlyIncome,
+      ...(state.onboarding.bundledCommitmentName === undefined
+        ? {}
+        : { bundledCommitmentName: state.onboarding.bundledCommitmentName }),
     },
     nextYouNote: state.nextYouNote,
     tightPointGoal: state.tightPointGoal,

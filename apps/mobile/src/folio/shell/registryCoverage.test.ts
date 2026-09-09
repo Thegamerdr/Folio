@@ -51,11 +51,11 @@ const sheetHost = shell.slice(
 );
 
 describe('native shell registry — exact shipping coverage', () => {
-  it('has exactly 54 ScreenIds and 27 non-null SheetIds', () => {
-    expect(screens).toHaveLength(54);
-    expect(nonNullSheets).toHaveLength(27);
-    expect(new Set(screens).size).toBe(54);
-    expect(new Set(nonNullSheets).size).toBe(27);
+  it('has exactly 56 ScreenIds and 29 non-null SheetIds', () => {
+    expect(screens).toHaveLength(56);
+    expect(nonNullSheets).toHaveLength(29);
+    expect(new Set(screens).size).toBe(56);
+    expect(new Set(nonNullSheets).size).toBe(29);
   });
 
   it('gives every ScreenId a title and a reachable ScreenView dispatch owner', () => {
@@ -65,7 +65,7 @@ describe('native shell registry — exact shipping coverage', () => {
     const directScreens = screens.filter(
       (screen) => screen.startsWith('business-') || screenView.includes(`screen === '${screen}'`),
     );
-    expect(directScreens).toHaveLength(54);
+    expect(directScreens).toHaveLength(56);
     expect(directScreens).toEqual(screens);
     expect(screenView).toContain("screen.startsWith('business-')");
   });
@@ -104,8 +104,8 @@ describe('native shell registry — exact shipping coverage', () => {
     ];
     const screenRows = rows.filter((row) => row[1] === 'Screen').map((row) => row[2]!);
     const sheetRows = rows.filter((row) => row[1] === 'Sheet').map((row) => row[2]!);
-    expect(screenRows).toHaveLength(54);
-    expect(sheetRows).toHaveLength(27);
+    expect(screenRows).toHaveLength(56);
+    expect(sheetRows).toHaveLength(29);
     sameMembers(screenRows, screens);
     sameMembers(sheetRows, nonNullSheets);
     expect(rows.every((row) => row[3] === 'ported' && row[4] !== '')).toBe(true);

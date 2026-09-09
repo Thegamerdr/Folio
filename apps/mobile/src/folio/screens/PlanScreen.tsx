@@ -32,6 +32,7 @@ import { useDayClock } from '@/folio/lib/useDayClock';
 import { utcMidnightForLocalDay } from '@/folio/lib/dayClock';
 import type { Nav } from '@/folio/types';
 import { buildPlanUpcoming, shortPlanDay } from './planModel';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 
 // ---------------------------------------------------------------------------
 // formatGBP — the web's exact pure function (folio kit). Signed, Intl en-GB, no
@@ -143,6 +144,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   const incomeSources = useAppStore((st) => st.incomeSources ?? []);
   const whatIfHolds = useAppStore((st) => st.whatIfHolds ?? []);
   const debts = useAppStore((st) => st.debts ?? []);
+  const appState = useAppStore((st) => st);
   // Demo example bills only while the seed is untouched; a cleared/real user sees only their own.
   const includeSampleBills = useAppStore((st) => st.currentBalance.source === 'sample');
 
@@ -158,6 +160,10 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   // SAME payday through `resolvePayday` (and the same `now`), so the two never disagree.
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
+  const financialPlan = useMemo(
+    () => (now ? buildFinancialPlanFromState(appState, { now }) : null),
+    [appState, now],
+  );
 
   // The real derived timeline — bills + sub renewals + pot top-ups, payday, deadlines, reviews. We
   // read its "out" events (money spoken for) and its `payday` event (the next-payday marker date).
@@ -378,6 +384,22 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                 ? 'payday is today'
                 : `over the ${daysToPayday ?? 0} day${daysToPayday === 1 ? '' : 's'} to payday`}
             </Text>
+            {financialPlan ? (
+              <View style={[styles.safePlan, { borderTopColor: t.hairline }]}>
+                <View>
+                  <Text style={[styles.smallLabel, { color: t.muted }]}>Safe to spend</Text>
+                  <Text style={[styles.safeCaption, { color: t.muted }]}>
+                    after commitments, essentials and your buffer
+                  </Text>
+                </View>
+                <Money
+                  value={formatGBP(financialPlan.safeToSpendMinor / 100)}
+                  size="sm"
+                  tone={financialPlan.safeToSpendMinor < 0 ? 'negative' : 'ink'}
+                  t={t}
+                />
+              </View>
+            ) : null}
             <View
               style={[
                 styles.dominantActions,
@@ -682,6 +704,20 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 19,
     marginTop: 4,
+  },
+  safePlan: {
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    paddingTop: 14,
+  },
+  safeCaption: {
+    fontFamily: weightFamily(400),
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
   },
   dominantActions: {
     flexDirection: 'row',

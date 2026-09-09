@@ -39,6 +39,10 @@ import { makeWin, hasWin, type TinyWin, type TinyWinKind } from './lib/wins';
 import type { DismissReason, DismissRecord } from './lib/melo/dismissReasons';
 import type { OneMoveImpression } from './lib/melo/oneMove';
 import {
+  PERSONAL_MELO_TOOL_NAMES,
+  type PersonalMeloToolName,
+} from './lib/melo/toolContract';
+import {
   buildStatementSummary,
   candidateToTransactionDraft,
   type StatementSummary,
@@ -209,6 +213,12 @@ export type Debt = {
   balance: number;
   /** Annual %. 0-100. Set to 0 for interest-free BNPL. */
   apr: number;
+  /** False means the user has not supplied an APR; zero remains a confirmed 0% rate. */
+  aprKnown?: boolean;
+  /** Priority arrears marker retained for debt strategy ordering. */
+  arrears?: boolean;
+  /** Optional promotional-rate expiry date. */
+  promoUntil?: string;
   /** Monthly minimum payment £. */
   minPayment: number;
   /** Day of month the payment lands. 1-31. */
@@ -334,6 +344,8 @@ export type Onboarding = {
   name: string;
   payday: number; // day of month
   monthlyIncome: number;
+  /** Name of the onboarding-owned bundled commitment, when the user supplied one. */
+  bundledCommitmentName?: string;
   /** First completed-onboarding instant. Optional for installs created before Melo surfaced it. */
   createdAt?: string;
 };
@@ -3568,6 +3580,9 @@ export function addDebt(d: Omit<Debt, 'id' | 'addedAt'> & { id?: string; addedAt
     kind: d.kind,
     balance: Math.max(0, d.balance),
     apr: d.apr,
+    ...(d.aprKnown === undefined ? {} : { aprKnown: d.aprKnown }),
+    ...(d.arrears === undefined ? {} : { arrears: d.arrears }),
+    ...(d.promoUntil === undefined ? {} : { promoUntil: d.promoUntil }),
     minPayment: d.minPayment,
     dueDom: d.dueDom,
     addedAt: d.addedAt ?? new Date().toISOString(),
@@ -3591,6 +3606,88 @@ export function addDebt(d: Omit<Debt, 'id' | 'addedAt'> & { id?: string; addedAt
     },
   );
   return full;
+}
+
+/** Update a manually declared debt in place. Explicit edits are traceable and preserve the row id,
+ * so balance/minimum/APR corrections immediately feed every debt projection. */
+export function updateDebt(id: string, patch: Partial<Pick<Debt, 'name' | 'kind' | 'balance' | 'apr' | 'aprKnown' | 'arrears' | 'promoUntil' | 'minPayment' | 'dueDom'>>): void {
+  const before = (state.debts ?? []).find((debt) => debt.id === id);
+  if (before === undefined) return;
+  const linkedAccount = before.linkedAccountId === undefined
+    ? undefined
+    : (state.accounts ?? []).find((account) => account.id === before.linkedAccountId);
+  // A linked card's balance is owned by the account statement. Refuse an edit when that authority
+  // is missing instead of letting the Debt row drift from an account that may be restored later.
+  if (before.linkedAccountId !== undefined && linkedAccount === undefined) return;
+  for (const [key, value] of Object.entries(patch)) {
+    if (['balance', 'apr', 'minPayment'].includes(key) &&
+      (typeof value !== 'number' || !Number.isFinite(value) || value < 0 ||
+        !Number.isSafeInteger(Math.round(value * 100)))) return;
+    if (key === 'dueDom' &&
+      (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 31)) return;
+  }
+  if (patch.promoUntil !== undefined) {
+    const promoDate = new Date(`${patch.promoUntil}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(patch.promoUntil) ||
+      !Number.isFinite(promoDate.getTime()) || promoDate.toISOString().slice(0, 10) !== patch.promoUntil) return;
+  }
+  const after: Debt = {
+    ...before,
+    ...patch,
+    ...(patch.name === undefined ? {} : { name: patch.name.trim() || before.name }),
+    ...(patch.balance === undefined ? {} : { balance: patch.balance }),
+    ...(patch.apr === undefined ? {} : { apr: patch.apr }),
+    ...(patch.minPayment === undefined ? {} : { minPayment: patch.minPayment }),
+    ...(patch.dueDom === undefined ? {} : { dueDom: patch.dueDom }),
+  };
+
+  if (linkedAccount !== undefined && patch.balance !== undefined) {
+    // Keep the account and its linked Debt in one mutation path. The existing account authority also
+    // updates the canonical card Debt id; the small follow-up below covers a legacy linked row whose
+    // id predates that convention while preserving all metadata edits in this command.
+    setAccountBalance(linkedAccount.id, after.balance, undefined, {
+      source: 'corrected',
+      confidence: 'corrected',
+    });
+    const synced = (state.debts ?? []).find((debt) => debt.id === id) ?? before;
+    const balanceSynced = synced.balance === after.balance;
+    const metadataPatch = Object.fromEntries(
+      Object.entries(patch).filter(([key]) => key !== 'balance'),
+    ) as Partial<Pick<Debt, 'name' | 'kind' | 'apr' | 'aprKnown' | 'arrears' | 'promoUntil' | 'minPayment' | 'dueDom'>>;
+    if (Object.keys(metadataPatch).length === 0 && balanceSynced) return;
+    const metadataAfter: Debt = {
+      ...synced,
+      ...metadataPatch,
+      ...(patch.name === undefined ? {} : { name: patch.name.trim() || synced.name }),
+    };
+    setPartialWithTypedCommand(
+      { debts: (state.debts ?? []).map((debt) => (debt.id === id ? (balanceSynced ? metadataAfter : after) : debt)) },
+      {
+        commandType: 'folio.debt.update.v1',
+        actorKind: 'user',
+        entityRefs: [
+          { type: 'debt', id },
+          { type: 'account', id: linkedAccount.id },
+        ],
+        before: { debt: synced },
+        after: { debt: balanceSynced ? metadataAfter : after },
+        invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+      },
+    );
+    return;
+  }
+
+  setPartialWithTypedCommand(
+    { debts: (state.debts ?? []).map((debt) => (debt.id === id ? after : debt)) },
+    {
+      commandType: 'folio.debt.update.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'debt', id }],
+      before: { debt: before },
+      after: { debt: after },
+      invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+    },
+  );
 }
 
 export function removeDebt(id: string) {
@@ -6891,9 +6988,9 @@ export function fastForwardMonth() {
  * The Melo tool set is the log_* family (record money as transactions). Pot
  * moves are NOT a Melo tool — addToPot / borrowFromPot are called directly.
  */
-export type MeloToolName = 'log_spend' | 'log_income' | 'log_refund' | 'log_transfer';
+export type MeloToolName = PersonalMeloToolName;
 
-const MELO_TOOL_NAMES: MeloToolName[] = ['log_spend', 'log_income', 'log_refund', 'log_transfer'];
+const MELO_TOOL_NAMES: MeloToolName[] = [...PERSONAL_MELO_TOOL_NAMES];
 
 export type MeloToolResult =
   | { applied: true; summary: string; undo: () => boolean | void }
@@ -6955,6 +7052,136 @@ const TXN_CATEGORIES: Transaction['category'][] = [
 function coerceCategory(raw: unknown): Transaction['category'] {
   const value = String(raw ?? 'other') as Transaction['category'];
   return TXN_CATEGORIES.includes(value) ? value : 'other';
+}
+
+function meloAmount(input: Record<string, unknown>): number {
+  const value = Number(input.amount ?? input.adjustmentAmount ?? NaN);
+  return Number.isFinite(value) ? value : NaN;
+}
+
+function isMeloMoney(value: number, allowZero = false): boolean {
+  return Number.isFinite(value) && (allowZero ? value >= 0 : value > 0) &&
+    Number.isSafeInteger(Math.round(value * 100)) &&
+    Math.abs(value - Math.round(value * 100) / 100) < 0.00000001;
+}
+
+function meloText(input: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = input[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+function normaliseMeloTarget(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+}
+
+type MeloTarget<T> =
+  | { kind: 'found'; value: T }
+  | { kind: 'ambiguous'; values: T[] }
+  | { kind: 'missing' };
+
+function resolveMeloNamedTarget<T extends { name: string }>(
+  rows: readonly T[],
+  requested: string,
+): MeloTarget<T> {
+  const query = normaliseMeloTarget(requested);
+  if (!query) return rows.length === 1 ? { kind: 'found', value: rows[0]! } : rows.length === 0 ? { kind: 'missing' } : { kind: 'ambiguous', values: [...rows] };
+  const exact = rows.filter((row) => normaliseMeloTarget(row.name) === query);
+  if (exact.length === 1) return { kind: 'found', value: exact[0]! };
+  if (exact.length > 1) return { kind: 'ambiguous', values: exact };
+  const partial = rows.filter((row) => {
+    const name = normaliseMeloTarget(row.name);
+    return name.includes(query) || query.includes(name);
+  });
+  if (partial.length === 1) return { kind: 'found', value: partial[0]! };
+  if (partial.length > 1) return { kind: 'ambiguous', values: partial };
+  return { kind: 'missing' };
+}
+
+function meloStaleUndo<T>(read: () => T, expected: T, undo: () => void): boolean {
+  if (!structurallyEqual(read(), expected)) return false;
+  undo();
+  return true;
+}
+
+function setMeloBufferAmount(amount: number): void {
+  setPartialWithTypedCommand(
+    { bufferAmount: amount },
+    {
+      commandType: 'folio.financial_context.buffer.set.v1',
+      actorKind: 'user',
+      entityRefs: [financialContextEntityRef()],
+      before: { bufferAmount: state.bufferAmount ?? DEFAULT_BUFFER_AMOUNT },
+      after: { bufferAmount: amount },
+      invalidatedProjectionKinds: ['cashflow', 'route'],
+    },
+  );
+}
+
+/** Persist the exact weekly essentials allowance used by the manual plan. Unlike the legacy
+ * mode-extra setter, this keeps pennies so an explicit £72.35 entry survives hydration. */
+export function setEssentialsWeeklyAmount(amount: number): void {
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isSafeInteger(Math.round(amount * 100))) return;
+  const current = state.modeExtras ?? {};
+  setPartialWithTypedCommand(
+    { modeExtras: { ...current, reset: amount } },
+    {
+      commandType: 'folio.financial_context.mode_extra.set.v1',
+      actorKind: 'user',
+      entityRefs: [financialContextEntityRef()],
+      before: { modeExtras: current },
+      after: { modeExtras: { ...current, reset: amount } },
+      invalidatedProjectionKinds: ['cashflow', 'route'],
+    },
+  );
+}
+
+function meloPreview(input: Record<string, unknown>): Record<string, unknown> | undefined {
+  return typeof input.preview === 'object' && input.preview !== null
+    ? input.preview as Record<string, unknown>
+    : undefined;
+}
+
+function previewMinor(input: Record<string, unknown>, key: string): number | undefined {
+  const value = meloPreview(input)?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function currentDebtTotalMinor(): number {
+  return Math.round((state.debts ?? []).reduce((total, debt) => total + Math.max(0, debt.balance), 0) * 100);
+}
+
+function currentRecurringTotalMinor(): number {
+  return Math.round((state.subs ?? []).reduce((total, sub) => total + Math.max(0, sub.cost), 0) * 100);
+}
+
+/** Apply a confirmed debt-balance correction. Linked card debts go through the account authority,
+ * so the account and debt never drift apart. This helper is deliberately stateful only at the
+ * final write boundary; target resolution and all safety checks remain pure in the bridge. */
+function setMeloDebtBalance(debt: Debt, balance: number): void {
+  const linked = debt.linkedAccountId === undefined
+    ? undefined
+    : (state.accounts ?? []).find((account) => account.id === debt.linkedAccountId);
+  if (linked !== undefined) {
+    setAccountBalance(linked.id, balance, undefined, { source: 'corrected', confidence: 'corrected' });
+    return;
+  }
+  const nextDebts = (state.debts ?? []).map((row) =>
+    row.id === debt.id ? { ...row, balance } : row,
+  );
+  setPartialWithTypedCommand(
+    { debts: nextDebts },
+    {
+      commandType: 'folio.debt.balance.correct.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'debt', id: debt.id }],
+      before: { debt },
+      after: { debt: nextDebts.find((row) => row.id === debt.id) },
+      invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+    },
+  );
 }
 
 /* ---------- Melo log_* tool family — chosen params + behaviour ----------
@@ -7067,6 +7294,373 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
           reason: error instanceof Error ? error.message : 'Transfer failed.',
         };
       }
+    }
+    case 'log_debt_payment': {
+      const expectedDebtTotal = previewMinor(input, 'beforeTotalDebtMinor');
+      if (expectedDebtTotal !== undefined && currentDebtTotalMinor() !== expectedDebtTotal) {
+        return { applied: false, reason: 'This debt proposal is stale. Review the current debt figures again.' };
+      }
+      const requested = meloText(input, 'debtName', 'name', 'debtId');
+      const resolved = input.debtId
+        ? { kind: 'found' as const, value: (state.debts ?? []).find((debt) => debt.id === String(input.debtId)) }
+        : resolveMeloNamedTarget(state.debts ?? [], requested);
+      if (resolved.kind !== 'found' || resolved.value === undefined) {
+        if (resolved.kind === 'ambiguous') {
+          return {
+            applied: false,
+            reason: `Choose one debt: ${resolved.values.map((debt) => debt.name).join(', ')}.`,
+          };
+        }
+        return { applied: false, reason: 'Choose the exact debt this completed payment cleared.' };
+      }
+      const amount = meloAmount(input);
+      if (!isMeloMoney(amount)) {
+        return { applied: false, reason: 'Use a positive payment with at most two decimal places.' };
+      }
+      const beforeDebt = resolved.value;
+      if (beforeDebt.balance <= 0) return { applied: false, reason: `${beforeDebt.name} is already at £0.` };
+      const cashAccountId = meloText(input, 'cashAccountId', 'accountId');
+      const cashAccounts = (state.accounts ?? []).filter(
+        (account) => !account.isLiability && account.closed !== true,
+      );
+      const cashAccount = cashAccountId
+        ? cashAccounts.find((account) => account.id === cashAccountId)
+        : cashAccounts.length === 1
+          ? cashAccounts[0]
+          : undefined;
+      if (cashAccount === undefined) {
+        return { applied: false, reason: cashAccountId ? 'Choose an active cash account for the payment.' : 'Choose which cash account the completed payment came from.' };
+      }
+      const beforeAccount = (state.accounts ?? []).find((account) => account.id === cashAccount.id);
+      const beforeLinkedAccount = beforeDebt.linkedAccountId === undefined
+        ? undefined
+        : (state.accounts ?? []).find((account) => account.id === beforeDebt.linkedAccountId);
+      const beforeBalance = state.currentBalance;
+      const when = new Date().toISOString();
+      const nextDebt = { ...beforeDebt, balance: Math.max(0, beforeDebt.balance - amount) };
+      const nextDebts = (state.debts ?? []).map((debt) => debt.id === beforeDebt.id ? nextDebt : debt);
+      const nextAccounts = (state.accounts ?? []).map((account) => {
+        if (account.id === cashAccount.id) {
+          return { ...account, balanceMinor: account.balanceMinor - amount, balanceAsOfISO: when };
+        }
+        if (account.id === beforeDebt.linkedAccountId) {
+          return { ...account, balanceMinor: Math.max(0, account.balanceMinor - amount), balanceAsOfISO: when };
+        }
+        return account;
+      });
+      const bankTotal = nextAccounts.filter((account) => !account.isLiability).reduce((sum, account) => sum + account.balanceMinor, 0);
+      const nextBalance = { ...state.currentBalance, amount: bankTotal, source: 'corrected' as const, confidence: 'corrected' as const, setAt: when };
+      const payment: Transaction = {
+        id: `melo-debt-payment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        workspaceId: state.activeWorkspaceId,
+        when,
+        merchant: `Debt payment: ${beforeDebt.name}`,
+        amount: -amount,
+        category: 'bills',
+        source: 'melo',
+        accountId: cashAccount.id,
+      };
+      setPartialWithTypedCommand(
+        {
+          debts: nextDebts,
+          accounts: nextAccounts,
+          currentBalance: nextBalance,
+          transactions: [payment, ...state.transactions],
+        },
+        {
+          commandType: 'folio.debt.payment.record.v1',
+          actorKind: 'user',
+          entityRefs: [
+            { type: 'debt', id: beforeDebt.id },
+            { type: 'account', id: cashAccount.id },
+            ...(beforeLinkedAccount === undefined ? [] : [{ type: 'account', id: beforeLinkedAccount.id }]),
+            { type: 'transaction', id: payment.id },
+          ],
+          before: { debt: beforeDebt, account: beforeAccount, ...(beforeLinkedAccount === undefined ? {} : { linkedAccount: beforeLinkedAccount }), balance: beforeBalance },
+          after: { debt: nextDebt, account: nextAccounts.find((account) => account.id === cashAccount.id), balance: nextBalance, transaction: payment },
+          changedEntityIds: [beforeDebt.id, cashAccount.id, payment.id],
+          invalidatedProjectionKinds: ['account-balances', 'debt-summary', 'cashflow', 'transactions'],
+          occurredAt: when,
+        },
+      );
+      const afterDebt = (state.debts ?? []).find((debt) => debt.id === beforeDebt.id);
+      if (afterDebt === undefined || structurallyEqual(afterDebt, beforeDebt)) {
+        return { applied: false, reason: 'The debt payment could not be recorded.' };
+      }
+      const afterAccount = beforeAccount === undefined
+        ? undefined
+        : (state.accounts ?? []).find((account) => account.id === beforeAccount.id);
+      return {
+        applied: true,
+        summary: `Recorded the completed £${amount.toFixed(2)} payment to ${beforeDebt.name}. Balance now £${afterDebt.balance.toFixed(2)}.`,
+        undo: () => meloStaleUndo(
+          () => ({
+            debt: (state.debts ?? []).find((debt) => debt.id === beforeDebt.id),
+            account: beforeAccount === undefined
+              ? undefined
+              : (state.accounts ?? []).find((account) => account.id === beforeAccount.id),
+            linkedAccount: beforeLinkedAccount === undefined
+              ? undefined
+              : (state.accounts ?? []).find((account) => account.id === beforeLinkedAccount.id),
+            transaction: state.transactions.find((transaction) => transaction.id === payment.id),
+            balance: state.currentBalance,
+          }),
+          {
+            debt: afterDebt,
+            account: afterAccount,
+            linkedAccount: beforeLinkedAccount === undefined
+              ? undefined
+              : (state.accounts ?? []).find((account) => account.id === beforeLinkedAccount.id),
+            transaction: payment,
+            balance: nextBalance,
+          },
+          () => {
+            const currentAccounts = state.accounts ?? [];
+            const restoredAccounts = currentAccounts.map((account) => {
+              if (beforeAccount !== undefined && account.id === beforeAccount.id) return beforeAccount;
+              if (beforeLinkedAccount !== undefined && account.id === beforeLinkedAccount.id) return beforeLinkedAccount;
+              return account;
+            });
+            setPartialWithTypedCommand(
+              {
+                debts: (state.debts ?? []).map((debt) => debt.id === beforeDebt.id ? beforeDebt : debt),
+                accounts: restoredAccounts,
+                currentBalance: beforeBalance,
+                transactions: state.transactions.filter((transaction) => transaction.id !== payment.id),
+              },
+              {
+                commandType: 'folio.debt.payment.reverse.v1',
+                actorKind: 'user',
+                entityRefs: [{ type: 'debt', id: beforeDebt.id }, { type: 'account', id: cashAccount.id }, { type: 'transaction', id: payment.id }],
+                before: { debt: afterDebt, transaction: payment },
+                after: { debt: beforeDebt },
+                invalidatedProjectionKinds: ['account-balances', 'debt-summary', 'cashflow', 'transactions'],
+              },
+            );
+          },
+        ),
+      };
+    }
+    case 'set_debt_balance': {
+      const expectedDebtTotal = previewMinor(input, 'beforeTotalDebtMinor');
+      if (expectedDebtTotal !== undefined && currentDebtTotalMinor() !== expectedDebtTotal) {
+        return { applied: false, reason: 'This debt proposal is stale. Review the current debt figures again.' };
+      }
+      const requested = meloText(input, 'debtName', 'name', 'debtId');
+      const resolved = input.debtId
+        ? { kind: 'found' as const, value: (state.debts ?? []).find((debt) => debt.id === String(input.debtId)) }
+        : resolveMeloNamedTarget(state.debts ?? [], requested);
+      if (resolved.kind !== 'found' || resolved.value === undefined) {
+        if (resolved.kind === 'ambiguous') {
+          return { applied: false, reason: `Choose one debt: ${resolved.values.map((debt) => debt.name).join(', ')}.` };
+        }
+        return { applied: false, reason: 'Choose the exact debt whose balance should change.' };
+      }
+      const balance = Number(input.balance);
+      if (!isMeloMoney(balance, true)) {
+        return { applied: false, reason: 'Use a non-negative balance with at most two decimal places.' };
+      }
+      const before = resolved.value;
+      if (Math.abs(before.balance - balance) < 0.000001) {
+        return { applied: false, reason: `${before.name} is already £${balance.toFixed(2)}.` };
+      }
+      const beforeAccount = before.linkedAccountId === undefined
+        ? undefined
+        : (state.accounts ?? []).find((account) => account.id === before.linkedAccountId);
+      if (before.linkedAccountId !== undefined && beforeAccount === undefined) {
+        return { applied: false, reason: 'The linked card account is unavailable, so this correction was not applied.' };
+      }
+      setMeloDebtBalance(before, balance);
+      const after = (state.debts ?? []).find((debt) => debt.id === before.id);
+      if (after === undefined || Math.abs(after.balance - balance) > 0.000001) {
+        return { applied: false, reason: 'The debt balance could not be updated.' };
+      }
+      const afterAccount = beforeAccount === undefined
+        ? undefined
+        : (state.accounts ?? []).find((account) => account.id === beforeAccount.id);
+      return {
+        applied: true,
+        summary: `Updated ${before.name} to a £${balance.toFixed(2)} balance.`,
+        undo: () => meloStaleUndo(
+          () => ({
+            debt: (state.debts ?? []).find((debt) => debt.id === before.id),
+            account: beforeAccount === undefined
+              ? undefined
+              : (state.accounts ?? []).find((account) => account.id === beforeAccount.id),
+          }),
+          { debt: after, account: afterAccount },
+          () => setMeloDebtBalance(after, before.balance),
+        ),
+      };
+    }
+    case 'set_buffer_amount': {
+      const amount = Number(input.amount);
+      if (!isMeloMoney(amount, true)) return { applied: false, reason: 'Use a non-negative buffer amount with at most two decimal places.' };
+      const before = state.bufferAmount ?? DEFAULT_BUFFER_AMOUNT;
+      const next = Math.max(0, Math.round(amount * 100) / 100);
+      if (before === next) return { applied: false, reason: `Your safety buffer is already £${next}.` };
+      setMeloBufferAmount(next);
+      return {
+        applied: true,
+        summary: `Set your safety buffer to £${next}.`,
+        undo: () => meloStaleUndo(() => state.bufferAmount ?? DEFAULT_BUFFER_AMOUNT, next, () => setMeloBufferAmount(before)),
+      };
+    }
+    case 'set_living_cost': {
+      const amount = Number(input.amount);
+      if (!isMeloMoney(amount, true)) return { applied: false, reason: 'Use a non-negative essential-spending allowance with at most two decimal places.' };
+      const before = state.modeExtras?.reset ?? null;
+      const category = meloText(input, 'category');
+      const cadence = meloText(input, 'cadence') || 'weekly';
+      const weeklyAmount = cadence === 'monthly'
+        ? amount * 12 / 52
+        : cadence === 'fortnightly'
+          ? amount / 2
+          : cadence === 'annual' || cadence === 'yearly'
+            ? amount / 52
+            : amount;
+      const next = Math.round(weeklyAmount * 100) / 100;
+      if (before === next) return { applied: false, reason: `Your total essential allowance is already £${next.toFixed(2)} per week.` };
+      setEssentialsWeeklyAmount(next);
+      return {
+        applied: true,
+        summary: `Replace the total weekly essential allowance${before === null ? '' : ` (£${before.toFixed(2)})`} with £${next.toFixed(2)} per week${cadence === 'weekly' ? '' : ` (converted from £${amount.toFixed(2)} ${cadence})`}${category ? `, including ${category}` : ''}.`,
+        undo: () => meloStaleUndo(
+          () => state.modeExtras?.reset ?? null,
+          next,
+          () => {
+            const current = state.modeExtras ?? {};
+            const modeExtras = { ...current };
+            if (before === null) delete modeExtras.reset;
+            else modeExtras.reset = before;
+            setPartialWithTypedCommand(
+              { modeExtras },
+              {
+                commandType: 'folio.financial_context.mode_extra.set.v1',
+                actorKind: 'user',
+                entityRefs: [financialContextEntityRef()],
+                before: { modeExtras: state.modeExtras ?? {} },
+                after: { modeExtras },
+                invalidatedProjectionKinds: ['cashflow', 'route'],
+              },
+            );
+          },
+        ),
+      };
+    }
+    case 'set_commitment': {
+      const expectedRecurringTotal = previewMinor(input, 'beforeRecurringMonthlyMinor');
+      if (expectedRecurringTotal !== undefined && currentRecurringTotalMinor() !== expectedRecurringTotal) {
+        return { applied: false, reason: 'This recurring-payment proposal is stale. Review the current commitments again.' };
+      }
+      const name = meloText(input, 'name', 'label', 'commitmentName');
+      const amount = Number(input.amount);
+      if (!name || !isMeloMoney(amount)) return { applied: false, reason: 'Choose a commitment name and a positive amount with at most two decimal places.' };
+      const resolved = resolveMeloNamedTarget(state.subs ?? [], name);
+      if (resolved.kind === 'ambiguous') return { applied: false, reason: `Choose one commitment: ${resolved.values.map((sub) => sub.name).join(', ')}.` };
+      const requestedCadence = meloText(input, 'cadence');
+      if (resolved.kind === 'missing' && !meloText(input, 'dueDate', 'date', 'nextRenewalISO')) {
+        return { applied: false, reason: 'Choose the first due date before adding a new commitment.' };
+      }
+      const cadence = requestedCadence || (resolved.kind === 'found' && resolved.value.renewalPeriodDays === 7 ? 'weekly' : resolved.kind === 'found' && resolved.value.renewalPeriodDays === 14 ? 'fortnightly' : resolved.kind === 'found' && resolved.value.renewalPeriodDays === 365 ? 'annual' : 'monthly');
+      const period = cadence === 'weekly' ? 7 : cadence === 'fortnightly' ? 14 : cadence === 'yearly' || cadence === 'annual' ? 365 : undefined;
+      const beforeSubs = state.subs ?? [];
+      let nextSubs: Sub[];
+      let changedName = name;
+      if (resolved.kind === 'found') {
+        changedName = resolved.value.name;
+        nextSubs = beforeSubs.map((sub) => {
+          if (sub.name !== resolved.value.name) return sub;
+          const { renewalPeriodDays: _oldPeriod, ...withoutPeriod } = sub;
+          return period === undefined
+            ? { ...withoutPeriod, cost: Math.round(amount * 100) / 100 }
+            : { ...sub, cost: Math.round(amount * 100) / 100, renewalPeriodDays: period };
+        });
+      } else {
+        const today = new Date().toISOString().slice(0, 10);
+        const dueDate = meloText(input, 'dueDate', 'date', 'nextRenewalISO');
+        const daysAway = dueDate && Number.isFinite(Date.parse(dueDate))
+          ? Math.max(0, Math.ceil((Date.parse(dueDate) - Date.now()) / 86_400_000))
+          : period ?? 30;
+        nextSubs = [...beforeSubs, { name, cost: Math.round(amount * 100) / 100, nextRenewalDaysAway: daysAway, nextRenewalISO: dueDate || anchorIsoFor(daysAway, today), ...(period === undefined ? {} : { renewalPeriodDays: period }), lastUsedDaysAgo: 0, usesPerMonth: 0 }];
+      }
+      setSubs(nextSubs);
+      const afterSubs = nextSubs;
+      return {
+        applied: true,
+        summary: `Set ${changedName} to £${amount.toFixed(2)} ${cadence}.`,
+        undo: () => meloStaleUndo(() => state.subs ?? [], afterSubs, () => setSubs(beforeSubs)),
+      };
+    }
+    case 'correct_income': {
+      const transactionId = meloText(input, 'transactionId', 'incomeTransactionId');
+      const requestedAmount = Number(input.amount);
+      const adjustment = Number(input.adjustmentAmount);
+      if (transactionId) {
+        const target = state.transactions.find((transaction) => transaction.id === transactionId);
+        if (target === undefined || target.amount <= 0) return { applied: false, reason: 'Choose an existing positive income record to correct.' };
+        const nextAmount = Number.isFinite(requestedAmount) && requestedAmount > 0
+          ? requestedAmount
+          : target.amount + (input.direction === 'decrease' ? -adjustment : adjustment);
+        if (!(nextAmount > 0) || !Number.isFinite(nextAmount)) return { applied: false, reason: 'The corrected income must remain positive.' };
+        editTransaction(target.id, { amount: nextAmount }, 'melo');
+        return {
+          applied: true,
+          summary: `Corrected ${target.merchant} income to £${nextAmount.toFixed(2)}.`,
+          undo: () => meloStaleUndo(() => state.transactions.find((transaction) => transaction.id === target.id)?.amount, nextAmount, () => editTransaction(target.id, { amount: target.amount }, 'melo')),
+        };
+      }
+      if (!(requestedAmount > 0) && !(adjustment > 0)) return { applied: false, reason: 'Provide the corrected income amount.' };
+      const actualIncome = state.transactions.filter(
+        (transaction) => transaction.amount > 0 && transaction.category === 'income' && transaction.source !== 'seed',
+      );
+      if (actualIncome.length !== 1) {
+        return {
+          applied: false,
+          reason: actualIncome.length === 0
+            ? 'Choose the received income record to correct; changing expected pay belongs in the income schedule.'
+            : 'Choose the exact received income record to correct.',
+        };
+      }
+      const target = actualIncome[0]!;
+      const nextAmount = requestedAmount > 0
+        ? requestedAmount
+        : target.amount + (input.direction === 'decrease' ? -adjustment : adjustment);
+      if (!isMeloMoney(nextAmount)) return { applied: false, reason: 'The corrected income must remain positive and use at most two decimal places.' };
+      editTransaction(target.id, { amount: nextAmount }, 'melo');
+      return {
+        applied: true,
+        summary: `Corrected received income ${target.merchant} to £${nextAmount.toFixed(2)}. Expected pay remains a separate schedule setting.`,
+        undo: () => meloStaleUndo(() => state.transactions.find((transaction) => transaction.id === target.id)?.amount, nextAmount, () => editTransaction(target.id, { amount: target.amount }, 'melo')),
+      };
+    }
+    case 'set_income_schedule': {
+      const day = Number(input.payDayOfMonth ?? input.dayOfMonth);
+      if (!Number.isInteger(day) || day < 1 || day > 31) return { applied: false, reason: 'Choose a payday from 1 to 31.' };
+      const sources = state.incomeSources ?? [];
+      const requestedSource = meloText(input, 'source', 'label', 'sourceName');
+      if (sources.length > 1 && !requestedSource) return { applied: false, reason: 'Choose which income source has this payday.' };
+      const resolved = resolveMeloNamedTarget(sources.map((source) => ({ ...source, name: source.label })), requestedSource);
+      if (resolved.kind === 'ambiguous') return { applied: false, reason: 'Choose which income source has this payday.' };
+      if (resolved.kind === 'found') {
+        const before = resolved.value;
+        const { anchorISO: _oldAnchor, ...withoutAnchor } = before;
+        const after = { ...withoutAnchor, cadence: 'monthly' as const, dayOfMonth: day };
+        upsertIncomeSource(after);
+        return {
+          applied: true,
+          summary: `Set ${before.label} payday to the ${day}${day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th'} of each month.`,
+          undo: () => meloStaleUndo(() => state.incomeSources?.find((source) => source.id === before.id), after, () => upsertIncomeSource(before)),
+        };
+      }
+      const before = state.onboarding;
+      setOnboarding({ payday: day });
+      const after = { ...before, payday: day };
+      return {
+        applied: true,
+        summary: `Set payday to the ${day}${day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th'} of each month.`,
+        undo: () => meloStaleUndo(() => state.onboarding, after, () => setOnboarding({ payday: before.payday })),
+      };
     }
     default:
       return { applied: false, reason: 'unknown tool' };

@@ -135,6 +135,85 @@ describe('canonical AppState read projection', () => {
     ).toEqual(state.transactions[0]!.financialAction);
   });
 
+  it('round-trips manually edited debt metadata without turning unknown APR into zero', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const state: AppState = {
+      ...base,
+      debts: [
+        {
+          id: 'debt-edited-manual',
+          workspaceId: workspace.id,
+          name: 'Card after review',
+          kind: 'card',
+          balance: 0,
+          apr: 24.5,
+          aprKnown: false,
+          arrears: true,
+          promoUntil: '2026-12-31',
+          minPayment: 0,
+          dueDom: 18,
+          addedAt: '2026-07-10T09:00:00.000Z',
+        },
+      ],
+    };
+
+    const canonical = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-09-09T12:00:00.000Z',
+    );
+    const read = readCanonicalAppStateMoneyProjection(
+      canonical.repositorySnapshot,
+      String(workspace.id),
+    );
+
+    expect(read.debts).toEqual([
+      expect.objectContaining({
+        id: 'debt-edited-manual',
+        balance: 0,
+        apr: 24.5,
+        aprKnown: false,
+        arrears: true,
+        promoUntil: '2026-12-31',
+        minPayment: 0,
+        dueDom: 18,
+      }),
+    ]);
+  });
+
+  it('round-trips the onboarding-owned custom bill name used to replace a renamed row', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const state: AppState = {
+      ...base,
+      onboarding: { ...base.onboarding, bundledCommitmentName: 'Council tax' },
+      subs: [
+        {
+          name: 'Council tax',
+          workspaceId: workspace.id,
+          cost: 955,
+          nextRenewalDaysAway: 3,
+          nextRenewalISO: '2026-09-12',
+          lastUsedDaysAgo: 0,
+          usesPerMonth: 0,
+        },
+      ],
+    };
+    const canonical = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-09-09T12:00:00.000Z',
+    );
+    const read = readCanonicalAppStateMoneyProjection(
+      canonical.repositorySnapshot,
+      String(workspace.id),
+    );
+
+    expect(read.onboarding.bundledCommitmentName).toBe('Council tax');
+    expect(read.subs.filter((subscription) => subscription.name === 'Council tax')).toHaveLength(1);
+  });
+
   it('round-trips rework continuity, subscription recovery and route holds losslessly', () => {
     const base = emptyState();
     const workspace = personalWorkspace(base);

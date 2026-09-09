@@ -47,10 +47,10 @@ import {
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
-import { useRoute } from '@/folio/lib/storeRoute';
 import { useAppStore } from '@/folio/store';
-import { checkAfford, type AffordVerdict } from '@/folio/lib/affordCheck';
-import { safeZoneMath } from '@/folio/lib/modes/safeZone';
+import { type AffordVerdict } from '@/folio/lib/affordCheck';
+import { buildFinancialPlanFromState, toFinancialPlanInput } from '@/folio/lib/financialPlan';
+import { simulateFinancialAffordability } from '@folio/finance-engine';
 import { addShelfItem } from '@/folio/lib/shelf';
 import { formatGBP } from '@/folio/screens/today/format';
 
@@ -133,8 +133,6 @@ function meloLineFor(state: AffordVerdict['state']): string {
 // Form
 // ---------------------------------------------------------------------------
 
-const NOW = new Date();
-
 function AffordCheckForm({
   styles: s,
   palette: t,
@@ -149,46 +147,59 @@ function AffordCheckForm({
   const [label, setLabel] = useState('');
   const [amountRaw, setAmountRaw] = useState('');
   const amount = Math.max(0, parseFloat(amountRaw) || 0);
+  const [now] = useState(() => new Date());
 
-  // Same ModeInputs shape TodayScreen/safeZoneMath consumers build — the route bridge supplies
-  // the tightest-point figure/date (the same "when" Today itself uses), and the rest of the
-  // snapshot comes straight off the store, exactly like the web's `inputs` useMemo.
-  const route = useRoute(NOW);
-  const onboarding = useAppStore((st) => st.onboarding);
-  const pots = useAppStore((st) => st.pots);
-  const subs = useAppStore((st) => st.subs);
-  const subPaused = useAppStore((st) => st.subPaused);
-  const currentBalance = useAppStore((st) => st.currentBalance);
-  const bufferAmount = useAppStore((st) => st.bufferAmount ?? 100);
-
-  const modeInputs = useMemo(
-    () => ({
-      currentBalance,
-      onboarding,
-      pots,
-      subs,
-      subPaused,
-      tightestSpare: route.tightPoint.amount,
-      tightestDate: route.tightPoint.date,
-      ritualCompletedRecently: false,
-      bufferAmount,
-    }),
-    [
-      currentBalance,
-      onboarding,
-      pots,
-      subs,
-      subPaused,
-      route.tightPoint.amount,
-      route.tightPoint.date,
-      bufferAmount,
-    ],
+  const appState = useAppStore((st) => st);
+  const financialPlan = useMemo(
+    () => buildFinancialPlanFromState(appState, { now }),
+    [appState, now],
   );
-  const zone = useMemo(() => safeZoneMath(modeInputs), [modeInputs]);
-  const verdict = useMemo(() => checkAfford(amount, modeInputs), [amount, modeInputs]);
+  const verdict = useMemo(() => {
+    const input = toFinancialPlanInput(appState, { now });
+    const affordable = simulateFinancialAffordability(input, Math.round(amount * 100));
+    const after = affordable.safeToSpendAfterMinor / 100;
+    const safeNow = affordable.safeToSpendBeforeMinor / 100;
+    const daysLeft = Math.max(
+      1,
+      financialPlan.nextIncomeDate
+        ? Math.round(
+            (new Date(`${financialPlan.nextIncomeDate}T00:00:00Z`).getTime() -
+              new Date(`${financialPlan.asOf}T00:00:00Z`).getTime()) /
+              86_400_000,
+          )
+        : 1,
+    );
+    const perDayAfter = Math.max(0, Math.floor(after / daysLeft));
+    if (after < 0) {
+      // A receipt alone does not prove that this spend becomes safe: later bills and essentials
+      // may consume it. Keep the verdict conservative until a dated post-receipt simulation exists.
+      return {
+        state: 'not-now' as const,
+        headline: 'Not now — but the check still counts',
+        after,
+        perDayAfter,
+        safeOn: null,
+      };
+    }
+    if (perDayAfter < Math.floor(safeNow / Math.max(1, daysLeft) / 2)) {
+      return {
+        state: 'tight' as const,
+        headline: 'Tight, but the path holds',
+        after,
+        perDayAfter,
+        safeOn: null,
+      };
+    }
+    return {
+      state: 'safe' as const,
+      headline: 'Safe — plenty of room',
+      after,
+      perDayAfter,
+      safeOn: null,
+    };
+  }, [amount, appState, financialPlan, now]);
 
-  const canShelf =
-    verdict.state === 'not-now' || verdict.state === 'tight' || verdict.state === 'safe-later';
+  const canShelf = verdict.state === 'not-now' || verdict.state === 'tight';
 
   function shelfIt() {
     addShelfItem(label || 'Something', amount, verdict.state);
@@ -237,7 +248,7 @@ function AffordCheckForm({
           <View style={s.verdictRow}>
             <View style={s.verdictCol}>
               <Text style={s.verdictLabel}>Safe Zone now</Text>
-              <Text style={s.verdictValue}>{formatGBP(zone.total)}</Text>
+              <Text style={s.verdictValue}>{formatGBP(financialPlan.safeToSpendMinor / 100)}</Text>
             </View>
             <View style={s.verdictCol}>
               <Text style={s.verdictLabel}>After this</Text>
@@ -246,9 +257,6 @@ function AffordCheckForm({
               </Text>
             </View>
           </View>
-          {verdict.state === 'safe-later' && verdict.safeOn && (
-            <Text style={s.verdictNote}>Runway opens back up on payday.</Text>
-          )}
         </View>
       )}
 

@@ -22,16 +22,18 @@
 // existing undo/toast lib (useUndo/showUndo) as the confirmation surface — Undo here simply removes
 // the just-added debt, which is a faithful (if stronger) analogue of a plain acknowledgment toast.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
-import { addDebt, removeDebt, type Debt } from '@/folio/store';
+import { gap, radius, serif, Sheet, useTheme, weightFamily, type Palette } from '@/folio/theme';
+import { parseManualMoney } from '@/folio/lib/manualMoney';
+import { addDebt, removeDebt, updateDebt, useAppStore, type Debt } from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
 
 export type AddDebtSheetProps = {
   visible: boolean;
   onClose: () => void;
+  targetId?: string | undefined;
 };
 
 const KINDS: readonly { id: Debt['kind']; label: string; hint: string }[] = [
@@ -41,10 +43,24 @@ const KINDS: readonly { id: Debt['kind']; label: string; hint: string }[] = [
   { id: 'other', label: 'Other', hint: 'family, overdraft, tab' },
 ];
 
-export function AddDebtSheet({ visible, onClose }: AddDebtSheetProps) {
+function parseNonNegative(raw: string): number {
+  if (raw.trim() === '') return 0;
+  return parseManualMoney(raw, { allowZero: true }) ?? NaN;
+}
+
+function validISODate(raw: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false;
+  const date = new Date(`${raw}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === raw;
+}
+
+export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) {
   const t = useTheme();
   const s = makeStyles(t);
   const { showUndo } = useUndo();
+  const target = useAppStore((state) =>
+    targetId === undefined ? null : (state.debts ?? []).find((debt) => debt.id === targetId) ?? null,
+  );
 
   const [name, setName] = useState('');
   const [kind, setKind] = useState<Debt['kind']>('card');
@@ -52,11 +68,33 @@ export function AddDebtSheet({ visible, onClose }: AddDebtSheetProps) {
   const [apr, setApr] = useState('');
   const [minPayment, setMinPayment] = useState('');
   const [dueDom, setDueDom] = useState(1);
+  const [arrears, setArrears] = useState(false);
+  const [promoUntil, setPromoUntil] = useState('');
 
-  const bal = Number(balance) || 0;
-  const rate = Number(apr) || 0;
-  const min = Number(minPayment) || 0;
-  const canAdd = name.trim().length > 0 && bal > 0 && min > 0;
+  useEffect(() => {
+    if (target === null) {
+      if (targetId === undefined) reset();
+      return;
+    }
+    setName(target.name);
+    setKind(target.kind);
+    setBalance(String(target.balance));
+    setApr(target.aprKnown === false ? '' : String(target.apr));
+    setMinPayment(String(target.minPayment));
+    setDueDom(target.dueDom);
+    setArrears(target.arrears === true);
+    setPromoUntil(target.promoUntil ?? '');
+  }, [target, targetId]);
+
+  const bal = parseNonNegative(balance);
+  const rate = parseNonNegative(apr);
+  const min = parseNonNegative(minPayment);
+  const canAdd =
+    name.trim().length > 0 &&
+    Number.isFinite(bal) &&
+    Number.isFinite(rate) &&
+    Number.isFinite(min) &&
+    (target !== null ? bal >= 0 && min >= 0 : bal > 0 && min > 0);
   const activeKind = KINDS.find((k) => k.id === kind);
 
   function reset() {
@@ -66,11 +104,38 @@ export function AddDebtSheet({ visible, onClose }: AddDebtSheetProps) {
     setApr('');
     setMinPayment('');
     setDueDom(1);
+    setArrears(false);
+    setPromoUntil('');
   }
 
   function handleAdd() {
     if (!canAdd) return;
-    const d = addDebt({ name, kind, balance: bal, apr: rate, minPayment: min, dueDom });
+    if (target !== null) {
+      updateDebt(target.id, {
+        name,
+        kind,
+        balance: bal,
+        apr: rate,
+        aprKnown: apr.trim().length > 0,
+        minPayment: min,
+        dueDom,
+        arrears,
+        ...(validISODate(promoUntil.trim()) ? { promoUntil: promoUntil.trim() } : {}),
+      });
+      onClose();
+      return;
+    }
+    const d = addDebt({
+      name,
+      kind,
+      balance: bal,
+      apr: rate,
+      aprKnown: apr.trim().length > 0,
+      minPayment: min,
+      dueDom,
+      arrears,
+      ...(validISODate(promoUntil.trim()) ? { promoUntil: promoUntil.trim() } : {}),
+    });
     onClose();
     reset();
     showUndo(`Debt added · ${d.name}`, () => {
@@ -81,10 +146,10 @@ export function AddDebtSheet({ visible, onClose }: AddDebtSheetProps) {
   return (
     <Sheet visible={visible} onClose={onClose}>
       <View style={s.headerRow}>
-        <Text style={s.eyebrow}>Add a debt</Text>
+      <Text style={s.eyebrow}>{target === null ? 'Add a debt' : 'Edit a debt'}</Text>
       </View>
       <Text accessibilityRole="header" style={s.headline}>
-        {'One line at a '}
+        {target === null ? 'One line at a ' : 'Keep one line '}
         <Text style={[s.headlineAccent, { color: t.calm }]}>time.</Text>
       </Text>
       <Text style={[s.subline, { color: t.muted }]}>Rough is fine — you can adjust it later.</Text>
@@ -162,6 +227,24 @@ export function AddDebtSheet({ visible, onClose }: AddDebtSheetProps) {
         </View>
       </View>
 
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: arrears }}
+        onPress={() => setArrears((value) => !value)}
+        style={[s.priorityRow, { borderColor: t.hairline, backgroundColor: t.inset }]}
+      >
+        <Text style={[s.priorityLabel, { color: t.ink }]}>I’m behind on this payment</Text>
+        <Text style={[s.priorityValue, { color: arrears ? t.repair : t.muted }]}>{arrears ? 'Yes' : 'No'}</Text>
+      </Pressable>
+      <TextInput
+        value={promoUntil}
+        onChangeText={(value) => setPromoUntil(value.replace(/[^0-9-]/g, '').slice(0, 10))}
+        placeholder="0% rate ends (YYYY-MM-DD), optional"
+        placeholderTextColor={t.muted}
+        style={[s.input, { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink }]}
+        accessibilityLabel="Promotional rate expiry date"
+      />
+
       <View style={s.row}>
         <View style={s.rowField}>
           <Text style={[s.label, { color: t.muted }]}>Minimum / mo</Text>
@@ -209,7 +292,7 @@ export function AddDebtSheet({ visible, onClose }: AddDebtSheetProps) {
           pressed && canAdd ? s.pressed : undefined,
         ]}
       >
-        <Text style={[s.primaryLabel, { color: t.inverse }]}>Add debt</Text>
+        <Text style={[s.primaryLabel, { color: t.inverse }]}>{target === null ? 'Add debt' : 'Save changes'}</Text>
       </Pressable>
       <Pressable
         accessibilityRole="button"
@@ -344,5 +427,17 @@ function makeStyles(t: Palette) {
       opacity: 0.6,
       transform: [{ scale: 0.97 }],
     },
+    priorityRow: {
+      alignItems: 'center',
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: gap.md,
+      minHeight: 44,
+      paddingHorizontal: gap.md,
+    },
+    priorityLabel: { fontSize: 13 },
+    priorityValue: { fontFamily: weightFamily(500), fontSize: 13 },
   });
 }

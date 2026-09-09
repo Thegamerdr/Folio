@@ -1103,15 +1103,18 @@ export function parseOpenBankingSyncResponse(value: unknown): OpenBankingSyncRes
   const candidates = rawCandidates.map(parseRuntimeCandidate);
   if (candidates.some((candidate) => candidate === null)) return null;
   const deliveryId = value['deliveryId'];
-  const connectionRevision = value['connectionRevision'];
+  const rawConnectionRevision = value['connectionRevision'];
+  if (
+    rawConnectionRevision !== undefined &&
+    (typeof rawConnectionRevision !== 'number' ||
+      !Number.isSafeInteger(rawConnectionRevision) ||
+      rawConnectionRevision < 1)
+  )
+    return null;
+  const connectionRevision = rawConnectionRevision as number | undefined;
   if (
     deliveryId !== undefined &&
     (typeof deliveryId !== 'string' || deliveryId.length === 0 || deliveryId.length > 128)
-  )
-    return null;
-  if (
-    connectionRevision !== undefined &&
-    (!Number.isSafeInteger(connectionRevision) || connectionRevision < 1)
   )
     return null;
   return {

@@ -84,6 +84,7 @@ import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
 import { TrialEndedRow } from '@/folio/ui/TrialEndedRow';
 import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import type { Nav, Pressure } from '@/folio/types';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 
 import { derivePressure, pressureLine, pressureLow } from './today/pressure';
 import { selectPaydayTightPoint, tightPointDayLabel } from '@/folio/lib/moneyPath';
@@ -183,6 +184,11 @@ export function TodayScreen({
   // a spinner) shows.
   const now = useDayClock();
   const engineNow = useMemo(() => (now ? utcMidnightForLocalDay(now) : null), [now]);
+  const appState = useAppStore((st) => st);
+  const financialPlan = useMemo(
+    () => (now ? buildFinancialPlanFromState(appState, { now }) : null),
+    [appState, now],
+  );
   const [prevOpenIso, setPrevOpenIso] = useState<string | null>(null);
   useEffect(() => {
     sweepSubOverrides();
@@ -432,7 +438,9 @@ export function TodayScreen({
           ? 'signal'
           : 'currency';
   const heroUnitLabel =
-    heroUnit === 'currency' && routeTightestAmount < 0
+    financialPlan !== null
+      ? 'safe to spend until payday'
+      : heroUnit === 'currency' && routeTightestAmount < 0
       ? `spare · £${groupedPounds(Math.abs(routeTightestAmount) + Math.round(scrub * 120))} short`
       : heroUnit === 'days'
         ? 'days of essentials covered'
@@ -444,7 +452,9 @@ export function TodayScreen({
   const heroProvisional =
     modeState.safeZone.confidence !== 'high' || currentBalance.source === 'sample';
   const heroBase =
-    heroUnit === 'currency'
+    financialPlan !== null
+      ? Math.max(0, Math.floor(financialPlan.safeToSpendMinor / 100))
+      : heroUnit === 'currency'
       ? Math.max(
           0,
           (routeTightestAmount < 0 ? 0 : Math.round(modeState.safeZone.amount)) -
@@ -453,7 +463,14 @@ export function TodayScreen({
       : Math.max(0, Math.round(modeState.safeZone.amount));
   const lowDisplay = useCountUp(heroBase, 400, reduceMotion);
   const heroFigure =
-    heroUnit === 'currency' ? `£${groupedPounds(lowDisplay)}` : groupedPounds(lowDisplay);
+    financialPlan !== null
+      ? `£${Math.abs(financialPlan.safeToSpendMinor / 100).toLocaleString('en-GB', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}${financialPlan.safeToSpendMinor < 0 ? ' short' : ''}`
+      : heroUnit === 'currency'
+        ? `£${groupedPounds(lowDisplay)}`
+        : groupedPounds(lowDisplay);
   const heroFigureSize = heroFigure.length >= 8 ? 44 : heroFigure.length >= 7 ? 50 : 58;
 
   // Calendar → Route bridge. Map the focused ISO date to an x on the path (30..370), pulse it, and

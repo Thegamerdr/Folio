@@ -121,7 +121,7 @@ describe('buildMeloLocalCalculation', () => {
       now: NOW,
       request: {
         intent: 'review_debts',
-        prompt: 'Add 20 extra using highest-rate-first for my debts',
+        prompt: 'Add 20 extra each month using highest-rate-first for my debts',
         detectedAmountMinor: 2000,
       },
     });

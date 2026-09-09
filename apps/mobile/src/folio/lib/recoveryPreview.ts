@@ -8,12 +8,55 @@ export const RECOVERY_HOLD_DAYS = 3;
 const HOLD_LOOKBACK_DAYS = 30;
 const DAY_MS = 86_400_000;
 const DISCRETIONARY: ReadonlySet<string> = new Set([
-  'food',
   'fun',
   'shopping',
-  'transport',
-  'other',
 ]);
+
+/** Names that describe protected household obligations, not optional subscriptions. */
+const PROTECTED_SUBSCRIPTION_TERMS = [
+  'rent',
+  'mortgage',
+  'housing',
+  'utility',
+  'utilities',
+  'council tax',
+  'childcare',
+  'child care',
+  'energy',
+  'electric',
+  'gas',
+  'water',
+  'insurance',
+  'essential',
+  'priority',
+  'bill',
+  'transport',
+  'travel',
+  'phone',
+  'mobile',
+  'child maintenance',
+  'maintenance',
+  'tax',
+  'loan',
+];
+const OPTIONAL_SUBSCRIPTION_TERMS = [
+  'entertainment',
+  'streaming',
+  'netflix',
+  'spotify',
+  'disney',
+  'prime video',
+  'youtube',
+  'audible',
+  'music',
+  'gaming',
+  'game',
+  'playstation',
+  'xbox',
+  'nintendo',
+  'cinema',
+  'gym',
+];
 
 export type RecoveryRoutePreview = Readonly<{
   baseTight: number;
@@ -34,11 +77,23 @@ export type RecoveryRoutePreview = Readonly<{
   paydayIndex: number;
 }>;
 
+/** A recovery move may pause a subscription only when its existing name explicitly signals an
+ * optional service. Protected terms always win, and an ambiguous name is withheld from automatic
+ * recovery suggestions so the user can review it manually in Subscriptions. */
+export function isDiscretionarySubscription(subscription: Sub): boolean {
+  const name = subscription.name.trim().toLocaleLowerCase();
+  if (name.length === 0 || PROTECTED_SUBSCRIPTION_TERMS.some((term) => name.includes(term)))
+    return false;
+  return OPTIONAL_SUBSCRIPTION_TERMS.some((term) => name.includes(term));
+}
+
 function nearestActiveSubscription(
   subs: readonly Sub[],
   subPaused: Readonly<Record<string, boolean>>,
 ): Sub | null {
-  const active = subs.filter((subscription) => !subPaused[subscription.name]);
+  const active = subs.filter(
+    (subscription) => !subPaused[subscription.name] && isDiscretionarySubscription(subscription),
+  );
   if (active.length === 0) return null;
   return (
     [...active].sort((left, right) => left.nextRenewalDaysAway - right.nextRenewalDaysAway)[0] ??
@@ -59,20 +114,24 @@ function averageDailyDiscretionary(state: AppState, nowMs: number): number {
 }
 
 function liftFromRoute(base: number, candidateState: AppState, now: Date): number {
-  const candidate = routeFromStore(candidateState, now).tightPoint.amount;
+  const candidateRoute = routeFromStore(candidateState, now);
+  const candidate = candidateRoute.safeToSpend ?? candidateRoute.tightPoint.amount;
   return Math.max(0, Math.round(candidate - base));
 }
 
 /** Pure preview shared by RecoveryScreen and Melo. It never mutates the supplied state. */
 export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryRoutePreview {
   const baseRoute = routeFromStore(state, now);
-  const baseTight = baseRoute.tightPoint.amount;
+  // Recovery's shortfall is spendable headroom after the protected buffer, while the plotted
+  // points remain raw closing cash for the path visual. This keeps recovery verdicts aligned with
+  // Safe Zone/affordability without changing the geometry contract.
+  const baseTight = baseRoute.safeToSpend ?? baseRoute.tightPoint.amount;
+  // Match MeloSnapshot's honest gate: shipped sample balance/seed activity is presentation data,
+  // not evidence that this user has a real shortfall to recover from. A manually entered,
+  // imported, or corrected balance (or any non-seed transaction) is sufficient evidence.
   const hasMoneyPicture =
-    state.onboarding.done ||
-    state.transactions.length > 0 ||
-    state.currentBalance.amount !== 0 ||
-    state.onboarding.monthlyIncome > 0 ||
-    (state.incomeSources?.length ?? 0) > 0;
+    state.currentBalance.source !== 'sample' ||
+    state.transactions.some((transaction) => transaction.source !== 'seed');
   const hasShortfall = hasMoneyPicture && baseTight < 0;
   const flexibleBill = nearestActiveSubscription(state.subs, state.subPaused);
   const pausableSubscription = nearestActiveSubscription(state.subs, state.subPaused);

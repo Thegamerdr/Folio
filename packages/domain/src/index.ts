@@ -800,6 +800,10 @@ export type Debt = Readonly<{
   kind: 'loan' | 'card' | 'bnpl' | 'other';
   balance: Money;
   apr: number;
+  /** False when the source/user has not supplied an APR; keeps unknown distinct from confirmed 0%. */
+  aprKnown?: boolean;
+  arrears?: boolean;
+  promoUntil?: LocalDate;
   minimumPayment: Money;
   dueDayOfMonth: number;
   sourceAddedAt?: string;
@@ -833,6 +837,8 @@ export type FinancialContext = Readonly<{
     name: string;
     payday: number;
     monthlyIncome: Money;
+    /** User-selected name for the onboarding-owned bundled commitment, when present. */
+    bundledCommitmentName?: string;
   }>;
   nextYouNote: string;
   tightPointGoal: Money | null;

@@ -93,15 +93,16 @@ export function describeMeloToolSuggestion(
   input: Readonly<Record<string, unknown>>,
 ): string {
   const amount = formatAmount(input.amount);
+  const preview = previewText(input.preview);
   const merchant = textValue(input.merchant);
 
   switch (name) {
     case 'log_spend':
-      if (amount && merchant) return `Log ${amount} spent at ${merchant}.`;
+      if (amount && merchant) return `Log ${amount} spent at ${merchant}.${preview}`;
       break;
     case 'log_income': {
       const source = merchant ?? textValue(input.source);
-      if (amount && source) return `Log ${amount} received from ${source}.`;
+      if (amount && source) return `Log ${amount} received from ${source}.${preview}`;
       break;
     }
     case 'log_refund':
@@ -111,6 +112,43 @@ export function describeMeloToolSuggestion(
       const from = textValue(input.from);
       const to = textValue(input.to);
       if (amount && from && to) return `Log a ${amount} transfer from ${from} to ${to}.`;
+      break;
+    }
+    case 'log_debt_payment': {
+      const debt = textValue(input.debtName) ?? textValue(input.name);
+      if (amount && debt) return `Record the completed ${amount} payment to ${debt}.${preview}`;
+      if (amount) return `Record the completed ${amount} debt payment.${preview}`;
+      break;
+    }
+    case 'set_debt_balance': {
+      const debt = textValue(input.debtName) ?? textValue(input.name);
+      const balance = formatNonNegativeAmount(input.balance);
+      if (debt && balance) return `Set ${debt}'s balance to ${balance}.${preview}`;
+      break;
+    }
+    case 'set_commitment': {
+      const commitment = textValue(input.name) ?? textValue(input.label);
+      if (amount && commitment) return `Set ${commitment} to ${amount}${textValue(input.cadence) ? ` ${textValue(input.cadence)}` : ''}.${preview}`;
+      break;
+    }
+    case 'set_living_cost': {
+      const category = textValue(input.category);
+      const cadence = textValue(input.cadence) ?? 'weekly';
+      if (amount) return `Set total essential spending to ${amount} ${cadence}${category ? `, including ${category}` : ''}.${preview}`;
+      break;
+    }
+    case 'set_buffer_amount':
+      if (formatNonNegativeAmount(input.amount)) return `Set your safety buffer to ${formatNonNegativeAmount(input.amount)}.${preview}`;
+      break;
+    case 'correct_income': {
+      const source = textValue(input.source) ?? textValue(input.label);
+      if (amount && source) return `Correct ${source} income to ${amount}.${preview}`;
+      if (amount) return `Correct expected income to ${amount}.${preview}`;
+      break;
+    }
+    case 'set_income_schedule': {
+      const day = Number(input.payDayOfMonth ?? input.dayOfMonth);
+      if (Number.isInteger(day) && day >= 1 && day <= 31) return `Set payday to the ${ordinal(day)} of each month.`;
       break;
     }
     default:
@@ -123,6 +161,45 @@ export function describeMeloToolSuggestion(
 function formatAmount(value: unknown): string | undefined {
   const amount = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(amount) && amount > 0 ? `£${amount.toFixed(2)}` : undefined;
+}
+
+function formatNonNegativeAmount(value: unknown): string | undefined {
+  const amount = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? `£${amount.toFixed(2)}` : undefined;
+}
+
+function ordinal(day: number): string {
+  const suffix = day % 100 >= 11 && day % 100 <= 13
+    ? 'th'
+    : day % 10 === 1
+      ? 'st'
+      : day % 10 === 2
+        ? 'nd'
+        : day % 10 === 3
+          ? 'rd'
+          : 'th';
+  return `${day}${suffix}`;
+}
+
+function previewText(value: unknown): string {
+  if (typeof value !== 'object' || value === null) return '';
+  const preview = value as Record<string, unknown>;
+  const available = formatMinor(preview.availableNowMinor);
+  const tightest = formatMinor(preview.tightestBalanceMinor);
+  const afterDebt = formatNonNegativeAmount(preview.afterTotalDebtMinor === undefined ? undefined : Number(preview.afterTotalDebtMinor) / 100);
+  const beforeDebt = formatNonNegativeAmount(preview.beforeTotalDebtMinor === undefined ? undefined : Number(preview.beforeTotalDebtMinor) / 100);
+  const pieces = [
+    available ? ` Current safe-to-spend is ${available}` : '',
+    tightest ? `; projected low point is ${tightest}` : '',
+    beforeDebt ? `; total debt before this change is ${beforeDebt}` : '',
+    afterDebt ? `; total debt after this payment would be ${afterDebt}` : '',
+  ].join('');
+  return pieces ? `${pieces}.` : '';
+}
+
+function formatMinor(value: unknown): string | undefined {
+  const minor = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(minor) ? `£${(minor / 100).toFixed(2)}` : undefined;
 }
 
 function textValue(value: unknown): string | undefined {

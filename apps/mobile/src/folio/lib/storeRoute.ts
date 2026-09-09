@@ -35,6 +35,7 @@ import { monthlySpendBaseline } from './historyStats';
 import { recentTransactionHorizon } from './transactionHorizon';
 import { useAppStore, selectBankBalanceMinor, bankTransactions, type AppState } from '../store';
 import { derivePressure } from '../screens/today/pressure';
+import { buildFinancialPlanFromState } from './financialPlan';
 
 /** Fallback day-of-month payday when onboarding hasn't set one. Matches the
  *  literal TodayScreen used inline (`onboarding.payday || 25`). */
@@ -45,6 +46,54 @@ const DEFAULT_PAYDAY_DOM = 25;
  *  and the Calendar's ladder minimum are ONE number on ONE day — a dip that lands
  *  after payday (next month's start-of-month bills) is in BOTH or neither. */
 const ROUTE_WINDOW_DAYS = 35;
+
+function canonicalRouteFromPlan(
+  plan: ReturnType<typeof buildFinancialPlanFromState>,
+  todayIso: string,
+  windowDays: number,
+): RouteResult {
+  const points: RouteResult['points'] = [];
+  const dayMs = 86_400_000;
+  let cursor = plan.currentBalanceMinor;
+  let eventIndex = 0;
+  let lowest = cursor;
+  let lowestDate = todayIso;
+  const planPoints = [...plan.timeline].sort((left, right) => left.date.localeCompare(right.date));
+  for (let day = 0; day <= windowDays; day += 1) {
+    const date = new Date(new Date(`${todayIso}T00:00:00Z`).getTime() + day * dayMs)
+      .toISOString()
+      .slice(0, 10);
+    while (eventIndex < planPoints.length && planPoints[eventIndex]!.date <= date) {
+      cursor = planPoints[eventIndex]!.closingMinor;
+      eventIndex += 1;
+    }
+    const pounds = cursor / 100;
+    points.push({ date, y: pounds });
+    if (cursor < lowest) {
+      lowest = cursor;
+      lowestDate = date;
+    }
+  }
+  const payday = plan.nextIncomeDate ?? todayIso;
+  const paydayPoint = points.find((point) => point.date === payday) ?? points.at(-1)!;
+  return {
+    points,
+    tightPoint: { date: lowestDate, amount: lowest / 100 },
+    spare: paydayPoint.y,
+    daysToPayday: Math.max(
+      0,
+      Math.round(
+        (new Date(`${payday}T00:00:00Z`).getTime() - new Date(`${todayIso}T00:00:00Z`).getTime()) /
+          dayMs,
+      ),
+    ),
+    incomingTotal:
+      plan.timeline.reduce((total, point) => total + Math.max(0, point.netChangeMinor), 0) / 100,
+    outgoingTotal:
+      plan.timeline.reduce((total, point) => total + Math.max(0, -point.netChangeMinor), 0) / 100,
+    safeToSpend: plan.safeToSpendMinor / 100,
+  };
+}
 
 // --- Date helpers ----------------------------------------------------------------------------
 // "Today" must be the user's LOCAL calendar day. The design's Today reads `new Date()` (a local
@@ -247,7 +296,20 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   const outgoingTotal = hasHistory
     ? monthlySpendBaseline(bankTxns, todayIso).medianMonthlySpend
     : projectedOutgoing;
-  return { ...result, incomingTotal, outgoingTotal };
+  const financialPlan = buildFinancialPlanFromState(state, {
+    now: nowDate,
+    horizonDays: ROUTE_WINDOW_DAYS,
+  });
+  const useCanonicalRoute = state.currentBalance.source !== 'sample';
+  const canonical = useCanonicalRoute
+    ? canonicalRouteFromPlan(financialPlan, todayIso, ROUTE_WINDOW_DAYS)
+    : null;
+  return {
+    ...(canonical ?? result),
+    incomingTotal,
+    outgoingTotal,
+    safeToSpend: financialPlan.safeToSpendMinor / 100,
+  };
 }
 
 /**
@@ -306,6 +368,9 @@ export function useRoute(now: Date | string): RouteResult {
       state.calendarEvents,
       state.spendHold,
       state.whatIfHolds,
+      state.debts,
+      state.bufferAmount,
+      state.modeExtras,
       nowKey,
     ],
   );

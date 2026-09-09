@@ -9,6 +9,11 @@ import {
 } from '@folio/ai-contracts';
 
 import type { MeloToolSuggestion, MeloTone } from './meloAiClient';
+import {
+  ambiguousDebtName,
+  isAmbiguousDebtClearanceRequest,
+  parseLocalFinanceProposal,
+} from './financeProposal';
 import { hasLocalMeloPromptInjectionLanguage, resolveLocalMeloSafety } from './localMeloSafety';
 
 export type LocalMeloTurn = Readonly<{
@@ -625,6 +630,76 @@ export function buildLocalMeloTurn(
   }
 
   const parsed = parseLocalMoneySuggestion(input.prompt);
+  const financeProposal = parseLocalFinanceProposal(input.prompt);
+  if (financeProposal !== null) {
+    const proposedAmount = Number(financeProposal.args.amount);
+    const currentDebtMinor = input.snapshot.totalDebtMinor;
+    const preview = {
+      availableNowMinor: input.snapshot.availableNowMinor,
+      tightestBalanceMinor: input.snapshot.tightestBalanceMinor,
+      ...(financeProposal.name === 'log_debt_payment' &&
+      Number.isFinite(proposedAmount) &&
+      currentDebtMinor !== undefined
+        ? {
+            beforeTotalDebtMinor: currentDebtMinor,
+            afterTotalDebtMinor: Math.max(0, currentDebtMinor - Math.round(proposedAmount * 100)),
+          }
+        : {}),
+      ...(financeProposal.name === 'set_debt_balance' && currentDebtMinor !== undefined
+        ? { beforeTotalDebtMinor: currentDebtMinor }
+        : {}),
+      ...(financeProposal.name === 'set_commitment' &&
+      input.snapshot.activeSubscriptionMonthlyMinor !== undefined
+        ? { beforeRecurringMonthlyMinor: input.snapshot.activeSubscriptionMonthlyMinor }
+        : {}),
+    };
+    return {
+      reply: withTone(
+        'I can prepare that change locally. Review the details and the updated figures before you confirm.',
+        input.tone,
+      ),
+      suggestions: [
+        {
+          id: suggestionId(input.prompt),
+          name: financeProposal.name,
+          args: { ...financeProposal.args, preview },
+          summary: financeProposal.summary,
+        },
+      ],
+      intent: financeProposal.intent,
+      actions: [],
+      followUpChips: [],
+      context: {
+        lastIntent: financeProposal.intent,
+        // A payday day is a calendar value, never a money amount ("the 28th" must not
+        // become £28.00 in a later follow-up).
+        lastDetectedAmountMinor:
+          financeProposal.name === 'set_income_schedule'
+            ? null
+            : extractMeloLocalAmountMinor(input.prompt.toLowerCase()),
+      },
+      control: 'none',
+    };
+  }
+  if (isAmbiguousDebtClearanceRequest(input.prompt)) {
+    const clearedDebt = ambiguousDebtName(input.prompt);
+    const debtLabel = clearedDebt === undefined ? 'that debt' : clearedDebt;
+    return {
+      reply: withTone(
+        'Did you already record the payment from your bank account, or should I only mark the debt balance as cleared? I need that distinction so the balance and cash position do not move twice.',
+        input.tone,
+      ),
+      suggestions: [],
+      intent: 'review_debts',
+      actions: [],
+      followUpChips: [`The ${debtLabel} payment is already recorded`, `Only clear ${debtLabel}`],
+      context: {
+        lastIntent: 'review_debts',
+        lastDetectedAmountMinor: null,
+      },
+      control: 'none',
+    };
+  }
   if (parsed !== null) {
     return {
       reply: withTone(

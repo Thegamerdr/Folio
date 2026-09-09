@@ -403,6 +403,11 @@ function projectDurableMoneyContainers(
         currency,
       }),
       apr: requireFiniteNumber(debt.apr, `Debt ${debt.id} APR`),
+      ...(debt.aprKnown === undefined ? {} : { aprKnown: debt.aprKnown }),
+      ...(debt.arrears === undefined ? {} : { arrears: debt.arrears }),
+      ...(debt.promoUntil === undefined
+        ? {}
+        : { promoUntil: createLocalDate(requireLocalDate(debt.promoUntil, `Debt ${debt.id} promo expiry`)) }),
       minimumPayment: createMoney({
         minorUnits: majorToMinor(debt.minPayment, `Debt ${debt.id} minimum payment`),
         currency,
@@ -450,6 +455,9 @@ function projectDurableMoneyContainers(
         minorUnits: majorToMinor(state.onboarding.monthlyIncome, 'Onboarding monthly income'),
         currency,
       }),
+      ...(state.onboarding.bundledCommitmentName === undefined
+        ? {}
+        : { bundledCommitmentName: requireString(state.onboarding.bundledCommitmentName, 'Onboarding bundled commitment name') }),
     },
     nextYouNote: requireString(state.nextYouNote, 'Next-you note'),
     tightPointGoal:

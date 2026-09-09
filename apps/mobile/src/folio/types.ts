@@ -128,6 +128,7 @@ export type MeloIntent = { prefill?: string; seed?: string };
 // with kind="out"/title="Rent" instead of always starting cold.
 export type SheetPayload = {
   id?: string;
+  debtId?: string;
   date?: string;
   /** Optional spend amount prefilled by an explicit preview-to-log action. */
   amount?: number;

@@ -1,8 +1,8 @@
 # Batch 4 shipping surface coverage
 
 This is the narrow registry closure for the native shell at the Batch 4 start SHA. It classifies
-the 54 `ScreenId` entries and 27 non-null `SheetId` entries in
-`apps/mobile/src/folio/types.ts` (81 registered shipping surfaces total). The `null` sheet value is
+the 56 `ScreenId` entries and 29 non-null `SheetId` entries in
+`apps/mobile/src/folio/types.ts` (85 registered shipping surfaces total). The `null` sheet value is
 shell state, not a surface, and is intentionally excluded. Screen-owned nested sheets remain
 classified with their owning screen; they are not counted a second time.
 
@@ -26,9 +26,11 @@ classified with their owning screen; they are not counted a second time.
 | Screen   | `privacy`                  | ported         | `PrivacyScreen`               |
 | Screen   | `melo`                     | ported         | `MeloScreen`                  |
 | Screen   | `more`                     | ported         | `MoreScreen`                  |
+| Screen   | `search`                   | ported         | `MoreSearchScreen`            |
 | Screen   | `timeline`                 | ported         | `TimelineScreen`              |
 | Screen   | `calendar`                 | ported         | `CalendarScreen`              |
 | Screen   | `plan`                     | ported         | `PlanScreen`                  |
+| Screen   | `debts`                    | ported         | `DebtsScreen`                 |
 | Screen   | `plans`                    | ported         | `PlansScreen`                 |
 | Screen   | `paywall`                  | ported         | `PaywallScreen`               |
 | Screen   | `whatif`                   | ported         | `WhatIfScreen`                |
@@ -69,6 +71,8 @@ classified with their owning screen; they are not counted a second time.
 | Sheet    | `share`                    | ported         | `ShareSheet`                  |
 | Sheet    | `onboarding`               | ported         | `OnboardingSheet`             |
 | Sheet    | `log-spend`                | ported         | `LogSpendSheet`               |
+| Sheet    | `transfer`                 | ported         | `TransferSheet`               |
+| Sheet    | `refund`                   | ported         | `RefundSheet`                 |
 | Sheet    | `log-invoice`              | ported         | `LogInvoiceSheet`             |
 | Sheet    | `log-payment`              | ported         | `LogPaymentSheet`             |
 | Sheet    | `add-plan`                 | ported         | `AddPlanSheet`                |
@@ -90,7 +94,7 @@ classified with their owning screen; they are not counted a second time.
 | Sheet    | `hidden-review`            | ported         | `HiddenReviewSheet`           |
 | Sheet    | `day-detail`               | ported         | `SheetDayDetail`              |
 
-Coverage count: 54 screens + 27 sheets = 81 registered surfaces; 81 ported, 0 intentionally
+Coverage count: 56 screens + 29 sheets = 85 registered surfaces; 85 ported, 0 intentionally
 native-only, 0 deprecated/not shipping in the active registry, 0 open. The previous candidate
 `EditItemSheet` pathway is deliberately outside the active registry: Review detail's inline draft
 fields are the sole pre-truth candidate correction owner; Shortfall now routes to Subscriptions.

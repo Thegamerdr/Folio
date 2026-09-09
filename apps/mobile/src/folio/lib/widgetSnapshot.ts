@@ -14,7 +14,7 @@
  * `SafeZoneWidget`) and `widgetSnapshotWriter.ts` (the app-side subscriber that
  * recomputes + persists it on every store change).
  */
-import { safeZoneMath } from './modes/safeZone';
+import { buildFinancialPlanFromState } from './financialPlan';
 import { routeFromStore } from './storeRoute';
 import { deriveModeState, type MeloWeather } from './modes';
 import type { AppState } from '../store';
@@ -39,12 +39,7 @@ export type SafeZoneWidgetSnapshot = {
   isSample: boolean;
 };
 
-const PENCE_PER_POUND = 100;
 const MS_PER_DAY = 86_400_000;
-
-function toPence(pounds: number): number {
-  return Math.round(pounds * PENCE_PER_POUND);
-}
 
 /** A Date → LOCAL-calendar ISO day "YYYY-MM-DD" (host-tz aware). Mirrors
  *  `storeRoute.ts`'s private `isoDayLocal` — duplicated rather than imported since that
@@ -82,16 +77,8 @@ export function buildWidgetSnapshot(
   const route = routeFromStore(state, now);
   const bufferAmount = state.bufferAmount ?? 100;
   const paydayISO = paydayIsoFrom(now, route.daysToPayday);
-
-  const safeZone = safeZoneMath({
-    currentBalance: state.currentBalance,
-    onboarding: state.onboarding,
-    pots: state.pots,
-    subs: state.subs,
-    subPaused: state.subPaused,
-    tightestSpare: route.tightPoint.amount,
-    tightestDate: paydayISO,
-    bufferAmount,
+  const plan = buildFinancialPlanFromState(state, {
+    now: typeof now === 'string' ? new Date(`${now}T00:00:00Z`) : now,
   });
 
   const modeState = deriveModeState('survival', {
@@ -107,9 +94,22 @@ export function buildWidgetSnapshot(
 
   return {
     workspaceId: state.activeWorkspaceId,
-    safeZonePence: toPence(safeZone.total),
-    perDayPence: toPence(safeZone.perDay),
-    paydayISO: state.currentBalance.source === 'sample' ? null : paydayISO,
+    safeZonePence: plan.safeToSpendMinor,
+    perDayPence:
+      plan.nextIncomeDate === null
+        ? 0
+        : Math.floor(
+            plan.safeToSpendMinor /
+              Math.max(
+                1,
+                Math.round(
+                  (new Date(`${plan.nextIncomeDate}T00:00:00Z`).getTime() -
+                    new Date(`${plan.asOf}T00:00:00Z`).getTime()) /
+                    MS_PER_DAY,
+                ),
+              ),
+          ),
+    paydayISO: state.currentBalance.source === 'sample' ? null : plan.nextIncomeDate,
     weather: modeState.weather,
     isSample: state.currentBalance.source === 'sample',
   };
