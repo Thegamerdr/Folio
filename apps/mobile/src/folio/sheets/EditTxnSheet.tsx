@@ -176,6 +176,8 @@ function previewFieldLabel(field: EditableField): string {
       return 'Category';
     case 'note':
       return 'Note';
+    case 'debtId':
+      return 'Linked debt';
   }
 }
 
@@ -185,6 +187,8 @@ function previewValue(field: EditableField, value: TxnEditPreview['before']): st
     return `${direction}£${Math.abs(value).toFixed(2)}`;
   }
   if (field === 'when' && typeof value === 'string') return monthDay(value);
+  if (field === 'debtId' && typeof value === 'string')
+    return getState().debts?.find((debt) => debt.id === value)?.name ?? value;
   if (field === 'category' && typeof value === 'string') {
     return CATEGORY_LABEL[value as Transaction['category']] ?? value;
   }
@@ -270,6 +274,10 @@ function EditTxnForm({
   const [amountText, setAmountText] = useState(Math.abs(txn.amount).toFixed(2));
   const [category, setCategory] = useState<Transaction['category']>(txn.category);
   const [note, setNote] = useState(txn.note ?? '');
+  const [debtId, setDebtId] = useState(
+    txn.financialAction?.kind === 'debt-payment' ? txn.financialAction.debtId : undefined,
+  );
+  const debts = useAppStore((state) => state.debts);
   const [when, setWhen] = useState(txn.when);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [reviewing, setReviewing] = useState(false);
@@ -324,8 +332,19 @@ function EditTxnForm({
       next.amount = correctedAmount(amountText, txn.amount);
       next.when = when;
     }
+    if (debtId !== undefined) next.debtId = debtId;
     return next;
-  }, [amountText, category, isLinkedTransfer, merchant, note, txn.amount, txn.merchant, when]);
+  }, [
+    amountText,
+    category,
+    debtId,
+    isLinkedTransfer,
+    merchant,
+    note,
+    txn.amount,
+    txn.merchant,
+    when,
+  ]);
   const pendingChanges = useMemo(() => previewTxnEdit(txn, patch), [patch, txn]);
 
   // Save — apply the correction to THIS transaction via the store. editTransaction runs the pure
@@ -352,6 +371,9 @@ function EditTxnForm({
       when: txn.when,
       category: txn.category,
       note: txn.note,
+      ...(txn.financialAction?.kind === 'debt-payment'
+        ? { debtId: txn.financialAction.debtId }
+        : {}),
     };
     try {
       editTransaction(txn.id, patch, 'user');
@@ -771,6 +793,29 @@ function EditTxnForm({
             </Text>
           </View>
 
+          {debtId !== undefined ? (
+            <View style={s.categoryBlock}>
+              <Text style={s.categoryLabel}>Linked debt</Text>
+              <View style={s.categoryChips}>
+                {(debts ?? []).map((debt) => (
+                  <Pressable
+                    key={debt.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Payment for ${debt.name}`}
+                    accessibilityState={{ selected: debtId === debt.id }}
+                    onPress={() => setDebtId(debt.id)}
+                    style={[s.catChip, debtId === debt.id ? s.catChipOn : undefined]}
+                  >
+                    <Text
+                      style={[s.catChipLabel, debtId === debt.id ? s.catChipLabelOn : undefined]}
+                    >
+                      {debt.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
           {/* Category — a tappable chip per category; the selected one is filled. */}
           <View style={s.categoryBlock}>
             <Text style={s.categoryLabel}>Category</Text>

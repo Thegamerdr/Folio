@@ -8,6 +8,8 @@
  */
 import {
   calculateFinancialPlan,
+  expandObligationOccurrences,
+  remainingObligationMinor,
   type DebtStrategy,
   type FinancialCashflow,
   type FinancialCommitment,
@@ -18,7 +20,7 @@ import {
 
 import type { AppState } from '../store';
 import { deriveCalendarEvents } from './calendarEvents';
-import { nextIncomeDate, projectIncomeEvents } from './income';
+import { projectIncomeEvents } from './income';
 import { reanchorRenewals } from './renewalMath';
 
 const DAY_MS = 86_400_000;
@@ -142,12 +144,6 @@ function addCalendarMonths(anchor: string, months: number): string {
   return `${String(targetYear).padStart(4, '0')}-${String(targetMonth + 1).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
 }
 
-function subscriptionDate(anchor: string, occurrence: number, periodDays?: number): string {
-  return periodDays === undefined
-    ? addCalendarMonths(anchor, occurrence)
-    : addDays(anchor, occurrence * periodDays);
-}
-
 function commitmentEvents(
   state: AppState,
   today: string,
@@ -157,23 +153,23 @@ function commitmentEvents(
   const commitments: FinancialCommitment[] = [];
   for (const event of state.calendarEvents) {
     if (event.kind !== 'out' || event.amount === undefined) continue;
-    const amount = Math.abs(event.amount);
-    if (amount > 0)
+    const amountMinor = remainingObligationMinor(poundsToMinor(Math.abs(event.amount)), {
+      ...(event.obligationStatus === undefined ? {} : { status: event.obligationStatus }),
+      ...(event.obligationPaidMinor === undefined ? {} : { paidMinor: event.obligationPaidMinor }),
+    });
+    if (amountMinor > 0)
       commitments.push({
         id: `calendar:${event.id}`,
         date: event.date,
-        amountMinor: poundsToMinor(amount),
+        amountMinor,
         label: event.title,
         movable: false,
       });
   }
   const anchoredSubs = reanchorRenewals(state.subs, today).items;
   for (const subscription of anchoredSubs) {
-    if (state.subPaused[subscription.name]) continue;
-    const anchor = addDays(
-      subscription.nextRenewalISO ?? today,
-      state.subOverrides[subscription.name] ?? 0,
-    );
+    const anchor = subscription.obligationAnchorISO ?? subscription.nextRenewalISO ?? today;
+    const dateOffset = state.subOverrides[subscription.name] ?? 0;
     // Legacy persisted subscriptions can contain zero/invalid cadence values. Treat those as
     // calendar-monthly (the canonical undefined cadence) and keep a finite occurrence bound so a
     // malformed value can never turn the forecast loop into `Infinity`.
@@ -182,16 +178,30 @@ function commitmentEvents(
       typeof rawPeriod === 'number' && Number.isSafeInteger(rawPeriod) && rawPeriod > 0
         ? rawPeriod
         : undefined;
-    const occurrenceLimit =
-      period === undefined ? Math.ceil(horizonDays / 28) + 3 : Math.ceil(horizonDays / period) + 3;
-    for (let occurrence = 0; occurrence < occurrenceLimit; occurrence += 1) {
-      const date = subscriptionDate(anchor, occurrence, period);
-      if (date < today) continue;
-      if (date > end) break;
+    for (const occurrence of expandObligationOccurrences({
+      anchor,
+      through: addDays(end, -dateOffset),
+      amountMinor: poundsToMinor(subscription.cost),
+      ...(period === undefined ? {} : { periodDays: period }),
+      ...(subscription.obligationOccurrences === undefined
+        ? {}
+        : { resolutions: subscription.obligationOccurrences }),
+    })) {
+      const date = addDays(occurrence.date, dateOffset);
+      const { amountMinor } = occurrence;
+      // A prospective pause skips future charges. It cannot settle a bill already overdue at
+      // the time of the pause. Legacy paused rows have no earlier tracked pause date.
+      if (
+        state.subPaused[subscription.name] &&
+        subscription.pausedUntil !== undefined &&
+        date > (subscription.pausedAt ?? today) &&
+        date < subscription.pausedUntil
+      )
+        continue;
       commitments.push({
-        id: `subscription:${subscription.name}:${date}`,
+        id: `subscription:${subscription.name}:${occurrence.date}`,
         date,
-        amountMinor: poundsToMinor(subscription.cost),
+        amountMinor,
         label: subscription.name,
         category: 'subscription',
         movable: true,
@@ -285,7 +295,6 @@ export function toFinancialPlanInput(
   const horizonDays = options.horizonDays ?? DEFAULT_HORIZON_DAYS;
   const income = incomeEvents(state, today, horizonDays);
   const incomeCandidates = [
-    nextIncomeDate(state.incomeSources ?? [], today),
     ...income.filter((event) => event.date > today).map((event) => event.date),
   ]
     .filter((date): date is string => date != null)
@@ -303,6 +312,15 @@ export function toFinancialPlanInput(
     minimumPaymentMinor: poundsToMinor(debt.minPayment),
     dueDate: nextMonthlyDay(today, debt.dueDom),
     dueDayOfMonth: debt.dueDom,
+    // Legacy debts did not store a due occurrence. Conservatively track this month's due date;
+    // hydration persists that migration anchor so crossing a month cannot erase it next time.
+    minimumOccurrences: expandObligationOccurrences({
+      anchor: debt.minimumDueDate ?? nextMonthlyDay(`${today.slice(0, 8)}01`, debt.dueDom),
+      through: addDays(today, horizonDays),
+      amountMinor: poundsToMinor(debt.minPayment),
+      dayOfMonth: debt.dueDom,
+      ...(debt.minimumOccurrences === undefined ? {} : { resolutions: debt.minimumOccurrences }),
+    }),
   }));
   return {
     asOf: today,

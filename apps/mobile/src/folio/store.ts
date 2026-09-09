@@ -1,4 +1,4 @@
-﻿// @rn-engine store-migration — wire @folio/storage + op-sqlite persistence later (see BUILD_PLAN §3)
+// @rn-engine store-migration — wire @folio/storage + op-sqlite persistence later (see BUILD_PLAN §3)
 //
 // Folio data spine — RN port of the web design store
 // (folio-melo/src/lib/store.ts), faithful 1:1.
@@ -24,7 +24,16 @@
 import { dedupeKey } from '../local/statementReaderDedup';
 import { readCacheEvictions, READ_CACHE_MAX_CANDIDATES } from './lib/billing/readAllowance';
 import { anchorIsoFor, reanchorRenewals } from './lib/renewalMath';
+import { localDayKey } from './lib/dayClock';
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
+import {
+  isDebtPayment,
+  transitionDebtPayment,
+  type DebtPaymentTransaction,
+} from './lib/debtPaymentLedger';
+import type { ObligationResolution } from '@folio/finance-engine';
+import { expandObligationOccurrences } from '@folio/finance-engine';
+import { preserveDebtMinimumSchedule } from './lib/obligationState';
 import type { CandidateMoneyItem } from './lib/importSheet';
 import {
   applyMemoryToCandidates,
@@ -146,6 +155,9 @@ export type Sub = {
    *  derives from. Optional for shape back-compat: a legacy sub gets one synthesized from its
    *  current day count on first re-anchor (freezing past rot, stopping future rot). */
   nextRenewalISO?: string;
+  /** First tracked occurrence; unlike the display renewal date it never rolls past unpaid bills. */
+  obligationAnchorISO?: string;
+  obligationOccurrences?: Record<string, ObligationResolution>;
   /** Fixed renewal period in days (7 weekly, 14 fortnightly, 365 yearly). Undefined = calendar
    *  monthly — the anchor rolls to the same day-of-month, clamped to short months. */
   renewalPeriodDays?: number;
@@ -220,6 +232,8 @@ export type Debt = {
   minPayment: number;
   /** Day of month the payment lands. 1-31. */
   dueDom: number;
+  minimumDueDate?: string;
+  minimumOccurrences?: Record<string, ObligationResolution>;
   /** ISO date the debt was added — used only for sorting stability. */
   addedAt: string;
   /** ACCOUNTS_MODEL.md §2.4 (P2) — present ONLY for a `Debt` row synced from a `kind: 'credit-card'`
@@ -574,6 +588,8 @@ export type CalendarEvent = {
   note?: string;
   /** Signed pounds — positive = in, negative = out, undefined for review/deadline. */
   amount?: number;
+  obligationStatus?: ObligationResolution['status'];
+  obligationPaidMinor?: number;
   /**
    * User-chosen local notification lead time. The reminder fires this many minutes before the
    * event's `date` + `time`; all-day events use 09:00 local time. Omitted means no reminder.
@@ -582,6 +598,8 @@ export type CalendarEvent = {
 };
 
 export type AppState = {
+  /** Monotonic posting order survives deletion so undo can replay later capped payments. */
+  debtPaymentSequence?: number;
   /** Bumped on every breaking shape change. Read by `migrate()` on load
    *  so the prototype stops silently falling back to defaults for missing
    *  fields. RN must keep the same scheme (per RN_PORT.md "Store migration"). */
@@ -1762,6 +1780,9 @@ function load(): AppState {
       // (a real user would otherwise see fake Pret/Tesco rows appear — the
       // exact contamination this whole change removes).
       transactions: Array.isArray(migrated.transactions) ? migrated.transactions : [],
+      ...(migrated.debtPaymentSequence === undefined
+        ? {}
+        : { debtPaymentSequence: migrated.debtPaymentSequence }),
       droppedTransactionCount:
         typeof migrated.droppedTransactionCount === 'number' ? migrated.droppedTransactionCount : 0,
       edits: Array.isArray(migrated.edits) ? migrated.edits : [],
@@ -1795,7 +1816,11 @@ function load(): AppState {
       aiReads: migrated.aiReads ?? { monthKey: '', used: 0 },
       aiReadCache: migrated.aiReadCache ?? {},
       whatChangedSeenISO: migrated.whatChangedSeenISO ?? null,
-      debts: Array.isArray(migrated.debts) ? migrated.debts : DEFAULT_DEBTS,
+      debts: (Array.isArray(migrated.debts) ? migrated.debts : DEFAULT_DEBTS).map((debt) => ({
+        ...debt,
+        minimumDueDate:
+          debt.minimumDueDate ?? debtMinimumAnchor(localDayKey(new Date()), debt.dueDom, false),
+      })),
       household: migrated.household ?? DEFAULT_HOUSEHOLD,
       plans: Array.isArray(migrated.plans) ? migrated.plans : DEFAULT_PLANS,
       cancelledSubs: Array.isArray(migrated.cancelledSubs) ? migrated.cancelledSubs : [],
@@ -2552,19 +2577,65 @@ function addDaysToIso(iso: string, days: number): string {
 
 function subscriptionWithPause(subscription: Sub, paused: boolean, today: string): Sub {
   if (!paused) {
+    const skipped = { ...subscription.obligationOccurrences };
+    const pauseDate = subscription.pausedAt;
+    if (pauseDate !== undefined && subscription.pausedUntil !== undefined) {
+      const anchor =
+        subscription.obligationAnchorISO ??
+        subscription.nextRenewalISO ??
+        (subscription.pausedUntil === undefined
+          ? today
+          : addDaysToIso(subscription.pausedUntil, -1));
+      const period = subscription.renewalPeriodDays;
+      for (const occurrence of expandObligationOccurrences({
+        anchor,
+        through:
+          today < subscription.pausedUntil ? today : addDaysToIso(subscription.pausedUntil, -1),
+        amountMinor: Math.round(subscription.cost * 100),
+        ...(period !== undefined && Number.isSafeInteger(period) && period > 0
+          ? { periodDays: period }
+          : {}),
+        resolutions: skipped,
+      })) {
+        if (
+          occurrence.date > pauseDate &&
+          occurrence.date < today &&
+          skipped[occurrence.date] === undefined
+        )
+          skipped[occurrence.date] = { status: 'cancelled', reason: 'paused' };
+      }
+    }
     const {
       pausedUntil: _pausedUntil,
       pauseReason: _pauseReason,
       pausedAt: _pausedAt,
       ...rest
     } = subscription;
-    return rest as Sub;
+    const obligationOccurrences = Object.fromEntries(
+      Object.entries(skipped).filter(
+        ([date, resolution]) => !(resolution.reason === 'paused' && date >= today),
+      ),
+    );
+    return {
+      ...rest,
+      ...(Object.keys(skipped).length === 0 && subscription.obligationOccurrences === undefined
+        ? {}
+        : { obligationOccurrences }),
+    } as Sub;
   }
   const renewal =
     subscription.nextRenewalISO ??
     anchorIsoFor(Math.max(0, subscription.nextRenewalDaysAway), today);
   return {
     ...subscription,
+    ...(renewal > today && subscription.obligationOccurrences?.[renewal] === undefined
+      ? {
+          obligationOccurrences: {
+            ...subscription.obligationOccurrences,
+            [renewal]: { status: 'cancelled' as const, reason: 'paused' as const },
+          },
+        }
+      : {}),
     pausedUntil: addDaysToIso(renewal, 1),
     autoResume: subscription.autoResume ?? 'prompt',
     pauseReason: derivePauseReason(subscription),
@@ -2577,7 +2648,7 @@ export function togglePaused(name: string, value?: boolean) {
   const next = value ?? !current;
   const hadStoredValue = Object.prototype.hasOwnProperty.call(state.subPaused, name);
   const subPaused = { ...state.subPaused, [name]: next };
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDayKey(new Date());
   const subs =
     current === next
       ? state.subs
@@ -2638,7 +2709,7 @@ export function pauseMany(names: string[], value: boolean) {
   const next = { ...state.subPaused };
   for (const n of uniqueNames) next[n] = value;
   const targetNames = new Set(uniqueNames);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDayKey(new Date());
   const subs = state.subs.map((subscription) =>
     targetNames.has(subscription.name) && !!state.subPaused[subscription.name] !== value
       ? subscriptionWithPause(subscription, value, today)
@@ -2838,6 +2909,7 @@ export function addCardPayoffDetails(
     apr: details.apr,
     minPayment: details.minPayment,
     dueDom: details.dueDom,
+    minimumDueDate: debtMinimumAnchor(localDayKey(new Date()), details.dueDom, true),
     addedAt: new Date().toISOString(),
     linkedAccountId: accountId,
   };
@@ -3570,6 +3642,21 @@ export function setMelo(patch: Partial<MeloState>) {
 
 /* ---------- Debts (Debt lens) ---------- */
 
+function debtMinimumAnchor(today: string, dueDom: number, future: boolean): string {
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7)) - 1;
+  const dateFor = (offset: number) => {
+    const date = new Date(Date.UTC(year, month + offset, 1));
+    const lastDay = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+    ).getUTCDate();
+    date.setUTCDate(Math.min(Math.max(1, Math.round(dueDom)), lastDay));
+    return date.toISOString().slice(0, 10);
+  };
+  const current = dateFor(0);
+  return future && current < today ? dateFor(1) : current;
+}
+
 export function addDebt(d: Omit<Debt, 'id' | 'addedAt'> & { id?: string; addedAt?: string }): Debt {
   const full: Debt = {
     id: d.id ?? `debt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -3582,6 +3669,18 @@ export function addDebt(d: Omit<Debt, 'id' | 'addedAt'> & { id?: string; addedAt
     ...(d.promoUntil === undefined ? {} : { promoUntil: d.promoUntil }),
     minPayment: d.minPayment,
     dueDom: d.dueDom,
+    minimumDueDate:
+      d.minimumDueDate ??
+      debtMinimumAnchor(
+        d.addedAt === undefined
+          ? localDayKey(new Date())
+          : d.addedAt.length === 10
+            ? d.addedAt
+            : localDayKey(new Date(d.addedAt)),
+        d.dueDom,
+        true,
+      ),
+    ...(d.minimumOccurrences === undefined ? {} : { minimumOccurrences: d.minimumOccurrences }),
     addedAt: d.addedAt ?? new Date().toISOString(),
     ...(d.linkedAccountId !== undefined ? { linkedAccountId: d.linkedAccountId } : {}),
   };
@@ -3665,6 +3764,7 @@ export function updateDebt(
     ...(patch.apr === undefined ? {} : { apr: patch.apr }),
     ...(patch.minPayment === undefined ? {} : { minPayment: patch.minPayment }),
     ...(patch.dueDom === undefined ? {} : { dueDom: patch.dueDom }),
+    ...preserveDebtMinimumSchedule(before, patch),
   };
 
   if (linkedAccount !== undefined && patch.balance !== undefined) {
@@ -3690,6 +3790,7 @@ export function updateDebt(
       ...synced,
       ...metadataPatch,
       ...(patch.name === undefined ? {} : { name: patch.name.trim() || synced.name }),
+      ...preserveDebtMinimumSchedule(before, patch),
     };
     setPartialWithTypedCommand(
       {
@@ -4211,6 +4312,10 @@ export function addTransaction(
   t: Omit<Transaction, 'id' | 'when'> & { id?: string; when?: string },
   options: { updateCurrentBalance?: boolean } = {},
 ): Transaction {
+  if (t.id !== undefined) {
+    const existing = state.transactions.find((transaction) => transaction.id === t.id);
+    if (existing !== undefined) return existing;
+  }
   requireSourceEvidence(t.sourceEvidenceId);
   const alreadyLive = isLiveCashPosting(t);
   if (options.updateCurrentBalance === true && t.financialAction !== undefined && !alreadyLive) {
@@ -4222,7 +4327,7 @@ export function addTransaction(
   const financialAction =
     t.financialAction ??
     (options.updateCurrentBalance === true ? ({ kind: 'cash-posting' } as const) : undefined);
-  const full: Transaction = {
+  let full: Transaction = {
     id: t.id ?? `txn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     when: t.when ?? new Date().toISOString(),
     merchant: t.merchant,
@@ -4235,6 +4340,10 @@ export function addTransaction(
     ...(t.bankConnectionId !== undefined ? { bankConnectionId: t.bankConnectionId } : {}),
     ...(financialAction !== undefined ? { financialAction } : {}),
   };
+  const debtTransition = isDebtPayment(full)
+    ? transitionDebtPayment(state, undefined, full, new Date().toISOString(), true)
+    : undefined;
+  if (debtTransition?.transaction !== undefined) full = debtTransition.transaction;
   const { transactions, droppedTransactionCount } = applyTransactionRetention(
     [full, ...state.transactions],
     state.droppedTransactionCount ?? 0,
@@ -4243,7 +4352,8 @@ export function addTransaction(
     {
       transactions,
       droppedTransactionCount,
-      ...(balanceApplied ? applyLiveTransactionBalance(full, 1, full.when) : {}),
+      ...(debtTransition?.patch ??
+        (balanceApplied ? applyLiveTransactionBalance(full, 1, full.when) : {})),
     },
     {
       commandType: 'folio.transaction.record.v1',
@@ -4256,7 +4366,8 @@ export function addTransaction(
         'transactions',
         'cashflow',
         'merchant-memory',
-        ...(balanceApplied ? (['account-balances'] as const) : []),
+        ...(debtTransition === undefined ? [] : ['debt-summary']),
+        ...(balanceApplied || debtTransition !== undefined ? (['account-balances'] as const) : []),
       ],
       occurredAt: full.when,
     },
@@ -4980,7 +5091,12 @@ export function removeTransaction(id: string) {
   ) {
     throw new Error('This outflow has a paired refund. Unpair the refund before removing it.');
   }
-  const balancePatch = isLiveCashPosting(target) ? applyLiveTransactionBalance(target, -1) : {};
+  assertReversibleDebtPayment(target);
+  const balancePatch = isDebtPayment(target)
+    ? transitionDebtPayment(state, target, undefined, new Date().toISOString()).patch
+    : isLiveCashPosting(target)
+      ? applyLiveTransactionBalance(target, -1)
+      : {};
   setPartialWithTypedCommand(
     {
       transactions: state.transactions.filter((transaction) => transaction.id !== id),
@@ -5006,7 +5122,10 @@ export function removeTransaction(id: string) {
         'transactions',
         'cashflow',
         'merchant-memory',
-        ...(isLiveCashPosting(target) ? (['account-balances'] as const) : []),
+        ...(isDebtPayment(target) ? ['debt-summary'] : []),
+        ...(isLiveCashPosting(target) || isDebtPayment(target)
+          ? (['account-balances'] as const)
+          : []),
       ],
     },
   );
@@ -5362,6 +5481,8 @@ function logStatementImport(
 export function editTransaction(txnId: string, patch: TxnEditPatch, by: 'user' | 'melo') {
   const target = state.transactions.find((t) => t.id === txnId);
   if (!target) return;
+  if (patch.debtId !== undefined && !isDebtPayment(target))
+    throw new Error('Only a recorded debt payment can change its linked debt.');
   if (
     target.financialAction?.kind === 'transfer' &&
     ((Object.prototype.hasOwnProperty.call(patch, 'amount') && patch.amount !== target.amount) ||
@@ -5372,8 +5493,12 @@ export function editTransaction(txnId: string, patch: TxnEditPatch, by: 'user' |
     );
   }
   const at = new Date().toISOString();
-  const { txn: edited, edits } = applyTxnEdit(target, patch, { at, by });
+  const result = applyTxnEdit(target, patch, { at, by });
+  let edited = result.txn;
+  const edits = result.edits;
   if (edits.length === 0) return; // no-op edit records nothing and writes nothing.
+  if (edits.some((edit) => edit.field === 'amount' || edit.field === 'debtId'))
+    assertReversibleDebtPayment(target);
   if (edits.some((edit) => edit.field === 'amount')) {
     const originalId =
       target.financialAction?.kind === 'refund'
@@ -5410,10 +5535,19 @@ export function editTransaction(txnId: string, patch: TxnEditPatch, by: 'user' |
       }
     }
   }
+  const debtTransition =
+    isDebtPayment(target) &&
+    isDebtPayment(edited) &&
+    (target.amount !== edited.amount ||
+      target.financialAction.debtId !== edited.financialAction.debtId)
+      ? transitionDebtPayment(state, target, edited, at)
+      : undefined;
+  if (debtTransition?.transaction !== undefined) edited = debtTransition.transaction;
   const balancePatch =
-    isLiveCashPosting(target) && edited.amount !== target.amount
+    debtTransition?.patch ??
+    (isLiveCashPosting(target) && edited.amount !== target.amount
       ? applyLiveTransactionBalance({ ...target, amount: edited.amount - target.amount })
-      : {};
+      : {});
   setPartialWithTypedCommand(
     {
       transactions: state.transactions.map((t) => (t.id === txnId ? edited : t)),
@@ -5437,13 +5571,23 @@ export function editTransaction(txnId: string, patch: TxnEditPatch, by: 'user' |
         'transactions',
         'cashflow',
         'merchant-memory',
-        ...(isLiveCashPosting(target) && edited.amount !== target.amount
+        ...(debtTransition === undefined ? [] : ['debt-summary']),
+        ...(debtTransition !== undefined ||
+        (isLiveCashPosting(target) && edited.amount !== target.amount)
           ? (['account-balances'] as const)
           : []),
       ],
       occurredAt: at,
     },
   );
+}
+
+function assertReversibleDebtPayment(transaction: Transaction): void {
+  if (transaction.id.startsWith('melo-debt-payment-') && !isDebtPayment(transaction)) {
+    throw new Error(
+      'This older payment has no saved debt effects. Keep this history and confirm current cash in Accounts and the outstanding balance in Debts. Automatic reversal cannot safely infer the original amounts.',
+    );
+  }
 }
 
 export function addCalendarEvent(e: Omit<CalendarEvent, 'id'> & { id?: string }): CalendarEvent {
@@ -5456,6 +5600,8 @@ export function addCalendarEvent(e: Omit<CalendarEvent, 'id'> & { id?: string })
     ...(e.time !== undefined ? { time: e.time } : {}),
     ...(e.note !== undefined ? { note: e.note } : {}),
     ...(e.amount !== undefined ? { amount: e.amount } : {}),
+    ...(e.obligationStatus === undefined ? {} : { obligationStatus: e.obligationStatus }),
+    ...(e.obligationPaidMinor === undefined ? {} : { obligationPaidMinor: e.obligationPaidMinor }),
     ...(e.reminderOffsetMinutes !== undefined
       ? { reminderOffsetMinutes: e.reminderOffsetMinutes }
       : {}),
@@ -7544,42 +7690,11 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
             : 'Choose which cash account the completed payment came from.',
         };
       }
-      const beforeAccount = (state.accounts ?? []).find((account) => account.id === cashAccount.id);
-      const beforeLinkedAccount =
-        beforeDebt.linkedAccountId === undefined
-          ? undefined
-          : (state.accounts ?? []).find((account) => account.id === beforeDebt.linkedAccountId);
-      const beforeBalance = state.currentBalance;
       const when = new Date().toISOString();
-      const nextDebt = { ...beforeDebt, balance: Math.max(0, beforeDebt.balance - amount) };
-      const nextDebts = (state.debts ?? []).map((debt) =>
-        debt.id === beforeDebt.id ? nextDebt : debt,
-      );
-      const nextAccounts = (state.accounts ?? []).map((account) => {
-        if (account.id === cashAccount.id) {
-          return { ...account, balanceMinor: account.balanceMinor - amount, balanceAsOfISO: when };
-        }
-        if (account.id === beforeDebt.linkedAccountId) {
-          return {
-            ...account,
-            balanceMinor: Math.max(0, account.balanceMinor - amount),
-            balanceAsOfISO: when,
-          };
-        }
-        return account;
-      });
-      const bankTotal = nextAccounts
-        .filter((account) => !account.isLiability)
-        .reduce((sum, account) => sum + account.balanceMinor, 0);
-      const nextBalance = {
-        ...state.currentBalance,
-        amount: bankTotal,
-        source: 'corrected' as const,
-        confidence: 'corrected' as const,
-        setAt: when,
-      };
-      const payment: Transaction = {
-        id: `melo-debt-payment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      const payment: DebtPaymentTransaction = {
+        id:
+          meloText(input, 'transactionId') ||
+          `melo-debt-payment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         workspaceId: state.activeWorkspaceId,
         when,
         merchant: `Debt payment: ${beforeDebt.name}`,
@@ -7587,124 +7702,85 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
         category: 'bills',
         source: 'melo',
         accountId: cashAccount.id,
+        financialAction: { kind: 'debt-payment', debtId: beforeDebt.id, principalAppliedMinor: 0 },
       };
-      setPartialWithTypedCommand(
-        {
-          debts: nextDebts,
-          accounts: nextAccounts,
-          currentBalance: nextBalance,
-          transactions: [payment, ...state.transactions],
-        },
-        {
-          commandType: 'folio.debt.payment.record.v1',
-          actorKind: 'user',
-          entityRefs: [
-            { type: 'debt', id: beforeDebt.id },
-            { type: 'account', id: cashAccount.id },
-            ...(beforeLinkedAccount === undefined
-              ? []
-              : [{ type: 'account', id: beforeLinkedAccount.id }]),
-            { type: 'transaction', id: payment.id },
-          ],
-          before: {
-            debt: beforeDebt,
-            account: beforeAccount,
-            ...(beforeLinkedAccount === undefined ? {} : { linkedAccount: beforeLinkedAccount }),
-            balance: beforeBalance,
-          },
-          after: {
-            debt: nextDebt,
-            account: nextAccounts.find((account) => account.id === cashAccount.id),
-            balance: nextBalance,
-            transaction: payment,
-          },
-          changedEntityIds: [beforeDebt.id, cashAccount.id, payment.id],
-          invalidatedProjectionKinds: [
-            'account-balances',
-            'debt-summary',
-            'cashflow',
-            'transactions',
-          ],
-          occurredAt: when,
-        },
-      );
-      const afterDebt = (state.debts ?? []).find((debt) => debt.id === beforeDebt.id);
-      if (afterDebt === undefined || structurallyEqual(afterDebt, beforeDebt)) {
-        return { applied: false, reason: 'The debt payment could not be recorded.' };
+      const existing = state.transactions.find((transaction) => transaction.id === payment.id);
+      if (existing !== undefined) {
+        if (
+          isDebtPayment(existing) &&
+          existing.financialAction.debtId === beforeDebt.id &&
+          existing.amount === payment.amount &&
+          existing.accountId === payment.accountId
+        )
+          return {
+            applied: true,
+            summary: 'This completed payment is already recorded.',
+            undo: () => false,
+          };
+        return {
+          applied: false,
+          reason: 'That payment identifier is already used by another transaction.',
+        };
       }
-      const afterAccount =
-        beforeAccount === undefined
-          ? undefined
-          : (state.accounts ?? []).find((account) => account.id === beforeAccount.id);
-      return {
-        applied: true,
-        summary: `Recorded the completed £${amount.toFixed(2)} payment to ${beforeDebt.name}. Balance now £${afterDebt.balance.toFixed(2)}.`,
-        undo: () =>
-          meloStaleUndo(
-            () => ({
-              debt: (state.debts ?? []).find((debt) => debt.id === beforeDebt.id),
-              account:
-                beforeAccount === undefined
-                  ? undefined
-                  : (state.accounts ?? []).find((account) => account.id === beforeAccount.id),
-              linkedAccount:
-                beforeLinkedAccount === undefined
-                  ? undefined
-                  : (state.accounts ?? []).find((account) => account.id === beforeLinkedAccount.id),
-              transaction: state.transactions.find((transaction) => transaction.id === payment.id),
-              balance: state.currentBalance,
-            }),
-            {
-              debt: afterDebt,
-              account: afterAccount,
-              linkedAccount:
-                beforeLinkedAccount === undefined
-                  ? undefined
-                  : (state.accounts ?? []).find((account) => account.id === beforeLinkedAccount.id),
-              transaction: payment,
-              balance: nextBalance,
+      try {
+        const transition = transitionDebtPayment(state, undefined, payment, when);
+        const posted = transition.transaction!;
+        setPartialWithTypedCommand(
+          { ...transition.patch, transactions: [posted, ...state.transactions] },
+          {
+            commandType: 'folio.debt.payment.record.v1',
+            actorKind: 'user',
+            entityRefs: [
+              { type: 'debt', id: beforeDebt.id },
+              { type: 'account', id: cashAccount.id },
+              { type: 'transaction', id: posted.id },
+            ],
+            before: { debt: beforeDebt, accounts: state.accounts, balance: state.currentBalance },
+            after: {
+              transaction: posted,
+              debts: transition.patch.debts,
+              accounts: transition.patch.accounts,
+              balance: transition.patch.currentBalance,
             },
-            () => {
-              const currentAccounts = state.accounts ?? [];
-              const restoredAccounts = currentAccounts.map((account) => {
-                if (beforeAccount !== undefined && account.id === beforeAccount.id)
-                  return beforeAccount;
-                if (beforeLinkedAccount !== undefined && account.id === beforeLinkedAccount.id)
-                  return beforeLinkedAccount;
-                return account;
-              });
-              setPartialWithTypedCommand(
-                {
-                  debts: (state.debts ?? []).map((debt) =>
-                    debt.id === beforeDebt.id ? beforeDebt : debt,
-                  ),
-                  accounts: restoredAccounts,
-                  currentBalance: beforeBalance,
-                  transactions: state.transactions.filter(
-                    (transaction) => transaction.id !== payment.id,
-                  ),
-                },
-                {
-                  commandType: 'folio.debt.payment.reverse.v1',
-                  actorKind: 'user',
-                  entityRefs: [
-                    { type: 'debt', id: beforeDebt.id },
-                    { type: 'account', id: cashAccount.id },
-                    { type: 'transaction', id: payment.id },
-                  ],
-                  before: { debt: afterDebt, transaction: payment },
-                  after: { debt: beforeDebt },
-                  invalidatedProjectionKinds: [
-                    'account-balances',
-                    'debt-summary',
-                    'cashflow',
-                    'transactions',
-                  ],
-                },
-              );
-            },
-          ),
-      };
+            changedEntityIds: [beforeDebt.id, cashAccount.id, posted.id],
+            invalidatedProjectionKinds: [
+              'account-balances',
+              'debt-summary',
+              'cashflow',
+              'transactions',
+            ],
+            occurredAt: when,
+          },
+        );
+        const afterDebt = (state.debts ?? []).find((debt) => debt.id === beforeDebt.id)!;
+        const workspaceId = state.activeWorkspaceId;
+        return {
+          applied: true,
+          summary: `Recorded the completed £${amount.toFixed(2)} payment to ${beforeDebt.name}. Balance now £${afterDebt.balance.toFixed(2)}.`,
+          undo: () => {
+            if (
+              state.activeWorkspaceId !== workspaceId ||
+              !structurallyEqual(
+                state.transactions.find((transaction) => transaction.id === posted.id),
+                posted,
+              )
+            )
+              return false;
+            try {
+              removeTransaction(posted.id);
+              return true;
+            } catch {
+              return false;
+            }
+          },
+        };
+      } catch (error) {
+        return {
+          applied: false,
+          reason:
+            error instanceof Error ? error.message : 'The debt payment could not be recorded.',
+        };
+      }
     }
     case 'set_debt_balance': {
       const expectedDebtTotal = previewMinor(input, 'beforeTotalDebtMinor');

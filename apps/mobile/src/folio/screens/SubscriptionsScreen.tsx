@@ -47,7 +47,10 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { FinancialCommitment } from '@folio/finance-engine';
+import { toFinancialPlanInput } from '@/folio/lib/financialPlan';
+import { setSubscriptionOccurrenceResolution } from '@/folio/lib/obligationState';
 
 import {
   type AppState,
@@ -157,6 +160,8 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   const { showUndo } = useUndo();
 
   const subs = useAppStore((st) => st.subs);
+  const appState = useAppStore((st) => st);
+  const dueCommitments = toFinancialPlanInput(appState, { horizonDays: 0 }).commitments ?? [];
   const paused = useAppStore((st) => st.subPaused);
   const cancelledSubs = useAppStore((st) => st.cancelledSubs ?? []);
 
@@ -213,9 +218,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     const daysToTight = Math.round((tightMs - base) / 86_400_000);
     return subs.filter(
       (x) =>
-        !paused[x.name] &&
-        x.nextRenewalDaysAway <= daysToTight &&
-        isDiscretionarySubscription(x),
+        !paused[x.name] && x.nextRenewalDaysAway <= daysToTight && isDiscretionarySubscription(x),
     );
   }, [subs, paused, tightWith, now]);
   const dueSave = dueBeforeTight.reduce((acc, x) => acc + x.cost, 0);
@@ -323,6 +326,27 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     nav.openMelo({
       prefill: `Tell me about ${sub.name} (${pounds(sub.cost)}/mo, renews in ${sub.nextRenewalDaysAway}d).`,
     });
+  };
+
+  const onResolve = (sub: StoreSub, occurrence: FinancialCommitment) => {
+    const date = occurrence.id.slice(-10);
+    const previous = sub.obligationOccurrences?.[date] ?? { status: 'unpaid' as const };
+    Alert.alert(
+      'Confirm this bill is already paid',
+      `${sub.name} · due ${formatArchiveDate(occurrence.date)} · ${pounds(occurrence.amountMinor / 100)}. Only confirm after your current cash balance includes this payment. This releases its reserved money without subtracting cash again.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Already paid',
+          onPress: () => {
+            setSubscriptionOccurrenceResolution(sub.name, date, { status: 'paid' });
+            showUndo(`${sub.name} · ${formatArchiveDate(occurrence.date)} marked paid`, () =>
+              setSubscriptionOccurrenceResolution(sub.name, date, previous),
+            );
+          },
+        },
+      ],
+    );
   };
 
   // EMPTY BRANCH — the calm doorway. No top Melo on the populated screen; here EmptyState owns it.
@@ -473,6 +497,10 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
             onUsedToday={() => markSubUsed(sub.name)}
             onAskMelo={() => onAskMelo(sub)}
             onCancel={() => onCancel(sub)}
+            outstanding={dueCommitments.find((item) =>
+              item.id.startsWith(`subscription:${sub.name}:`),
+            )}
+            onResolve={(occurrence) => onResolve(sub, occurrence)}
           />
         ))}
       </View>
@@ -555,6 +583,8 @@ function SubscriptionRow({
   onUsedToday,
   onAskMelo,
   onCancel,
+  outstanding,
+  onResolve,
 }: {
   sub: StoreSub;
   first: boolean;
@@ -565,6 +595,8 @@ function SubscriptionRow({
   onUsedToday: () => void;
   onAskMelo: () => void;
   onCancel: () => void;
+  outstanding?: FinancialCommitment | undefined;
+  onResolve: (occurrence: FinancialCommitment) => void;
 }) {
   const hasTrial = typeof sub.trialEndsInDays === 'number';
   const annualCost = subscriptionAnnualCost(sub);
@@ -609,6 +641,19 @@ function SubscriptionRow({
         </View>
       </View>
 
+      {outstanding ? (
+        <View style={layout.obligationRow}>
+          <Text style={[s.rowMeta, layout.flex1]}>
+            {pounds(outstanding.amountMinor / 100)} unpaid · due{' '}
+            {formatArchiveDate(outstanding.date)}
+          </Text>
+          <ActionLink
+            label="Mark already paid"
+            color={t.calmStrong}
+            onPress={() => onResolve(outstanding)}
+          />
+        </View>
+      ) : null}
       <View style={layout.actions}>
         <Pressable
           accessibilityRole="button"
@@ -721,6 +766,7 @@ const layout = StyleSheet.create({
   rowAmountCol: { alignItems: 'flex-end' },
 
   actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  obligationRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   actionsSpacer: { flex: 1 },
   // The inline Melo reaction — web mt-2.
   reaction: { marginTop: 8 },

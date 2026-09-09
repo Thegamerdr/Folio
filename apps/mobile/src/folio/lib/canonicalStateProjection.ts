@@ -220,6 +220,17 @@ function projectDurableMoneyContainers(
         subscription.nextRenewalDaysAway,
         `Subscription ${subscription.name} renewal days`,
       ),
+      ...(subscription.obligationAnchorISO === undefined
+        ? {}
+        : {
+            obligationAnchorISO: requireLocalDate(
+              subscription.obligationAnchorISO,
+              'First tracked obligation date',
+            ),
+          }),
+      ...(subscription.obligationOccurrences === undefined
+        ? {}
+        : { obligationOccurrences: subscription.obligationOccurrences }),
       ...(subscription.nextRenewalISO === undefined
         ? {}
         : {
@@ -407,12 +418,27 @@ function projectDurableMoneyContainers(
       ...(debt.arrears === undefined ? {} : { arrears: debt.arrears }),
       ...(debt.promoUntil === undefined
         ? {}
-        : { promoUntil: createLocalDate(requireLocalDate(debt.promoUntil, `Debt ${debt.id} promo expiry`)) }),
+        : {
+            promoUntil: createLocalDate(
+              requireLocalDate(debt.promoUntil, `Debt ${debt.id} promo expiry`),
+            ),
+          }),
       minimumPayment: createMoney({
         minorUnits: majorToMinor(debt.minPayment, `Debt ${debt.id} minimum payment`),
         currency,
       }),
       dueDayOfMonth: requirePositiveInteger(debt.dueDom, `Debt ${debt.id} due day`),
+      ...(debt.minimumDueDate === undefined
+        ? {}
+        : {
+            minimumDueDate: requireLocalDate(
+              debt.minimumDueDate,
+              'First tracked debt minimum date',
+            ),
+          }),
+      ...(debt.minimumOccurrences === undefined
+        ? {}
+        : { minimumOccurrences: debt.minimumOccurrences }),
       sourceAddedAt: debt.addedAt,
       addedAt: canonicalInstant(debt.addedAt, `Debt ${debt.id} creation time`),
       ...(debt.linkedAccountId === undefined
@@ -457,7 +483,12 @@ function projectDurableMoneyContainers(
       }),
       ...(state.onboarding.bundledCommitmentName === undefined
         ? {}
-        : { bundledCommitmentName: requireString(state.onboarding.bundledCommitmentName, 'Onboarding bundled commitment name') }),
+        : {
+            bundledCommitmentName: requireString(
+              state.onboarding.bundledCommitmentName,
+              'Onboarding bundled commitment name',
+            ),
+          }),
     },
     nextYouNote: requireString(state.nextYouNote, 'Next-you note'),
     tightPointGoal:
@@ -538,6 +569,10 @@ function projectDurableMoneyContainers(
       authorityState: 'user-confirmed',
       version: canonicalContainerVersion('calendar', workspace, event.id, sourceOrdinal),
       sourceCalendarEventId: event.id,
+      ...(event.obligationStatus === undefined ? {} : { obligationStatus: event.obligationStatus }),
+      ...(event.obligationPaidMinor === undefined
+        ? {}
+        : { obligationPaidMinor: event.obligationPaidMinor }),
       sourceOrdinal,
       sourceKind: event.kind,
       ...(event.time === undefined

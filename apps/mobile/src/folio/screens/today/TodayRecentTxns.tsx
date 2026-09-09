@@ -184,10 +184,29 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
                           // Snapshot the exact row BEFORE removing so the Tier-1 undo (30s) can
                           // restore it identically — same id/when/merchant/amount/category/source.
                           const snapshot = tx;
-                          removeTransaction(tx.id);
+                          try {
+                            removeTransaction(tx.id);
+                          } catch (error) {
+                            Alert.alert(
+                              'Transaction kept',
+                              error instanceof Error
+                                ? error.message
+                                : 'The linked balances changed. Nothing was removed.',
+                            );
+                            return;
+                          }
                           void triggerFeedback('delete-confirm');
                           showUndo(`Removed ${tx.merchant}`, () => {
-                            addTransaction(snapshot);
+                            try {
+                              addTransaction(snapshot);
+                            } catch (error) {
+                              Alert.alert(
+                                'Could not undo removal',
+                                error instanceof Error
+                                  ? error.message
+                                  : 'The linked balances changed. Nothing was restored.',
+                              );
+                            }
                           });
                         },
                       },

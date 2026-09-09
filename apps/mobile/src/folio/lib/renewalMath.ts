@@ -158,6 +158,8 @@ export type AnchoredRenewal = {
   /** ISO `YYYY-MM-DD` the next renewal actually falls on. The durable truth the day count is
    *  derived from. Optional for shape back-compat — `reanchorRenewals` synthesizes it. */
   nextRenewalISO?: string;
+  /** First tracked obligation; display-date rolling must never erase an unpaid occurrence. */
+  obligationAnchorISO?: string;
   /** Fixed renewal period in days (7 weekly, 14 fortnightly, 365 yearly). Undefined = calendar
    *  monthly (same day-of-month, clamped to short months). */
   renewalPeriodDays?: number;
@@ -221,13 +223,23 @@ export function reanchorRenewals<T extends AnchoredRenewal>(
       // Legacy entry — synthesize the anchor from today's relative count (freezes any rot that
       // already happened; stops all future rot). The day count itself is left untouched.
       changed = true;
-      return { ...item, nextRenewalISO: anchorIsoFor(item.nextRenewalDaysAway, todayIso) };
+      const anchor = anchorIsoFor(item.nextRenewalDaysAway, todayIso);
+      return {
+        ...item,
+        nextRenewalISO: anchor,
+        obligationAnchorISO: item.obligationAnchorISO ?? anchor,
+      };
     }
     const rolled = rollAnchorForward(item.nextRenewalISO, item.renewalPeriodDays, todayIso);
     const daysAway = Math.max(0, daysBetween(todayIso, rolled));
     if (rolled === item.nextRenewalISO && daysAway === item.nextRenewalDaysAway) return item;
     changed = true;
-    return { ...item, nextRenewalISO: rolled, nextRenewalDaysAway: daysAway };
+    return {
+      ...item,
+      obligationAnchorISO: item.obligationAnchorISO ?? item.nextRenewalISO,
+      nextRenewalISO: rolled,
+      nextRenewalDaysAway: daysAway,
+    };
   });
   return changed ? { items: next, changed } : { items: items as T[], changed };
 }

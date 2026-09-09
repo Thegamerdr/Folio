@@ -121,7 +121,11 @@ describe('reanchorRenewals — the rot fix itself', () => {
   it('synthesizes an anchor for a legacy entry without touching its day count', () => {
     const { items, changed } = reanchorRenewals([sub({ nextRenewalDaysAway: 12 })], '2026-07-10');
     expect(changed).toBe(true);
-    expect(items[0]).toEqual({ nextRenewalDaysAway: 12, nextRenewalISO: '2026-07-22' });
+    expect(items[0]).toEqual({
+      nextRenewalDaysAway: 12,
+      nextRenewalISO: '2026-07-22',
+      obligationAnchorISO: '2026-07-22',
+    });
   });
 
   it('re-derives the day count from a future anchor — the core anti-rot behaviour', () => {

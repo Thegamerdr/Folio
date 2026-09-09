@@ -296,9 +296,10 @@ export function routeFromStore(state: AppState, now: Date | string = new Date())
   const outgoingTotal = hasHistory
     ? monthlySpendBaseline(bankTxns, todayIso).medianMonthlySpend
     : projectedOutgoing;
+  // The chart stays 35 days wide; spend safety must share the full plan horizon with Today,
+  // Debts and Plan, including irregular income and obligations beyond the visible chart.
   const financialPlan = buildFinancialPlanFromState(state, {
     now: nowDate,
-    horizonDays: ROUTE_WINDOW_DAYS,
   });
   const useCanonicalRoute = state.currentBalance.source !== 'sample';
   const canonical = useCanonicalRoute

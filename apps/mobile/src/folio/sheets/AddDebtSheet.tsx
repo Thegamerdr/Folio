@@ -23,10 +23,12 @@
 // the just-added debt, which is a faithful (if stronger) analogue of a plain acknowledgment toast.
 
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { gap, radius, serif, Sheet, useTheme, weightFamily, type Palette } from '@/folio/theme';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
+import { toFinancialPlanInput } from '@/folio/lib/financialPlan';
+import { setDebtMinimumOccurrenceResolution } from '@/folio/lib/obligationState';
 import { addDebt, removeDebt, updateDebt, useAppStore, type Debt } from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
 
@@ -58,9 +60,41 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
   const t = useTheme();
   const s = makeStyles(t);
   const { showUndo } = useUndo();
+  const appState = useAppStore((state) => state);
   const target = useAppStore((state) =>
-    targetId === undefined ? null : (state.debts ?? []).find((debt) => debt.id === targetId) ?? null,
+    targetId === undefined
+      ? null
+      : ((state.debts ?? []).find((debt) => debt.id === targetId) ?? null),
   );
+  const unpaidMinimum =
+    target === null
+      ? undefined
+      : toFinancialPlanInput(appState, { horizonDays: 0 }).debts?.find(
+          (debt) => debt.id === target.id,
+        )?.minimumOccurrences?.[0];
+
+  function confirmMinimumPaid() {
+    if (target === null || unpaidMinimum === undefined) return;
+    const previous = target.minimumOccurrences?.[unpaidMinimum.date] ?? {
+      status: 'unpaid' as const,
+    };
+    Alert.alert(
+      'Confirm this minimum is already paid',
+      `${target.name} · due ${unpaidMinimum.date} · £${(unpaidMinimum.amountMinor / 100).toFixed(2)}. Only confirm when your current cash and debt balances already include this payment. Extra repayments do not automatically settle the monthly minimum.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Already paid',
+          onPress: () => {
+            setDebtMinimumOccurrenceResolution(target.id, unpaidMinimum.date, { status: 'paid' });
+            showUndo(`${target.name} minimum · ${unpaidMinimum.date} marked paid`, () =>
+              setDebtMinimumOccurrenceResolution(target.id, unpaidMinimum.date, previous),
+            );
+          },
+        },
+      ],
+    );
+  }
 
   const [name, setName] = useState('');
   const [kind, setKind] = useState<Debt['kind']>('card');
@@ -146,7 +180,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
   return (
     <Sheet visible={visible} onClose={onClose}>
       <View style={s.headerRow}>
-      <Text style={s.eyebrow}>{target === null ? 'Add a debt' : 'Edit a debt'}</Text>
+        <Text style={s.eyebrow}>{target === null ? 'Add a debt' : 'Edit a debt'}</Text>
       </View>
       <Text accessibilityRole="header" style={s.headline}>
         {target === null ? 'One line at a ' : 'Keep one line '}
@@ -234,7 +268,9 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
         style={[s.priorityRow, { borderColor: t.hairline, backgroundColor: t.inset }]}
       >
         <Text style={[s.priorityLabel, { color: t.ink }]}>I’m behind on this payment</Text>
-        <Text style={[s.priorityValue, { color: arrears ? t.repair : t.muted }]}>{arrears ? 'Yes' : 'No'}</Text>
+        <Text style={[s.priorityValue, { color: arrears ? t.repair : t.muted }]}>
+          {arrears ? 'Yes' : 'No'}
+        </Text>
       </Pressable>
       <TextInput
         value={promoUntil}
@@ -280,6 +316,19 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
         </View>
       </View>
 
+      {unpaidMinimum ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Mark minimum already paid"
+          onPress={confirmMinimumPaid}
+          style={s.cancel}
+        >
+          <Text style={[s.cancelLabel, { color: t.calmStrong }]}>
+            £{(unpaidMinimum.amountMinor / 100).toFixed(2)} minimum due {unpaidMinimum.date} · mark
+            already paid
+          </Text>
+        </Pressable>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Add debt"
@@ -292,7 +341,9 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           pressed && canAdd ? s.pressed : undefined,
         ]}
       >
-        <Text style={[s.primaryLabel, { color: t.inverse }]}>{target === null ? 'Add debt' : 'Save changes'}</Text>
+        <Text style={[s.primaryLabel, { color: t.inverse }]}>
+          {target === null ? 'Add debt' : 'Save changes'}
+        </Text>
       </Pressable>
       <Pressable
         accessibilityRole="button"

@@ -285,6 +285,19 @@ export type TransactionSplit = Readonly<{
 /** Structural local-finance links retained when a mobile transaction is projected into the
  * canonical ledger. These are relationships, never display-label conventions. */
 export type FinancialAction =
+  /** A completed payment with durable reversible effects; reductions are integer pence. */
+  | Readonly<{
+      kind: 'debt-payment';
+      debtId: string;
+      principalAppliedMinor: number;
+      /** Outstanding principal immediately before this posting, retained across corrections. */
+      principalAvailableMinor?: number;
+      /** Monotonic ledger order; editing the display date does not reorder financial effects. */
+      postingOrder?: number;
+      linkedAccountId?: string;
+      linkedAccountAppliedMinor?: number;
+      linkedAccountAvailableMinor?: number;
+    }>
   /** A live manual/Melo entry whose signed amount was applied to the current cash position. */
   | Readonly<{
       kind: 'cash-posting';
@@ -745,6 +758,15 @@ export type PotLedgerEntry = Readonly<{
 // downstream models must normalize to a per-month figure before summing or comparing across subs.
 export type SubscriptionCadence = 'weekly' | 'fortnightly' | 'monthly' | 'yearly' | 'custom-days';
 
+export type ObligationResolution = Readonly<{
+  status?: 'unpaid' | 'partial' | 'paid' | 'settled' | 'cancelled';
+  /** A prospective pause can be undone before this occurrence falls due. */
+  reason?: 'paused';
+  /** Optional original obligation amount frozen when a recurring schedule is edited. */
+  amountMinor?: number;
+  paidMinor?: number;
+}>;
+
 export type Subscription = Readonly<{
   id: SubscriptionId;
   workspaceId: WorkspaceId;
@@ -755,6 +777,8 @@ export type Subscription = Readonly<{
   cadence: SubscriptionCadence;
   nextRenewalDaysAway: number;
   nextRenewalISO?: string;
+  obligationAnchorISO?: string;
+  obligationOccurrences?: Readonly<Record<string, ObligationResolution>>;
   renewalPeriodDays?: number;
   lastUsedDaysAgo: number;
   usesPerMonth: number;
@@ -812,6 +836,8 @@ export type Debt = Readonly<{
   promoUntil?: LocalDate;
   minimumPayment: Money;
   dueDayOfMonth: number;
+  minimumDueDate?: string;
+  minimumOccurrences?: Readonly<Record<string, ObligationResolution>>;
   sourceAddedAt?: string;
   addedAt: InstantString;
   linkedSourceAccountId?: string;
@@ -899,7 +925,13 @@ export type IncomeSchedule = Readonly<{
   anchorDate?: LocalDate;
 }>;
 
-export type TransactionCorrectionField = 'merchant' | 'amount' | 'when' | 'category' | 'note';
+export type TransactionCorrectionField =
+  | 'merchant'
+  | 'amount'
+  | 'when'
+  | 'category'
+  | 'note'
+  | 'debtId';
 
 export type TransactionCorrectionState = Readonly<{
   id?: string;
@@ -1162,6 +1194,8 @@ export type CalendarItem = Readonly<{
   provenanceId?: ProvenanceId;
   /** Lossless source fields for user-authored AppState calendar rows. */
   sourceCalendarEventId?: string;
+  obligationStatus?: ObligationResolution['status'];
+  obligationPaidMinor?: number;
   sourceOrdinal?: number;
   sourceKind?: 'in' | 'out' | 'review' | 'deadline';
   sourceTime?: string;

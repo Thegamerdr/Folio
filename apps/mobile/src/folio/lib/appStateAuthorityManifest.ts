@@ -62,6 +62,9 @@ export const appStateAuthorityManifest = {
   // recovery cannot reconstruct a lossy approximation.
   business: 'exact-encrypted-authority',
   bankImportInbox: 'exact-encrypted-authority',
+  // Retain the highest order even when its payment row is deleted. Canonical transactions carry
+  // each posting's order; the exact encrypted partition preserves this tombstone-independent clock.
+  debtPaymentSequence: 'exact-encrypted-authority',
   household: 'canonical-financial-context-authority',
   plans: 'canonical-route-planning-authority',
   lens: 'canonical-companion-runtime-authority',

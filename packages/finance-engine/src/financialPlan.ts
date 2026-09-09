@@ -6,7 +6,10 @@ export type FinancialCashflow = Readonly<{
   date: string;
   amountMinor: number;
   label?: string;
-  /** Actual posted/corrected movements are facts; omitted values are expectations. */
+  /**
+   * Actual posted/corrected movements through asOf are already in the account snapshot.
+   * Other/omitted kinds are expected scenario movements, never evidence of receipt.
+   */
   kind?: 'actual' | 'income' | 'commitment' | 'living' | 'other';
   protected?: boolean;
 }>;
@@ -44,16 +47,25 @@ export type FinancialDebt = Readonly<{
   dueDate?: string;
   /** Original calendar day for monthly due dates (for example, 31 when February is clamped to 28). */
   dueDayOfMonth?: number;
+  /**
+   * Explicit outstanding minimum occurrences from the canonical obligation ledger.
+   * When provided, replaces inferred monthly minima; [] means no outstanding occurrences.
+   */
+  minimumOccurrences?: readonly Readonly<{ date: string; amountMinor: number }>[];
   arrears?: boolean;
   promoUntil?: string;
 }>;
 
 export type FinancialPlanInput = Readonly<{
   asOf: string;
+  /** Current cash snapshot, including all posted movements through asOf (including today). */
   accounts: Readonly<Record<string, number | Readonly<{ minor: number }>>>;
-  /** Posted/corrected movements, including unexpected spending, refunds and bonuses. */
+  /** Actual history or expected scenario deltas; actual history through asOf is not replayed. */
   cashflows?: readonly FinancialCashflow[];
-  /** Expected income events. Use actual dates; no weekly/monthly cadence is assumed. */
+  /**
+   * Expected income events. Use actual dates; no cadence is assumed. Today's or past scheduled
+   * receipts are never added to cash: receiving them must update the account snapshot explicitly.
+   */
   income?: readonly FinancialCashflow[];
   commitments?: readonly FinancialCommitment[];
   livingCosts?: readonly FinancialLivingCost[];
@@ -62,6 +74,7 @@ export type FinancialPlanInput = Readonly<{
   strategy?: DebtStrategy;
   selectedDebtId?: string;
   bufferMinor?: number;
+  /** Strictly future boundary. A stale/today value falls back to the next dated income event. */
   nextIncomeDate?: string;
   horizonEndDate?: string;
   /** Explicit recurring extra debt amount. Omitted means no extra payment is projected. */
@@ -273,6 +286,14 @@ function validateEvents(input: FinancialPlanInput): void {
     if (debt.postPromoAprBps !== undefined && debt.postPromoAprBps !== null)
       assertMinor(debt.postPromoAprBps, `Debt ${debt.id} post-promo APR`);
     if (debt.dueDate !== undefined) dateValue(debt.dueDate);
+    const occurrenceDates = new Set<string>();
+    for (const occurrence of debt.minimumOccurrences ?? []) {
+      const date = dateValue(occurrence.date);
+      if (occurrenceDates.has(date))
+        throw new Error(`Duplicate debt minimum occurrence: ${debt.id}:${date}`);
+      occurrenceDates.add(date);
+      assertMinor(occurrence.amountMinor, `Debt ${debt.id} occurrence`);
+    }
     if (
       debt.dueDayOfMonth !== undefined &&
       (!Number.isSafeInteger(debt.dueDayOfMonth) ||
@@ -287,9 +308,14 @@ function validateEvents(input: FinancialPlanInput): void {
 function nextIncome(input: FinancialPlanInput, asOf: LocalDate): LocalDate | null {
   if (input.nextIncomeDate !== undefined) {
     const explicit = dateValue(input.nextIncomeDate);
-    return explicit > asOf ? explicit : null;
+    // An inclusive payday helper may return today. That is not a future funding boundary and
+    // must not hide the following receipt already present in the canonical dated income list.
+    if (explicit > asOf) return explicit;
   }
-  const candidate = [...(input.income ?? [])]
+  const candidate = [
+    ...(input.income ?? []),
+    ...(input.cashflows ?? []).filter((event) => event.kind === 'income'),
+  ]
     .filter((event) => event.amountMinor > 0 && dateValue(event.date) > asOf)
     .sort((left, right) => dateValue(left.date).localeCompare(dateValue(right.date)))[0];
   return candidate === undefined ? null : dateValue(candidate.date);
@@ -322,6 +348,10 @@ function makeEvents(input: FinancialPlanInput, asOf: LocalDate, end: LocalDate):
     events.push(event);
   };
   for (const event of input.cashflows ?? []) {
+    // Posted actuals are already reflected in current cash, including actuals posted today.
+    // Untagged cashflows remain explicit scenario deltas for callers simulating a new movement.
+    if ((event.kind === 'actual' || event.kind === 'income') && dateValue(event.date) <= asOf)
+      continue;
     const amount = event.amountMinor;
     assertMinor(amount, `Cashflow ${event.id} amount`, true);
     append({
@@ -331,10 +361,13 @@ function makeEvents(input: FinancialPlanInput, asOf: LocalDate, end: LocalDate):
       label: event.label ?? 'Cash movement',
       protectedOutflowMinor: event.protected === true && amount < 0 ? -amount : 0,
       movable: event.protected !== true,
-      source: 'actual',
+      source: event.kind === 'income' ? 'income' : 'actual',
     });
   }
   for (const event of input.income ?? []) {
+    // A date passing does not establish receipt. Whether today's pay was received or is delayed,
+    // the current account snapshot is authoritative: never add the scheduled amount again.
+    if (dateValue(event.date) <= asOf) continue;
     append({
       id: event.id,
       date: dateValue(event.date),
@@ -368,6 +401,42 @@ function makeEvents(input: FinancialPlanInput, asOf: LocalDate, end: LocalDate):
     });
   }
   for (const debt of input.debts ?? []) {
+    if (debt.minimumOccurrences !== undefined) {
+      if (debt.balanceMinor <= 0) continue;
+      let remainingPrincipalMinor = debt.balanceMinor;
+      // Only a confirmed interest-free schedule can finish after reserving today's principal.
+      // Future interest/unknown rates can leave further minimums due; retain those scheduled
+      // amounts conservatively rather than silently ending protection at a principal-only cap.
+      const interestFreeThroughHorizon =
+        debt.aprBps === 0 &&
+        (debt.promoUntil === undefined ||
+          dateValue(debt.promoUntil) >= end ||
+          debt.postPromoAprBps === 0);
+      const occurrences = [...debt.minimumOccurrences].sort((left, right) =>
+        dateValue(left.date).localeCompare(dateValue(right.date)),
+      );
+      for (const occurrence of occurrences) {
+        const date = dateValue(occurrence.date);
+        const principalOnly = interestFreeThroughHorizon || date <= asOf;
+        const amountMinor = principalOnly
+          ? Math.min(occurrence.amountMinor, remainingPrincipalMinor)
+          : remainingPrincipalMinor > 0
+            ? occurrence.amountMinor
+            : 0;
+        if (amountMinor <= 0) continue;
+        if (principalOnly) remainingPrincipalMinor -= amountMinor;
+        append({
+          id: `debt-minimum:${debt.id}:${date}`,
+          date,
+          amountMinor: -amountMinor,
+          label: `${debt.name} minimum payment`,
+          protectedOutflowMinor: amountMinor,
+          movable: false,
+          source: 'debt-minimum',
+        });
+      }
+      continue;
+    }
     if (debt.balanceMinor <= 0 || debt.dueDate === undefined || debt.minimumPaymentMinor <= 0)
       continue;
     const paymentMinor = Math.min(debt.minimumPaymentMinor, debt.balanceMinor);

@@ -33,7 +33,7 @@ import type { Transaction } from '../store';
 
 /** The user-facing fields a correction may touch. `originalSource` is
  *  structural (de-dupe anchor), never an editable field — see §6. */
-export type EditableField = 'merchant' | 'amount' | 'when' | 'category' | 'note';
+export type EditableField = 'merchant' | 'amount' | 'when' | 'category' | 'note' | 'debtId';
 
 /** One immutable correction record. The transaction row shows the latest
  *  values; the history (these records) is auditable from the txn detail.
@@ -96,6 +96,7 @@ export type TxnEditPatch = {
   when?: string;
   category?: Transaction['category'];
   note?: string | undefined;
+  debtId?: string;
 };
 
 /** One changed field shown before a correction is committed. This deliberately omits ids,
@@ -123,6 +124,7 @@ const EDITABLE_FIELDS: readonly EditableField[] = [
   'when',
   'category',
   'note',
+  'debtId',
 ];
 
 /**
@@ -162,6 +164,10 @@ function readField(
       return src.category;
     case 'note':
       return src.note;
+    case 'debtId':
+      return 'financialAction' in src && src.financialAction?.kind === 'debt-payment'
+        ? src.financialAction.debtId
+        : (src as TxnEditPatch).debtId;
     default:
       return undefined;
   }
@@ -230,6 +236,15 @@ function applyField(
       return;
     case 'note':
       target.note = value as string | undefined;
+      return;
+    case 'debtId':
+      if (
+        target.financialAction?.kind !== 'debt-payment' ||
+        typeof value !== 'string' ||
+        !value.trim()
+      )
+        throw new Error('Choose an existing debt for this payment.');
+      target.financialAction = { ...target.financialAction, debtId: value };
       return;
     default:
       return;

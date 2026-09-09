@@ -239,6 +239,12 @@ export function readCanonicalAppStateMoneyProjection(
       workspaceId: subscription.workspaceId,
       cost: minorToMajor(subscription.cost.minorUnits),
       nextRenewalDaysAway: subscription.nextRenewalDaysAway,
+      ...(subscription.obligationAnchorISO === undefined
+        ? {}
+        : { obligationAnchorISO: subscription.obligationAnchorISO }),
+      ...(subscription.obligationOccurrences === undefined
+        ? {}
+        : { obligationOccurrences: subscription.obligationOccurrences }),
       ...(subscription.nextRenewalISO === undefined
         ? {}
         : { nextRenewalISO: subscription.nextRenewalISO }),
@@ -311,6 +317,10 @@ export function readCanonicalAppStateMoneyProjection(
       ...(debt.promoUntil === undefined ? {} : { promoUntil: String(debt.promoUntil) }),
       minPayment: minorToMajor(debt.minimumPayment.minorUnits),
       dueDom: debt.dueDayOfMonth,
+      ...(debt.minimumDueDate === undefined ? {} : { minimumDueDate: debt.minimumDueDate }),
+      ...(debt.minimumOccurrences === undefined
+        ? {}
+        : { minimumOccurrences: debt.minimumOccurrences }),
       addedAt: requiredText(debt.sourceAddedAt, 'canonical source debt creation time'),
       ...(debt.linkedSourceAccountId === undefined
         ? {}
@@ -344,6 +354,10 @@ export function readCanonicalAppStateMoneyProjection(
     date: String(item.localDate),
     kind: appCalendarEventKind(item.sourceKind),
     title: item.title,
+    ...(item.obligationStatus === undefined ? {} : { obligationStatus: item.obligationStatus }),
+    ...(item.obligationPaidMinor === undefined
+      ? {}
+      : { obligationPaidMinor: item.obligationPaidMinor }),
     ...(item.sourceTime === undefined ? {} : { time: item.sourceTime }),
     ...(item.sourceNote === undefined ? {} : { note: item.sourceNote }),
     ...(item.sourceAmount === undefined
@@ -1057,6 +1071,12 @@ function normalizedSourceMoneyProjection(
       workspaceId: subscription.workspaceId ?? state.dataWorkspaceId,
       cost: subscription.cost,
       nextRenewalDaysAway: subscription.nextRenewalDaysAway,
+      ...(subscription.obligationAnchorISO === undefined
+        ? {}
+        : { obligationAnchorISO: subscription.obligationAnchorISO }),
+      ...(subscription.obligationOccurrences === undefined
+        ? {}
+        : { obligationOccurrences: subscription.obligationOccurrences }),
       ...(subscription.nextRenewalISO === undefined
         ? {}
         : { nextRenewalISO: subscription.nextRenewalISO }),
@@ -1099,6 +1119,10 @@ function normalizedSourceMoneyProjection(
     ...(debt.promoUntil === undefined ? {} : { promoUntil: debt.promoUntil }),
     minPayment: debt.minPayment,
     dueDom: debt.dueDom,
+    ...(debt.minimumDueDate === undefined ? {} : { minimumDueDate: debt.minimumDueDate }),
+    ...(debt.minimumOccurrences === undefined
+      ? {}
+      : { minimumOccurrences: debt.minimumOccurrences }),
     addedAt: debt.addedAt,
     ...(debt.linkedAccountId === undefined ? {} : { linkedAccountId: debt.linkedAccountId }),
   }));
@@ -1160,6 +1184,10 @@ function normalizedSourceMoneyProjection(
       date: event.date,
       kind: event.kind,
       title: event.title,
+      ...(event.obligationStatus === undefined ? {} : { obligationStatus: event.obligationStatus }),
+      ...(event.obligationPaidMinor === undefined
+        ? {}
+        : { obligationPaidMinor: event.obligationPaidMinor }),
       ...(event.time === undefined ? {} : { time: event.time }),
       ...(event.note === undefined ? {} : { note: event.note }),
       ...(event.amount === undefined ? {} : { amount: event.amount }),

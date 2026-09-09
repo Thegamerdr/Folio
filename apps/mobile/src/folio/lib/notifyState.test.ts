@@ -63,8 +63,8 @@ describe('snapshotFromRoute — derives the ladder via lib/modes, not a private 
     // A small positive balance with no bills and no payday income in the window keeps every mode
     // strategy's own weather at 'sunny' (no storm/collision signal), but spare-on-payday is under
     // the shared floor — the danger-floor safety net (not the mode) must still escalate this to
-    // 'warning'. Zeroing monthlyIncome removes the seed's payday event so `spare` stays flat at
-    // the starting balance instead of jumping on payday.
+    // 'warning'. Explicitly remove the seed's debts as well as its income: unresolved minimum
+    // payments are real protected outflows and would correctly make this tiny balance negative.
     setCurrentBalance({
       amount: DANGER_FLOOR - 1,
       source: 'user-entered',
@@ -74,6 +74,8 @@ describe('snapshotFromRoute — derives the ladder via lib/modes, not a private 
       subs: [],
       calendarEvents: [],
       pots: [],
+      debts: [],
+      incomeSources: [],
       onboarding: { ...getState().onboarding, monthlyIncome: 0 },
     });
     const state = getState();

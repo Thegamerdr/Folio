@@ -6,6 +6,9 @@ import {
   type LocalDate,
 } from '@folio/domain';
 
+export { expandObligationOccurrences, remainingObligationMinor } from './obligations.js';
+export type { ObligationResolution } from './obligations.js';
+
 export {
   calculateFinancialPlan,
   projectFinancialDebts,

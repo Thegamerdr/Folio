@@ -64,7 +64,9 @@ describe('MoreScreen — pinned ScreenMore parity contract', () => {
   });
 
   it('ports the source geometry instead of the stale shared Surface defaults', () => {
-    expect(source).toContain('paddingTop: insets.top + gap.sm');
+    // The root owns the system inset; its scroll content owns the same source top gap.
+    expect(source).toContain('paddingTop: insets.top }');
+    expect(source).toContain('paddingTop: gap.sm');
     expect(source).toContain('height: 64');
     expect(source).toContain('width: 64');
     expect(source).toContain('fontSize: 28');
@@ -79,7 +81,10 @@ describe('MoreScreen — pinned ScreenMore parity contract', () => {
 
   it('keeps the current native settings and trust authorities reachable', () => {
     expect(source).toContain("sheet: 'appearance'");
-    expect(source).toContain('onPress: reminders.toggleEnabled');
+    expect(source).toContain('onValueChange={reminders.toggleEnabled}');
+    expect(source).toContain(
+      "reminders.settings.remindersEnabled && reminders.permission === 'granted'",
+    );
     expect(source).toContain('onPress: describeAccessibility');
     expect(source).toContain("to: 'account'");
     expect(source).toContain("to: 'privacy'");
