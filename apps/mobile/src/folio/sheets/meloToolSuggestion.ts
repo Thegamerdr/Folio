@@ -143,7 +143,7 @@ export function describeMeloToolSuggestion(
     case 'correct_income': {
       const source = textValue(input.source) ?? textValue(input.label);
       if (amount && source) return `Correct ${source} income to ${amount}.${preview}`;
-      if (amount) return `Correct expected income to ${amount}.${preview}`;
+      if (amount) return `Correct received income to ${amount}.${preview}`;
       break;
     }
     case 'set_income_schedule': {
