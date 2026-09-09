@@ -74,6 +74,7 @@ import { useUndo } from '@/folio/ui/useUndo';
 import { copy } from '@/folio/copy/copy';
 import type { Nav } from '@/folio/types';
 import { triggerFeedback } from '@/folio/lib/feedback';
+import { isDiscretionarySubscription } from '@/folio/lib/discretionarySubscription';
 import {
   subscriptionAnnualCost,
   subscriptionConfidence,
@@ -201,15 +202,21 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     ? { spare: tightSpare(route.tightPoint.amount), date: route.tightPoint.date }
     : null;
 
-  // Active subs that renew ON OR BEFORE the projected low point — a PAYMENT-TIMING set (when a charge
-  // lands), never a usage verdict. Pausing these is what genuinely buys room before the squeeze, and
-  // the copy can stay honest about WHY. Empty until the mount-gate opens (tightWith === null).
+  // Active discretionary subs that renew ON OR BEFORE the projected low point — a PAYMENT-TIMING set
+  // (when a charge lands), never a usage verdict. Protected or unknown obligations stay out of this
+  // automatic pause recommendation; their per-row Pause control remains available to the user.
+  // Empty until the mount-gate opens (tightWith === null).
   const dueBeforeTight = useMemo<StoreSub[]>(() => {
     if (!tightWith) return [];
     const tightMs = new Date(`${tightWith.date}T00:00:00`).getTime();
     const base = (now ?? EPOCH).getTime();
     const daysToTight = Math.round((tightMs - base) / 86_400_000);
-    return subs.filter((x) => !paused[x.name] && x.nextRenewalDaysAway <= daysToTight);
+    return subs.filter(
+      (x) =>
+        !paused[x.name] &&
+        x.nextRenewalDaysAway <= daysToTight &&
+        isDiscretionarySubscription(x),
+    );
   }, [subs, paused, tightWith, now]);
   const dueSave = dueBeforeTight.reduce((acc, x) => acc + x.cost, 0);
   const showDueMove = dueBeforeTight.length > 0;
@@ -523,7 +530,11 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
       <View style={layout.footer}>
         <MeloLine
           mood="calm"
-          text="Pausing for a month is a small experiment. You can always resume."
+          text={
+            showDueMove
+              ? 'Pausing for a month is a small experiment. You can always resume.'
+              : 'Keep obligations reserved. Pause a charge only when you know it is optional.'
+          }
         />
       </View>
     </ScrollView>

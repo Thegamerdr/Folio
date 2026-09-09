@@ -51,6 +51,15 @@ describe('local finance proposals', () => {
       name: 'set_commitment',
       args: { name: 'rent', amount: 950 },
     });
+    expect(parseLocalFinanceProposal('Change my rent and bills to £1000')).toMatchObject({
+      name: 'set_commitment',
+      args: { name: 'rent and bills', amount: 1000 },
+    });
+    expect(
+      buildLocalMeloTurn({ prompt: 'Change my rent and bills to 1000', snapshot, tone: 'calm' }),
+    ).toMatchObject({
+      suggestions: [{ name: 'set_commitment', args: { name: 'rent and bills', amount: 1000 } }],
+    });
     expect(parseLocalFinanceProposal('My rent and bills are all one £950 payment')).toMatchObject({
       name: 'set_commitment',
       args: { name: 'rent and bills', amount: 950 },

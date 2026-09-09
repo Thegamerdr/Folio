@@ -25,7 +25,7 @@
 // LogSpendSheet's negative spend. The web `source` field (an invoice's "who paid you") maps to
 // Transaction.merchant, matching the store's existing shape (no new field).
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -39,6 +39,7 @@ import {
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { copy } from '@/folio/copy/copy';
 import { addTransaction } from '@/folio/store';
+import { parseManualMoney } from '@/folio/lib/manualMoney';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -109,14 +110,26 @@ function LogInvoiceForm({
   const [source, setSource] = useState('');
   const [amount, setAmount] = useState('');
   const [sourceFocused, setSourceFocused] = useState(false);
+  const committed = useRef(false);
+  const [saveError, setSaveError] = useState<string>();
 
-  const canSave = parseFloat(amount) > 0;
+  const parsedAmount = parseManualMoney(amount);
+  const canSave = parsedAmount !== undefined;
 
   function save() {
+    if (committed.current || parsedAmount === undefined) return;
+    committed.current = true;
     const label = source.trim() || DEFAULT_SOURCE;
-    const v = parseFloat(amount);
-    if (!(v > 0)) return;
-    addTransaction({ merchant: label, amount: Math.abs(v), category: 'income', source: 'manual' });
+    try {
+      addTransaction(
+        { merchant: label, amount: parsedAmount, category: 'income', source: 'manual' },
+        { updateCurrentBalance: true },
+      );
+    } catch (cause) {
+      committed.current = false;
+      setSaveError(readableSaveError(cause));
+      return;
+    }
     onClose();
   }
 
@@ -135,7 +148,10 @@ function LogInvoiceForm({
             accessibilityLabel="From"
             autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
             onBlur={() => setSourceFocused(false)}
-            onChangeText={setSource}
+            onChangeText={(value) => {
+              setSource(value);
+              setSaveError(undefined);
+            }}
             onFocus={() => setSourceFocused(true)}
             placeholder="e.g. Studio Ltd"
             placeholderTextColor={t.muted}
@@ -152,7 +168,10 @@ function LogInvoiceForm({
             <TextInput
               accessibilityLabel="Amount"
               keyboardType="decimal-pad"
-              onChangeText={(text) => setAmount(text.replace(/[^0-9.]/g, ''))}
+              onChangeText={(value) => {
+                setAmount(value);
+                setSaveError(undefined);
+              }}
               placeholder="0"
               placeholderTextColor={t.muted}
               style={s.amountInput}
@@ -161,6 +180,17 @@ function LogInvoiceForm({
           </View>
         </View>
       </View>
+
+      {amount.length > 0 && parsedAmount === undefined ? (
+        <Text accessibilityRole="alert" style={{ color: t.repairInk }}>
+          Enter a positive amount with at most two decimal places.
+        </Text>
+      ) : null}
+      {saveError ? (
+        <Text accessibilityRole="alert" style={{ color: t.repairInk }}>
+          {saveError}
+        </Text>
+      ) : null}
 
       {/* Reassurance line — the web's honest "no tax maths" caption (literal). */}
       <Text style={s.hint}>
@@ -190,6 +220,15 @@ function LogInvoiceForm({
       />
     </View>
   );
+}
+
+function readableSaveError(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message : '';
+  if (/active (?:bank|cash)|cash account/i.test(message)) {
+    return 'Choose an active cash account before logging this.';
+  }
+  if (/supported money range/i.test(message)) return 'That amount is outside the supported range.';
+  return 'Could not save this income. Check the details and try again.';
 }
 
 // ---------------------------------------------------------------------------

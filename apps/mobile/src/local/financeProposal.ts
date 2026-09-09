@@ -249,6 +249,12 @@ export function parseLocalFinanceProposal(prompt: string): LocalFinanceProposal 
       'i',
     ),
   );
+  const bundledLabelCommitment = text.match(
+    new RegExp(
+      `\\b(?:set|change|update|correct|make)\\s+(?:my\\s+)?(rent\\s+(?:and|&)\\s+bills?|bills?\\s+(?:and|&)\\s+rent)\\s+(?:payment|bill|commitment)?\\s*(?:to|at)\\s+${MONEY}(?:\\s*(?:/\\s*(?:week|month|fortnight|year)|weekly|monthly|fortnightly|annual|yearly))?(?:[.!?]|$)`,
+      'i',
+    ),
+  );
   const bundledCommitment = text.match(
     new RegExp(
       `\\b(?:my\\s+)?(.+?)\\s+are\\s+all\\s+one\\s+${MONEY}\\s+payment(?:[.!?]|$)`,
@@ -262,16 +268,23 @@ export function parseLocalFinanceProposal(prompt: string): LocalFinanceProposal 
     ),
   );
   if (
+    bundledLabelCommitment ||
     commitment ||
     simpleCommitment ||
     bundledCommitment ||
     (recurringAmount && /rent|bill|utility|insurance|childcare|subscription|commitment/i.test(text))
   ) {
-    const match = simpleCommitment ?? commitment ?? bundledCommitment ?? recurringAmount;
+    const match =
+      bundledLabelCommitment ?? simpleCommitment ?? commitment ?? bundledCommitment ?? recurringAmount;
     const amount = amountOf(match?.[2] ?? match?.[1] ?? '');
-    const name = cleanTarget(
-      simpleCommitment?.[1] ?? commitment?.[1] ?? bundledCommitment?.[1] ?? recurringAmount?.[1],
+    const rawName = cleanTarget(
+      bundledLabelCommitment?.[1] ??
+        simpleCommitment?.[1] ??
+        commitment?.[1] ??
+        bundledCommitment?.[1] ??
+        recurringAmount?.[1],
     );
+    const name = rawName;
     if (amount === null || name === undefined) return null;
     const cadence = cadenceOf(text);
     return proposal(

@@ -389,7 +389,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                 <View>
                   <Text style={[styles.smallLabel, { color: t.muted }]}>Safe to spend</Text>
                   <Text style={[styles.safeCaption, { color: t.muted }]}>
-                    after commitments, essentials and your buffer
+                    after bills, essentials and buffer
                   </Text>
                 </View>
                 <Money

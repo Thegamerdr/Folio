@@ -140,6 +140,7 @@ function LogSpendForm({
   const committed = useRef(false);
   const [category, setCategory] = useState<Transaction['category']>('food');
   const [merchantFocused, setMerchantFocused] = useState(false);
+  const [saveError, setSaveError] = useState<string>();
 
   // Shared validation predicate — used by BOTH the disabled gate and save() (spec: keep both so a
   // programmatic save can't bypass the gate).
@@ -150,7 +151,16 @@ function LogSpendForm({
     const m = merchant.trim();
     if (committed.current || !m || parsedAmount === undefined) return;
     committed.current = true;
-    addTransaction({ merchant: m, amount: -parsedAmount, category, source: 'manual' });
+    try {
+      addTransaction(
+        { merchant: m, amount: -parsedAmount, category, source: 'manual' },
+        { updateCurrentBalance: true },
+      );
+    } catch (cause) {
+      committed.current = false;
+      setSaveError(readableSaveError(cause));
+      return;
+    }
     void triggerFeedback('log-commit');
     // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): a manual log is the user
     // explicitly setting this merchant's category from scratch — remember it so a future statement
@@ -172,7 +182,10 @@ function LogSpendForm({
       <TextInput
         autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
         value={merchant}
-        onChangeText={setMerchant}
+        onChangeText={(value) => {
+          setMerchant(value);
+          setSaveError(undefined);
+        }}
         onFocus={() => setMerchantFocused(true)}
         onBlur={() => setMerchantFocused(false)}
         placeholder="Where · e.g. Tesco"
@@ -189,7 +202,10 @@ function LogSpendForm({
           <Text style={s.currency}>{copy.global.currency.symbol}</Text>
           <TextInput
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(value) => {
+              setAmount(value);
+              setSaveError(undefined);
+            }}
             keyboardType="decimal-pad"
             placeholder="0"
             placeholderTextColor={t.calm}
@@ -202,6 +218,11 @@ function LogSpendForm({
       {amount.length > 0 && parsedAmount === undefined ? (
         <Text accessibilityRole="alert" style={{ color: t.repairInk }}>
           Enter a positive amount with at most two decimal places.
+        </Text>
+      ) : null}
+      {saveError ? (
+        <Text accessibilityRole="alert" style={{ color: t.repairInk }}>
+          {saveError}
         </Text>
       ) : null}
 
@@ -242,6 +263,15 @@ function LogSpendForm({
       />
     </View>
   );
+}
+
+function readableSaveError(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message : '';
+  if (/active (?:bank|cash)|cash account/i.test(message)) {
+    return 'Choose an active cash account before logging this.';
+  }
+  if (/supported money range/i.test(message)) return 'That amount is outside the supported range.';
+  return 'Could not save this spend. Check the details and try again.';
 }
 
 // ---------------------------------------------------------------------------

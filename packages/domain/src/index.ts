@@ -285,6 +285,10 @@ export type TransactionSplit = Readonly<{
 /** Structural local-finance links retained when a mobile transaction is projected into the
  * canonical ledger. These are relationships, never display-label conventions. */
 export type FinancialAction =
+  /** A live manual/Melo entry whose signed amount was applied to the current cash position. */
+  | Readonly<{
+      kind: 'cash-posting';
+    }>
   | Readonly<{
       kind: 'transfer';
       transferId: string;
@@ -294,6 +298,8 @@ export type FinancialAction =
   | Readonly<{
       kind: 'refund';
       originalTransactionId: string;
+      /** True when this incoming credit was already applied to live cash before pairing. */
+      cashPosted?: boolean;
     }>;
 
 export type FinancialTransaction = Readonly<{

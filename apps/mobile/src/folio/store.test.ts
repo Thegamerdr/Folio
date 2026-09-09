@@ -111,6 +111,7 @@ import {
   PERSONAL_WORKSPACE_SUBKEY_ID,
 } from './lib/workspaceRoot';
 import { PERSISTED_WORKSPACE_ROW_COLLECTIONS } from './lib/workspaceRows';
+import { buildFinancialPlanFromState } from './lib/financialPlan';
 
 beforeEach(() => {
   // Clean, known seed before every test (defaults + seeded transactions).
@@ -911,6 +912,64 @@ describe('accounts (ACCOUNTS_MODEL.md P1)', () => {
     expect(filtered.some((t) => t.id === cardTxn.id)).toBe(false);
     expect(filtered.length).toBe(state.transactions.length - 1);
     expect(isBankTxn(state, cardTxn)).toBe(false);
+  });
+});
+
+describe('live manual transactions and the canonical cash plan', () => {
+  it('moves the real onboarding cash once for a spend and restores it on undo', () => {
+    resetToEmpty();
+    setCurrentBalance({ amount: 1800, source: 'user-entered', confidence: 'corrected' });
+    setOnboarding({ done: true, monthlyIncome: 1800, payday: 28 });
+    setPartial({
+      bufferAmount: 200,
+      calendarEvents: [
+        { id: 'rent', date: '2026-09-12', kind: 'out', title: 'Rent + bills', amount: -950 },
+      ],
+      debts: [
+        {
+          id: 'klarna',
+          name: 'Klarna',
+          kind: 'bnpl',
+          balance: 320,
+          apr: 0,
+          minPayment: 80,
+          dueDom: 18,
+          addedAt: '2026-01-01',
+        },
+      ],
+      modeExtras: { reset: 70 },
+    });
+    const now = new Date('2026-09-09T00:00:00Z');
+    expect(getState().accounts?.some((account) => account.id === DEFAULT_ACCOUNT_ID)).toBe(true);
+    expect(buildFinancialPlanFromState(getState(), { now, horizonDays: 35 }).safeToSpendMinor).toBe(
+      38000,
+    );
+
+    const spend = addTransaction(
+      { merchant: 'Unexpected repair', amount: -120, category: 'other', source: 'manual' },
+      { updateCurrentBalance: true },
+    );
+    expect(getState().currentBalance.amount).toBe(1680);
+    expect(buildFinancialPlanFromState(getState(), { now, horizonDays: 35 }).safeToSpendMinor).toBe(
+      26000,
+    );
+
+    editTransaction(spend.id, { amount: -100 }, 'user');
+    expect(getState().currentBalance.amount).toBe(1700);
+
+    // Restart through the real persisted AppState blob; the marker must survive so undo does not
+    // leave the ledger and live cash out of sync.
+    hydrateFromBlob(getPersistBlob());
+    expect(
+      getState().transactions.find((transaction) => transaction.id === spend.id)?.financialAction,
+    ).toEqual({
+      kind: 'cash-posting',
+    });
+    removeTransaction(spend.id);
+    expect(getState().currentBalance.amount).toBe(1800);
+    expect(buildFinancialPlanFromState(getState(), { now, horizonDays: 35 }).safeToSpendMinor).toBe(
+      38000,
+    );
   });
 });
 
