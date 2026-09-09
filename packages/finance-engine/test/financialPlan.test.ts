@@ -212,6 +212,189 @@ describe('canonical financial plan fixtures', () => {
     expect(result.safeToSpendMinor).toBe(67000);
   });
 
+  it('retains a debt day-31 anchor across February in minima and payoff rows', () => {
+    const input: FinancialPlanInput = {
+      asOf: '2026-01-01',
+      accounts: { current: 10000 },
+      horizonEndDate: '2026-03-31',
+      debts: [
+        {
+          id: 'jan31',
+          name: 'January 31 card',
+          balanceMinor: 3000,
+          aprBps: 0,
+          minimumPaymentMinor: 1000,
+          dueDate: '2026-01-31',
+        },
+      ],
+      bufferMinor: 0,
+    };
+    const plan = calculateFinancialPlan(input);
+    expect(
+      plan.timeline
+        .flatMap((point) => point.eventIds)
+        .filter((id) => id.startsWith('debt-minimum:jan31:')),
+    ).toEqual([
+      'debt-minimum:jan31:2026-01-31',
+      'debt-minimum:jan31:2026-02-28',
+      'debt-minimum:jan31:2026-03-31',
+    ]);
+
+    const projection = projectFinancialDebts({
+      debts: input.debts ?? [],
+      strategy: 'hybrid',
+      startDate: '2026-01-01',
+      maxMonths: 3,
+    });
+    expect(projection.rows.map((row) => row.dueDate)).toEqual([
+      '2026-01-31',
+      '2026-02-28',
+      '2026-03-31',
+    ]);
+    expect(projection.payoffDate).toBe('2026-03-31');
+
+    const adapterAnchored = projectFinancialDebts({
+      debts: [
+        {
+          ...input.debts![0]!,
+          dueDate: '2026-02-28',
+          dueDayOfMonth: 31,
+        },
+      ],
+      strategy: 'hybrid',
+      startDate: '2026-02-01',
+      maxMonths: 2,
+    });
+    expect(adapterAnchored.rows.map((row) => row.dueDate)).toEqual(['2026-02-28', '2026-03-31']);
+  });
+
+  it('applies a one-off debt extra once while monthly extras recur', () => {
+    const debt = {
+      id: 'extra',
+      name: 'Extra payment card',
+      balanceMinor: 6000,
+      aprBps: 0,
+      minimumPaymentMinor: 1000,
+      dueDate: '2026-01-31',
+    };
+    const monthly = projectFinancialDebts({
+      debts: [debt],
+      strategy: 'hybrid',
+      startDate: '2026-01-01',
+      extraMonthlyMinor: 500,
+      maxMonths: 3,
+    });
+    const once = projectFinancialDebts({
+      debts: [debt],
+      strategy: 'hybrid',
+      startDate: '2026-01-01',
+      oneOffExtraMinor: 1500,
+      maxMonths: 3,
+    });
+    expect(monthly.rows.map((row) => row.paymentMinor)).toEqual([1500, 1500, 1500]);
+    expect(once.rows.map((row) => row.paymentMinor)).toEqual([2500, 1000, 1000]);
+    expect(once.oneOffExtraMinor).toBe(1500);
+    expect(once.extraMonthlyMinor).toBe(0);
+
+    const immediate = projectFinancialDebts({
+      debts: [{ ...debt, balanceMinor: 10000, aprBps: 3650, minimumPaymentMinor: 0 }],
+      strategy: 'hybrid',
+      startDate: '2026-01-01',
+      oneOffExtraMinor: 10000,
+      maxMonths: 3,
+    });
+    expect(immediate.payoffDate).toBe('2026-01-01');
+    expect(immediate.totalInterestMinor).toBe(0);
+
+    const datedInterest = projectFinancialDebts({
+      debts: [{ ...debt, balanceMinor: 10000, aprBps: 3650 }],
+      strategy: 'hybrid',
+      startDate: '2026-01-01',
+      oneOffExtraMinor: 1000,
+      maxMonths: 2,
+    });
+    expect(datedInterest.rows.map((row) => row.interestMinor)).toEqual([270, 232]);
+    expect(datedInterest.rows.map((row) => row.closingPrincipalMinor)).toEqual([8270, 7502]);
+    const promo = projectFinancialDebts({
+      debts: [
+        {
+          ...debt,
+          balanceMinor: 10000,
+          aprBps: 0,
+          promoUntil: '2026-01-15',
+          postPromoAprBps: 3650,
+        },
+      ],
+      strategy: 'hybrid',
+      startDate: '2026-01-01',
+      oneOffExtraMinor: 1000,
+      maxMonths: 1,
+    });
+    expect(promo.totalInterestMinor).toBe(135);
+  });
+
+  it('counts weekly debt extras on their real seven-day schedule and caps all pre-income payments', () => {
+    const weekly = projectFinancialDebts({
+      debts: [
+        {
+          id: 'weekly-extra',
+          name: 'Weekly extra card',
+          balanceMinor: 20000,
+          aprBps: 0,
+          minimumPaymentMinor: 1000,
+          dueDate: '2026-01-31',
+        },
+      ],
+      strategy: 'hybrid',
+      startDate: '2026-01-01',
+      extraWeeklyMinor: 200,
+      maxMonths: 3,
+    });
+    expect(weekly.rows.map((row) => row.paymentMinor)).toEqual([2000, 1800, 1800]);
+
+    const midCycle = projectFinancialDebts({
+      debts: [
+        {
+          id: 'mid-cycle',
+          name: 'Mid-cycle card',
+          balanceMinor: 1000,
+          aprBps: 3650,
+          minimumPaymentMinor: 0,
+          dueDate: '2026-01-31',
+        },
+      ],
+      strategy: 'hybrid',
+      startDate: '2026-01-01',
+      extraWeeklyMinor: 500,
+      maxMonths: 2,
+    });
+    expect(midCycle.payoffDate).toBe('2026-01-15');
+    expect(midCycle.totalInterestMinor).toBe(4);
+
+    const plan = calculateFinancialPlan({
+      asOf: '2026-01-01',
+      accounts: { current: 500 },
+      nextIncomeDate: '2026-01-31',
+      debts: [
+        {
+          id: 'weekly-extra',
+          name: 'Weekly extra card',
+          balanceMinor: 20000,
+          aprBps: 0,
+          minimumPaymentMinor: 0,
+          dueDate: '2026-01-31',
+        },
+      ],
+      extraDebtPaymentMinor: 200,
+      extraDebtPaymentCadence: 'weekly',
+      bufferMinor: 0,
+    });
+    expect(plan.debtRecommendation.extraPaymentMinor).toBe(100);
+    expect(plan.debtProjection?.extraWeeklyMinor).toBe(100);
+    expect(plan.extraPaymentCountBeforeIncome).toBe(5);
+    expect(plan.extraPaymentTotalBeforeIncomeMinor).toBe(500);
+  });
+
   it('keeps debt due dates, promo uncertainty, and extra-payment cascade explicit', () => {
     const dated = calculateFinancialPlan({
       asOf: '2026-09-09',

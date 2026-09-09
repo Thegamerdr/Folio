@@ -1,9 +1,6 @@
 import type { MeloLocalIntent } from '@folio/ai-contracts';
 
-import {
-  isMeloToolName,
-  type MeloToolName,
-} from '../folio/lib/melo/toolContract';
+import { isMeloToolName, type MeloToolName } from '../folio/lib/melo/toolContract';
 
 export type LocalFinanceProposal = Readonly<{
   name: MeloToolName;
@@ -143,6 +140,21 @@ export function parseLocalFinanceProposal(prompt: string): LocalFinanceProposal 
     );
   }
 
+  const arrears = text.match(
+    /\b(?:i['’]?m|i\s+am|we['’]?re|we\s+are)\s+(?:behind|in arrears)\s+(?:on|with)\s+(?:my\s+)?(.+?)(?:[.!?]|$)/i,
+  );
+  if (arrears) {
+    const debtName = cleanTarget(arrears[1]);
+    if (debtName !== undefined && !/^(?:this|that|this one|that one|it)$/i.test(debtName)) {
+      return proposal(
+        'set_debt_arrears',
+        { debtName, arrears: true },
+        `Mark ${debtName} as behind for review.`,
+        'review_debts',
+      );
+    }
+  }
+
   const debtBalance = text.match(
     new RegExp(
       `\\b(?:change|update|correct|set|make)\\s+(?:my\\s+)?(.+?)\\s+(?:debt\\s+)?balance\\s+(?:to|at|as)\\s+${MONEY_OR_ZERO}(?:[.!?]|$)`,
@@ -256,10 +268,7 @@ export function parseLocalFinanceProposal(prompt: string): LocalFinanceProposal 
     ),
   );
   const bundledCommitment = text.match(
-    new RegExp(
-      `\\b(?:my\\s+)?(.+?)\\s+are\\s+all\\s+one\\s+${MONEY}\\s+payment(?:[.!?]|$)`,
-      'i',
-    ),
+    new RegExp(`\\b(?:my\\s+)?(.+?)\\s+are\\s+all\\s+one\\s+${MONEY}\\s+payment(?:[.!?]|$)`, 'i'),
   );
   const recurringAmount = text.match(
     new RegExp(
@@ -275,7 +284,11 @@ export function parseLocalFinanceProposal(prompt: string): LocalFinanceProposal 
     (recurringAmount && /rent|bill|utility|insurance|childcare|subscription|commitment/i.test(text))
   ) {
     const match =
-      bundledLabelCommitment ?? simpleCommitment ?? commitment ?? bundledCommitment ?? recurringAmount;
+      bundledLabelCommitment ??
+      simpleCommitment ??
+      commitment ??
+      bundledCommitment ??
+      recurringAmount;
     const amount = amountOf(match?.[2] ?? match?.[1] ?? '');
     const rawName = cleanTarget(
       bundledLabelCommitment?.[1] ??
@@ -307,9 +320,11 @@ export function isAmbiguousDebtClearanceRequest(prompt: string): boolean {
 }
 
 export function ambiguousDebtName(prompt: string): string | undefined {
-  const match = prompt.trim().match(
-    /^\b(?:i\s+)?(?:just\s+)?(?:cleared|paid\s+off|settled)\s+(?:my\s+)?([a-z0-9][^.!?]*)$/i,
-  );
+  const match = prompt
+    .trim()
+    .match(
+      /^\b(?:i\s+)?(?:just\s+)?(?:cleared|paid\s+off|settled)\s+(?:my\s+)?([a-z0-9][^.!?]*)$/i,
+    );
   const name = cleanTarget(match?.[1]);
   return name;
 }

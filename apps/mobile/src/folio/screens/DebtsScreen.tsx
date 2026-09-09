@@ -7,7 +7,11 @@ import { useAppStore } from '@/folio/store';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
 import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
-import { buildFinancialPlanFromState, type FinancialPlanAdapterOptions } from '@/folio/lib/financialPlan';
+import {
+  buildFinancialPlanFromState,
+  type ExtraDebtPaymentCadence,
+  type FinancialPlanAdapterOptions,
+} from '@/folio/lib/financialPlan';
 
 const STRATEGY_OPTIONS: readonly { value: DebtStrategy; label: string }[] = [
   { value: 'hybrid', label: 'Balanced' },
@@ -19,11 +23,21 @@ const STRATEGY_OPTIONS: readonly { value: DebtStrategy; label: string }[] = [
   { value: 'user-selected', label: 'Choose a debt' },
 ];
 
+const EXTRA_PAYMENT_CADENCES: readonly { value: ExtraDebtPaymentCadence; label: string }[] = [
+  { value: 'once', label: 'Once' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+];
+
 function formatMinor(minor: number): string {
   return `£${(Math.abs(minor) / 100).toLocaleString('en-GB', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function formatSignedMinor(minor: number): string {
+  return `${minor < 0 ? '-' : ''}${formatMinor(minor)}`;
 }
 
 export function DebtsScreen({ nav }: { nav: Nav }) {
@@ -34,6 +48,8 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
   const [strategy, setStrategy] = useState<DebtStrategy>('hybrid');
   const [selectedDebtId, setSelectedDebtId] = useState<string | undefined>(debts[0]?.id);
   const [extraInput, setExtraInput] = useState('');
+  const [extraPaymentCadence, setExtraPaymentCadence] =
+    useState<ExtraDebtPaymentCadence>('monthly');
   const extraPayment = useMemo(() => {
     if (extraInput.trim() === '') return undefined;
     const parsed = parseManualMoney(extraInput, { allowZero: true });
@@ -44,11 +60,41 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
   if (strategy === 'user-selected' && selectedDebtId !== undefined) {
     planOptions = { ...planOptions, selectedDebtId };
   }
-  if (extraPayment !== undefined) planOptions = { ...planOptions, recurringExtraDebtPaymentMinor: extraPayment };
+  if (extraPayment !== undefined) {
+    planOptions = {
+      ...planOptions,
+      recurringExtraDebtPaymentMinor: extraPayment,
+      extraDebtPaymentCadence: extraPaymentCadence,
+    };
+  }
   const plan = buildFinancialPlanFromState(appState, planOptions);
   const targetDebt = debts.find((debt) => debt.id === plan.debtRecommendation.targetDebtId);
   const safeToSpendLabel = `${formatMinor(plan.safeToSpendMinor)}${plan.safeToSpendMinor < 0 ? ' short' : ''}`;
-  const requestedExtraCapped = extraPayment !== undefined && plan.debtRecommendation.extraPaymentMinor < extraPayment;
+  const appliedExtraMinor =
+    extraPayment === undefined ? 0 : plan.debtRecommendation.extraPaymentMinor;
+  const previewOccurrences = extraPayment === undefined ? 0 : plan.extraPaymentCountBeforeIncome;
+  const scheduledPreviewMinor =
+    extraPayment === undefined ? 0 : plan.extraPaymentTotalBeforeIncomeMinor;
+  const safeAfterExtraMinor = plan.safeToSpendMinor - scheduledPreviewMinor;
+  const cadencePaymentLabel =
+    extraPaymentCadence === 'once' ? 'one-off payment' : `${extraPaymentCadence} payment`;
+  const previewCadenceCopy =
+    extraPaymentCadence === 'once'
+      ? `${formatMinor(appliedExtraMinor)} once`
+      : extraPaymentCadence === 'weekly'
+        ? `${formatMinor(appliedExtraMinor)} each week (${previewOccurrences} payments ${plan.nextIncomeDate === null ? 'within this forecast' : 'before income'})`
+        : `${formatMinor(appliedExtraMinor)} each month`;
+  const previewConsequenceLabel =
+    extraPaymentCadence === 'weekly'
+      ? `after all preview payments ${plan.nextIncomeDate === null ? 'within this forecast' : 'before income'}`
+      : 'after this preview payment';
+  const requestedExtraCapped = extraPayment !== undefined && appliedExtraMinor < extraPayment;
+  const projectionLead =
+    extraPayment === undefined
+      ? 'At this pace'
+      : extraPaymentCadence === 'once'
+        ? 'With this one-off preview'
+        : `At this ${extraPaymentCadence} pace`;
   return (
     <View style={[styles.root, { backgroundColor: t.canvas, paddingTop: insets.top }]}>
       <ScrollView
@@ -84,12 +130,12 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
           {plan.debtProjection ? (
             <Text style={[styles.planCopy, { color: t.muted }]}>
               {plan.debtProjection.payoffDate
-                ? `At this pace, projected debt-free date is ${String(plan.debtProjection.payoffDate)}.`
+                ? `${projectionLead}, projected debt-free date is ${String(plan.debtProjection.payoffDate)}.`
                 : !plan.debtProjection.interestKnown
                   ? 'Add the missing APR or rate after promo to estimate a payoff date.'
                   : plan.debtProjection.stalled
                     ? 'No payoff date yet — add a minimum payment or a safe extra amount.'
-                  : 'Payoff is being projected from the payments you entered.'}
+                    : 'Payoff is being projected from the payments you entered.'}
               {plan.debtProjection.cascade.length > 0
                 ? ` ${plan.debtProjection.cascade.length} payment release${plan.debtProjection.cascade.length === 1 ? '' : 's'} will cascade.`
                 : ''}
@@ -98,16 +144,25 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
           <View style={styles.planStats}>
             <View>
               <Text style={[styles.planStatLabel, { color: t.muted }]}>Safe to spend</Text>
-              <Text style={[styles.planStatValue, { color: plan.safeToSpendMinor < 0 ? t.repair : t.ink }]}>
+              <Text
+                style={[
+                  styles.planStatValue,
+                  { color: plan.safeToSpendMinor < 0 ? t.repair : t.ink },
+                ]}
+              >
                 {safeToSpendLabel}
               </Text>
             </View>
             <View>
               <Text style={[styles.planStatLabel, { color: t.muted }]}>Extra to debt</Text>
-              <Text style={[styles.planStatValue, { color: t.ink }]}>{formatMinor(plan.debtRecommendation.extraPaymentMinor)}</Text>
+              <Text style={[styles.planStatValue, { color: t.ink }]}>
+                {formatMinor(plan.debtRecommendation.extraPaymentMinor)}
+              </Text>
             </View>
           </View>
-          <Text style={[styles.choiceLabel, { color: t.muted }]}>How should extra money focus?</Text>
+          <Text style={[styles.choiceLabel, { color: t.muted }]}>
+            How should extra money focus?
+          </Text>
           <View style={styles.choiceGrid}>
             {STRATEGY_OPTIONS.map((option) => {
               const selected = strategy === option.value;
@@ -119,11 +174,16 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
                   onPress={() => setStrategy(option.value)}
                   style={({ pressed }) => [
                     styles.choice,
-                    { borderColor: selected ? t.calm : t.hairline, backgroundColor: selected ? t.inset : t.surface },
+                    {
+                      borderColor: selected ? t.calm : t.hairline,
+                      backgroundColor: selected ? t.inset : t.surface,
+                    },
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Text style={[styles.choiceText, { color: selected ? t.ink : t.muted }]}>{option.label}</Text>
+                  <Text style={[styles.choiceText, { color: selected ? t.ink : t.muted }]}>
+                    {option.label}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -151,26 +211,69 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
             value={extraInput}
             onChangeText={setExtraInput}
             keyboardType="decimal-pad"
-            placeholder="Optional monthly extra, e.g. £50"
+            placeholder="Optional extra, e.g. £50"
             placeholderTextColor={t.muted}
             style={[styles.extraInput, { borderColor: t.hairline, color: t.ink }]}
-            accessibilityLabel="Optional recurring monthly extra debt payment"
+            accessibilityLabel="Optional extra debt payment amount"
           />
+          <Text style={[styles.choiceLabel, { color: t.muted }]}>Payment pattern</Text>
+          <View style={styles.choiceGrid}>
+            {EXTRA_PAYMENT_CADENCES.map((option) => {
+              const selected = extraPaymentCadence === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${option.label} extra debt payment`}
+                  accessibilityState={{ selected }}
+                  onPress={() => setExtraPaymentCadence(option.value)}
+                  style={({ pressed }) => [
+                    styles.choice,
+                    {
+                      borderColor: selected ? t.calm : t.hairline,
+                      backgroundColor: selected ? t.inset : t.surface,
+                    },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={[styles.choiceText, { color: selected ? t.ink : t.muted }]}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
           {extraInputInvalid ? (
-            <Text style={[styles.inputError, { color: t.repair }]}>Enter a valid GBP amount, such as £50 or £50.25.</Text>
-          ) : null}
-          {requestedExtraCapped ? (
-            <Text style={[styles.scenarioNote, { color: t.muted }]}>
-              Only {formatMinor(plan.debtRecommendation.extraPaymentMinor)} is available today; the monthly projection assumes this remains affordable.
+            <Text style={[styles.inputError, { color: t.repair }]}>
+              Enter a valid GBP amount, such as £50 or £50.25.
             </Text>
           ) : null}
-          <Text style={[styles.scenarioNote, { color: t.muted }]}>This changes the projection only. It does not record a payment.</Text>
+          {extraPayment !== undefined && !extraInputInvalid ? (
+            <Text style={[styles.scenarioNote, { color: t.muted }]}>
+              This preview applies {previewCadenceCopy}; {formatSignedMinor(safeAfterExtraMinor)}{' '}
+              remains safe to spend {previewConsequenceLabel}.
+              {extraPaymentCadence === 'once'
+                ? ''
+                : ' The forecast assumes this payment remains affordable.'}
+            </Text>
+          ) : null}
+          {requestedExtraCapped && extraPayment !== undefined ? (
+            <Text style={[styles.scenarioNote, { color: t.muted }]}>
+              Only {formatMinor(appliedExtraMinor)} is available for this {cadencePaymentLabel}; the
+              requested amount was capped by protected money.
+            </Text>
+          ) : null}
+          <Text style={[styles.scenarioNote, { color: t.muted }]}>
+            This changes the projection only. It does not record a payment.
+          </Text>
           <Pressable
             accessibilityRole="button"
             onPress={() => nav.go('whatif')}
             style={({ pressed }) => [styles.tryChange, pressed && styles.pressed]}
           >
-            <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>Try a different extra payment</Text>
+            <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
+              Try a different extra payment
+            </Text>
           </Pressable>
         </View>
         <View style={styles.list}>
@@ -183,7 +286,11 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
                 accessibilityRole="button"
                 accessibilityLabel={`Edit ${debt.name}`}
                 onPress={() => nav.openSheet('declare-debt', { debtId: debt.id })}
-                style={({ pressed }) => [styles.row, { borderBottomColor: t.hairline }, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.row,
+                  { borderBottomColor: t.hairline },
+                  pressed && styles.pressed,
+                ]}
               >
                 <View style={styles.rowCopy}>
                   <Text style={[styles.name, { color: t.ink }]}>{debt.name}</Text>
@@ -245,12 +352,36 @@ const styles = StyleSheet.create({
   planStatValue: { fontFamily: serif.display, fontSize: 19, lineHeight: 24, marginTop: 2 },
   choiceLabel: { fontFamily: weightFamily(500), fontSize: 12.5, marginTop: gap.lg },
   choiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm, marginTop: gap.sm },
-  choice: { borderRadius: radius.pill, borderWidth: 1, minHeight: 36, justifyContent: 'center', paddingHorizontal: gap.md },
-  debtChoice: { borderRadius: radius.pill, borderWidth: 1, minHeight: 36, justifyContent: 'center', paddingHorizontal: gap.md },
+  choice: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: gap.md,
+  },
+  debtChoice: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: gap.md,
+  },
   choiceText: { fontFamily: weightFamily(500), fontSize: 12 },
-  extraInput: { borderRadius: radius.md, borderWidth: 1, fontSize: 14, marginTop: gap.md, minHeight: 46, paddingHorizontal: gap.md },
+  extraInput: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    fontSize: 14,
+    marginTop: gap.md,
+    minHeight: 46,
+    paddingHorizontal: gap.md,
+  },
   inputError: { fontFamily: weightFamily(400), fontSize: 11.5, lineHeight: 17, marginTop: gap.xs },
-  scenarioNote: { fontFamily: weightFamily(400), fontSize: 11.5, lineHeight: 17, marginTop: gap.xs },
+  scenarioNote: {
+    fontFamily: weightFamily(400),
+    fontSize: 11.5,
+    lineHeight: 17,
+    marginTop: gap.xs,
+  },
   tryChange: { minHeight: 44, justifyContent: 'center', marginTop: gap.sm },
   tryChangeLabel: { fontFamily: weightFamily(500), fontSize: 13 },
   list: { marginTop: gap.xl },

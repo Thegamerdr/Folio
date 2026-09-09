@@ -12,6 +12,7 @@ import {
 
 import { purgeSeedIfReal, type AppState } from '../store';
 import { monthlyIncomeSeries, percentile } from './historyStats';
+import { buildFinancialPlanFromState } from './financialPlan';
 import { selectMonthlyIncome } from './income';
 import { planProgress, summarisePlans } from './modes/planEngine';
 import { buildRecoveryRoutePreview } from './recoveryPreview';
@@ -83,7 +84,41 @@ function debtStrategy(
 function financialDebtStrategy(
   strategy: Exclude<MeloDebtProjectionStrategy, 'contractual-minimums'> | null,
 ): DebtStrategy {
-  return strategy === 'highest-rate-first' ? 'avalanche' : 'snowball';
+  return strategy === 'highest-rate-first'
+    ? 'avalanche'
+    : strategy === 'lowest-balance-first'
+      ? 'snowball'
+      : 'hybrid';
+}
+
+function requestedDebtCadence(prompt: string): 'once' | 'weekly' | 'monthly' {
+  if (/\b(?:once|one[- ]off|one off|today|now)\b/i.test(prompt)) return 'once';
+  if (/\b(?:weekly|each week|every week|per week|\/\s*week)\b/i.test(prompt)) return 'weekly';
+  if (/\b(?:monthly|each month|every month|per month|recurring|repeat(?:s|ed)?)\b/i.test(prompt))
+    return 'monthly';
+  return 'once';
+}
+
+function debtTargetFromPrompt(prompt: string): string | null {
+  const match = prompt.match(
+    /\b(?:pay|put|send|make)\s+(?:£\s*)?[\d,]+(?:\.\d{1,2})?\s+(?:off|towards?|toward|on)\s+(?:my\s+|the\s+)?(.+?)(?:[.!?]|$)/i,
+  );
+  return match?.[1]?.trim() || null;
+}
+
+function isOneOffAffordabilityPrompt(prompt: string): boolean {
+  return (
+    /\b(?:can i|could i|is it safe|would)\b/i.test(prompt) &&
+    /\b(?:pay|put|send|make)\b/i.test(prompt) &&
+    /\b(?:off|towards?|toward|on)\b/i.test(prompt)
+  );
+}
+
+function normalizeDebtTarget(value: string): string {
+  return value
+    .toLocaleLowerCase('en-GB')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
 function buildDebtCalculation(
@@ -102,43 +137,115 @@ function buildDebtCalculation(
     aprBps: debt.aprKnown === false ? null : Math.round(debt.apr * 100),
     minimumPaymentMinor: toMinor(debt.minPayment),
     dueDate: nextMonthlyDueDate(now, debt.dueDom),
+    dueDayOfMonth: debt.dueDom,
     ...(debt.arrears === undefined ? {} : { arrears: debt.arrears }),
     ...(debt.promoUntil === undefined ? {} : { promoUntil: debt.promoUntil }),
   }));
   const startDate = isoDayLocal(now);
   const selectedStrategy = debtStrategy(request.prompt);
   const amount = request.detectedAmountMinor ?? 0;
+  const cadence = requestedDebtCadence(request.prompt);
+  if (amount > 0 && cadence === 'once' && isOneOffAffordabilityPrompt(request.prompt)) {
+    const targetText = debtTargetFromPrompt(request.prompt);
+    const normalizedTarget = targetText ? normalizeDebtTarget(targetText) : '';
+    const cardDebts = debts.filter((debt) => debt.kind === 'card');
+    const candidates =
+      targetText && /^(?:this|that)\s+card$/i.test(targetText)
+        ? cardDebts
+        : targetText
+          ? debts.filter((debt) => {
+              const normalizedName = normalizeDebtTarget(debt.name);
+              return (
+                normalizedName === normalizedTarget || normalizedName.includes(normalizedTarget)
+              );
+            })
+          : debts.length === 1
+            ? debts
+            : [];
+    if (candidates.length !== 1) {
+      return {
+        kind: 'debt-target-required',
+        amountMinor: amount,
+        choices:
+          candidates.length > 1
+            ? candidates.map((debt) => debt.name)
+            : debts.map((debt) => debt.name),
+      };
+    }
+    const target = candidates[0];
+    if (!target) return null;
+    const beforeDebtMinor = toMinor(target.balance);
+    const afterDebtMinor = Math.max(0, beforeDebtMinor - amount);
+    const projection = projectFinancialDebts({
+      debts: engineDebts,
+      strategy: 'user-selected',
+      startDate,
+      oneOffExtraMinor: amount,
+      selectedDebtId: target.id,
+    });
+    return {
+      kind: 'debt-one-off',
+      debtName: target.name,
+      amountMinor: amount,
+      beforeDebtMinor,
+      afterDebtMinor,
+      safeZoneAfterExtraMinor: snapshot.availableNowMinor - amount,
+      payoffMonths: projection.payoffMonths,
+      payoffDateLabel: formatDay(projection.payoffDate),
+      interestKnown: projection.interestKnown,
+      stalled: projection.stalled,
+    };
+  }
   const requestsExtra =
     amount > 0 &&
     (selectedStrategy !== null ||
-      /\b(?:extra|overpay|overpayment|add|more)\b/i.test(request.prompt));
+      /\b(?:extra|overpay|overpayment|add|more)\b/i.test(request.prompt) ||
+      (cadence !== 'once' && isOneOffAffordabilityPrompt(request.prompt)));
+  const cadencePlan = buildFinancialPlanFromState(state, {
+    now,
+    recurringExtraDebtPaymentMinor: amount,
+    extraDebtPaymentCadence: cadence,
+  });
+  // A query models the requested amount even when unsafe. Use the canonical dated horizon;
+  // cap only recommendations, never silently turn an unsafe question into a smaller payment.
+  const requestedProjection = requestsExtra
+    ? projectFinancialDebts({
+        debts: engineDebts,
+        strategy: financialDebtStrategy(selectedStrategy),
+        startDate,
+        ...(cadence === 'monthly' ? { extraMonthlyMinor: amount } : {}),
+        ...(cadence === 'weekly' ? { extraWeeklyMinor: amount } : {}),
+        ...(cadence === 'once' ? { oneOffExtraMinor: amount } : {}),
+      })
+    : null;
+  const datedRequested = requestedProjection?.extraPayments?.filter((payment) =>
+    cadencePlan.nextIncomeDate === null
+      ? payment.date <= cadencePlan.horizonEndDate
+      : payment.date < cadencePlan.nextIncomeDate,
+  );
+  const requestedBeforeIncomeMinor = datedRequested
+    ? datedRequested.reduce((sum, payment) => sum + payment.amountMinor, 0)
+    : requestsExtra
+      ? amount
+      : 0;
 
   if (requestsExtra && selectedStrategy === null) {
     return {
       kind: 'debt-strategy-required',
       extraMonthlyMinor: amount,
-      safeZoneAfterExtraMinor: snapshot.availableNowMinor - amount,
+      safeZoneAfterExtraMinor: snapshot.availableNowMinor - requestedBeforeIncomeMinor,
+      ...(cadence === 'monthly' ? {} : { extraPaymentCadence: cadence }),
     };
   }
 
-  // Choosing a debt order does not make a payment recurring. Only explicit cadence words opt the
-  // amount into monthly amortisation; a bare amount is applied once to the cash check.
-  const recurringExtra =
-    requestsExtra &&
-    selectedStrategy !== null &&
-    /\b(?:monthly|each month|every month|recurring|repeat(?:s|ed)?|per month)\b/i.test(
-      request.prompt,
-    );
-  const minimums = projectFinancialDebts({ debts: engineDebts, strategy: 'hybrid', startDate });
-  const projection =
-    requestsExtra && selectedStrategy !== null
-      ? projectFinancialDebts({
-          debts: engineDebts,
-          strategy: financialDebtStrategy(selectedStrategy),
-          startDate,
-          extraMonthlyMinor: recurringExtra ? amount : 0,
-        })
-      : minimums;
+  const minimums = projectFinancialDebts({
+    debts: engineDebts,
+    strategy: 'hybrid',
+    startDate,
+    ...(requestsExtra && cadence === 'weekly' ? { extraWeeklyMinor: 0 } : {}),
+    ...(requestsExtra && cadence === 'once' ? { oneOffExtraMinor: 0 } : {}),
+  });
+  const projection = requestedProjection ?? minimums;
   const monthsSavedVsMinimums =
     projection.payoffMonths !== null && minimums.payoffMonths !== null
       ? Math.max(0, minimums.payoffMonths - projection.payoffMonths)
@@ -153,7 +260,11 @@ function buildDebtCalculation(
           ? 'lowest-balance-first'
           : 'contractual-minimums',
     debtCount: debts.length,
-    extraMonthlyMinor: recurringExtra ? projection.extraMonthlyMinor : 0,
+    extraMonthlyMinor: cadence === 'monthly' ? projection.extraMonthlyMinor : 0,
+    ...(cadence === 'weekly' ? { extraWeeklyMinor: projection.extraWeeklyMinor } : {}),
+    ...(cadence === 'once' ? { oneOffExtraMinor: projection.oneOffExtraMinor } : {}),
+    extraPaymentCadence: cadence,
+    interestKnown: projection.interestKnown,
     payoffMonths: projection.payoffMonths,
     payoffDateLabel: formatDay(projection.payoffDate),
     totalInterestMinor: projection.totalInterestMinor ?? 0,
@@ -162,8 +273,7 @@ function buildDebtCalculation(
       0,
       (minimums.totalInterestMinor ?? 0) - (projection.totalInterestMinor ?? 0),
     ),
-    safeZoneAfterExtraMinor:
-      snapshot.availableNowMinor - (recurringExtra ? projection.extraMonthlyMinor : amount),
+    safeZoneAfterExtraMinor: snapshot.availableNowMinor - requestedBeforeIncomeMinor,
     stalled: projection.stalled || projection.totalInterestMinor === null,
   };
 }

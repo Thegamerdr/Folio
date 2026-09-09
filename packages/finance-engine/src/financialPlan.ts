@@ -42,6 +42,8 @@ export type FinancialDebt = Readonly<{
   postPromoAprBps?: number | null;
   minimumPaymentMinor: number;
   dueDate?: string;
+  /** Original calendar day for monthly due dates (for example, 31 when February is clamped to 28). */
+  dueDayOfMonth?: number;
   arrears?: boolean;
   promoUntil?: string;
 }>;
@@ -64,6 +66,8 @@ export type FinancialPlanInput = Readonly<{
   horizonEndDate?: string;
   /** Explicit recurring extra debt amount. Omitted means no extra payment is projected. */
   extraDebtPaymentMinor?: number;
+  /** Cadence for the explicit extra amount. The default preserves monthly behavior. */
+  extraDebtPaymentCadence?: 'once' | 'weekly' | 'monthly';
   currency?: string;
 }>;
 
@@ -104,6 +108,10 @@ export type DebtProjection = Readonly<{
   startingPrincipalMinor: number;
   minimumPaymentMinor: number;
   extraMonthlyMinor: number;
+  oneOffExtraMinor: number;
+  extraWeeklyMinor: number;
+  /** Actual dated extra payments, truncated when the portfolio clears. */
+  extraPayments?: readonly Readonly<{ date: LocalDate; amountMinor: number }>[];
   payoffDate: LocalDate | null;
   payoffMonths: number | null;
   totalInterestMinor: number | null;
@@ -139,6 +147,10 @@ export type FinancialPlanResult = Readonly<{
   protectedBeforeIncomeMinor: number;
   debtMinimumMinor: number;
   livingCostMinor: number;
+  /** Number of requested extra payments before next income (weekly cadence) or one otherwise. */
+  extraPaymentCountBeforeIncome: number;
+  /** Total of the capped requested extras across that pre-income window. */
+  extraPaymentTotalBeforeIncomeMinor: number;
   /** Signed: negative means the plan is short even before optional spending. */
   safeToSpendMinor: number;
   availableForExtraMinor: number;
@@ -190,16 +202,35 @@ function addDays(date: LocalDate, count: number): LocalDate {
   return createLocalDate(new Date(timestamp).toISOString().slice(0, 10));
 }
 
-function addMonths(date: LocalDate, count: number): LocalDate {
-  const year = Number(date.slice(0, 4));
-  const month = Number(date.slice(5, 7)) - 1 + count;
-  const day = Number(date.slice(8, 10));
+function daysBetween(start: LocalDate, end: LocalDate): number {
+  return Math.max(
+    0,
+    Math.round(
+      (new Date(`${end}T00:00:00Z`).getTime() - new Date(`${start}T00:00:00Z`).getTime()) / DAY_MS,
+    ),
+  );
+}
+
+/**
+ * Add calendar months while retaining the original day-of-month anchor.
+ *
+ * A date such as January 31 is clamped to February 28, but the following
+ * occurrence is still calculated from January 31, so it returns to March 31
+ * instead of drifting to March 28.
+ */
+function addCalendarMonthsFromAnchor(
+  anchor: LocalDate,
+  count: number,
+  dayOfMonth = Number(anchor.slice(8, 10)),
+): LocalDate {
+  const year = Number(anchor.slice(0, 4));
+  const month = Number(anchor.slice(5, 7)) - 1 + count;
   const targetYear = year + Math.floor(month / 12);
   const targetMonth = ((month % 12) + 12) % 12;
   const daysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
   return createLocalDate(
     `${String(targetYear).padStart(4, '0')}-${String(targetMonth + 1).padStart(2, '0')}-${String(
-      Math.min(day, daysInTargetMonth),
+      Math.min(dayOfMonth, daysInTargetMonth),
     ).padStart(2, '0')}`,
   );
 }
@@ -242,6 +273,13 @@ function validateEvents(input: FinancialPlanInput): void {
     if (debt.postPromoAprBps !== undefined && debt.postPromoAprBps !== null)
       assertMinor(debt.postPromoAprBps, `Debt ${debt.id} post-promo APR`);
     if (debt.dueDate !== undefined) dateValue(debt.dueDate);
+    if (
+      debt.dueDayOfMonth !== undefined &&
+      (!Number.isSafeInteger(debt.dueDayOfMonth) ||
+        debt.dueDayOfMonth < 1 ||
+        debt.dueDayOfMonth > 31)
+    )
+      throw new Error(`Debt ${debt.id} due day must be an integer between 1 and 31.`);
     if (debt.promoUntil !== undefined) dateValue(debt.promoUntil);
   }
 }
@@ -343,7 +381,9 @@ function makeEvents(input: FinancialPlanInput, asOf: LocalDate, end: LocalDate):
           (label === debt.name.toLocaleLowerCase() || label.includes(debt.name.toLocaleLowerCase()))
         );
       });
-    let due = dateValue(debt.dueDate);
+    const dueAnchor = dateValue(debt.dueDate);
+    let monthOffset = 0;
+    let due = dueAnchor;
     // Keep one overdue obligation at today, then continue the real monthly due-date anchor. This
     // prevents an overdue minimum disappearing while avoiding a pile of synthetic past payments.
     if (due < asOf) {
@@ -357,8 +397,12 @@ function makeEvents(input: FinancialPlanInput, asOf: LocalDate, end: LocalDate):
           movable: false,
           source: 'debt-minimum',
         });
-      due = addMonths(due, 1);
-      while (due < asOf) due = addMonths(due, 1);
+      monthOffset = 1;
+      due = addCalendarMonthsFromAnchor(dueAnchor, monthOffset, debt.dueDayOfMonth);
+      while (due < asOf) {
+        monthOffset += 1;
+        due = addCalendarMonthsFromAnchor(dueAnchor, monthOffset, debt.dueDayOfMonth);
+      }
     }
     let occurrence = 0;
     while (due <= end) {
@@ -373,7 +417,8 @@ function makeEvents(input: FinancialPlanInput, asOf: LocalDate, end: LocalDate):
           source: 'debt-minimum',
         });
       occurrence += 1;
-      due = addMonths(due, 1);
+      monthOffset += 1;
+      due = addCalendarMonthsFromAnchor(dueAnchor, monthOffset, debt.dueDayOfMonth);
       if (occurrence > 600) break;
     }
   }
@@ -442,12 +487,225 @@ function strategyOrder(
   return copy;
 }
 
+function projectDebtsWithDatedExtras(
+  input: Readonly<{
+    debts: WorkingDebt[];
+    order: WorkingDebt[];
+    strategy: DebtStrategy;
+    startDate: LocalDate;
+    maxMonths: number;
+    extraMonthlyMinor: number;
+    oneOffExtraMinor: number;
+    extraWeeklyMinor: number;
+    minimumPaymentMinor: number;
+    startingPrincipalMinor: number;
+    interestKnown: boolean;
+    unknownAprDebtIds: readonly string[];
+    dueDateFor: (debt: FinancialDebt, period: number) => LocalDate;
+  }>,
+): DebtProjection {
+  const rows: DebtProjection['rows'][number][] = [];
+  const cascade: DebtCascadeEvent[] = [];
+  const extraPayments: { date: LocalDate; amountMinor: number }[] = [];
+  let totalInterestMinor = 0;
+  let nextWeeklyDate = input.startDate;
+  const lastAccruedDate = new Map<string, LocalDate>(
+    input.debts.map((debt) => [debt.id, input.startDate]),
+  );
+  const recordClosure = (debt: WorkingDebt, period: number): void => {
+    if (!cascade.some((event) => event.debtId === debt.id && event.period === period))
+      cascade.push({ debtId: debt.id, period, releasedMinimumMinor: debt.minimumPaymentMinor });
+  };
+  const applyExtra = (amountMinor: number, period: number): number => {
+    let remaining = amountMinor;
+    let paidTotal = 0;
+    for (const debt of input.order) {
+      if (remaining <= 0) break;
+      if (debt.balanceMinor <= 0) continue;
+      const paid = Math.min(remaining, debt.balanceMinor);
+      debt.balanceMinor -= paid;
+      remaining -= paid;
+      paidTotal += paid;
+      if (debt.balanceMinor === 0 && paid > 0) recordClosure(debt, period);
+    }
+    return paidTotal;
+  };
+
+  for (let period = 1; period <= input.maxMonths; period += 1) {
+    const opening = input.debts.reduce((sum, debt) => sum + debt.balanceMinor, 0);
+    const cycleDueDate =
+      input.debts
+        .map((debt) => input.dueDateFor(debt, period))
+        .sort()
+        .at(-1) ?? input.startDate;
+    const cycleEvents: {
+      date: LocalDate;
+      kind: 'extra' | 'minimum' | 'monthly-extra';
+      debt?: WorkingDebt;
+      amountMinor?: number;
+    }[] = [];
+    for (const debt of input.debts) {
+      if (debt.balanceMinor <= 0) continue;
+      const dueDate = input.dueDateFor(debt, period);
+      if (dueDate >= input.startDate && dueDate <= cycleDueDate)
+        cycleEvents.push({ date: dueDate, kind: 'minimum', debt });
+    }
+    if (period === 1 && input.oneOffExtraMinor > 0)
+      cycleEvents.push({
+        date: input.startDate,
+        kind: 'extra',
+        amountMinor: input.oneOffExtraMinor,
+      });
+    let cycleWeeklyOccurrences = 0;
+    if (input.extraWeeklyMinor > 0) {
+      while (nextWeeklyDate <= cycleDueDate) {
+        cycleEvents.push({
+          date: nextWeeklyDate,
+          kind: 'extra',
+          amountMinor: input.extraWeeklyMinor,
+        });
+        cycleWeeklyOccurrences += 1;
+        nextWeeklyDate = addDays(nextWeeklyDate, 7);
+      }
+    }
+    if (input.extraMonthlyMinor > 0)
+      cycleEvents.push({
+        date: cycleDueDate,
+        kind: 'monthly-extra',
+        amountMinor: input.extraMonthlyMinor,
+      });
+    cycleEvents.sort(
+      (left, right) =>
+        left.date.localeCompare(right.date) ||
+        (left.kind === 'extra' ? -1 : left.kind === 'minimum' ? 0 : 1) -
+          (right.kind === 'extra' ? -1 : right.kind === 'minimum' ? 0 : 1),
+    );
+    let payment = 0;
+    let cycleInterest = 0;
+    let cycleInterestKnown = true;
+    let payoffDate: LocalDate | null = null;
+    const accrueTo = (date: LocalDate): void => {
+      for (const debt of input.debts) {
+        if (debt.balanceMinor <= 0) continue;
+        const previous = lastAccruedDate.get(debt.id) ?? input.startDate;
+        if (date <= previous) continue;
+        let cursor = previous;
+        while (cursor < date && debt.balanceMinor > 0) {
+          const promoEnd = debt.promoUntil === undefined ? null : dateValue(debt.promoUntil);
+          const inPromo = promoEnd !== null && cursor <= promoEnd;
+          const segmentEnd = inPromo && promoEnd !== null ? addDays(promoEnd, 1) : date;
+          const until = segmentEnd < date ? segmentEnd : date;
+          const rate = inPromo
+            ? debt.aprBps
+            : debt.promoUntil === undefined
+              ? debt.aprBps
+              : debt.postPromoAprBps;
+          const elapsedDays = daysBetween(cursor, until);
+          if (rate === undefined || rate === null) cycleInterestKnown = false;
+          else if (elapsedDays > 0) {
+            const charged = Math.round((debt.balanceMinor * rate * elapsedDays) / (10_000 * 365));
+            debt.balanceMinor += charged;
+            cycleInterest += charged;
+            totalInterestMinor += charged;
+          }
+          cursor = until;
+        }
+        lastAccruedDate.set(debt.id, date);
+      }
+    };
+    for (const event of cycleEvents) {
+      accrueTo(event.date);
+      if (event.kind === 'extra' || event.kind === 'monthly-extra') {
+        const paid = applyExtra(event.amountMinor ?? 0, period);
+        payment += paid;
+        if (paid > 0) extraPayments.push({ date: event.date, amountMinor: paid });
+        if (paid > 0 && input.debts.every((debt) => debt.balanceMinor === 0))
+          payoffDate = event.date;
+        continue;
+      }
+      const debt = event.debt!;
+      if (debt.balanceMinor <= 0) continue;
+      const paid = Math.min(debt.minimumPaymentMinor, debt.balanceMinor);
+      debt.balanceMinor -= paid;
+      payment += paid;
+      if (debt.balanceMinor === 0 && paid > 0) {
+        recordClosure(debt, period);
+        payoffDate = event.date;
+      }
+    }
+    accrueTo(cycleDueDate);
+    // Preserve the declared monthly minimum budget when a debt is cleared before
+    // its due event: the released amount remains available to the target debt in
+    // this same cycle, matching the legacy cascade semantics.
+    const scheduledBudgetMinor =
+      input.minimumPaymentMinor +
+      input.extraMonthlyMinor +
+      (period === 1 ? input.oneOffExtraMinor : 0) +
+      input.extraWeeklyMinor * cycleWeeklyOccurrences;
+    const releasedBudgetMinor = Math.max(0, scheduledBudgetMinor - payment);
+    if (releasedBudgetMinor > 0) {
+      const releasedPaid = applyExtra(releasedBudgetMinor, period);
+      payment += releasedPaid;
+      if (releasedPaid > 0 && input.debts.every((debt) => debt.balanceMinor === 0))
+        payoffDate = cycleDueDate;
+    }
+    const closing = input.debts.reduce((sum, debt) => sum + debt.balanceMinor, 0);
+    rows.push({
+      period,
+      dueDate: cycleDueDate,
+      openingPrincipalMinor: opening,
+      interestMinor: input.interestKnown && cycleInterestKnown ? cycleInterest : null,
+      paymentMinor: payment,
+      closingPrincipalMinor: closing,
+    });
+    if (closing === 0)
+      return {
+        strategy: input.strategy,
+        order: input.order.map((debt) => debt.id),
+        startingPrincipalMinor: input.startingPrincipalMinor,
+        minimumPaymentMinor: input.minimumPaymentMinor,
+        extraMonthlyMinor: input.extraMonthlyMinor,
+        oneOffExtraMinor: input.oneOffExtraMinor,
+        extraWeeklyMinor: input.extraWeeklyMinor,
+        extraPayments,
+        payoffDate: input.interestKnown ? payoffDate : null,
+        payoffMonths: input.interestKnown ? period : null,
+        totalInterestMinor: input.interestKnown ? totalInterestMinor : null,
+        interestKnown: input.interestKnown,
+        unknownAprDebtIds: input.unknownAprDebtIds,
+        stalled: !input.interestKnown,
+        cascade,
+        rows,
+      };
+  }
+  return {
+    strategy: input.strategy,
+    order: input.order.map((debt) => debt.id),
+    startingPrincipalMinor: input.startingPrincipalMinor,
+    minimumPaymentMinor: input.minimumPaymentMinor,
+    extraMonthlyMinor: input.extraMonthlyMinor,
+    oneOffExtraMinor: input.oneOffExtraMinor,
+    extraWeeklyMinor: input.extraWeeklyMinor,
+    extraPayments,
+    payoffDate: null,
+    payoffMonths: null,
+    totalInterestMinor: input.interestKnown ? totalInterestMinor : null,
+    interestKnown: input.interestKnown,
+    unknownAprDebtIds: input.unknownAprDebtIds,
+    stalled: true,
+    cascade,
+    rows,
+  };
+}
+
 export function projectFinancialDebts(
   input: Readonly<{
     debts: readonly FinancialDebt[];
     strategy: DebtStrategy;
     startDate: string;
     extraMonthlyMinor?: number;
+    oneOffExtraMinor?: number;
+    extraWeeklyMinor?: number;
     selectedDebtId?: string;
     maxMonths?: number;
   }>,
@@ -457,7 +715,11 @@ export function projectFinancialDebts(
   if (!Number.isSafeInteger(maxMonths) || maxMonths < 1 || maxMonths > 600)
     throw new Error('Debt projection maxMonths must be between 1 and 600.');
   const extra = input.extraMonthlyMinor ?? 0;
+  const oneOffExtra = input.oneOffExtraMinor ?? 0;
+  const weeklyExtra = input.extraWeeklyMinor ?? 0;
   assertMinor(extra, 'Debt extra payment');
+  assertMinor(oneOffExtra, 'Debt one-off extra payment');
+  assertMinor(weeklyExtra, 'Debt weekly extra payment');
   const debts: WorkingDebt[] = input.debts
     .filter((debt) => debt.balanceMinor > 0)
     .map((debt) => ({ ...debt, balanceMinor: Number(debt.balanceMinor) }));
@@ -472,10 +734,16 @@ export function projectFinancialDebts(
   const startingPrincipalMinor = debts.reduce((sum, debt) => sum + debt.balanceMinor, 0);
   const interestKnown = unknownAprDebtIds.length === 0;
   const dueDateFor = (debt: FinancialDebt, period: number): LocalDate => {
-    let anchor = debt.dueDate === undefined ? startDate : dateValue(debt.dueDate);
-    // A past due date means the next real occurrence, keeping its original day-of-month anchor.
-    while (anchor < startDate) anchor = addMonths(anchor, 1);
-    return addMonths(anchor, period - 1);
+    const dueAnchor = debt.dueDate === undefined ? startDate : dateValue(debt.dueDate);
+    // A past due date means the next real occurrence, while every occurrence
+    // continues to use the original day-of-month anchor.
+    let firstOffset = 0;
+    let firstDue = addCalendarMonthsFromAnchor(dueAnchor, firstOffset, debt.dueDayOfMonth);
+    while (firstDue < startDate) {
+      firstOffset += 1;
+      firstDue = addCalendarMonthsFromAnchor(dueAnchor, firstOffset, debt.dueDayOfMonth);
+    }
+    return addCalendarMonthsFromAnchor(dueAnchor, firstOffset + period - 1, debt.dueDayOfMonth);
   };
   if (startingPrincipalMinor === 0)
     return {
@@ -484,6 +752,8 @@ export function projectFinancialDebts(
       startingPrincipalMinor: 0,
       minimumPaymentMinor: 0,
       extraMonthlyMinor: extra,
+      oneOffExtraMinor: oneOffExtra,
+      extraWeeklyMinor: weeklyExtra,
       payoffDate: interestKnown ? startDate : null,
       payoffMonths: interestKnown ? 0 : null,
       totalInterestMinor: interestKnown ? 0 : null,
@@ -493,13 +763,15 @@ export function projectFinancialDebts(
       cascade: [],
       rows: [],
     };
-  if (minimumPaymentMinor + extra === 0)
+  if (minimumPaymentMinor + extra + oneOffExtra + weeklyExtra === 0)
     return {
       strategy: input.strategy,
       order: order.map((debt) => debt.id),
       startingPrincipalMinor,
       minimumPaymentMinor,
       extraMonthlyMinor: extra,
+      oneOffExtraMinor: oneOffExtra,
+      extraWeeklyMinor: weeklyExtra,
       payoffDate: null,
       payoffMonths: null,
       totalInterestMinor: interestKnown ? 0 : null,
@@ -509,6 +781,23 @@ export function projectFinancialDebts(
       cascade: [],
       rows: [],
     };
+  // Explicit zero is useful as a like-for-like dated baseline for a one-off/weekly comparison.
+  if (input.oneOffExtraMinor !== undefined || input.extraWeeklyMinor !== undefined)
+    return projectDebtsWithDatedExtras({
+      debts,
+      order,
+      strategy: input.strategy,
+      startDate,
+      maxMonths,
+      extraMonthlyMinor: extra,
+      oneOffExtraMinor: oneOffExtra,
+      extraWeeklyMinor: weeklyExtra,
+      minimumPaymentMinor,
+      startingPrincipalMinor,
+      interestKnown,
+      unknownAprDebtIds,
+      dueDateFor,
+    });
   const cascade: DebtCascadeEvent[] = [];
   const rows: DebtProjection['rows'][number][] = [];
   let totalInterestMinor = 0;
@@ -534,6 +823,11 @@ export function projectFinancialDebts(
       knownInterest += charged;
       totalInterestMinor += charged;
     }
+    const cycleDueDate =
+      debts
+        .map((debt) => dueDateFor(debt, period))
+        .sort()
+        .at(-1) ?? startDate;
     let payment = 0;
     for (const debt of debts) {
       if (debt.balanceMinor <= 0) continue;
@@ -561,11 +855,6 @@ export function projectFinancialDebts(
     }
     const closing = debts.reduce((sum, debt) => sum + debt.balanceMinor, 0);
     interest = interestKnown ? knownInterest : null;
-    const cycleDueDate =
-      debts
-        .map((debt) => dueDateFor(debt, period))
-        .sort()
-        .at(-1) ?? startDate;
     rows.push({
       period,
       // Portfolio rows close after the last debt due in this cycle; each debt's interest still
@@ -583,6 +872,8 @@ export function projectFinancialDebts(
         startingPrincipalMinor,
         minimumPaymentMinor,
         extraMonthlyMinor: extra,
+        oneOffExtraMinor: oneOffExtra,
+        extraWeeklyMinor: weeklyExtra,
         payoffDate: interestKnown ? rows.at(-1)!.dueDate : null,
         payoffMonths: interestKnown ? period : null,
         totalInterestMinor: interestKnown ? totalInterestMinor : null,
@@ -599,6 +890,8 @@ export function projectFinancialDebts(
     startingPrincipalMinor,
     minimumPaymentMinor,
     extraMonthlyMinor: extra,
+    oneOffExtraMinor: oneOffExtra,
+    extraWeeklyMinor: weeklyExtra,
     payoffDate: null,
     payoffMonths: null,
     totalInterestMinor: interestKnown ? totalInterestMinor : null,
@@ -753,7 +1046,28 @@ function calculatePlan(
                     : `${debtOrder[0]!.name} balances priority, interest and cash-flow relief.`;
   const requestedExtra = input.extraDebtPaymentMinor ?? 0;
   assertMinor(requestedExtra, 'Requested extra debt payment');
-  const safeExtra = Math.min(requestedExtra, Math.max(0, safeToSpendMinor));
+  const extraCadence = input.extraDebtPaymentCadence ?? 'monthly';
+  if (extraCadence !== 'once' && extraCadence !== 'weekly' && extraCadence !== 'monthly')
+    throw new Error(`Unsupported extra debt payment cadence: ${extraCadence}`);
+  const weeklyExtraOccurrences =
+    extraCadence === 'weekly'
+      ? (() => {
+          const through = next === null ? end : addDays(next, -1);
+          let occurrence = asOf;
+          let count = 0;
+          while (occurrence <= through) {
+            count += 1;
+            occurrence = addDays(occurrence, 7);
+            if (count > 600) break;
+          }
+          return count;
+        })()
+      : 1;
+  const safeExtra = Math.min(
+    requestedExtra,
+    Math.floor(Math.max(0, safeToSpendMinor) / weeklyExtraOccurrences),
+    debts.reduce((sum, debt) => sum + debt.balanceMinor, 0),
+  );
   const targetDebtBalanceMinor = debtOrder[0]?.balanceMinor ?? 0;
   const debtProjection =
     debts.length > 0
@@ -761,10 +1075,17 @@ function calculatePlan(
           debts,
           strategy,
           startDate: asOf,
-          extraMonthlyMinor: safeExtra,
+          ...(extraCadence === 'once'
+            ? { oneOffExtraMinor: safeExtra }
+            : extraCadence === 'weekly'
+              ? { extraWeeklyMinor: safeExtra }
+              : { extraMonthlyMinor: safeExtra }),
           ...(input.selectedDebtId === undefined ? {} : { selectedDebtId: input.selectedDebtId }),
         })
       : null;
+  const datedExtrasBeforeIncome = debtProjection?.extraPayments?.filter((payment) =>
+    next === null ? payment.date <= end : payment.date < next,
+  );
   return {
     asOf,
     currency: input.currency ?? 'GBP',
@@ -774,6 +1095,10 @@ function calculatePlan(
     protectedBeforeIncomeMinor,
     debtMinimumMinor,
     livingCostMinor,
+    extraPaymentCountBeforeIncome: datedExtrasBeforeIncome?.length ?? weeklyExtraOccurrences,
+    extraPaymentTotalBeforeIncomeMinor: datedExtrasBeforeIncome
+      ? datedExtrasBeforeIncome.reduce((sum, payment) => sum + payment.amountMinor, 0)
+      : safeExtra * weeklyExtraOccurrences,
     safeToSpendMinor,
     availableForExtraMinor: Math.max(0, safeToSpendMinor),
     shortfallMinor,
@@ -784,10 +1109,10 @@ function calculatePlan(
     debtRecommendation: {
       strategy,
       targetDebtId: target,
-      extraPaymentMinor: Math.min(
-        targetDebtBalanceMinor,
-        input.extraDebtPaymentMinor === undefined ? Math.max(0, safeToSpendMinor) : safeExtra,
-      ),
+      extraPaymentMinor:
+        input.extraDebtPaymentMinor === undefined
+          ? Math.min(targetDebtBalanceMinor, Math.max(0, safeToSpendMinor))
+          : safeExtra,
       reason,
       order: debtOrder.map((debt) => debt.id),
       unknownAprDebtIds,

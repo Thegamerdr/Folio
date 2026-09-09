@@ -126,19 +126,29 @@ export function describeMeloToolSuggestion(
       if (debt && balance) return `Set ${debt}'s balance to ${balance}.${preview}`;
       break;
     }
+    case 'set_debt_arrears': {
+      const debt = textValue(input.debtName) ?? textValue(input.name);
+      if (debt) {
+        return `Mark ${debt} as ${input.arrears === false ? 'current' : 'behind'} for review.`;
+      }
+      break;
+    }
     case 'set_commitment': {
       const commitment = textValue(input.name) ?? textValue(input.label);
-      if (amount && commitment) return `Set ${commitment} to ${amount}${textValue(input.cadence) ? ` ${textValue(input.cadence)}` : ''}.${preview}`;
+      if (amount && commitment)
+        return `Set ${commitment} to ${amount}${textValue(input.cadence) ? ` ${textValue(input.cadence)}` : ''}.${preview}`;
       break;
     }
     case 'set_living_cost': {
       const category = textValue(input.category);
       const cadence = textValue(input.cadence) ?? 'weekly';
-      if (amount) return `Set total essential spending to ${amount} ${cadence}${category ? `, including ${category}` : ''}.${preview}`;
+      if (amount)
+        return `Set total essential spending to ${amount} ${cadence}${category ? `, including ${category}` : ''}.${preview}`;
       break;
     }
     case 'set_buffer_amount':
-      if (formatNonNegativeAmount(input.amount)) return `Set your safety buffer to ${formatNonNegativeAmount(input.amount)}.${preview}`;
+      if (formatNonNegativeAmount(input.amount))
+        return `Set your safety buffer to ${formatNonNegativeAmount(input.amount)}.${preview}`;
       break;
     case 'correct_income': {
       const source = textValue(input.source) ?? textValue(input.label);
@@ -148,7 +158,8 @@ export function describeMeloToolSuggestion(
     }
     case 'set_income_schedule': {
       const day = Number(input.payDayOfMonth ?? input.dayOfMonth);
-      if (Number.isInteger(day) && day >= 1 && day <= 31) return `Set payday to the ${ordinal(day)} of each month.`;
+      if (Number.isInteger(day) && day >= 1 && day <= 31)
+        return `Set payday to the ${ordinal(day)} of each month.`;
       break;
     }
     default:
@@ -169,15 +180,16 @@ function formatNonNegativeAmount(value: unknown): string | undefined {
 }
 
 function ordinal(day: number): string {
-  const suffix = day % 100 >= 11 && day % 100 <= 13
-    ? 'th'
-    : day % 10 === 1
-      ? 'st'
-      : day % 10 === 2
-        ? 'nd'
-        : day % 10 === 3
-          ? 'rd'
-          : 'th';
+  const suffix =
+    day % 100 >= 11 && day % 100 <= 13
+      ? 'th'
+      : day % 10 === 1
+        ? 'st'
+        : day % 10 === 2
+          ? 'nd'
+          : day % 10 === 3
+            ? 'rd'
+            : 'th';
   return `${day}${suffix}`;
 }
 
@@ -186,8 +198,16 @@ function previewText(value: unknown): string {
   const preview = value as Record<string, unknown>;
   const available = formatMinor(preview.availableNowMinor);
   const tightest = formatMinor(preview.tightestBalanceMinor);
-  const afterDebt = formatNonNegativeAmount(preview.afterTotalDebtMinor === undefined ? undefined : Number(preview.afterTotalDebtMinor) / 100);
-  const beforeDebt = formatNonNegativeAmount(preview.beforeTotalDebtMinor === undefined ? undefined : Number(preview.beforeTotalDebtMinor) / 100);
+  const afterDebt = formatNonNegativeAmount(
+    preview.afterTotalDebtMinor === undefined
+      ? undefined
+      : Number(preview.afterTotalDebtMinor) / 100,
+  );
+  const beforeDebt = formatNonNegativeAmount(
+    preview.beforeTotalDebtMinor === undefined
+      ? undefined
+      : Number(preview.beforeTotalDebtMinor) / 100,
+  );
   const pieces = [
     available ? ` Current safe-to-spend is ${available}` : '',
     tightest ? `; projected low point is ${tightest}` : '',

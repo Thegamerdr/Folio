@@ -510,6 +510,10 @@ export type MeloLocalCalculation =
       strategy: MeloDebtProjectionStrategy;
       debtCount: number;
       extraMonthlyMinor: number;
+      extraWeeklyMinor?: number;
+      oneOffExtraMinor?: number;
+      extraPaymentCadence?: 'once' | 'weekly' | 'monthly';
+      interestKnown?: boolean;
       payoffMonths: number | null;
       payoffDateLabel: string | null;
       totalInterestMinor: number;
@@ -522,6 +526,24 @@ export type MeloLocalCalculation =
       kind: 'debt-strategy-required';
       extraMonthlyMinor: number;
       safeZoneAfterExtraMinor: number;
+      extraPaymentCadence?: 'once' | 'weekly' | 'monthly';
+    }>
+  | Readonly<{
+      kind: 'debt-target-required';
+      amountMinor: number;
+      choices: readonly string[];
+    }>
+  | Readonly<{
+      kind: 'debt-one-off';
+      debtName: string;
+      amountMinor: number;
+      beforeDebtMinor: number;
+      afterDebtMinor: number;
+      safeZoneAfterExtraMinor: number;
+      payoffMonths: number | null;
+      payoffDateLabel: string | null;
+      interestKnown: boolean;
+      stalled: boolean;
     }>
   | Readonly<{
       kind: 'goal-projection';
@@ -761,9 +783,11 @@ export function draftMeloLocalAiResponse(input: MeloLocalAiRequest): MeloLocalAi
     followUpChips:
       amountCandidatesMinor.length > 1
         ? amountCandidatesMinor.slice(0, 3).map((amount) => `Check ${formatMinorAmount(amount)}`)
-        : input.calculation?.kind === 'debt-strategy-required'
-          ? ['Use highest rate first', 'Use lowest balance first']
-          : chipsForIntent(intent, input.snapshot.workspaceKind),
+        : input.calculation?.kind === 'debt-target-required'
+          ? input.calculation.choices.slice(0, 3).map((choice) => `Check ${choice}`)
+          : input.calculation?.kind === 'debt-strategy-required'
+            ? ['Use highest rate first', 'Use lowest balance first']
+            : chipsForIntent(intent, input.snapshot.workspaceKind),
     actions,
     dataUsed,
     guardrails,
@@ -1602,7 +1626,13 @@ export function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
   }
 
   if (
+    /\b(?:pay|put|send)\s+(?:£\s*)?[\d,]+(?:\.\d{1,2})?\s+off\b/i.test(prompt) ||
     includesAny(prompt, [
+      'highest-rate',
+      'lowest-balance',
+      'smallest-balance',
+      'snowball',
+      'avalanche',
       'debt',
       'debts',
       'credit card',
@@ -2033,11 +2063,37 @@ function buildMeloLocalAnswer(input: {
           after < 0
             ? `It would leave the Safe Zone ${formatMinorAmount(Math.abs(after))} below its target.`
             : `It would leave ${formatMinorAmount(after)} in the Safe Zone.`;
-        return `${formatMinorAmount(input.calculation.extraMonthlyMinor)} extra each month can be modelled locally. ${cashFlowLine} Choose highest-rate-first or lowest-balance-first before I project a payoff; I will not choose a debt strategy for you.`;
+        const cadenceLabel =
+          input.calculation.extraPaymentCadence === 'once'
+            ? 'as a one-off'
+            : input.calculation.extraPaymentCadence === 'weekly'
+              ? 'each week'
+              : 'each month';
+        return `${formatMinorAmount(input.calculation.extraMonthlyMinor)} ${cadenceLabel} can be modelled locally. ${cashFlowLine} Choose highest-rate-first or lowest-balance-first before I project a payoff; I will not choose a debt strategy for you.`;
+      }
+      if (input.calculation?.kind === 'debt-target-required') {
+        return `Which debt should receive ${formatMinorAmount(input.calculation.amountMinor)}? I can check that one-off payment directly without asking you to choose a recurring debt strategy.`;
+      }
+      if (input.calculation?.kind === 'debt-one-off') {
+        const calculation = input.calculation;
+        const cashFlowLine =
+          calculation.safeZoneAfterExtraMinor < 0
+            ? `It would leave the Safe Zone ${formatMinorAmount(Math.abs(calculation.safeZoneAfterExtraMinor))} below its target.`
+            : `It would leave ${formatMinorAmount(calculation.safeZoneAfterExtraMinor)} in the Safe Zone.`;
+        const rateLine =
+          calculation.interestKnown && !calculation.stalled && calculation.payoffDateLabel
+            ? `The projected portfolio payoff date is ${calculation.payoffDateLabel}.`
+            : !calculation.interestKnown
+              ? 'Add the missing APR or rate after a promotion to estimate a payoff date.'
+              : 'The remaining payments do not clear all balances within the forecast.';
+        return `A one-off ${formatMinorAmount(calculation.amountMinor)} payment to ${calculation.debtName} would reduce its recorded balance from ${formatMinorAmount(calculation.beforeDebtMinor)} to ${formatMinorAmount(calculation.afterDebtMinor)} immediately. ${cashFlowLine} ${rateLine} This is a review-only scenario; nothing was moved.`;
       }
       if (input.calculation?.kind === 'bnpl-schedule') {
         if (input.calculation.bnplCount === 0) {
           return 'There are no BNPL agreements recorded in the local debt picture.';
+        }
+        if (input.calculation.stalledCount > 0) {
+          return `Your recorded BNPL balance is ${formatMinorAmount(input.calculation.totalRemainingMinor)}. Some agreements have missing terms or payments that do not clear the balance. Review their APR and required payments before relying on a final payoff date or total interest.`;
         }
         const next =
           input.calculation.nextPaymentDateLabel === null
@@ -2050,6 +2106,9 @@ function buildMeloLocalAnswer(input: {
         return `${input.calculation.bnplCount} recorded BNPL agreement${input.calculation.bnplCount === 1 ? '' : 's'} have ${formatMinorAmount(input.calculation.totalRemainingMinor)} remaining across ${input.calculation.scheduledPaymentCount} scheduled monthly payment${input.calculation.scheduledPaymentCount === 1 ? '' : 's'}. ${next} ${final} Modelled interest is ${formatMinorAmount(input.calculation.totalInterestMinor)}. This schedule uses each recorded monthly payment, APR and due day; review those terms if the provider actually collects weekly or fortnightly.`;
       }
       if (input.calculation?.kind === 'debt-projection') {
+        if (input.calculation.interestKnown === false) {
+          return 'Add the missing APR or rate after a promotion to estimate the payoff date and interest. Your known commitments and minimum payments stay protected.';
+        }
         if (input.calculation.stalled || input.calculation.payoffMonths === null) {
           return `At the recorded minimums, at least one balance does not clear within the 50-year model window. That usually means a minimum is not reducing principal under the recorded rate. Review the local debt details rather than treating this as a payoff date.`;
         }
@@ -2071,7 +2130,20 @@ function buildMeloLocalAnswer(input: {
           input.calculation.monthsSavedVsMinimums !== null
             ? ` The model is ${input.calculation.monthsSavedVsMinimums} month${input.calculation.monthsSavedVsMinimums === 1 ? '' : 's'} sooner and ${formatMinorAmount(input.calculation.interestSavedVsMinimumsMinor)} lower in interest than recorded minimums.`
             : '';
-        return `With ${formatMinorAmount(input.calculation.extraMonthlyMinor)} extra each month using the user-selected ${strategyLabel} rule, the local model clears the portfolio in ${input.calculation.payoffMonths} month${input.calculation.payoffMonths === 1 ? '' : 's'}, around ${payoff}.${savingLine} ${cashFlowLine} This is a neutral scenario, not advice.`;
+        const cadence = input.calculation.extraPaymentCadence ?? 'monthly';
+        const extraLine =
+          cadence === 'once'
+            ? `a one-off ${formatMinorAmount(input.calculation.oneOffExtraMinor ?? input.calculation.extraMonthlyMinor)} payment`
+            : cadence === 'weekly'
+              ? `${formatMinorAmount(input.calculation.extraWeeklyMinor ?? 0)} extra each week`
+              : `${formatMinorAmount(input.calculation.extraMonthlyMinor)} extra each month`;
+        const safeLine =
+          cadence === 'weekly'
+            ? cashFlowLine.replace('monthly extra', 'weekly extra')
+            : cadence === 'once'
+              ? cashFlowLine.replace('monthly extra', 'one-off payment')
+              : cashFlowLine;
+        return `With ${extraLine} using the user-selected ${strategyLabel} rule, the local model clears the portfolio in ${input.calculation.payoffMonths} month${input.calculation.payoffMonths === 1 ? '' : 's'}, around ${payoff}.${savingLine} ${safeLine} This is a neutral scenario, not advice.`;
       }
       return `The local picture has ${count} debt${count === 1 ? '' : 's'} with ${formatMinorAmount(
         input.snapshot.totalDebtMinor ?? 0,
@@ -2302,6 +2374,12 @@ function uncertaintyForIntent(
     return {
       state: 'needs-context',
       reason: 'A debt projection needs the user to select a neutral repayment order.',
+    };
+  }
+  if (calculation?.kind === 'debt-target-required') {
+    return {
+      state: 'needs-context',
+      reason: 'A one-off debt check needs one named debt before it can be calculated.',
     };
   }
   if (intent === 'review_import') {

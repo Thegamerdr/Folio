@@ -184,6 +184,9 @@ export function parseLocalMoneySuggestion(prompt: string): ParsedSuggestion | nu
     };
   }
 
+  const unplanned = parseUnplannedSpend(text);
+  if (unplanned) return unplanned;
+
   const spend = text.match(
     new RegExp(`\\b(?:spent|paid)\\s+${MONEY}(?:\\s+(?:at|to|on)\\s+(.+?))?(?:[.!?]|$)`, 'i'),
   );
@@ -199,6 +202,27 @@ export function parseLocalMoneySuggestion(prompt: string): ParsedSuggestion | nu
   }
 
   return null;
+}
+
+// A completed spend can be described without naming the merchant. Preserve the user's wording
+// as a neutral category so the proposal remains reviewable instead of silently dropping the event.
+function parseUnplannedSpend(prompt: string): ParsedSuggestion | null {
+  const match = prompt
+    .trim()
+    .match(
+      new RegExp(
+        `\\b(?:i\\s+)?spent\\s+${MONEY}\\s+(?:i\\s+)?(?:wasn't|was not)\\s+(?:supposed|meant)\\s+to(?:[.!?]|$)`,
+        'i',
+      ),
+    );
+  if (!match) return null;
+  const amount = amountOf(match[1] ?? '');
+  if (amount === null) return null;
+  return {
+    name: 'log_spend',
+    args: { amount, merchant: 'unplanned spend', category: 'other' },
+    summary: `Log £${amount.toFixed(2)} as an unplanned spend.`,
+  };
 }
 
 function suggestionId(prompt: string): string {
@@ -629,6 +653,84 @@ export function buildLocalMeloTurn(
     };
   }
 
+  if (isNoCarStatement(input.prompt)) {
+    return {
+      reply: withTone(
+        'Got it — I will not add a car or invent a transport cost. Any transport commitment already recorded stays as it is. Nothing changed.',
+        input.tone,
+      ),
+      suggestions: [],
+      intent: 'explain_position',
+      actions: [],
+      followUpChips: [],
+      context: { lastIntent: 'explain_position', lastDetectedAmountMinor: null },
+      control: 'none',
+    };
+  }
+
+  if (vagueBillIncrease(input.prompt)) {
+    return {
+      reply: withTone(
+        'Which bill changed, and what is its new amount? I can prepare a reviewed update once I have both. Nothing changed.',
+        input.tone,
+      ),
+      suggestions: [],
+      intent: 'review_recurring',
+      actions: [],
+      followUpChips: [],
+      context: { lastIntent: 'review_recurring', lastDetectedAmountMinor: null },
+      control: 'none',
+    };
+  }
+
+  if (vagueArrears(input.prompt)) {
+    const named = input.prompt
+      .trim()
+      .match(
+        /\b(?:i['’]?m|i\s+am|we['’]?re|we\s+are)\s+(?:behind|in arrears)\s+(?:on|with)\s+(?:my\s+)?(.+?)(?:[.!?]|$)/i,
+      );
+    const target = named?.[1]?.trim();
+    if (!target || /^(?:this|that|this one|that one|it)$/i.test(target)) {
+      return {
+        reply: withTone(
+          'Which debt are you behind on? Tell me its name and I can prepare an arrears update for review. Nothing changed.',
+          input.tone,
+        ),
+        suggestions: [],
+        intent: 'review_debts',
+        actions: [],
+        followUpChips: [],
+        context: { lastIntent: 'review_debts', lastDetectedAmountMinor: null },
+        control: 'none',
+      };
+    }
+  }
+
+  const spareAmountMinor = spareAmount(input.prompt);
+  if (spareAmountMinor !== null) {
+    const afterClaimedSpare = input.snapshot.availableNowMinor - spareAmountMinor;
+    const availableLine =
+      afterClaimedSpare < 0
+        ? `the current route has ${formatLocalMinor(input.snapshot.availableNowMinor)} available after protected items, so £${(spareAmountMinor / 100).toFixed(2)} would exceed that by £${(Math.abs(afterClaimedSpare) / 100).toFixed(2)}`
+        : `the current route has ${formatLocalMinor(input.snapshot.availableNowMinor)} available after protected items, leaving ${formatLocalMinor(afterClaimedSpare)} if that amount is still available`;
+    const debtLine =
+      (input.snapshot.debtCount ?? 0) > 0
+        ? 'Your recorded debts and minimums are the next comparison; I will not move or relabel this money without a confirmed choice.'
+        : 'There are no recorded debts to prioritise yet; keep the protected items covered before treating it as flexible.';
+    return {
+      reply: withTone(
+        `You said ${formatLocalMinor(spareAmountMinor)} is spare, but I will not overwrite your balance or assume it is free. ${availableLine}. ${debtLine}`,
+        input.tone,
+      ),
+      suggestions: [],
+      intent: 'review_debts',
+      actions: [],
+      followUpChips: (input.snapshot.debtCount ?? 0) > 0 ? ['Review my debts'] : [],
+      context: { lastIntent: 'review_debts', lastDetectedAmountMinor: spareAmountMinor },
+      control: 'none',
+    };
+  }
+
   const parsed = parseLocalMoneySuggestion(input.prompt);
   const financeProposal = parseLocalFinanceProposal(input.prompt);
   if (financeProposal !== null) {
@@ -681,6 +783,7 @@ export function buildLocalMeloTurn(
       control: 'none',
     };
   }
+
   if (isAmbiguousDebtClearanceRequest(input.prompt)) {
     const clearedDebt = ambiguousDebtName(input.prompt);
     const debtLabel = clearedDebt === undefined ? 'that debt' : clearedDebt;
@@ -792,4 +895,36 @@ export function buildLocalMeloTurn(
     },
     control: accountSelection.state === 'selected' ? 'account-selected' : 'none',
   };
+}
+
+function isNoCarStatement(prompt: string): boolean {
+  return /\b(?:i\s+)?(?:don't|do not)\s+(?:have|own|use)\s+(?:a\s+)?car\b|\bwithout\s+a\s+car\b|\bno\s+car\b/i.test(
+    prompt.trim(),
+  );
+}
+
+function vagueBillIncrease(prompt: string): boolean {
+  return /\b(?:my\s+)?(?:bill|payment|subscription)\s+(?:went|has gone|is)\s+up\b/i.test(
+    prompt.trim(),
+  );
+}
+
+function vagueArrears(prompt: string): boolean {
+  return /\b(?:i['’]?m|i\s+am|we['’]?re|we\s+are)\s+(?:behind|in arrears)\b/i.test(prompt.trim());
+}
+
+function spareAmount(prompt: string): number | null {
+  const match = prompt
+    .trim()
+    .match(
+      /\b(?:i['’]?ve got|i\s+have|there(?:'s| is))\s+(?:£\s*)?([\d,]+(?:\.\d{1,2})?)\s+spare\b/i,
+    );
+  if (!match) return null;
+  const amount = Number((match[1] ?? '').replace(/,/g, ''));
+  return Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) : null;
+}
+
+function formatLocalMinor(minor: number): string {
+  const sign = minor < 0 ? '-' : '';
+  return `${sign}£${(Math.abs(minor) / 100).toFixed(2)}`;
 }

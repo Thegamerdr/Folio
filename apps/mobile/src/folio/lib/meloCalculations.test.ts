@@ -3,6 +3,7 @@ import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 
 import { getState, resetAll, setPartial } from '../store';
 import { buildMeloLocalCalculation } from './meloCalculations';
+import { buildLocalMeloTurn } from '../../local/localMeloTurn';
 
 const NOW = new Date('2026-07-15T12:00:00');
 const snapshot: MeloLocalFinancialSnapshot = {
@@ -113,6 +114,7 @@ describe('buildMeloLocalCalculation', () => {
       kind: 'debt-strategy-required',
       extraMonthlyMinor: 2000,
       safeZoneAfterExtraMinor: 48000,
+      extraPaymentCadence: 'once',
     });
 
     const selected = buildMeloLocalCalculation({
@@ -130,7 +132,77 @@ describe('buildMeloLocalCalculation', () => {
       strategy: 'highest-rate-first',
       extraMonthlyMinor: 2000,
       safeZoneAfterExtraMinor: 48000,
+      extraPaymentCadence: 'monthly',
       stalled: false,
+    });
+  });
+
+  it('checks a named card one-off directly and keeps weekly extras weekly', () => {
+    setPartial({
+      currentBalance: {
+        amount: 500,
+        source: 'user-entered',
+        confidence: 'rough',
+        setAt: NOW.toISOString(),
+      },
+      debts: [
+        {
+          id: 'card',
+          name: 'Travel card',
+          kind: 'card',
+          balance: 1000,
+          apr: 24,
+          minPayment: 50,
+          dueDom: 20,
+          addedAt: NOW.toISOString(),
+        },
+      ],
+    });
+
+    const oneOff = buildMeloLocalCalculation({
+      state: getState(),
+      snapshot,
+      now: NOW,
+      request: {
+        intent: 'review_debts',
+        prompt: 'Can I pay £400 off this card?',
+        detectedAmountMinor: 40000,
+      },
+    });
+    expect(oneOff).toMatchObject({
+      kind: 'debt-one-off',
+      debtName: 'Travel card',
+      amountMinor: 40000,
+      beforeDebtMinor: 100000,
+      afterDebtMinor: 60000,
+      safeZoneAfterExtraMinor: 10000,
+    });
+    const turn = buildLocalMeloTurn({
+      prompt: 'Can I pay £400 off this card?',
+      snapshot: { ...snapshot, debtCount: 1 },
+      tone: 'calm',
+      calculate: (request) =>
+        buildMeloLocalCalculation({ state: getState(), snapshot, now: NOW, request }),
+    });
+    expect(turn.suggestions).toEqual([]);
+    expect(turn.reply).toContain('Travel card');
+    expect(turn.reply).toContain('£100');
+
+    const weekly = buildMeloLocalCalculation({
+      state: getState(),
+      snapshot,
+      now: NOW,
+      request: {
+        intent: 'review_debts',
+        prompt: 'Add £20 extra each week using highest-rate-first',
+        detectedAmountMinor: 2000,
+      },
+    });
+    expect(weekly).toMatchObject({
+      kind: 'debt-projection',
+      extraPaymentCadence: 'weekly',
+      extraWeeklyMinor: 2000,
+      extraMonthlyMinor: 0,
     });
   });
 
@@ -504,7 +576,7 @@ describe('buildMeloLocalCalculation', () => {
       ],
       subs: [
         {
-          name: 'Private recurring name',
+          name: 'Private recurring Netflix',
           cost: 80,
           nextRenewalDaysAway: 2,
           lastUsedDaysAgo: 0,

@@ -23,6 +23,7 @@ import { reanchorRenewals } from './renewalMath';
 
 const DAY_MS = 86_400_000;
 const DEFAULT_HORIZON_DAYS = 365;
+export type ExtraDebtPaymentCadence = 'once' | 'weekly' | 'monthly';
 
 export type FinancialPlanAdapterOptions = Readonly<{
   now?: Date;
@@ -30,8 +31,10 @@ export type FinancialPlanAdapterOptions = Readonly<{
   livingCosts?: readonly FinancialLivingCost[];
   strategy?: DebtStrategy;
   selectedDebtId?: string;
-  /** Explicit recurring amount; one-off checks belong to simulateFinancialAffordability. */
+  /** Explicit extra amount for the debt projection; omitted means no extra scenario. */
   recurringExtraDebtPaymentMinor?: number;
+  /** How the explicit extra amount is applied in the debt projection. */
+  extraDebtPaymentCadence?: ExtraDebtPaymentCadence;
   horizonDays?: number;
 }>;
 
@@ -299,6 +302,7 @@ export function toFinancialPlanInput(
     ...(debt.promoUntil === undefined ? {} : { promoUntil: debt.promoUntil }),
     minimumPaymentMinor: poundsToMinor(debt.minPayment),
     dueDate: nextMonthlyDay(today, debt.dueDom),
+    dueDayOfMonth: debt.dueDom,
   }));
   return {
     asOf: today,
@@ -317,7 +321,12 @@ export function toFinancialPlanInput(
     ...(options.selectedDebtId === undefined ? {} : { selectedDebtId: options.selectedDebtId }),
     ...(options.recurringExtraDebtPaymentMinor === undefined
       ? {}
-      : { extraDebtPaymentMinor: options.recurringExtraDebtPaymentMinor }),
+      : {
+          extraDebtPaymentMinor: options.recurringExtraDebtPaymentMinor,
+          ...(options.extraDebtPaymentCadence === undefined
+            ? {}
+            : { extraDebtPaymentCadence: options.extraDebtPaymentCadence }),
+        }),
   };
 }
 

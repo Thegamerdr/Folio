@@ -7777,6 +7777,72 @@ export function applyMeloTool(name: string, input: Record<string, unknown>): Mel
           ),
       };
     }
+    case 'set_debt_arrears': {
+      const requested = meloText(input, 'debtName', 'name', 'debtId');
+      const resolved = input.debtId
+        ? {
+            kind: 'found' as const,
+            value: (state.debts ?? []).find((debt) => debt.id === String(input.debtId)),
+          }
+        : resolveMeloNamedTarget(state.debts ?? [], requested);
+      if (resolved.kind !== 'found' || resolved.value === undefined) {
+        if (resolved.kind === 'ambiguous') {
+          return {
+            applied: false,
+            reason: `Choose one debt: ${resolved.values.map((debt) => debt.name).join(', ')}.`,
+          };
+        }
+        return {
+          applied: false,
+          reason: 'Choose the exact debt whose arrears status should change.',
+        };
+      }
+      if (typeof input.arrears !== 'boolean') {
+        return { applied: false, reason: 'Choose whether this debt is behind.' };
+      }
+      const before = resolved.value;
+      const after = { ...before, arrears: input.arrears };
+      if (before.arrears === after.arrears) {
+        return {
+          applied: false,
+          reason: `${before.name} is already marked ${after.arrears ? 'behind' : 'current'}.`,
+        };
+      }
+      setPartialWithTypedCommand(
+        { debts: (state.debts ?? []).map((debt) => (debt.id === before.id ? after : debt)) },
+        {
+          commandType: 'folio.debt.arrears.set.v1',
+          actorKind: 'user',
+          entityRefs: [{ type: 'debt', id: before.id }],
+          before: { debt: before },
+          after: { debt: after },
+          invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+        },
+      );
+      return {
+        applied: true,
+        summary: `${before.name} is now marked ${after.arrears ? 'behind' : 'current'}.`,
+        undo: () =>
+          meloStaleUndo(
+            () => (state.debts ?? []).find((debt) => debt.id === before.id),
+            after,
+            () =>
+              setPartialWithTypedCommand(
+                {
+                  debts: (state.debts ?? []).map((debt) => (debt.id === before.id ? before : debt)),
+                },
+                {
+                  commandType: 'folio.debt.arrears.reverse.v1',
+                  actorKind: 'user',
+                  entityRefs: [{ type: 'debt', id: before.id }],
+                  before: { debt: after },
+                  after: { debt: before },
+                  invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+                },
+              ),
+          ),
+      };
+    }
     case 'set_buffer_amount': {
       const amount = Number(input.amount);
       if (!isMeloMoney(amount, true))

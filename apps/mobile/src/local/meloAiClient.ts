@@ -10,10 +10,7 @@
 // access to app state and cannot mutate anything.
 
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
-import {
-  PERSONAL_MELO_TOOL_NAMES,
-  type MeloToolName,
-} from '../folio/lib/melo/toolContract';
+import { PERSONAL_MELO_TOOL_NAMES, type MeloToolName } from '../folio/lib/melo/toolContract';
 
 // ---------------------------------------------------------------------------
 // Public message + result types
@@ -157,6 +154,7 @@ const PERSONA_TOOLS = `You can SUGGEST recording money the user just told you ab
 - correct_income(amount, source?): a correction to recorded pay or income.
 - set_income_schedule(payDayOfMonth): a correction to the day of month on which regular pay arrives.
 - set_debt_balance(debtName, balance): a debt balance correction; zero means the user says it is cleared.
+- set_debt_arrears(debtName, arrears): mark a named debt as behind or no longer behind.
 Only suggest an event or change for an explicit user statement — never a hypothetical or a "what if". If they're vague, ask one short clarifying question first and suggest nothing. Keep the melo-suggest block out of your visible prose — it is parsed, not read aloud.`;
 
 export function buildMeloSystemPrompt(
@@ -346,6 +344,8 @@ function describeSuggestion(name: MeloToolName, args: Record<string, unknown>): 
       return `Set ${stringArg(args.debtName) ?? 'the debt'} balance to ${
         stringArg(args.balance) ?? 'an amount'
       } for review`;
+    case 'set_debt_arrears':
+      return `Mark ${stringArg(args.debtName) ?? 'the debt'} as ${args.arrears === false ? 'current' : 'behind'} for review`;
   }
 }
 

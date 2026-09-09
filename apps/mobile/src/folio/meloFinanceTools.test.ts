@@ -1,24 +1,39 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  applyMeloTool,
-  getState,
-  resetAll,
-  setPartial,
-} from './store';
+import { applyMeloTool, getState, resetAll, setPartial } from './store';
 
 beforeEach(() => resetAll());
 
 describe('confirmed Melo finance tools', () => {
+  it('validates named arrears updates and reverses them without changing money', () => {
+    const before = getState().accounts;
+    expect(applyMeloTool('set_debt_arrears', { debtName: 'Klarna', arrears: 'yes' }).applied).toBe(
+      false,
+    );
+    const result = applyMeloTool('set_debt_arrears', { debtName: 'Klarna', arrears: true });
+    expect(result.applied).toBe(true);
+    expect(getState().debts?.find((debt) => debt.id === 'seed-klarna')?.arrears).toBe(true);
+    expect(getState().accounts).toEqual(before);
+    if (result.applied) expect(result.undo()).toBe(true);
+    expect(getState().debts?.find((debt) => debt.id === 'seed-klarna')?.arrears).not.toBe(true);
+  });
   it('records a completed debt payment against debt, cash and the ledger, with scoped undo', () => {
     const result = applyMeloTool('log_debt_payment', { debtName: 'Klarna', amount: 40 });
     expect(result.applied).toBe(true);
     expect(getState().debts?.find((debt) => debt.id === 'seed-klarna')?.balance).toBe(280);
-    expect(getState().accounts?.find((account) => account.id === 'acct-main')?.balanceMinor).toBe(680);
-    expect(getState().transactions[0]).toMatchObject({ amount: -40, category: 'bills', source: 'melo' });
+    expect(getState().accounts?.find((account) => account.id === 'acct-main')?.balanceMinor).toBe(
+      680,
+    );
+    expect(getState().transactions[0]).toMatchObject({
+      amount: -40,
+      category: 'bills',
+      source: 'melo',
+    });
     if (result.applied) expect(result.undo()).toBe(true);
     expect(getState().debts?.find((debt) => debt.id === 'seed-klarna')?.balance).toBe(320);
-    expect(getState().accounts?.find((account) => account.id === 'acct-main')?.balanceMinor).toBe(720);
+    expect(getState().accounts?.find((account) => account.id === 'acct-main')?.balanceMinor).toBe(
+      720,
+    );
     expect(getState().transactions[0]?.source).toBe('seed');
   });
 

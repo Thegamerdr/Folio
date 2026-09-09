@@ -16,6 +16,7 @@ export const PERSONAL_MELO_TOOL_NAMES = [
   'correct_income',
   'set_income_schedule',
   'set_debt_balance',
+  'set_debt_arrears',
 ] as const;
 
 export type PersonalMeloToolName = (typeof PERSONAL_MELO_TOOL_NAMES)[number];

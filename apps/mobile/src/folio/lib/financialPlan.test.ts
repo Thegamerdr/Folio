@@ -55,6 +55,60 @@ describe('AppState financial plan adapter', () => {
     expect(plan.safeToSpendMinor).toBe(38000);
   });
 
+  it('passes extra-payment cadence and the declared monthly due-day anchor to the engine', () => {
+    const state = fixture({
+      debts: [{ ...fixture().debts![0]!, dueDom: 31 }],
+    });
+    const input = toFinancialPlanInput(state, {
+      now: new Date('2026-02-01T00:00:00Z'),
+      recurringExtraDebtPaymentMinor: 5_000,
+      extraDebtPaymentCadence: 'once',
+    });
+
+    expect(input.extraDebtPaymentMinor).toBe(5_000);
+    expect(input.extraDebtPaymentCadence).toBe('once');
+    expect(input.debts?.[0]).toMatchObject({ dueDate: '2026-02-28', dueDayOfMonth: 31 });
+
+    const weeklyInput = toFinancialPlanInput(state, {
+      now: new Date('2026-02-01T00:00:00Z'),
+      recurringExtraDebtPaymentMinor: 50_000,
+      extraDebtPaymentCadence: 'weekly',
+    });
+    expect(weeklyInput.extraDebtPaymentMinor).toBe(50_000);
+    expect(weeklyInput.extraDebtPaymentCadence).toBe('weekly');
+
+    const weeklyState = fixture({
+      currentBalance: { ...state.currentBalance, amount: 1_000 },
+      onboarding: { ...state.onboarding, monthlyIncome: 0, payday: 0 },
+      calendarEvents: [
+        { id: 'payday', date: '2026-10-14', kind: 'in', title: 'Payday', amount: 1_000 },
+      ],
+      modeExtras: { ...(state.modeExtras ?? {}), reset: 0 },
+      bufferAmount: 0,
+      debts: [
+        {
+          ...state.debts![0]!,
+          balance: 100,
+          apr: 0,
+          minPayment: 0,
+          dueDom: 18,
+        },
+      ],
+    });
+    const weeklyPlan = buildFinancialPlanFromState(weeklyState, {
+      now: new Date('2026-09-09T00:00:00Z'),
+      horizonDays: 40,
+      recurringExtraDebtPaymentMinor: 8_000,
+      extraDebtPaymentCadence: 'weekly',
+    });
+    expect(weeklyPlan.extraPaymentCountBeforeIncome).toBe(2);
+    expect(weeklyPlan.extraPaymentTotalBeforeIncomeMinor).toBe(10_000);
+    expect(weeklyPlan.safeToSpendMinor).toBe(100_000);
+    expect(weeklyPlan.safeToSpendMinor - weeklyPlan.extraPaymentTotalBeforeIncomeMinor).toBe(
+      90_000,
+    );
+  });
+
   it('provides Stability with the same protected Fixture B hero amount as the canonical route', () => {
     const safeToSpend = routeFromStore(fixture(), NOW).safeToSpend;
     if (safeToSpend === undefined) throw new Error('Fixture B should resolve a protected route');

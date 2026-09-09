@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  isAmbiguousDebtClearanceRequest,
-  parseLocalFinanceProposal,
-} from './financeProposal';
+import { isAmbiguousDebtClearanceRequest, parseLocalFinanceProposal } from './financeProposal';
 import { buildLocalMeloTurn } from './localMeloTurn';
 
 const snapshot = {
@@ -104,5 +101,37 @@ describe('local finance proposals', () => {
       'The Klarna payment is already recorded',
       'Only clear Klarna',
     ]);
+  });
+
+  it('keeps the six release phrases reviewable and asks when a target is missing', () => {
+    expect(
+      buildLocalMeloTurn({
+        prompt: "I spent £200 I wasn't supposed to",
+        snapshot,
+        tone: 'calm',
+      }),
+    ).toMatchObject({
+      suggestions: [{ name: 'log_spend', args: { amount: 200, merchant: 'unplanned spend' } }],
+    });
+    expect(
+      buildLocalMeloTurn({ prompt: "I don't have a car", snapshot, tone: 'calm' }).reply,
+    ).toContain('will not add a car');
+    expect(
+      buildLocalMeloTurn({
+        prompt: "I've got £500 spare. What should I do?",
+        snapshot,
+        tone: 'calm',
+      }).reply,
+    ).toContain('will not overwrite your balance');
+    expect(
+      buildLocalMeloTurn({ prompt: 'My bill went up', snapshot, tone: 'calm' }).reply,
+    ).toContain('Which bill changed');
+    expect(
+      buildLocalMeloTurn({ prompt: "I'm behind on this one", snapshot, tone: 'calm' }).reply,
+    ).toContain('Which debt are you behind on');
+    expect(parseLocalFinanceProposal("I'm behind on Klarna")).toMatchObject({
+      name: 'set_debt_arrears',
+      args: { debtName: 'Klarna', arrears: true },
+    });
   });
 });
