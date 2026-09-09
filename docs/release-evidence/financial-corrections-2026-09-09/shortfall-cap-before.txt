@@ -1,0 +1,136 @@
+
+ RUN  v3.2.6 C:/dev/melo-native-today-batch1-2026-08-24
+
+ × apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > protects overdue September and next October rent: £600 gap and £0 discretionary cap 19ms
+   → expected { Object (gap, daysLeft, ...) } to deeply equal { Object (gap, daysLeft, ...) }
+ × apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > retains October protection after September is explicitly paid and divides only £350 safe 3ms
+   → expected { gap: +0, daysLeft: 30, dailyCap: 78 } to deeply equal { gap: +0, daysLeft: 30, dailyCap: 11 }
+ × apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > a larger future salary cannot increase current discretionary spending capacity 2ms
+   → expected { gap: 400, daysLeft: 30, …(1) } to deeply equal { Object (gap, daysLeft, ...) }
+ × apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > still reports a buffer shortfall even when cash remains positive 3ms
+   → expected { gap: +0, daysLeft: 30, dailyCap: 46 } to deeply equal { Object (gap, daysLeft, ...) }
+ × apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > rounds protection upward and spending downward at whole-pound display precision 3ms
+   → expected 400 to be 1 // Object.is equality
+ ✓ apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > has no budget before the route is ready 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > protects overdue September and next October rent: £600 gap and £0 discretionary cap
+AssertionError: expected { Object (gap, daysLeft, ...) } to deeply equal { Object (gap, daysLeft, ...) }
+
+- Expected
++ Received
+
+  {
+-   "dailyCap": 0,
++   "dailyCap": 33,
+    "daysLeft": 30,
+-   "gap": 600,
++   "gap": 400,
+  }
+
+ ❯ apps/mobile/src/folio/lib/shortfallBudget.test.ts:56:42
+     54|     // This is future closing cash including the next salary; it is ne…
+     55|     expect(route.spare).toBe(1390);
+     56|     expect(deriveShortfallBudget(route)).toEqual({ gap: 600, daysLeft:…
+       |                                          ^
+     57|   });
+     58|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > retains October protection after September is explicitly paid and divides only £350 safe
+AssertionError: expected { gap: +0, daysLeft: 30, dailyCap: 78 } to deeply equal { gap: +0, daysLeft: 30, dailyCap: 11 }
+
+- Expected
++ Received
+
+  {
+-   "dailyCap": 11,
++   "dailyCap": 78,
+    "daysLeft": 30,
+    "gap": 0,
+  }
+
+ ❯ apps/mobile/src/folio/lib/shortfallBudget.test.ts:63:42
+     61|     const route = routeFromStore(state, now);
+     62|     expect(route.safeToSpend).toBe(350);
+     63|     expect(deriveShortfallBudget(route)).toEqual({ gap: 0, daysLeft: 3…
+       |                                          ^
+     64|   });
+     65|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > a larger future salary cannot increase current discretionary spending capacity
+AssertionError: expected { gap: 400, daysLeft: 30, …(1) } to deeply equal { Object (gap, daysLeft, ...) }
+
+- Expected
++ Received
+
+  {
+-   "dailyCap": 0,
++   "dailyCap": 139,
+    "daysLeft": 30,
+-   "gap": 600,
++   "gap": 400,
+  }
+
+ ❯ apps/mobile/src/folio/lib/shortfallBudget.test.ts:72:70
+     70|       incomeSources: state.incomeSources.map((source) => ({ ...source,…
+     71|     };
+     72|     expect(deriveShortfallBudget(routeFromStore(biggerSalary, now))).t…
+       |                                                                      ^
+     73|       gap: 600, daysLeft: 30, dailyCap: 0,
+     74|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > still reports a buffer shortfall even when cash remains positive
+AssertionError: expected { gap: +0, daysLeft: 30, dailyCap: 46 } to deeply equal { Object (gap, daysLeft, ...) }
+
+- Expected
++ Received
+
+  {
+-   "dailyCap": 0,
++   "dailyCap": 46,
+    "daysLeft": 30,
+-   "gap": 150,
++   "gap": 0,
+  }
+
+ ❯ apps/mobile/src/folio/lib/shortfallBudget.test.ts:79:116
+     77|   it('still reports a buffer shortfall even when cash remains positive…
+     78|     const route = routeFromStore(septemberPaydayState(), now);
+     79|     expect(deriveShortfallBudget({ ...route, safeToSpend: -150, tightP…
+       |                                                                                                                    ^
+     80|       gap: 150, daysLeft: 30, dailyCap: 0,
+     81|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > rounds protection upward and spending downward at whole-pound display precision
+AssertionError: expected 400 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 400
+
+ ❯ apps/mobile/src/folio/lib/shortfallBudget.test.ts:86:73
+     84|   it('rounds protection upward and spending downward at whole-pound di…
+     85|     const route = routeFromStore(septemberPaydayState(), now);
+     86|     expect(deriveShortfallBudget({ ...route, safeToSpend: -0.01 }).gap…
+       |                                                                         ^
+     87|     expect(deriveShortfallBudget({ ...route, safeToSpend: 29.99, daysT…
+     88|     expect(deriveShortfallBudget({ ...route, safeToSpend: 29.99, daysT…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 1 passed (6)
+   Start at  14:56:02
+   Duration  1.35s (transform 508ms, setup 0ms, collect 820ms, tests 32ms, environment 0ms, prepare 109ms)

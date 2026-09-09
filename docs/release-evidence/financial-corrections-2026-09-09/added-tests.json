@@ -1,0 +1,42 @@
+[
+  {
+    "path": "apps/mobile/src/folio/debtPaymentLedger.test.ts",
+    "tests": 18
+  },
+  {
+    "path": "apps/mobile/src/folio/lib/debtPaymentLedger.model.test.ts",
+    "tests": 2
+  },
+  {
+    "path": "apps/mobile/src/folio/lib/financialObligations.test.ts",
+    "tests": 16
+  },
+  {
+    "path": "apps/mobile/src/folio/lib/financialPlan.payday.test.ts",
+    "tests": 6
+  },
+  {
+    "path": "apps/mobile/src/folio/lib/shortfallBudget.test.ts",
+    "tests": 7
+  },
+  {
+    "path": "apps/mobile/src/folio/lib/useDayClock.test.ts",
+    "tests": 3
+  },
+  {
+    "path": "apps/mobile/src/folio/screens/planModel.canonical.test.ts",
+    "tests": 5
+  },
+  {
+    "path": "packages/finance-engine/test/financialPlan.minimumInterest.test.ts",
+    "tests": 3
+  },
+  {
+    "path": "packages/finance-engine/test/financialPlan.payday.test.ts",
+    "tests": 17
+  },
+  {
+    "path": "packages/finance-engine/test/obligations.test.ts",
+    "tests": 6
+  }
+]

@@ -1,0 +1,10 @@
+[
+  {
+    "path": "apps/mobile/src/folio/screens/moreScreenParity.test.ts",
+    "unchangedFromRelease": true
+  },
+  {
+    "path": "apps/mobile/src/folio/screens/MoreScreen.tsx",
+    "unchangedFromRelease": true
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "pidAfterStop": "",
+  "wifi": "0",
+  "mobileData": "0",
+  "start": "Starting: Intent { cmp=com.folio.v2.greenfield/.MainActivity }\r\nStatus: ok\r\nLaunchState: COLD\r\nActivity: com.folio.v2.greenfield/.MainActivity\r\nTotalTime: 7294\r\nWaitTime: 7313\r\nComplete"
+}

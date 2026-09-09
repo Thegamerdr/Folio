@@ -1,0 +1,9 @@
+--------- beginning of main
+09-09 14:27:41.313   502 17025 W installd: Failed to find storage mount for /data/media
+09-09 14:27:41.326   502 17025 W installd: Failed to find storage mount for /data/media
+09-09 14:27:41.335   502 17025 W installd: Failed to find storage mount for /data/media
+09-09 14:27:41.389   502 17025 E installd: Failed to free up 622811544 on /data; final free space 221995008: Success
+09-09 14:27:41.396   502   525 W installd: Failed to find storage mount for /data/media
+09-09 14:27:41.403   502   525 W installd: Failed to find storage mount for /data/media
+09-09 14:27:41.405   502   525 W installd: Failed to find storage mount for /data/media
+09-09 14:27:41.533   502   525 E installd: Failed to free up 622811544 on /data; final free space 221995008: Success

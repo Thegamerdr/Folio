@@ -1,0 +1,17 @@
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+Signer #1 certificate DN: CN=Folio, OU=Folio, O=Folio, L=Verona, C=IT
+Signer #1 certificate SHA-256 digest: 547396e1fd99681c2a6d768b8b7d1b4484b5f42a17597cad6c495221267a5488
+Signer #1 certificate SHA-1 digest: 8a389f95b2388dabe2c708314241514009e82dd5
+Signer #1 certificate MD5 digest: 65186b2655642b62d2a5143f2719ce5b
+Signer #1 key algorithm: RSA
+Signer #1 key size (bits): 2048
+Signer #1 public key SHA-256 digest: 64939ed90055033f82b1b8e52e8b92fa2999541286982b0125bce0e70d9c9083
+Signer #1 public key SHA-1 digest: 3e6abb57006af255f22fbbdde06617fe3d529d44
+Signer #1 public key MD5 digest: 5542ed11f851360e219d43b4d0903a14

@@ -1,0 +1,58 @@
+
+ RUN  v3.2.6 C:/dev/melo-native-today-batch1-2026-08-24
+
+ ✓ apps/mobile/src/folio/screens/noFabricatedContent.test.ts > no fabricated content on real-user screens > RecoveryScreen derives every move from live store data 2ms
+ ✓ apps/mobile/src/folio/screens/noFabricatedContent.test.ts > no fabricated content on real-user screens > RecoveryScreen shows the honest £0 shortfall, never the web demo £94 0ms
+ ✓ apps/mobile/src/folio/screens/noFabricatedContent.test.ts > no fabricated content on real-user screens > PdfSuccessScreen has no sample statement to fall back to 0ms
+ ✓ apps/mobile/src/folio/lib/dayClock.test.ts > shared day clock > uses the local calendar day at month/year boundaries 2ms
+ ✓ apps/mobile/src/folio/lib/dayClock.test.ts > shared day clock > schedules the next local midnight, including the current payday boundary 0ms
+ ✓ apps/mobile/src/folio/lib/dayClock.test.ts > shared day clock > keeps a local day stable for UTC-sliced calendar engines 0ms
+ ✓ apps/mobile/src/folio/lib/useDayClock.test.ts > mounted financial screen day clock > refreshes at local midnight across payday without a remount or store mutation 7ms
+ ✓ apps/mobile/src/folio/lib/useDayClock.test.ts > mounted financial screen day clock > refreshes immediately after a background date change and reschedules midnight 1ms
+ ✓ apps/mobile/src/folio/lib/useDayClock.test.ts > mounted financial screen day clock > removes the foreground listener and timer when the financial screen unmounts 0ms
+ ✓ apps/mobile/src/folio/lib/financialPlan.payday.test.ts > mobile payday release regression > keeps route safety aligned with the full plan when irregular payday is beyond the 35-day chart 10ms
+ ✓ apps/mobile/src/folio/lib/financialPlan.payday.test.ts > mobile payday release regression > returns £350 from the release reproduction including the income-source adapter 1ms
+ ✓ apps/mobile/src/folio/lib/financialPlan.payday.test.ts > mobile payday release regression > applies the same protection when only onboarding monthly pay is available 2ms
+ ✓ apps/mobile/src/folio/lib/financialPlan.payday.test.ts > mobile payday release regression > does not spend a scheduled salary today until the user records the received cash balance 0ms
+ ✓ apps/mobile/src/folio/lib/financialPlan.payday.test.ts > mobile payday release regression > uses the next weekly owner payday after today and protects all seven days of essentials 1ms
+ ✓ apps/mobile/src/folio/lib/financialPlan.payday.test.ts > mobile payday release regression > treats an irregular manual receipt today as scheduled and uses the next separately dated receipt 0ms
+ ✓ apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > protects overdue September and next October rent: £600 gap and £0 discretionary cap 18ms
+ ✓ apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > retains October protection after September is explicitly paid and divides only £350 safe 4ms
+ ✓ apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > a larger future salary cannot increase current discretionary spending capacity 3ms
+ ✓ apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > still reports a buffer shortfall even when cash remains positive 3ms
+ ✓ apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > rounds protection upward and spending downward at whole-pound display precision 3ms
+ ✓ apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > has no budget before the route is ready 0ms
+ ✓ apps/mobile/src/folio/lib/shortfallBudget.test.ts > shortfall recovery discretionary budget > accepting and clearing a zero discretionary hold neither removes essentials nor closes the gap 12ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > projects recorded debt minimums without exposing debt rows or names 9ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > requires a neutral debt order before modelling an extra, then uses the selected rule 5ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > checks a named card one-off directly and keeps weekly extras weekly 11ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > models dated-plan pace and a hypothetical contribution without moving money 1ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > returns a visibly uncertain low/base/high range only after three observed months 1ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > returns only an aggregate position for an explicitly selected local account 1ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > explains a selected account balance without exposing its local name or identifier 1ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > explains displayed Safe Zone figures with aggregate source kinds only 0ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > counts import duplicate and missing-date proposals without exposing queued rows 1ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > builds the recorded monthly BNPL schedule without exposing agreement names 1ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > compares real recovery moves against the same route used by RecoveryScreen 4ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts > buildMeloLocalCalculation > refuses deterministic calculations for a workspace that does not own the data partition 1ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > adding the 101st calendar event cannot delete the oldest unpaid bill or release its money 47ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > a skipped future cycle stays resolved after resume, while undo before due restores it 6ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > protects the exact £950 overdue-rent reproduction: £500 safe on September 13 1ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > a one-cycle pause and late resume retain all subsequent unpaid cycles 2ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > retains the original unpaid occurrence through hydration/foreground date rolling 1ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > retains this month’s debt minimum after its due date 2ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > retains each overdue recurring bill exactly once, alongside its next occurrence 1ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > paid/settled/cancelled occurrences release only their own protection 10ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > partial payments preserve the unpaid remainder without charging current cash again 2ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > a prospective pause retains overdue and due-today bills 1ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > bill date nudges retain stable occurrence identity and cannot resurrect a paid cycle 0ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > explicit confirmations are idempotent and reversible without changing cash or debt 3ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > retains bill/debt/calendar occurrence state through canonical repository serialization and restart projection 7ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > debt due-day and minimum edits preserve accrued debt obligations without duplicating this cycle 1ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > a future debt due-day correction moves the unaccrued cycle and preserves partial accrued payments 1ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts > unpaid occurrence financial release regressions > partial/paid/unpaid confirmations preserve original accrued amounts after a schedule edit 1ms
+
+ Test Files  7 passed (7)
+      Tests  50 passed (50)
+   Start at  14:58:57
+   Duration  1.75s (transform 1.27s, setup 0ms, collect 4.64s, tests 200ms, environment 2ms, prepare 948ms)

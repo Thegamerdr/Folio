@@ -1,0 +1,228 @@
+
+ RUN  v3.2.6 C:/dev/melo-native-today-batch1-2026-08-24
+
+ ❯ packages/finance-engine/test/financialPlan.payday.test.ts (10 tests | 8 failed) 30ms
+   × current-cash and payday boundary invariants > exact release reproduction protects £950 bills, £300 essentials and £200 buffer from £1800 21ms
+     → expected 160000 to be 35000 // Object.is equality
+   ✓ current-cash and payday boundary invariants > monthly 2026-09-27 uses future boundary 2026-09-28 with no scheduled money available early 1ms
+   × current-cash and payday boundary invariants > monthly 2026-09-28 uses future boundary 2026-10-28 with no scheduled money available early 1ms
+     → expected null to be '2026-10-28' // Object.is equality
+   × current-cash and payday boundary invariants > monthly 2026-09-29 uses future boundary 2026-10-28 with no scheduled money available early 1ms
+     → expected null to be '2026-10-28' // Object.is equality
+   × current-cash and payday boundary invariants > unreceived salary today is never credited; confirming it changes only the current balance 1ms
+     → expected +0 to be -125000 // Object.is equality
+   × current-cash and payday boundary invariants > posted cash movements of either sign today and in history are already in the balance 1ms
+     → expected 160000 to be 35000 // Object.is equality
+   × current-cash and payday boundary invariants > weekly income today moves protection to the next actual dated receipt 1ms
+     → expected null to be '2026-10-05' // Object.is equality
+   × current-cash and payday boundary invariants > irregular income today moves protection to the next actual dated receipt 1ms
+     → expected null to be '2026-10-09' // Object.is equality
+   × current-cash and payday boundary invariants > one-off unconfirmed income today cannot create a known future payday or extra cash 1ms
+     → expected 10000 to be -5000 // Object.is equality
+   ✓ current-cash and payday boundary invariants > counts a future receipt once in the forecast and excludes its entire day from pre-income spending 1ms
+ ❯ apps/mobile/src/folio/lib/financialPlan.payday.test.ts (3 tests | 3 failed) 24ms
+   × mobile payday release regression > returns £350 from the release reproduction including the income-source adapter 19ms
+     → expected 160000 to be 35000 // Object.is equality
+   × mobile payday release regression > applies the same protection when only onboarding monthly pay is available 2ms
+     → expected 160000 to be 35000 // Object.is equality
+   × mobile payday release regression > does not spend a scheduled salary today until the user records the received cash balance 2ms
+     → expected +0 to be -125000 // Object.is equality
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  packages/finance-engine/test/financialPlan.payday.test.ts > current-cash and payday boundary invariants > exact release reproduction protects £950 bills, £300 essentials and £200 buffer from £1800
+AssertionError: expected 160000 to be 35000 // Object.is equality
+
+- Expected
++ Received
+
+- 35000
++ 160000
+
+ ❯ packages/finance-engine/test/financialPlan.payday.test.ts:35:37
+     33|   it('exact release reproduction protects £950 bills, £300 essentials …
+     34|     const result = calculateFinancialPlan(monthly());
+     35|     expect(result.safeToSpendMinor).toBe(35000);
+       |                                     ^
+     36|     expect(result.nextIncomeDate).toBe('2026-10-28');
+     37|     expect(result.protectedBeforeIncomeMinor).toBe(125000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  packages/finance-engine/test/financialPlan.payday.test.ts > current-cash and payday boundary invariants > monthly 2026-09-28 uses future boundary 2026-10-28 with no scheduled money available early
+ FAIL  packages/finance-engine/test/financialPlan.payday.test.ts > current-cash and payday boundary invariants > monthly 2026-09-29 uses future boundary 2026-10-28 with no scheduled money available early
+AssertionError: expected null to be '2026-10-28' // Object.is equality
+
+- Expected:
+"2026-10-28"
+
++ Received:
+null
+
+ ❯ packages/finance-engine/test/financialPlan.payday.test.ts:48:35
+     46|   ])('monthly %s uses future boundary %s with no scheduled money avail…
+     47|     const result = calculateFinancialPlan(monthly(asOf as string));
+     48|     expect(result.nextIncomeDate).toBe(next);
+       |                                   ^
+     49|     expect(result.safeToSpendMinor).toBe(safe);
+     50|     expect(result.livingCostMinor).toBe(living);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  packages/finance-engine/test/financialPlan.payday.test.ts > current-cash and payday boundary invariants > unreceived salary today is never credited; confirming it changes only the current balance
+AssertionError: expected +0 to be -125000 // Object.is equality
+
+- Expected
++ Received
+
+- -125000
++ 0
+
+ ❯ packages/finance-engine/test/financialPlan.payday.test.ts:56:38
+     54|     const input = monthly();
+     55|     const pending = calculateFinancialPlan({ ...input, accounts: { cur…
+     56|     expect(pending.safeToSpendMinor).toBe(-125000);
+       |                                      ^
+     57|     const confirmed = calculateFinancialPlan({
+     58|       ...input,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  packages/finance-engine/test/financialPlan.payday.test.ts > current-cash and payday boundary invariants > posted cash movements of either sign today and in history are already in the balance
+AssertionError: expected 160000 to be 35000 // Object.is equality
+
+- Expected
++ Received
+
+- 35000
++ 160000
+
+ ❯ packages/finance-engine/test/financialPlan.payday.test.ts:75:26
+     73|         { id: 'historic-income', date: '2026-08-28', amountMinor: 1800…
+     74|       ],
+     75|     }).safeToSpendMinor).toBe(35000);
+       |                          ^
+     76|   });
+     77|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  packages/finance-engine/test/financialPlan.payday.test.ts > current-cash and payday boundary invariants > weekly income today moves protection to the next actual dated receipt
+AssertionError: expected null to be '2026-10-05' // Object.is equality
+
+- Expected:
+"2026-10-05"
+
++ Received:
+null
+
+ ❯ packages/finance-engine/test/financialPlan.payday.test.ts:91:35
+     89|       ],
+     90|     });
+     91|     expect(result.nextIncomeDate).toBe(next);
+       |                                   ^
+     92|     expect(result.safeToSpendMinor).toBe(160000 - Number(days) * 1000);
+     93|     expect(result.livingCostMinor).toBe(Number(days) * 1000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  packages/finance-engine/test/financialPlan.payday.test.ts > current-cash and payday boundary invariants > irregular income today moves protection to the next actual dated receipt
+AssertionError: expected null to be '2026-10-09' // Object.is equality
+
+- Expected:
+"2026-10-09"
+
++ Received:
+null
+
+ ❯ packages/finance-engine/test/financialPlan.payday.test.ts:91:35
+     89|       ],
+     90|     });
+     91|     expect(result.nextIncomeDate).toBe(next);
+       |                                   ^
+     92|     expect(result.safeToSpendMinor).toBe(160000 - Number(days) * 1000);
+     93|     expect(result.livingCostMinor).toBe(Number(days) * 1000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  packages/finance-engine/test/financialPlan.payday.test.ts > current-cash and payday boundary invariants > one-off unconfirmed income today cannot create a known future payday or extra cash
+AssertionError: expected 10000 to be -5000 // Object.is equality
+
+- Expected
++ Received
+
+- -5000
++ 10000
+
+ ❯ packages/finance-engine/test/financialPlan.payday.test.ts:103:37
+    101|     });
+    102|     expect(result.nextIncomeDate).toBeNull();
+    103|     expect(result.safeToSpendMinor).toBe(-5000);
+       |                                     ^
+    104|   });
+    105|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  apps/mobile/src/folio/lib/financialPlan.payday.test.ts > mobile payday release regression > returns £350 from the release reproduction including the income-source adapter
+AssertionError: expected 160000 to be 35000 // Object.is equality
+
+- Expected
++ Received
+
+- 35000
++ 160000
+
+ ❯ apps/mobile/src/folio/lib/financialPlan.payday.test.ts:27:35
+     25|     const input = toFinancialPlanInput(state, { now, horizonDays: 40 }…
+     26|     const plan = buildFinancialPlanFromState(state, { now, horizonDays…
+     27|     expect(plan.safeToSpendMinor).toBe(35000);
+       |                                   ^
+     28|     expect(input.nextIncomeDate).toBe('2026-10-28');
+     29|     expect(plan.nextIncomeDate).toBe('2026-10-28');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  apps/mobile/src/folio/lib/financialPlan.payday.test.ts > mobile payday release regression > applies the same protection when only onboarding monthly pay is available
+AssertionError: expected 160000 to be 35000 // Object.is equality
+
+- Expected
++ Received
+
+- 35000
++ 160000
+
+ ❯ apps/mobile/src/folio/lib/financialPlan.payday.test.ts:36:26
+     34|     expect(buildFinancialPlanFromState({ ...paydayState(), incomeSourc…
+     35|       now: new Date('2026-09-28T09:00:00Z'), horizonDays: 40,
+     36|     }).safeToSpendMinor).toBe(35000);
+       |                          ^
+     37|   });
+     38|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  apps/mobile/src/folio/lib/financialPlan.payday.test.ts > mobile payday release regression > does not spend a scheduled salary today until the user records the received cash balance
+AssertionError: expected +0 to be -125000 // Object.is equality
+
+- Expected
++ Received
+
+- -125000
++ 0
+
+ ❯ apps/mobile/src/folio/lib/financialPlan.payday.test.ts:44:26
+     42|     expect(buildFinancialPlanFromState(pending, {
+     43|       now: new Date('2026-09-28T09:00:00Z'), horizonDays: 40,
+     44|     }).safeToSpendMinor).toBe(-125000);
+       |                          ^
+     45|   });
+     46| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  11 failed | 2 passed (13)
+   Start at  14:04:20
+   Duration  1.64s (transform 741ms, setup 0ms, collect 1.23s, tests 55ms, environment 1ms, prepare 322ms)

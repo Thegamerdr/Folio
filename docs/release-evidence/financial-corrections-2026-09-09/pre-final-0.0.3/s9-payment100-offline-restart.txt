@@ -1,0 +1,7 @@
+Starting: Intent { cmp=com.folio.v2.greenfield/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.sec.android.app.launcher/.activities.LauncherActivity
+TotalTime: 41
+WaitTime: 49
+Complete

@@ -1,0 +1,16 @@
+{
+  "path": "C:\\Users\\User\\Documents\\Codex\\2026-09-09\\referenced-chatgpt-conversation-this-is-an-2\\outputs\\Melo-finance-corrected-0.0.3-a6ed77d2-arm64-x86_64.apk",
+  "sizeBytes": 155792358,
+  "sha256": "2063644a0bea3497b3cf6f614d297e3b9616b3b42ce7734253460c9b8d369651",
+  "sourceCommit": "a6ed77d2eae4341aedac512b62dd3ba16df6a478",
+  "package": "com.folio.v2.greenfield",
+  "versionName": "0.0.3",
+  "versionCode": 3,
+  "architectures": [
+    "arm64-v8a",
+    "x86_64"
+  ],
+  "certificateSha256": "547396e1fd99681c2a6d768b8b7d1b4484b5f42a17597cad6c495221267a5488",
+  "signatureScheme": "v2",
+  "build": "assembleRelease PASS, 3m27s"
+}

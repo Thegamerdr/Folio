@@ -1,0 +1,10 @@
+{
+  "animator_duration_scale": "1.0",
+  "transition_animation_scale": "1.0",
+  "window_animation_scale": "1.0",
+  "auto_time": "1",
+  "airplane_mode_on": "0",
+  "wifi_on": "1",
+  "mobile_data": "1",
+  "stay_on_while_plugged_in": "7"
+}
