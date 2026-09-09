@@ -1,0 +1,7 @@
+{
+  "testStartedAfterLocal": "2026-09-09T16:23:39+01:00",
+  "crashBufferEarliestTime": "11:29:27.222",
+  "crashBufferLatestTime": "11:29:36.267",
+  "entriesDuringAcceptance": 0,
+  "note": "Only earlier system dexoptanalyzer records were present; omitted unrelated raw system stacks from the release archive."
+}

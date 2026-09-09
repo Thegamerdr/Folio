@@ -1,0 +1,17 @@
+{
+  "path": "C:\\Users\\User\\Documents\\Codex\\2026-09-09\\referenced-chatgpt-conversation-this-is-an-3\\outputs\\Melo-clean-profile-0.0.5-ab263310-arm64-x86_64.apk",
+  "package": "com.folio.v2.greenfield",
+  "version": "0.0.5",
+  "versionCode": 5,
+  "sizeBytes": 155791075,
+  "sha256": "21e46ad403a30002eadd5328c095117b2ca266bcfafab2e1b26c3ee47e5aa1c3",
+  "architectures": [
+    "arm64-v8a",
+    "x86_64"
+  ],
+  "signature": "APK Signature Scheme v2 verified; RSA 2048; CN=Folio, OU=Folio, O=Folio, L=Verona, C=IT",
+  "certificateSha256": "547396e1fd99681c2a6d768b8b7d1b4484b5f42a17597cad6c495221267a5488",
+  "sourceSha": "ab263310887a6eec57bb2ba9dbe9979f08c5e325",
+  "embeddedBundleSha256": "8162fe7da8165ab4ad9b5ee3017354ac4742c120ec2f55c655df4339a929ebbf",
+  "embeddedBundleMatchesGenerated": true
+}

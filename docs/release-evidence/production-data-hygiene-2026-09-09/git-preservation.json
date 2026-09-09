@@ -1,0 +1,31 @@
+{
+  "base": "9ef29b96f20963bcfb740c524692e7a57c8cc7df",
+  "branch": "codex/melo-manual-release-2026-09-09",
+  "trackedDirtyFiles": [
+    "OPEN_BANKING_PLAN.md",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/melo/metadata.json",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/melo/source-frame-1104x2160.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/melo/source-product-1080x2004.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/more/metadata.json",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/more/source-frame-1104x2160.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/more/source-product-1080x2004.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today/metadata.json",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today/source-frame-1104x2160.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/dark/today/source-product-1080x2004.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/melo/metadata.json",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/melo/source-frame-1104x2160.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/melo/source-product-1080x2004.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/more/metadata.json",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/more/source-frame-1104x2160.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/more/source-product-1080x2004.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today/metadata.json",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today/source-frame-1104x2160.png",
+    "docs/parity-recovery/evidence/design/ad90b4-matched-v1/confirmed-safe/light/today/source-product-1080x2004.png",
+    "plans/README.md"
+  ],
+  "preExistingTrackedPatchIdentical": true,
+  "initialPatchSha256": "9c506e7d94c8d70be77abc264e52d3984dea5233a38497199972f413f5b76370",
+  "finalPatchSha256": "9c506e7d94c8d70be77abc264e52d3984dea5233a38497199972f413f5b76370",
+  "initialUntrackedEntries": 2153,
+  "missingInitialUntrackedEntries": []
+}

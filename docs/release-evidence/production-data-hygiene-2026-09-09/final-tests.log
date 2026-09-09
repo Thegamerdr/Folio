@@ -1,0 +1,274 @@
+
+ RUN  v3.2.6 C:/dev/melo-native-today-batch1-2026-08-24
+
+stderr | apps/mobile/src/folio/freshProductionProfile.test.ts > production profile data hygiene > keeps future-schema recovery empty rather than publishing prototype defaults
+[folio] persisted schema v999 is newer than code v13; parked and ignored.
+
+ ✓ apps/mobile/src/folio/freshProductionProfile.test.ts (24 tests) 483ms
+stderr | apps/mobile/src/folio/lib/persistRecovery.test.ts > SQLCipher workspace authority > parks a corrupt SQLCipher family only after verified fallback and failed in-place repair
+[melo:persistence] stage=workspace-state code=database-unreadable
+
+stderr | apps/mobile/src/folio/lib/persistRecovery.test.ts > SQLCipher workspace authority > does not advance the rollback file when the authoritative SQLCipher save fails
+[melo:persistence] stage=workspace-state code=unknown
+
+stdout | apps/mobile/src/folio/parity/normalBuildPurity.test.ts > normal owner build purity > accepts the separate QA scheme only in an explicitly configured capture process
+[parity-control] {"screen":"plan","sheet":null,"dialog":null,"globalSurface":null,"theme":"dark","sequence":1}
+
+ ✓ apps/mobile/src/folio/parity/normalBuildPurity.test.ts (5 tests) 1571ms
+   ✓ normal owner build purity > ignores the initial capture deep link folio://parity?screen=pdf-success in a production process  984ms
+stderr | apps/mobile/src/folio/lib/persistRecovery.test.ts > save failure visibility and retry > acknowledges only typed receipts included in a successful native commit
+[melo:persistence] stage=workspace-state code=unknown
+
+stderr | apps/mobile/src/folio/lib/persistRecovery.test.ts > save failure visibility and retry > keeps the last complete generation, reports ENOSPC and clears the failure after retry
+[melo:persistence] stage=workspace-state code=storage-full
+
+stderr | apps/mobile/src/folio/lib/persistRecovery.test.ts > workspace partition migration > clean Business recovery retains staged bytes after a post-manifest switch failure
+[melo:persistence] stage=workspace-state code=unknown
+
+stderr | apps/mobile/src/folio/lib/persistRecovery.test.ts > workspace partition migration > keeps legacy data after migration ENOSPC and retries through the serialized writer
+[melo:persistence] stage=workspace-state code=storage-full
+
+ ✓ apps/mobile/src/folio/lib/persistRecovery.test.ts (56 tests) 656ms
+ ✓ apps/mobile/src/local/nativeLedgerStore.workspace.test.ts (4 tests) 201ms
+ ✓ apps/mobile/src/local/productExperienceFixtures.test.ts (4 tests) 512ms
+ ✓ apps/mobile/src/folio/lib/importEndurance.test.ts (20 tests) 392ms
+   ✓ shipping sheet-parser endurance > parses 100k synthetic rows deterministically within the release budget  360ms
+ ✓ apps/mobile/src/local/dogfoodMode.test.ts (3 tests) 298ms
+ ✓ apps/mobile/src/folio/lib/openBankingNative.test.ts (5 tests) 95ms
+ ✓ apps/mobile/src/folio/debtPaymentLedger.test.ts (18 tests) 188ms
+ ✓ apps/mobile/src/folio/lib/billing/billingLifecycle.test.ts (4 tests) 150ms
+ ✓ apps/mobile/src/folio/lib/localDataDeletion.test.ts (2 tests) 24ms
+ ✓ apps/mobile/src/folio/lib/cloudSyncNative.test.ts (4 tests) 210ms
+ ✓ apps/mobile/src/folio/lib/largeLedgerPerformance.test.ts (1 test) 233ms
+ ✓ apps/mobile/src/folio/store.test.ts (264 tests) 3159ms
+   ✓ transactions retention > keeps a 2k+ ledger intact and newest first  479ms
+   ✓ addStatementAsHistory > statementImports log > caps the log at STATEMENT_IMPORT_CAP (200), newest first  800ms
+ ✓ apps/mobile/src/local/localMeloTurn.test.ts (18 tests) 46ms
+ ✓ apps/mobile/src/local/nativeWorkspaceStateStore.test.ts (18 tests) 79ms
+ ✓ apps/mobile/src/local/localTodayAdapter.test.ts (6 tests) 64ms
+ ✓ apps/mobile/src/local/canonicalPlanRecovery.test.ts (6 tests) 69ms
+ ✓ apps/mobile/src/folio/lib/notifications.test.ts (10 tests) 91ms
+ ✓ apps/mobile/src/folio/lib/appLock.test.ts (6 tests) 31ms
+ ✓ apps/mobile/src/local/canonicalLedgerMutations.test.ts (7 tests) 79ms
+ ✓ apps/mobile/src/folio/lib/financialObligations.test.ts (16 tests) 97ms
+ ✓ apps/mobile/src/folio/parity/parityHarness.test.ts (8 tests) 92ms
+ ✓ apps/mobile/src/folio/lib/errorReporting.test.ts (4 tests) 34ms
+ ✓ apps/mobile/src/local/canonicalExperienceSqlite.test.ts (5 tests) 82ms
+ ✓ apps/mobile/src/folio/lib/statementReviewModel.test.ts (3 tests) 142ms
+ ✓ apps/mobile/src/local/localLedger.test.ts (35 tests) 123ms
+ ✓ apps/mobile/src/local/calendarEvents.test.ts (12 tests) 63ms
+ ✓ apps/mobile/src/local/canonicalProductExperienceLoop.test.ts (10 tests) 116ms
+ ✓ apps/mobile/src/folio/lib/storeRoute.test.ts (22 tests) 105ms
+ ✓ apps/mobile/src/folio/lib/meloSnapshot.test.ts (13 tests) 78ms
+ ✓ apps/mobile/src/folio/lib/shortfallBudget.test.ts (7 tests) 37ms
+ ✓ apps/mobile/src/local/canonicalBalanceAuthority.test.ts (8 tests) 73ms
+ ✓ apps/mobile/src/local/recoveryMeloCompletion.test.ts (2 tests) 59ms
+ ✓ apps/mobile/src/local/intakeBehaviour.test.ts (13 tests) 76ms
+ ✓ apps/mobile/src/folio/lib/cloudSyncKeys.test.ts (2 tests) 40ms
+ ✓ apps/mobile/src/folio/lib/meloCalculations.test.ts (12 tests) 53ms
+ ✓ apps/mobile/src/folio/meloReleaseBehaviorMatrix.test.ts (21 tests) 84ms
+ ✓ apps/mobile/src/folio/lib/notifyState.test.ts (8 tests) 33ms
+ ✓ apps/mobile/src/folio/sheets/onboardingComplete.test.ts (20 tests) 53ms
+ ✓ packages/finance-engine/test/financialPlan.payday.test.ts (17 tests) 25ms
+ ✓ packages/domain/test/core-domain.test.ts (9 tests) 31ms
+ ✓ apps/mobile/src/folio/lib/meloToneGuidance.test.ts (12 tests) 23ms
+ ✓ apps/mobile/src/local/tightestPointOverdraft.test.ts (2 tests) 32ms
+ ✓ apps/mobile/src/local/canonicalLedgerAdapter.test.ts (12 tests) 47ms
+ ✓ apps/mobile/src/local/localCalendarAdapter.test.ts (4 tests) 56ms
+ ✓ apps/mobile/src/local/importTruthChain.test.ts (3 tests) 68ms
+ ✓ apps/mobile/src/folio/lib/export.test.ts (34 tests) 41ms
+ ✓ apps/mobile/src/folio/screens/productionEntryPoints.test.ts (4 tests) 68ms
+ ✓ apps/mobile/src/folio/lib/historyCycles.test.ts (36 tests) 28ms
+ ✓ apps/mobile/src/folio/screens/today/TodayNudges.test.ts (9 tests) 20ms
+ ✓ apps/mobile/src/folio/lib/caughtBillsOrdering.test.ts (8 tests) 31ms
+ ✓ apps/mobile/src/local/dataEngineModels.test.ts (14 tests) 43ms
+ ✓ packages/today-engine/test/today-engine.test.ts (12 tests) 26ms
+ ✓ apps/mobile/src/local/localTimelineAdapter.test.ts (7 tests) 57ms
+ ✓ apps/mobile/src/folio/lib/cloudSyncPatch.test.ts (5 tests) 56ms
+ ✓ apps/mobile/src/folio/lib/canonicalAppStateReadProjection.test.ts (9 tests) 50ms
+ ✓ apps/mobile/src/folio/lib/typedCommandBridge.wiring.test.ts (7 tests) 41ms
+ ✓ apps/mobile/src/folio/lib/income.test.ts (45 tests) 38ms
+ ✓ apps/mobile/src/folio/lib/workspacePartition.test.ts (6 tests) 38ms
+ ✓ apps/mobile/src/folio/lib/widgetSnapshot.test.ts (5 tests) 46ms
+ ✓ apps/mobile/src/local/calendarIcs.test.ts (4 tests) 19ms
+ ✓ apps/mobile/src/local/localMeloPolicyAdapter.test.ts (5 tests) 25ms
+ ✓ apps/mobile/src/folio/screens/textReaderWedge.test.ts (11 tests) 31ms
+ ✓ apps/mobile/src/folio/lib/billing/entitlementGrant.test.ts (5 tests) 37ms
+ ✓ apps/mobile/src/local/subscriptionAndRemoveMutations.test.ts (10 tests) 38ms
+ ✓ apps/mobile/src/folio/lib/canonicalStateProjection.test.ts (4 tests) 39ms
+ ✓ apps/mobile/src/folio/screens/InsightsScreen.test.ts (7 tests) 34ms
+ ✓ apps/mobile/src/local/localPlansAdapter.test.ts (4 tests) 50ms
+ ✓ apps/mobile/src/folio/lib/caughtAnnual.test.ts (11 tests) 20ms
+ ✓ apps/mobile/src/folio/lib/recoveryPreview.test.ts (3 tests) 30ms
+ ✓ apps/mobile/src/local/recurrenceExpansion.test.ts (4 tests) 55ms
+ ✓ apps/mobile/src/folio/lib/moneyPath.test.ts (13 tests) 28ms
+ ✓ apps/mobile/src/local/nativeReading.test.ts (7 tests) 46ms
+ ✓ packages/calendar-engine/test/recurrence.test.ts (5 tests) 30ms
+ ✓ apps/mobile/src/folio/lib/lens.test.ts (17 tests) 23ms
+ ✓ packages/finance-engine/test/financialPlan.test.ts (14 tests) 34ms
+ ✓ apps/mobile/src/local/tightPointGoal.test.ts (9 tests) 21ms
+ ✓ apps/mobile/src/folio/lib/documentVault.test.ts (10 tests) 25ms
+ ✓ apps/mobile/src/folio/lib/persist.test.ts (7 tests) 24ms
+ ✓ apps/mobile/src/folio/lib/reconcileStatement.test.ts (7 tests) 18ms
+ ✓ apps/mobile/src/folio/lib/businessAcceptanceJourney.test.ts (3 tests) 29ms
+ ✓ apps/mobile/src/folio/screens/commitmentHelpers.test.ts (6 tests) 23ms
+ ✓ apps/mobile/src/folio/copy/sourceVoiceLint.test.ts (18 tests) 21ms
+ ✓ apps/mobile/src/folio/screens/reviewFormat.test.ts (2 tests) 20ms
+ ✓ apps/mobile/src/folio/lib/billing/entitlements.test.ts (12 tests) 25ms
+ ✓ apps/mobile/src/local/localDocumentCandidates.test.ts (3 tests) 17ms
+ ✓ apps/mobile/src/folio/lib/caughtDrift.test.ts (10 tests) 34ms
+ ✓ apps/mobile/src/local/documentIntake.test.ts (3 tests) 26ms
+ ✓ apps/mobile/src/folio/lib/openBankingConfig.test.ts (4 tests) 32ms
+ ✓ apps/mobile/src/local/nativeLocalSecurity.test.ts (2 tests) 30ms
+ ✓ apps/mobile/src/folio/sheets/editTxnSave.test.ts (7 tests) 22ms
+ ✓ apps/mobile/src/folio/screens/reviewCategoryLearning.test.ts (7 tests) 21ms
+ ✓ apps/mobile/src/folio/lib/financialPlan.test.ts (9 tests) 30ms
+ ✓ apps/mobile/src/surfaces/pressureMap/money.test.ts (12 tests) 18ms
+ ✓ apps/mobile/src/folio/lib/bulkLanding.test.ts (19 tests) 25ms
+ ✓ apps/mobile/src/folio/lib/caughtOrderingExtended.test.ts (6 tests) 29ms
+ ✓ apps/mobile/src/folio/lib/billing/readAllowance.test.ts (20 tests) 28ms
+ ✓ apps/mobile/src/local/localInsightsAdapter.test.ts (4 tests) 30ms
+ ✓ apps/mobile/src/folio/lib/clerkAuth.test.ts (5 tests) 44ms
+ ✓ apps/mobile/src/folio/screens/planModel.canonical.test.ts (5 tests) 25ms
+ ✓ apps/mobile/src/folio/lib/workspaceRoot.test.ts (5 tests) 31ms
+ ✓ apps/mobile/src/local/stageStatementTransactions.test.ts (7 tests) 35ms
+ ✓ apps/mobile/src/local/futureFactValidation.test.ts (2 tests) 18ms
+ ✓ apps/mobile/src/local/localOcrCandidates.test.ts (7 tests) 18ms
+ ✓ packages/finance-engine/test/forecast.test.ts (13 tests) 21ms
+ ✓ packages/finance-engine/test/financialPlan.minimumInterest.test.ts (3 tests) 14ms
+ ✓ apps/mobile/src/folio/lib/billing/iap.test.ts (3 tests) 45ms
+ ✓ apps/mobile/src/local/localLedgerWorkspaceBoundary.test.ts (1 test) 25ms
+ ✓ apps/mobile/src/folio/lib/caughtBills.test.ts (15 tests) 16ms
+ ✓ apps/mobile/src/folio/lib/bulkLanding.wiring.test.ts (7 tests) 24ms
+ ✓ apps/mobile/src/folio/screens/today/todayPathGeometry.test.ts (7 tests) 27ms
+ ✓ apps/mobile/src/folio/lib/workspaceRows.test.ts (6 tests) 30ms
+ ✓ packages/finance-engine/test/obligations.test.ts (6 tests) 19ms
+ ✓ packages/plan-engine/test/plans.test.ts (18 tests) 17ms
+ ✓ apps/mobile/src/folio/screens/VisualizerScreen.addAll.test.ts (3 tests) 19ms
+ ✓ apps/mobile/src/folio/lib/bankImportInbox.test.ts (4 tests) 25ms
+ ✓ apps/mobile/src/folio/lib/typedCommandBridge.test.ts (3 tests) 19ms
+ ✓ apps/mobile/src/folio/lib/financialPlan.payday.test.ts (6 tests) 18ms
+ ✓ apps/mobile/src/folio/lib/cloudBackup.test.ts (8 tests) 17ms
+ ✓ apps/mobile/src/folio/lib/restore.test.ts (10 tests) 22ms
+ ✓ apps/mobile/src/folio/meloFinanceTools.test.ts (5 tests) 25ms
+ ✓ apps/mobile/src/folio/lib/meloAccountSelection.test.ts (4 tests) 14ms
+ ✓ apps/mobile/src/local/financeProposal.test.ts (5 tests) 18ms
+ ✓ apps/mobile/src/folio/screens/PrivacyScreen.cleanSlate.test.ts (5 tests) 18ms
+ ✓ apps/mobile/src/folio/lib/caughtIncome.test.ts (19 tests) 14ms
+ ✓ apps/mobile/src/local/historyKindsSourceOfTruth.test.ts (4 tests) 21ms
+ ✓ apps/mobile/src/local/localMeloTurn.adversarial.test.ts (6 tests) 18ms
+ ✓ apps/mobile/src/local/calendarLedgerMutations.test.ts (11 tests) 20ms
+ ✓ apps/mobile/src/folio/lib/useDayClock.test.ts (3 tests) 8ms
+ ✓ apps/mobile/src/folio/lib/undoPolicy.test.ts (22 tests) 10ms
+ ✓ apps/mobile/src/local/pdfImportTransaction.test.ts (6 tests) 14ms
+ ✓ apps/mobile/src/folio/lib/debt.test.ts (23 tests) 16ms
+ ✓ apps/mobile/src/local/pdfChunkSplitter.test.ts (12 tests) 11ms
+ ✓ apps/mobile/src/folio/lib/importSheet.test.ts (30 tests) 15ms
+ ✓ apps/mobile/src/local/localScenarioAdapter.test.ts (2 tests) 13ms
+ ✓ apps/mobile/src/folio/lib/cryptoBlob.test.ts (8 tests) 14ms
+ ✓ apps/mobile/src/folio/lib/calendarEvents.test.ts (28 tests) 14ms
+ ✓ apps/mobile/src/folio/lib/billing/entitlementsLogic.test.ts (12 tests) 8ms
+ ✓ apps/mobile/src/folio/sheets/logSpendCategoryLearning.test.ts (3 tests) 15ms
+ ✓ apps/mobile/src/folio/lib/subSignals.test.ts (22 tests) 14ms
+ ✓ apps/mobile/src/folio/lib/melo/reactionBus.test.ts (7 tests) 9ms
+ ✓ apps/mobile/src/folio/sheets/meloToolSuggestion.test.ts (10 tests) 6ms
+ ✓ apps/mobile/src/folio/lib/incomeSignals.test.ts (23 tests) 18ms
+ ✓ apps/mobile/src/folio/lib/caughtSubs.test.ts (13 tests) 9ms
+ ✓ apps/mobile/src/folio/lib/cloudSync.test.ts (1 test) 9ms
+ ✓ apps/mobile/src/folio/lib/cloudBackupNative.test.ts (5 tests) 41ms
+ ✓ apps/mobile/src/folio/lib/modes/headerFraming.test.ts (26 tests) 6ms
+ ✓ apps/mobile/plugins/captureIsolation.test.ts (3 tests) 5ms
+ ✓ apps/mobile/src/folio/sheets/SignInSheet.test.ts (8 tests) 9ms
+ ✓ apps/mobile/src/folio/lib/melo/rework.test.ts (4 tests) 19ms
+ ✓ apps/mobile/src/folio/lib/editTxn.test.ts (19 tests) 7ms
+ ✓ apps/mobile/src/folio/lib/modes/suggest.test.ts (4 tests) 3ms
+ ✓ apps/mobile/src/folio/lib/billing/ctaMode.test.ts (18 tests) 5ms
+ ✓ apps/mobile/src/local/statementReaderClient.test.ts (24 tests) 12ms
+ ✓ packages/domain/test/money.test.ts (5 tests) 7ms
+ ✓ apps/mobile/src/surfaces/pressureMap/melo/melo.test.ts (8 tests) 9ms
+ ✓ apps/mobile/src/folio/lib/historyStats.test.ts (22 tests) 9ms
+ ✓ apps/mobile/app.config.test.ts (6 tests) 7ms
+ ✓ apps/mobile/src/folio/lib/meloSubscriptionRequest.test.ts (7 tests) 8ms
+ ✓ apps/mobile/src/folio/ui/Toast.test.ts (6 tests) 11ms
+ ✓ apps/mobile/src/folio/lib/driftSignals.test.ts (12 tests) 10ms
+ ✓ apps/mobile/src/local/androidRecoveryReplayEvidence.test.ts (3 tests) 8ms
+ ✓ apps/mobile/src/folio/lib/merchantCleaner.test.ts (10 tests) 8ms
+ ✓ apps/mobile/src/folio/lib/dedupe.test.ts (19 tests) 9ms
+ ✓ apps/mobile/src/local/androidDogfoodPackEvidence.test.ts (3 tests) 7ms
+ ✓ apps/mobile/src/local/meloAiClient.test.ts (16 tests) 7ms
+ ✓ apps/mobile/src/folio/lib/calendarReminders.test.ts (7 tests) 10ms
+ ✓ apps/mobile/src/folio/lib/potCadence.test.ts (16 tests) 7ms
+ ✓ apps/mobile/src/folio/screens/today/TodayNudges.ritual.test.ts (10 tests) 4ms
+ ✓ apps/mobile/src/folio/screens/today/TodayNudges.collapse.test.ts (9 tests) 5ms
+ ✓ apps/mobile/src/folio/lib/debtPaymentLedger.model.test.ts (2 tests) 8ms
+ ✓ apps/mobile/src/folio/lib/melo/companion.test.ts (7 tests) 4ms
+ ✓ apps/mobile/src/folio/lib/cloudSyncLocalNative.test.ts (1 test) 4ms
+ ✓ apps/mobile/src/folio/lib/notifySettings.test.ts (6 tests) 5ms
+ ✓ apps/mobile/src/folio/lib/renewalMath.test.ts (26 tests) 11ms
+ ✓ apps/mobile/src/folio/lib/cloudSyncProjection.test.ts (3 tests) 6ms
+ ✓ apps/mobile/src/folio/lib/timelineEvents.test.ts (12 tests) 7ms
+ ✓ apps/mobile/src/surfaces/pressureMap/darkModeFoundation.test.ts (7 tests) 5ms
+ ✓ apps/mobile/src/local/localMeloLanguage.test.ts (3 tests) 5ms
+ ✓ apps/mobile/src/folio/sheets/personalSheetInsets.test.ts (10 tests) 8ms
+ ✓ apps/mobile/src/folio/lib/merchantMemory.test.ts (10 tests) 4ms
+ ✓ apps/mobile/src/folio/lib/moreSearchModel.test.ts (4 tests) 3ms
+ ✓ apps/mobile/src/folio/lib/remoteAccountDeletion.test.ts (5 tests) 13ms
+ ✓ apps/mobile/src/folio/lib/meloVoiceRecognition.test.ts (5 tests) 6ms
+ ✓ apps/mobile/src/folio/shell/registryCoverage.test.ts (6 tests) 8ms
+ ✓ packages/finance-engine/test/debt.test.ts (5 tests) 9ms
+ ✓ apps/mobile/src/folio/lib/appStateAuthorityManifest.test.ts (3 tests) 6ms
+ ✓ apps/mobile/src/folio/lib/modes/safeZone.test.ts (5 tests) 5ms
+ ✓ apps/mobile/src/folio/lib/vaultKey.test.ts (3 tests) 4ms
+ ✓ apps/mobile/src/folio/lib/modes/strategies/stability.test.ts (5 tests) 4ms
+ ✓ apps/mobile/src/folio/copy/statePayerHeuristic.test.ts (15 tests) 7ms
+ ✓ apps/mobile/src/folio/lib/melo/shellCompanion.test.ts (5 tests) 4ms
+ ✓ apps/mobile/src/local/statementReaderClientChunked.test.ts (3 tests) 5ms
+ ✓ apps/mobile/src/folio/lib/cloudSyncLocal.test.ts (5 tests) 7ms
+ ✓ apps/mobile/src/folio/sheets/appearanceSheet.test.ts (3 tests) 6ms
+ ✓ apps/mobile/src/folio/lib/detectAccountName.test.ts (11 tests) 5ms
+ ✓ apps/mobile/src/local/statementReaderDedup.test.ts (9 tests) 7ms
+ ✓ apps/mobile/src/folio/lib/statementSummary.test.ts (13 tests) 8ms
+ ✓ apps/mobile/src/folio/lib/reviewHistory.test.ts (3 tests) 4ms
+ ✓ apps/mobile/src/folio/lib/statementPreview.test.ts (3 tests) 4ms
+ ✓ apps/mobile/src/folio/sheets/meloLocalAction.test.ts (14 tests) 6ms
+ ✓ apps/mobile/src/folio/screens/planModel.test.ts (4 tests) 5ms
+ ✓ apps/mobile/src/folio/screens/business/businessSurfaceRegistry.test.ts (3 tests) 4ms
+ ✓ apps/mobile/src/folio/lib/manualMoney.test.ts (3 tests) 3ms
+ ✓ apps/mobile/src/folio/lib/businessCashPosition.test.ts (3 tests) 7ms
+ ✓ apps/mobile/src/folio/lib/melo/shellCompanion.freePosition.test.ts (3 tests) 4ms
+ ✓ apps/mobile/src/folio/lib/transactionHorizon.test.ts (2 tests) 5ms
+ ✓ apps/mobile/profileBuild.test.ts (2 tests) 5ms
+ ✓ apps/mobile/src/folio/lib/reviewDedupe.test.ts (9 tests) 5ms
+ ✓ apps/mobile/src/folio/screens/PaywallScreen.test.ts (7 tests) 3ms
+ ✓ apps/mobile/src/folio/lib/whatChanged.test.ts (9 tests) 5ms
+ ✓ apps/mobile/src/folio/screens/moreScreenParity.test.ts (5 tests) 5ms
+ ✓ apps/mobile/src/folio/lib/feedbackMap.test.ts (2 tests) 3ms
+ ✓ apps/mobile/src/folio/lib/potLedgerActuals.test.ts (4 tests) 5ms
+ ✓ apps/mobile/src/folio/lib/dayClock.test.ts (3 tests) 4ms
+ ✓ apps/mobile/src/folio/lib/modes/strategies/irregular.test.ts (8 tests) 3ms
+ ✓ apps/mobile/src/folio/lib/notifyRuntimeState.test.ts (2 tests) 4ms
+ ✓ apps/mobile/src/folio/screens/today/todayTheme.test.ts (3 tests) 3ms
+ ✓ apps/mobile/src/folio/copy/copyLint.test.ts (3 tests) 5ms
+ ✓ apps/mobile/src/surfaces/pressureMap/bottomNavGeometry.test.ts (3 tests) 3ms
+ ✓ apps/mobile/src/folio/screens/intakeParity.test.ts (4 tests) 3ms
+ ✓ apps/mobile/src/folio/sheets/SafeZoneSheet.test.ts (2 tests) 4ms
+ ✓ apps/mobile/src/folio/screens/noFabricatedContent.test.ts (3 tests) 4ms
+ ✓ apps/mobile/src/surfaces/pressureMap/sheetParityGeometry.test.ts (2 tests) 3ms
+ ✓ apps/mobile/src/folio/lib/modes/strategies/reset.test.ts (2 tests) 3ms
+ ✓ apps/mobile/src/folio/lib/readerFallbackReason.test.ts (1 test) 3ms
+ ✓ apps/mobile/src/local/localMeloSafety.test.ts (7 tests) 6ms
+ ✓ apps/mobile/src/folio/lib/accountSources.test.ts (5 tests) 3ms
+ ✓ apps/mobile/src/folio/sheets/accessibilitySecurity.test.ts (2 tests) 4ms
+ ✓ apps/mobile/src/folio/screens/business/businessTodayMetrics.test.ts (2 tests) 3ms
+ ✓ apps/mobile/src/surfaces/pressureMap/sheetGeometry.test.ts (3 tests) 3ms
+ ✓ apps/mobile/src/folio/screens/today/pressure.test.ts (8 tests) 2ms
+ ✓ apps/mobile/src/folio/lib/payday.test.ts (18 tests) 7ms
+ ✓ apps/mobile/src/folio/lib/guidedBalance.test.ts (4 tests) 3ms
+ ✓ apps/mobile/src/folio/lib/captureServices.test.ts (4 tests) 6ms
+
+ Test Files  236 passed (236)
+      Tests  2325 passed (2325)
+   Start at  16:21:06
+   Duration  29.17s (transform 5.16s, setup 0ms, collect 27.88s, tests 13.46s, environment 50ms, prepare 24.34s)
+
+JSON report written to C:/dev/melo-native-today-batch1-2026-08-24/docs/release-evidence/production-data-hygiene-2026-09-09/final-tests.json

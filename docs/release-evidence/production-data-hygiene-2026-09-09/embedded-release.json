@@ -1,0 +1,8 @@
+{
+  "runtimeFingerprint": "b6ebdd08445331319ed00a3d6fcf95aa9f6c4fd1",
+  "prior004Fingerprint": "3a1305cf078c0eaca0175274b339c22f3aad111d",
+  "distinct": true,
+  "package": "com.folio.v2.greenfield",
+  "version": "0.0.5",
+  "embeddedBundleMatchesGenerated": true
+}

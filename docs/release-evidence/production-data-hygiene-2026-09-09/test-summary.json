@@ -1,0 +1,300 @@
+{
+  "total": 2325,
+  "passed": 2325,
+  "failed": 0,
+  "testFiles": 236,
+  "priorReleaseTests": 2271,
+  "netAddedTests": 54,
+  "newOrRenamedAssertions": [
+    {
+      "file": "mobile/profileBuild.test.ts",
+      "name": "production and QA profile separation keeps the normal app identity and new release version without a fixture flag",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/profileBuild.test.ts",
+      "name": "production and QA profile separation puts explicit fixture builds in another OS canonical storage and update namespace",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/plugins/captureIsolation.test.ts",
+      "name": "native QA capture isolation keeps application identity and bundle cache tied to the same explicit build flag",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/plugins/captureIsolation.test.ts",
+      "name": "native QA capture isolation binds the manifest from a folio prebuild to the current native build identity",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/plugins/captureIsolation.test.ts",
+      "name": "native QA capture isolation binds the manifest from a folio-qa prebuild to the current native build identity",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene boots the production module with zero financial entities and no artificial plan",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v1 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v2 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v3 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v4 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v5 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v6 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v7 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v8 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v9 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v10 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v11 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v12 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene hydrates missing financial slots at schema v13 without inventing any records",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene keeps future-schema recovery empty rather than publishing prototype defaults",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene calculates only explicitly entered manual money and preserves it through a cold module restart",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene resetAll clears all fixture money and restart cannot reseed it",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene resetToEmpty clears all fixture money and restart cannot reseed it",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene preserves companion preferences, chosen mode, purchases and allowance while clearing financial history",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene removes old anchored sample subscriptions and untouched migrated income without losing a real same-name bill",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene keeps an explicitly paused same-shaped subscription through expiry and repeated restarts",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene preserves an explicit protective buffer in a partly configured real profile with leftover samples",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene does not manufacture historical deposits or income while upgrading an untouched v1 sample",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/freshProductionProfile.test.ts",
+      "name": "production profile data hygiene keeps visual fixture generators outside the production import graph",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/parity/normalBuildPurity.test.ts",
+      "name": "normal owner build purity ignores the initial capture deep link folio://parity?screen=pdf-success in a production process",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/parity/normalBuildPurity.test.ts",
+      "name": "normal owner build purity ignores the initial capture deep link folio-qa://parity?screen=image-success in a production process",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/parity/normalBuildPurity.test.ts",
+      "name": "normal owner build purity cannot replace a real profile or its clock through direct fixture/runtime activation",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/parity/normalBuildPurity.test.ts",
+      "name": "normal owner build purity accepts the separate QA scheme only in an explicitly configured capture process",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/calendarEvents.test.ts",
+      "name": "deriveCalendarEvents — window membership supports explicitly requested historical demo fixtures inside the 35-day window",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/calendarEvents.test.ts",
+      "name": "production calendar data hygiene defaults to zero events without recorded money or an explicit fixture option",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/calendarEvents.test.ts",
+      "name": "production calendar data hygiene derives only the entered subscription and income without inserting demo bills or reviews",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/calendarEvents.test.ts",
+      "name": "production calendar data hygiene keeps an empty subscription-nudge preview independent of historical fixture bills",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/captureServices.test.ts",
+      "name": "capture builds cannot use real account services overrides configured env credentials and endpoints",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/captureServices.test.ts",
+      "name": "capture builds cannot use real account services overrides configured extra credentials and endpoints",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/captureServices.test.ts",
+      "name": "capture builds cannot use real account services never connects, buys, restores, finishes or listens to real native store purchases",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/captureServices.test.ts",
+      "name": "capture builds cannot use real account services keeps the retired remote conversation transport inert for fixture context",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/cloudBackupNative.test.ts",
+      "name": "native backup recovery boundaries blocks fixture backup and the shared sync endpoint despite configured env URL",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/cloudBackupNative.test.ts",
+      "name": "native backup recovery boundaries blocks fixture backup and the shared sync endpoint despite configured extra URL",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/guidedBalance.test.ts",
+      "name": "guided check-in production balance never substitutes demo cash for a fresh zero balance",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/guidedBalance.test.ts",
+      "name": "guided check-in production balance does not present legacy sample cash for confirmation as real money",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/guidedBalance.test.ts",
+      "name": "guided check-in production balance preserves an existing user-entered balance in the rough-number check-in",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/guidedBalance.test.ts",
+      "name": "guided check-in production balance does not invent cash from an invalid stored amount",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/meloSnapshot.test.ts",
+      "name": "Melo fresh-profile context keeps an empty profile onboarding-driven after restart (onboarding done: false)",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/meloSnapshot.test.ts",
+      "name": "Melo fresh-profile context keeps an empty profile onboarding-driven after restart (onboarding done: true)",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/meloSnapshot.test.ts",
+      "name": "Melo fresh-profile context uses only the balance and buffer entered after fresh setup",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/persistRecovery.test.ts",
+      "name": "SQLCipher workspace authority cannot resurrect legacy sample money from a bound canonical SQL snapshot after hygiene migration",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/persistRecovery.test.ts",
+      "name": "SQLCipher workspace authority persists an empty clear with app preferences intact in the replacement native generation",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/storeRoute.test.ts",
+      "name": "routeFromStore — seed state earmarks recorded pot cash without inventing a recurring rent bill",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/lib/storeRoute.test.ts",
+      "name": "isOverspentLanding agrees with the explicit fixture route after implicit demo bills are excluded",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/screens/productionEntryPoints.test.ts",
+      "name": "production sample entry-point boundaries offers only user text in the live paste-to-ledger flow",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/screens/productionEntryPoints.test.ts",
+      "name": "production sample entry-point boundaries never substitutes merchant-keyed fixture dates or categories into real review candidates",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/screens/productionEntryPoints.test.ts",
+      "name": "production sample entry-point boundaries requires actual money setup before offering a What If calculation",
+      "status": "passed"
+    },
+    {
+      "file": "mobile/src/folio/screens/productionEntryPoints.test.ts",
+      "name": "production sample entry-point boundaries keeps the mutating sample fixture out of every production source import",
+      "status": "passed"
+    }
+  ]
+}

@@ -1,0 +1,426 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.3.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build
+> Task :gradle-plugin:settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:shared:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:shared:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileJava NO-SOURCE
+> Task :gradle-plugin:shared:processResources NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:processResources NO-SOURCE
+> Task :gradle-plugin:shared:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:jar UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:settings-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-dev-launcher-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-updates-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-dev-launcher-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-module-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-updates-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-dev-launcher-gradle-plugin:processResources UP-TO-DATE
+> Task :expo-module-gradle-plugin:processResources UP-TO-DATE
+> Task :expo-updates-gradle-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:react-native-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:jar UP-TO-DATE
+> Task :expo-dev-launcher-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-dev-launcher-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-module-gradle-plugin:classes UP-TO-DATE
+> Task :expo-dev-launcher-gradle-plugin:classes UP-TO-DATE
+> Task :expo-module-gradle-plugin:jar UP-TO-DATE
+> Task :expo-dev-launcher-gradle-plugin:jar UP-TO-DATE
+> Task :expo-updates-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-updates-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-updates-gradle-plugin:classes UP-TO-DATE
+> Task :expo-updates-gradle-plugin:jar UP-TO-DATE
+
+> Configure project :
+[32m[ExpoRootProject][0m Using the following versions:
+  - buildTools:  [32m36.0.0[0m
+  - minSdk:      [32m24[0m
+  - compileSdk:  [32m36[0m
+  - targetSdk:   [32m36[0m
+  - ndk:         [32m27.1.12297006[0m
+  - kotlin:      [32m2.1.20[0m
+  - ksp:         [32m2.1.20-2.0.1[0m
+
+> Configure project :app
+ ℹ️  [33mApplying gradle plugin[0m '[32mexpo-max-sdk-override-plugin[0m'
+  [expo-max-sdk-override-plugin] This plugin will find all permissions declared with `android:maxSdkVersion`. If there exists a declaration with the `android:maxSdkVersion` annotation and another one without, the plugin will remove the annotation from the final merged manifest. In order to see a log with the changes run a clean build of the app.
+ ℹ️  [33mApplying gradle plugin[0m '[32mexpo-dev-launcher-gradle-plugin[0m'
+ ℹ️  [33mApplying gradle plugin[0m '[32mexpo-updates-gradle-plugin[0m'
+
+> Configure project :expo
+
+Using expo modules
+  - [32mclerk-expo-passkeys[0m (1.0.0)
+  - [32mexpo-log-box[0m (56.0.14)
+  - [32mexpo-constants[0m (56.0.24)
+  - [32mexpo-dev-client[0m (56.0.26)
+  - [32mexpo-dev-launcher[0m (56.0.27)
+  - [32mexpo-dev-menu[0m (56.0.23)
+  - [32mexpo-dev-menu-interface[0m (56.0.1)
+  - [32mexpo-eas-client[0m (56.0.1)
+  - [32mexpo-iap[0m (4.3.6)
+  - [32mexpo-json-utils[0m (56.0.0)
+  - [32mexpo-manifests[0m (56.0.4)
+
+> Configure project :expo-modules-core
+Linking react-native-worklets native libs into expo-modules-core build tasks
+task ':react-native-worklets:mergeDebugNativeLibs'
+task ':react-native-worklets:mergeReleaseNativeLibs'
+
+> Configure project :expo
+  - [32mexpo-modules-core[0m (56.0.24)
+  - [32mexpo-speech-recognition[0m (56.0.4)
+  - [32mexpo-structured-headers[0m (56.0.0)
+  - [32mexpo-updates[0m (56.0.25)
+  - [32mexpo-updates-interface[0m (56.0.2)
+  - [32mfolio-local-language[0m (0.1.0)
+  - [32mfolio-local-vault[0m (0.1.0)
+  - [32mfolio-reader[0m (0.1.0)
+  - [33m[📦][0m [32mexpo-dom-webview[0m (56.0.6)
+  - [33m[📦][0m [32mexpo-ui[0m (56.0.26)
+  - [33m[📦][0m [32mexpo-application[0m (56.0.3)
+  - [33m[📦][0m [32mexpo-asset[0m (56.0.23)
+  - [33m[📦][0m [32mexpo-audio[0m (56.0.13)
+  - [33m[📦][0m [32mexpo-crypto[0m (56.0.4)
+  - [33m[📦][0m [32mexpo-document-picker[0m (56.0.4)
+  - [33m[📦][0m [32mexpo-file-system[0m (56.0.10)
+  - [33m[📦][0m [32mexpo-font[0m (56.0.7)
+  - [33m[📦][0m [32mexpo-haptics[0m (56.0.3)
+  - [33m[📦][0m [32mexpo-image-loader[0m (56.0.3)
+  - [33m[📦][0m [32mexpo-image-picker[0m (56.0.24)
+  - [33m[📦][0m [32mexpo-intent-launcher[0m (56.0.4)
+  - [33m[📦][0m [32mexpo-keep-awake[0m (56.0.3)
+  - [33m[📦][0m [32mexpo-linking[0m (56.0.17)
+  - [33m[📦][0m [32mexpo-local-authentication[0m (56.0.5)
+  - [33m[📦][0m [32mexpo-notifications[0m (56.0.24)
+  - [33m[📦][0m [32mexpo-print[0m (56.0.4)
+  - [33m[📦][0m [32mexpo-router[0m (56.2.19)
+  - [33m[📦][0m [32mexpo-secure-store[0m (56.0.4)
+  - [33m[📦][0m [32mexpo-sharing[0m (56.0.25)
+  - [33m[📦][0m [32mexpo-splash-screen[0m (56.0.14)
+  - [33m[📦][0m [32mexpo-status-bar[0m (56.0.4)
+  - [33m[📦][0m [32mexpo-system-ui[0m (56.0.5)
+  - [33m[📦][0m [32mexpo-web-browser[0m (56.0.6)
+
+
+> Configure project :op-engineering_op-sqlite
+[OP-SQLITE] Detected op-sqlite config from package.json at: C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile\android\..\package.json
+[OP-SQLITE] using sqlcipher.
+[OP-SQLITE] Performance mode enabled
+[OP-SQLITE] FTS5 enabled
+
+> Task :folio-local-language:preBuild UP-TO-DATE
+> Task :expo-updates:preBuild UP-TO-DATE
+> Task :expo-manifests:preBuild UP-TO-DATE
+> Task :folio-local-vault:preBuild UP-TO-DATE
+> Task :expo-modules-core:preBuild UP-TO-DATE
+> Task :expo-dev-client:preBuild UP-TO-DATE
+> Task :expo-dev-launcher:preBuild UP-TO-DATE
+> Task :clerk-expo-passkeys:preBuild UP-TO-DATE
+> Task :expo-json-utils:preBuild UP-TO-DATE
+> Task :expo-iap:preBuild UP-TO-DATE
+> Task :folio-reader:preBuild UP-TO-DATE
+> Task :expo-dev-menu:preBuild UP-TO-DATE
+> Task :expo-structured-headers:preBuild UP-TO-DATE
+> Task :expo-eas-client:preBuild UP-TO-DATE
+> Task :expo-dev-menu-interface:preBuild UP-TO-DATE
+> Task :expo-updates-interface:preBuild UP-TO-DATE
+> Task :expo-log-box:preBuild UP-TO-DATE
+> Task :expo-speech-recognition:preBuild UP-TO-DATE
+> Task :react-native-masked-view_masked-view:preBuild UP-TO-DATE
+> Task :expo-dev-launcher:preReleaseBuild UP-TO-DATE
+> Task :expo-dev-client:preReleaseBuild UP-TO-DATE
+> Task :clerk-expo-passkeys:preReleaseBuild UP-TO-DATE
+> Task :expo-iap:preReleaseBuild UP-TO-DATE
+> Task :expo-eas-client:preReleaseBuild UP-TO-DATE
+> Task :expo:generatePackagesList UP-TO-DATE
+> Task :expo-dev-menu:preReleaseBuild UP-TO-DATE
+> Task :expo-dev-menu-interface:preReleaseBuild UP-TO-DATE
+> Task :expo-json-utils:preReleaseBuild UP-TO-DATE
+> Task :expo:preBuild UP-TO-DATE
+> Task :expo:preReleaseBuild UP-TO-DATE
+> Task :op-engineering_op-sqlite:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :expo-dev-launcher:generateReleaseResValues UP-TO-DATE
+> Task :expo-eas-client:generateReleaseResValues UP-TO-DATE
+> Task :expo-json-utils:generateReleaseResValues UP-TO-DATE
+> Task :expo:generateReleaseResValues UP-TO-DATE
+> Task :expo-iap:generateReleaseResValues UP-TO-DATE
+> Task :clerk-expo-passkeys:generateReleaseResValues UP-TO-DATE
+> Task :expo-dev-menu:generateReleaseResValues UP-TO-DATE
+> Task :expo-dev-menu-interface:generateReleaseResValues UP-TO-DATE
+> Task :sentry_react-native:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-safe-area-context:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :expo-dev-client:generateReleaseResValues UP-TO-DATE
+> Task :react-native-community_datetimepicker:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-community_slider:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-gesture-handler:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :expo-eas-client:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-dev-launcher:extractDeepLinksRelease UP-TO-DATE
+> Task :expo:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-json-utils:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-android-widget:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :expo-iap:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-dev-menu-interface:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-dev-menu:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-dev-client:extractDeepLinksRelease UP-TO-DATE
+> Task :clerk-expo-passkeys:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-screens:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :op-engineering_op-sqlite:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-svg:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-android-widget:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :sentry_react-native:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :expo-dev-client:processReleaseManifest UP-TO-DATE
+> Task :expo-dev-menu:processReleaseManifest UP-TO-DATE
+> Task :react-native-android-widget:preBuild UP-TO-DATE
+> Task :expo-iap:processReleaseManifest UP-TO-DATE
+> Task :expo-manifests:preReleaseBuild UP-TO-DATE
+> Task :sentry_react-native:preBuild UP-TO-DATE
+> Task :expo-modules-core:preReleaseBuild UP-TO-DATE
+> Task :expo-log-box:preReleaseBuild UP-TO-DATE
+> Task :expo-speech-recognition:preReleaseBuild UP-TO-DATE
+> Task :expo-structured-headers:preReleaseBuild UP-TO-DATE
+> Task :expo:processReleaseManifest UP-TO-DATE
+> Task :expo-dev-launcher:processReleaseManifest UP-TO-DATE
+> Task :expo-eas-client:processReleaseManifest UP-TO-DATE
+> Task :expo-json-utils:processReleaseManifest UP-TO-DATE
+> Task :expo-dev-menu-interface:processReleaseManifest UP-TO-DATE
+> Task :expo-updates:preReleaseBuild UP-TO-DATE
+> Task :react-native-community_datetimepicker:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :expo-manifests:generateReleaseResValues UP-TO-DATE
+> Task :react-native-gesture-handler:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :expo-updates-interface:preReleaseBuild UP-TO-DATE
+> Task :expo-modules-core:generateReleaseResValues UP-TO-DATE
+> Task :react-native-community_slider:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :expo-speech-recognition:generateReleaseResValues UP-TO-DATE
+> Task :folio-local-vault:preReleaseBuild UP-TO-DATE
+> Task :expo-log-box:generateReleaseResValues UP-TO-DATE
+> Task :expo-structured-headers:generateReleaseResValues UP-TO-DATE
+> Task :folio-local-language:preReleaseBuild UP-TO-DATE
+> Task :react-native-community_datetimepicker:preBuild UP-TO-DATE
+> Task :expo-updates:generateReleaseResValues UP-TO-DATE
+> Task :react-native-gesture-handler:preBuild UP-TO-DATE
+> Task :expo-updates-interface:generateReleaseResValues UP-TO-DATE
+> Task :clerk-expo-passkeys:processReleaseManifest UP-TO-DATE
+> Task :expo-manifests:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-modules-core:extractDeepLinksRelease UP-TO-DATE
+> Task :op-engineering_op-sqlite:prepareHeaders UP-TO-DATE
+> Task :react-native-safe-area-context:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :folio-local-language:generateReleaseResValues UP-TO-DATE
+> Task :expo-speech-recognition:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-structured-headers:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-safe-area-context:preBuild UP-TO-DATE
+> Task :expo-log-box:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-community_slider:preBuild UP-TO-DATE
+> Task :react-native-community_datetimepicker:preReleaseBuild UP-TO-DATE
+> Task :folio-local-vault:generateReleaseResValues UP-TO-DATE
+> Task :react-native-android-widget:preReleaseBuild UP-TO-DATE
+> Task :folio-reader:preReleaseBuild UP-TO-DATE
+> Task :op-engineering_op-sqlite:preBuild UP-TO-DATE
+> Task :react-native-screens:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :expo-updates:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-android-widget:generateReleaseResValues UP-TO-DATE
+> Task :react-native-community_slider:preReleaseBuild UP-TO-DATE
+> Task :react-native-gesture-handler:preReleaseBuild UP-TO-DATE
+> Task :react-native-screens:preBuild UP-TO-DATE
+> Task :expo-updates-interface:extractDeepLinksRelease UP-TO-DATE
+> Task :folio-local-language:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-masked-view_masked-view:preReleaseBuild UP-TO-DATE
+> Task :react-native-community_datetimepicker:generateReleaseResValues UP-TO-DATE
+> Task :react-native-android-widget:extractDeepLinksRelease UP-TO-DATE
+> Task :folio-local-vault:extractDeepLinksRelease UP-TO-DATE
+> Task :op-engineering_op-sqlite:preReleaseBuild UP-TO-DATE
+> Task :react-native-community_slider:generateReleaseResValues UP-TO-DATE
+> Task :react-native-gesture-handler:generateReleaseResValues UP-TO-DATE
+> Task :op-engineering_op-sqlite:generateReleaseResValues UP-TO-DATE
+> Task :expo-speech-recognition:processReleaseManifest UP-TO-DATE
+> Task :react-native-safe-area-context:preReleaseBuild UP-TO-DATE
+> Task :expo-modules-core:processReleaseManifest UP-TO-DATE
+> Task :folio-reader:generateReleaseResValues UP-TO-DATE
+> Task :react-native-screens:preReleaseBuild UP-TO-DATE
+> Task :expo-manifests:processReleaseManifest UP-TO-DATE
+> Task :expo-structured-headers:processReleaseManifest UP-TO-DATE
+> Task :sentry_react-native:preReleaseBuild UP-TO-DATE
+> Task :react-native-masked-view_masked-view:generateReleaseResValues UP-TO-DATE
+> Task :react-native-community_slider:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-gesture-handler:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-community_datetimepicker:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-safe-area-context:generateReleaseResValues UP-TO-DATE
+> Task :op-engineering_op-sqlite:extractDeepLinksRelease UP-TO-DATE
+> Task :sentry_react-native:generateReleaseResValues UP-TO-DATE
+> Task :react-native-screens:generateReleaseResValues UP-TO-DATE
+> Task :expo-updates:processReleaseManifest UP-TO-DATE
+> Task :folio-local-language:processReleaseManifest UP-TO-DATE
+> Task :folio-local-vault:processReleaseManifest UP-TO-DATE
+> Task :react-native-svg:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :expo-updates-interface:processReleaseManifest UP-TO-DATE
+> Task :expo-log-box:processReleaseManifest UP-TO-DATE
+> Task :react-native-masked-view_masked-view:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-svg:preBuild UP-TO-DATE
+> Task :sentry_react-native:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-safe-area-context:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-screens:extractDeepLinksRelease UP-TO-DATE
+> Task :folio-reader:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-community_slider:processReleaseManifest UP-TO-DATE
+> Task :react-native-android-widget:processReleaseManifest UP-TO-DATE
+> Task :react-native-svg:preReleaseBuild UP-TO-DATE
+> Task :react-native-svg:generateReleaseResValues UP-TO-DATE
+> Task :react-native-masked-view_masked-view:processReleaseManifest UP-TO-DATE
+> Task :react-native-community_datetimepicker:processReleaseManifest UP-TO-DATE
+> Task :op-engineering_op-sqlite:processReleaseManifest UP-TO-DATE
+> Task :react-native-gesture-handler:processReleaseManifest UP-TO-DATE
+> Task :react-native-safe-area-context:processReleaseManifest UP-TO-DATE
+> Task :folio-reader:processReleaseManifest UP-TO-DATE
+> Task :react-native-svg:extractDeepLinksRelease UP-TO-DATE
+> Task :sentry_react-native:processReleaseManifest UP-TO-DATE
+> Task :react-native-screens:processReleaseManifest UP-TO-DATE
+> Task :react-native-svg:processReleaseManifest UP-TO-DATE
+> Task :react-native-reanimated:assertMinimalReactNativeVersionTask
+> Task :react-native-reanimated:assertNewArchitectureEnabledTask SKIPPED
+> Task :react-native-worklets:assertMinimalReactNativeVersionTask
+> Task :react-native-worklets:assertNewArchitectureEnabledTask SKIPPED
+> Task :react-native-worklets:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-worklets:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-worklets:prepareWorkletsHeadersForPrefabs UP-TO-DATE
+> Task :react-native-worklets:preBuild
+> Task :react-native-worklets:preReleaseBuild
+> Task :react-native-worklets:generateReleaseResValues UP-TO-DATE
+> Task :react-native-worklets:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-reanimated:assertWorkletsVersionTask
+> Task :react-native-reanimated:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-reanimated:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-reanimated:prepareReanimatedHeadersForPrefabs UP-TO-DATE
+> Task :react-native-reanimated:preBuild
+> Task :react-native-reanimated:preReleaseBuild
+> Task :react-native-reanimated:generateReleaseResValues UP-TO-DATE
+> Task :react-native-reanimated:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-worklets:processReleaseManifest UP-TO-DATE
+> Task :react-native-reanimated:processReleaseManifest UP-TO-DATE
+
+> Task :expo-constants:createExpoConfig
+🔍 [expo-iap] Config values: horizonAppId=undefined, isHorizonEnabled=false, isOnsideEnabled=false
+📦 [expo-iap] Using OpenIAP from CocoaPods
+› [@sentry/react-native/expo] Missing config for organization, project. Environment variables will be used as a fallback during the build. https://docs.sentry.io/platforms/react-native/manual-setup/
+
+> Task :expo-constants:preBuild
+> Task :expo-constants:preReleaseBuild
+> Task :expo-constants:generateReleaseResValues UP-TO-DATE
+> Task :expo-constants:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-constants:processReleaseManifest UP-TO-DATE
+
+> Task :app:createBundleReleaseJsAndAssets
+🔍 [expo-iap] Config values: horizonAppId=undefined, isHorizonEnabled=false, isOnsideEnabled=false
+📦 [expo-iap] Using OpenIAP from CocoaPods
+Expo Autolinking module resolution enabled
+› [@sentry/react-native/expo] Missing config for organization, project. Environment variables will be used as a fallback during the build. https://docs.sentry.io/platforms/react-native/manual-setup/
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:54556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+ WARN  Attempted to import the module "C:\dev\melo-native-today-batch1-2026-08-24\node_modules\@noble\hashes\crypto.js" which is not listed in the "exports" of "C:\dev\melo-native-today-batch1-2026-08-24\node_modules\@noble\hashes" under the requested subpath "./crypto.js". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+Android Bundled 13057ms node_modules\expo-router\entry.js (2861 modules)
+Writing bundle output to: android\app\build\generated\assets\react\release\index.android.bundle
+Writing sourcemap output to: android\app\build\intermediates\sourcemaps\react\release\index.android.bundle.packager.map
+Copying 54 asset files
+Done writing bundle output
+Done writing sourcemap output
+
+> Task :app:createBundleReleaseJsAndAssets_SentryUpload_com.folio.v2.greenfield.capture@0.0.5+5_5 SKIPPED
+
+> Task :app:createBundleReleaseJsAndAssets_SentryCollectModules_com.folio.v2.greenfield.capture@0.0.5+5_5
+Sentry Logger [log]: Reading source map from C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile\android\app\build\generated\sourcemaps\react\release\index.android.bundle.map
+Sentry Logger [log]: Saving modules to C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile/android/app/src/main/assets/modules.json
+Sentry Logger [log]: Resolving modules from paths C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile/node_modules
+Sentry Logger [log]: Modules collected and saved to: C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile/android/app/src/main/assets/modules.json
+
+> Task :app:generateAutolinkingNewArchitectureFiles UP-TO-DATE
+> Task :app:generateAutolinkingPackageList UP-TO-DATE
+> Task :app:generateCodegenSchemaFromJavaScript SKIPPED
+> Task :app:generateCodegenArtifactsFromSchema SKIPPED
+> Task :app:generateReactNativeEntryPoint UP-TO-DATE
+> Task :app:preBuild
+> Task :app:preReleaseBuild
+> Task :app:generateReleaseResValues UP-TO-DATE
+> Task :app:extractDeepLinksRelease
+> Task :app:createBundleReleaseJsAndAssets_SentryUploadCleanUp SKIPPED
+
+> Task :app:processReleaseMainManifest
+C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile\android\app\src\main\AndroidManifest.xml:6:3-95 Warning:
+	uses-permission#android.permission.SYSTEM_ALERT_WINDOW was tagged at AndroidManifest.xml:6 to remove other declarations but no other declaration present
+C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile\android\app\src\main\AndroidManifest.xml Warning:
+	provider#expo.modules.filesystem.FileSystemFileProvider@android:authorities was tagged at AndroidManifest.xml:0 to replace other declarations but no other declaration present
+C:\dev\melo-native-today-batch1-2026-08-24\apps\mobile\android\app\src\main\AndroidManifest.xml Warning:
+	activity#expo.modules.imagepicker.ExpoCropImageActivity@android:exported was tagged at AndroidManifest.xml:0 to replace other declarations but no other declaration present
+
+[Incubating] Problems report is available at: file:///C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 1m 50s
+170 actionable tasks: 8 executed, 162 up-to-date

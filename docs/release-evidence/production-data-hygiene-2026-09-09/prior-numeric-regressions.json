@@ -1,0 +1,99 @@
+{
+  "sourceSuite": [
+    {
+      "file": "C:/dev/melo-native-today-batch1-2026-08-24/packages/finance-engine/test/financialPlan.payday.test.ts",
+      "tests": 17,
+      "passed": true,
+      "assertions": [
+        "current-cash and payday boundary invariants uses the same receipt invariant when scheduled income is supplied through cashflows",
+        "current-cash and payday boundary invariants keeps explicitly hypothetical untagged cashflow deltas separate from posted actual history",
+        "current-cash and payday boundary invariants exact release reproduction protects £950 bills, £300 essentials and £200 buffer from £1800",
+        "current-cash and payday boundary invariants monthly 2026-09-27 uses future boundary 2026-09-28 with no scheduled money available early",
+        "current-cash and payday boundary invariants monthly 2026-09-28 uses future boundary 2026-10-28 with no scheduled money available early",
+        "current-cash and payday boundary invariants monthly 2026-09-29 uses future boundary 2026-10-28 with no scheduled money available early",
+        "current-cash and payday boundary invariants weekly on 2026-09-27 preserves the day-before/day-after boundary",
+        "current-cash and payday boundary invariants weekly on 2026-09-29 preserves the day-before/day-after boundary",
+        "current-cash and payday boundary invariants irregular on 2026-09-27 preserves the day-before/day-after boundary",
+        "current-cash and payday boundary invariants irregular on 2026-09-29 preserves the day-before/day-after boundary",
+        "current-cash and payday boundary invariants does not merge different legitimate receipts on the same day, and rejects repeated event IDs",
+        "current-cash and payday boundary invariants unreceived salary today is never credited; confirming it changes only the current balance",
+        "current-cash and payday boundary invariants posted cash movements of either sign today and in history are already in the balance",
+        "current-cash and payday boundary invariants weekly income today moves protection to the next actual dated receipt",
+        "current-cash and payday boundary invariants irregular income today moves protection to the next actual dated receipt",
+        "current-cash and payday boundary invariants one-off unconfirmed income today cannot create a known future payday or extra cash",
+        "current-cash and payday boundary invariants counts a future receipt once in the forecast and excludes its entire day from pre-income spending"
+      ]
+    },
+    {
+      "file": "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/folio/debtPaymentLedger.test.ts",
+      "tests": 18,
+      "passed": true,
+      "assertions": [
+        "debt payment canonical ledger corrections posts the reachable LogPaymentSheet API to cash, debt and editable canonical history",
+        "debt payment canonical ledger corrections uses the manual sheet scoped undo to restore the full cash effect on an overpayment",
+        "debt payment canonical ledger corrections requires an explicit cash account for ambiguous manual payments and posts only the selected account",
+        "debt payment canonical ledger corrections closes the exact £40 to £100 Fixture B reproduction and matches direct £100",
+        "debt payment canonical ledger corrections reverses the edited amount once on delete and restores the same posting on undo",
+        "debt payment canonical ledger corrections supports repeated increases, decreases, edit undo and no-op edits with pence precision",
+        "debt payment canonical ledger corrections moves the linked debt and liability effects atomically, including undo",
+        "debt payment canonical ledger corrections tracks capped principal separately from cash so overpayment edit and delete are reversible",
+        "debt payment canonical ledger corrections does not lose unrelated cash entries when reversing a completed payment",
+        "debt payment canonical ledger corrections rejects invalid replacement amounts and unavailable debt without any partial money writes",
+        "debt payment canonical ledger corrections persists the exact effects through native blob hydration and canonical SQLite projection",
+        "debt payment canonical ledger corrections is idempotent for retried creation identifiers and protects an edited payment from stale creation undo",
+        "debt payment canonical ledger corrections does not infer reversible effects from pre-fix merchant labels or mutate unsafe legacy payments",
+        "debt payment canonical ledger corrections preserves later balance adjustments on metadata edits and replays exact capped effects on deletion undo",
+        "debt payment canonical ledger corrections retains later manual debt increases when reducing an earlier overpayment amount",
+        "debt payment canonical ledger corrections replays later capped principal when editing an earlier payment and then deleting the later one",
+        "debt payment canonical ledger corrections replays downstream caps on deletion and undo without duplicating cash movements",
+        "debt payment canonical ledger corrections retains monotonic posting order after deletion, restart, another payment and restoration"
+      ]
+    },
+    {
+      "file": "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/folio/lib/financialObligations.test.ts",
+      "tests": 16,
+      "passed": true,
+      "assertions": [
+        "unpaid occurrence financial release regressions adding the 101st calendar event cannot delete the oldest unpaid bill or release its money",
+        "unpaid occurrence financial release regressions a skipped future cycle stays resolved after resume, while undo before due restores it",
+        "unpaid occurrence financial release regressions protects the exact £950 overdue-rent reproduction: £500 safe on September 13",
+        "unpaid occurrence financial release regressions a one-cycle pause and late resume retain all subsequent unpaid cycles",
+        "unpaid occurrence financial release regressions retains the original unpaid occurrence through hydration/foreground date rolling",
+        "unpaid occurrence financial release regressions retains this month’s debt minimum after its due date",
+        "unpaid occurrence financial release regressions retains each overdue recurring bill exactly once, alongside its next occurrence",
+        "unpaid occurrence financial release regressions paid/settled/cancelled occurrences release only their own protection",
+        "unpaid occurrence financial release regressions partial payments preserve the unpaid remainder without charging current cash again",
+        "unpaid occurrence financial release regressions a prospective pause retains overdue and due-today bills",
+        "unpaid occurrence financial release regressions bill date nudges retain stable occurrence identity and cannot resurrect a paid cycle",
+        "unpaid occurrence financial release regressions explicit confirmations are idempotent and reversible without changing cash or debt",
+        "unpaid occurrence financial release regressions retains bill/debt/calendar occurrence state through canonical repository serialization and restart projection",
+        "unpaid occurrence financial release regressions debt due-day and minimum edits preserve accrued debt obligations without duplicating this cycle",
+        "unpaid occurrence financial release regressions a future debt due-day correction moves the unaccrued cycle and preserves partial accrued payments",
+        "unpaid occurrence financial release regressions partial/paid/unpaid confirmations preserve original accrued amounts after a schedule edit"
+      ]
+    },
+    {
+      "file": "C:/dev/melo-native-today-batch1-2026-08-24/apps/mobile/src/folio/lib/financialPlan.payday.test.ts",
+      "tests": 6,
+      "passed": true,
+      "assertions": [
+        "mobile payday release regression keeps route safety aligned with the full plan when irregular payday is beyond the 35-day chart",
+        "mobile payday release regression returns £350 from the release reproduction including the income-source adapter",
+        "mobile payday release regression applies the same protection when only onboarding monthly pay is available",
+        "mobile payday release regression does not spend a scheduled salary today until the user records the received cash balance",
+        "mobile payday release regression uses the next weekly owner payday after today and protects all seven days of essentials",
+        "mobile payday release regression treats an irregular manual receipt today as scheduled and uses the next separately dated receipt"
+      ]
+    }
+  ],
+  "expectedValues": {
+    "paydaySafeGBP": 350,
+    "overdueRentSafeGBP": 500,
+    "corrected100PaymentGBP": {
+      "cash": 1700,
+      "debt": 220,
+      "safe": 280
+    }
+  },
+  "nativeNote": "The replacement APK native run is recorded separately in s9-assertions.jsonl."
+}

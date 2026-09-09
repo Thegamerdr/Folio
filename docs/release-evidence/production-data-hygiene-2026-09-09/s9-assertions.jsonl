@@ -1,0 +1,29 @@
+{"time": "2026-09-09T16:29:38+0100", "label": "fresh-onboarding", "includes": ["Your name", "Today stays empty"], "excludes": ["Spotify", "Klarna", "Netflix", "Sample numbers"], "pass": true}
+{"time": "2026-09-09T16:30:00+0100", "label": "fresh-today", "includes": ["Your first picture", "Add my numbers"], "excludes": ["£", "Spotify", "Klarna", "Netflix"], "pass": true}
+{"time": "2026-09-09T16:30:16+0100", "label": "fresh-plan", "includes": ["0 THINGS STILL TO LEAVE", "£0", "No unpaid bills or debt minimums"], "excludes": ["Spotify", "Netflix", "Klarna", "£100", "£720"], "pass": true}
+{"time": "2026-09-09T16:30:20+0100", "label": "fresh-whatif", "includes": ["Add some moves first."], "excludes": ["£40", "£325"], "pass": true}
+{"time": "2026-09-09T16:30:47+0100", "label": "fresh-review", "includes": ["Nothing waiting to be checked."], "excludes": ["Spotify", "Klarna", "Netflix"], "pass": true}
+{"time": "2026-09-09T16:31:03+0100", "label": "fresh-activity", "includes": ["Nothing decided yet."], "excludes": ["Tesco", "Spotify", "Klarna", "£"], "pass": true}
+{"time": "2026-09-09T16:31:15+0100", "label": "fresh-insights", "includes": ["Nothing wrapped up yet", "wait for a real cycle"], "excludes": ["Held the line", "May", "April"], "pass": true}
+{"time": "2026-09-09T16:32:01+0100", "label": "fresh-sources", "includes": ["Not connected in this build"], "excludes": ["£", "Spotify"], "pass": true}
+{"time": "2026-09-09T16:33:10+0100", "label": "setup-default-buffer-zero", "includes": ["YOUR BUFFER", "£0"], "excludes": ["£100"], "pass": true}
+{"time": "2026-09-09T16:33:47+0100", "label": "setup-income-zero", "includes": ["£0", "Exact income/ month"], "excludes": ["2,180"], "pass": true}
+{"time": "2026-09-09T16:34:11+0100", "label": "setup-balance-zero", "includes": ["£0", "Exact current account balance"], "excludes": ["£720", "1,240"], "pass": true}
+{"time": "2026-09-09T16:37:13+0100", "label": "manual-bill-input", "includes": ["Manual rent", "£100", "12"], "excludes": [], "pass": true}
+{"time": "2026-09-09T16:37:34+0100", "label": "manual-today-350", "includes": ["£350.00", "From £500", "£1,000 coming in before payday, £100 going out."], "excludes": ["Spotify", "Klarna", "Netflix", "£720", "£1,240"], "pass": true}
+{"time": "2026-09-09T16:37:47+0100", "label": "manual-plan-350", "includes": ["1 THING STILL TO LEAVE", "£100", "£350", "Manual rent, £100, Sat 12"], "excludes": ["Spotify", "Netflix", "Klarna"], "pass": true}
+{"time": "2026-09-09T16:38:03+0100", "label": "manual-plan-only-entered-bill", "includes": ["Manual rent", "£100", "no pots yet", "£0"], "excludes": ["Spotify", "Netflix", "Klarna", "Holiday"], "pass": true}
+{"time": "2026-09-09T16:38:26+0100", "label": "manual-no-debts", "includes": ["No outstanding debts are recorded.", "£350.00", "£0.00"], "excludes": ["Klarna", "Amex"], "pass": true}
+{"time": "2026-09-09T16:38:45+0100", "label": "offline-restart-today-350", "includes": ["£350.00", "From £500", "£1,000 coming in before payday, £100 going out."], "excludes": ["Spotify", "Netflix", "Klarna", "£1,240"], "pass": true}
+{"time": "2026-09-09T16:38:50+0100", "label": "offline-restart-plan-350", "includes": ["1 THING STILL TO LEAVE", "£100", "£350", "Manual rent, £100, Sat 12"], "excludes": ["Spotify", "Netflix", "Klarna"], "pass": true}
+{"time": "2026-09-09T16:39:53+0100", "label": "reset-confirmation-1", "includes": ["Clear local money and history?", "CANCEL"], "excludes": [], "pass": true}
+{"time": "2026-09-09T16:40:00+0100", "label": "reset-cancel-preserves-money", "includes": ["£350.00", "From £500"], "excludes": [], "pass": true}
+{"time": "2026-09-09T16:40:33+0100", "label": "reset-confirmation-2", "includes": ["Are you sure?", "CANCEL"], "excludes": [], "pass": true}
+{"time": "2026-09-09T16:40:37+0100", "label": "reset-confirmation-3", "includes": ["Clear this device now?", "CANCEL"], "excludes": [], "pass": true}
+{"time": "2026-09-09T16:40:54+0100", "label": "reset-success", "includes": ["Local data cleared"], "excludes": [], "pass": true}
+{"time": "2026-09-09T16:41:06+0100", "label": "reset-empty-start", "includes": ["See where you stand"], "excludes": ["£350", "£500", "Hygiene", "Manual rent"], "pass": true}
+{"time": "2026-09-09T16:41:21+0100", "label": "reset-guided-default-zero", "includes": ["What money can you see today?", "£0"], "excludes": ["£1,240", "1240", "£500"], "pass": true}
+{"time": "2026-09-09T16:41:26+0100", "label": "reset-today-empty", "includes": ["Add my numbers"], "excludes": ["£350", "£500", "Manual rent", "Spotify", "Klarna"], "pass": true}
+{"time": "2026-09-09T16:41:31+0100", "label": "reset-plan-empty", "includes": ["0 THINGS STILL TO LEAVE", "£0"], "excludes": ["Manual rent", "£350", "Spotify", "Klarna"], "pass": true}
+{"time": "2026-09-09T16:41:52+0100", "label": "reset-offline-restart-today-empty", "includes": ["Your first picture", "Add my numbers"], "excludes": ["£", "Hygiene", "Manual rent", "Spotify", "Klarna"], "pass": true}
+{"time": "2026-09-09T16:41:57+0100", "label": "reset-offline-restart-plan-empty", "includes": ["0 THINGS STILL TO LEAVE", "£0"], "excludes": ["Manual rent", "£350", "Spotify", "Klarna"], "pass": true}

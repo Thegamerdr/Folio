@@ -1,0 +1,24 @@
+{
+  "package": "com.folio.v2.greenfield.capture",
+  "version": "0.0.5",
+  "label": "Melo QA",
+  "schemes": [
+    "folio-qa",
+    "exp+folio-v2-greenfield.capture"
+  ],
+  "updatesEnabled": "false",
+  "providerAuthorities": [
+    "com.folio.v2.greenfield.capture.rnwidget.imageprovider",
+    "com.folio.v2.greenfield.capture.FileSystemFileProvider",
+    "com.folio.v2.greenfield.capture.SharingFileProvider",
+    "com.folio.v2.greenfield.capture.ImagePickerFileProvider",
+    "com.folio.v2.greenfield.capture.androidx-startup",
+    "com.folio.v2.greenfield.capture.cropper.fileprovider",
+    "com.folio.v2.greenfield.capture.mlkitinitprovider",
+    "com.folio.v2.greenfield.capture.firebaseinitprovider",
+    "com.folio.v2.greenfield.capture.SentryInitProvider",
+    "com.folio.v2.greenfield.capture.SentryPerformanceProvider"
+  ],
+  "task": ":app:processReleaseMainManifest",
+  "isolated": true
+}
