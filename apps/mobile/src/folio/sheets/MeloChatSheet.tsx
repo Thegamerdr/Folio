@@ -472,7 +472,16 @@ function MeloChat({
     decidedRef.current.add(callId);
 
     const name = suggestion.type.replace(/^tool-/, '');
-    const result = applyMeloTool(name, suggestion.input ?? {});
+    let result: ReturnType<typeof applyMeloTool>;
+    try {
+      result = applyMeloTool(name, suggestion.input ?? {});
+    } catch {
+      recordToolSettlement(
+        callId,
+        settleMeloToolApplication(false, 'This change could not be saved. Check the current account and details, then try again.'),
+      );
+      return;
+    }
     const outputMessage = result.applied ? result.summary : result.reason;
     recordToolSettlement(callId, settleMeloToolApplication(result.applied, outputMessage));
 
