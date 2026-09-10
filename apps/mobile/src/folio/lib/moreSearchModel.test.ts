@@ -27,4 +27,25 @@ describe('moreSearchModel', () => {
     })[0];
     expect(result?.target).toEqual({ kind: 'sheet', sheet: 'declare-debt' });
   });
+
+  it('keeps legacy subscription searches working after the inclusive destination rename', () => {
+    const data = { pots: [], subscriptions: ['Rent + bills', 'Spotify'], debts: [] };
+    for (const query of ['subscriptions', 'subscription', 'subs']) {
+      const results = buildMoreSearchResults(query, data);
+      expect(results.map((row) => row.label)).toEqual([
+        'Rent + bills',
+        'Spotify',
+        'Bills and commitments',
+      ]);
+      expect(
+        results.every((row) => row.target.kind === 'screen' && row.target.screen === 'subs'),
+      ).toBe(true);
+    }
+    const destination = buildMoreSearchResults('bills and commitments', data);
+    expect(destination).toHaveLength(1);
+    expect(destination[0]?.target).toEqual({ kind: 'screen', screen: 'subs' });
+    expect(buildMoreSearchResults('rent', data)[0]?.meta).toBe(
+      'Bill / commitment · recurring charge',
+    );
+  });
 });

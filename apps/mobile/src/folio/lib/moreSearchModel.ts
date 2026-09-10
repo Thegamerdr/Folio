@@ -74,7 +74,7 @@ const DESTINATIONS: readonly MoreSearchResult[] = [
   },
   {
     id: 'subs',
-    label: 'Subscriptions',
+    label: 'Bills and commitments',
     meta: 'recurring charges',
     target: { kind: 'screen', screen: 'subs' },
   },
@@ -148,7 +148,7 @@ export function buildMoreSearchResults(query: string, data: MoreSearchData): Mor
     ...data.subscriptions.map((name, index) => ({
       id: `sub-${index}-${name}`,
       label: name,
-      meta: 'Subscription · recurring charge',
+      meta: 'Bill / commitment · recurring charge',
       target: { kind: 'screen' as const, screen: 'subs' as const },
     })),
     ...data.debts.map((name, index) => ({
@@ -161,7 +161,12 @@ export function buildMoreSearchResults(query: string, data: MoreSearchData): Mor
   const all = [...ACTIONS, ...records, ...DESTINATIONS];
   const needle = query.trim().toLocaleLowerCase();
   if (!needle) return all;
-  return all.filter((result) =>
-    `${result.label} ${result.meta}`.toLocaleLowerCase().includes(needle),
-  );
+  return all.filter((result) => {
+    // Keep the established subscription search vocabulary while naming the inclusive surface.
+    const aliases =
+      result.target.kind === 'screen' && result.target.screen === 'subs'
+        ? 'subscriptions subscription · recurring charge'
+        : '';
+    return `${result.label} ${result.meta} ${aliases}`.toLocaleLowerCase().includes(needle);
+  });
 }

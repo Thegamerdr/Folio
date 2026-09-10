@@ -250,7 +250,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   const destinations = [
     { label: 'Calendar', meta: 'the dates that matter', onPress: () => nav.go('calendar') },
     {
-      label: 'Bills & commitments',
+      label: 'Bills and commitments',
       meta: `${liveSubs.length} tracked`,
       onPress: () => nav.go('subs'),
     },
@@ -506,7 +506,9 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
               </View>
               <View style={styles.statLine}>
                 <View>
-                  <Text style={[styles.statLabel, { color: t.ink }]}>Subscriptions running</Text>
+                  <Text style={[styles.statLabel, { color: t.ink }]}>
+                    Bills and commitments tracked
+                  </Text>
                   <Text style={[styles.statCaption, { color: t.muted }]}>
                     {liveSubs.length ? 'renewing on their own' : 'none active'}
                   </Text>

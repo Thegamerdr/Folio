@@ -492,8 +492,8 @@ export function TodayScreen({
       : 0;
   const scrubLowCopy =
     scrubLowAmount < 0
-      ? `£${groupedPounds(Math.abs(scrubLowAmount))} short`
-      : `£${groupedPounds(scrubLowAmount)} after recorded costs`;
+      ? `${formatMoney(Math.abs(scrubLowAmount))} short`
+      : `${formatMoney(scrubLowAmount)} after recorded costs`;
 
   // Loading branch (STATES.md / spec): never a spinner. When the shell explicitly hands a loading
   // state, Folio holds the screen on Melo (curious) + one quoted line — the same calm "working it
@@ -550,8 +550,7 @@ export function TodayScreen({
                 accessibilityRole="button"
                 accessibilityLabel={`${daysToPayday} day${daysToPayday === 1 ? '' : 's'} to payday`}
                 onPress={() => nav.go('ritual')}
-                hitSlop={8}
-                style={({ pressed: p }) => (p ? pressed : undefined)}
+                style={({ pressed: p }) => [styles.headerAction, p ? pressed : undefined]}
               >
                 <Text style={[styles.headerDays, { color: t.muted }]} numberOfLines={1}>
                   {daysToPayday}d to payday
@@ -563,7 +562,7 @@ export function TodayScreen({
                 accessibilityRole="button"
                 accessibilityLabel={`Current state: ${STATE_WORD[effectiveMode]}. Tap to change.`}
                 onPress={() => nav.openSheet('lens-picker')}
-                style={({ pressed: p }) => (p ? pressed : undefined)}
+                style={({ pressed: p }) => [styles.headerAction, p ? pressed : undefined]}
               >
                 <Text style={[styles.headerState, { color: t.muted }]} numberOfLines={1}>
                   {STATE_WORD[effectiveMode]}
@@ -699,9 +698,9 @@ export function TodayScreen({
               </Text>
               <View style={[styles.sinceRule, { backgroundColor: t.hairline }]} />
               <Text style={[styles.sinceValue, { color: t.ink }]}>
-                {sinceLastOpen.spend > 0 ? `−£${groupedPounds(sinceLastOpen.spend)}` : ''}
+                {sinceLastOpen.spend > 0 ? formatMoney(-sinceLastOpen.spend) : ''}
                 {sinceLastOpen.spend > 0 && sinceLastOpen.income > 0 ? ' · ' : ''}
-                {sinceLastOpen.income > 0 ? `+£${groupedPounds(sinceLastOpen.income)}` : ''}
+                {sinceLastOpen.income > 0 ? `+${formatMoney(sinceLastOpen.income)}` : ''}
               </Text>
             </View>
           ) : null}
@@ -1359,6 +1358,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     columnGap: 8,
   },
+  headerAction: { minHeight: 48, justifyContent: 'center' },
   trialRow: {
     minHeight: 28,
     alignItems: 'flex-end',
@@ -1378,7 +1378,7 @@ const styles = StyleSheet.create({
     fontFamily: weightFamily(400),
     fontSize: 12.5,
   },
-  weatherButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  weatherButton: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   weatherDisc: {
     width: 24,
     height: 24,
@@ -1544,15 +1544,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryDecisionText: { fontFamily: weightFamily(600), fontSize: 14, letterSpacing: -0.07 },
-  workingLink: { minHeight: 44, marginTop: 12, justifyContent: 'center', alignSelf: 'flex-start' },
+  workingLink: { minHeight: 48, marginTop: 12, justifyContent: 'center', alignSelf: 'flex-start' },
   checksRow: {
     paddingHorizontal: 28,
     marginTop: gap.md,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: gap.sm,
   },
   checkPill: {
-    height: 28,
+    minHeight: 48,
     paddingHorizontal: gap.md,
     borderRadius: 999,
     justifyContent: 'center',

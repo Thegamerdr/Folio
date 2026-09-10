@@ -588,7 +588,9 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
           </View>
           <View style={[styles.statLine, { borderBottomColor: t.hairline }]}>
             <View>
-              <Text style={[styles.statLabel, { color: t.ink }]}>Subscriptions running</Text>
+              <Text style={[styles.statLabel, { color: t.ink }]}>
+                Bills and commitments tracked
+              </Text>
               <Text style={[styles.statCaption, { color: t.muted }]}>
                 {liveSubs.length ? 'renewing on their own' : 'none active'}
               </Text>
@@ -636,7 +638,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
             ]}
           >
             <View>
-              <Text style={[styles.destinationLabel, { color: t.ink }]}>Subscriptions</Text>
+              <Text style={[styles.destinationLabel, { color: t.ink }]}>Bills and commitments</Text>
               <Text style={[styles.destinationMeta, { color: t.muted }]}>
                 {liveSubs.length} active
               </Text>

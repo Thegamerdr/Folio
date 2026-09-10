@@ -150,11 +150,11 @@ export const copy = {
 
   // ## Subscriptions
   subs: {
-    title: 'Subscriptions',
+    title: 'Bills and commitments',
     empty: {
-      head: 'No subs **yet.**',
-      body: 'Melo will spot recurring charges as you add statements.',
-      cta: 'Add a subscription',
+      head: 'No bills added **yet.**',
+      body: 'Add rent, household bills, subscriptions or another regular payment.',
+      cta: 'Add a bill',
     },
     paused: 'Paused',
     caught: {
@@ -164,7 +164,7 @@ export const copy = {
       // Defaults to 'monthly' when omitted so every existing call site (and its copy/fixture
       // tests) keeps its exact prior string, byte-for-byte.
       body: (cadence: string = 'monthly'): string =>
-        `Looks like a ${cadence} charge. Add it to subscriptions so Melo can plan around it?`,
+        `Looks like a ${cadence} charge. Add it to Bills and commitments so Melo can plan around it?`,
     },
   },
 

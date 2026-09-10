@@ -188,7 +188,7 @@ export function MoreScreen({ nav, state = 'populated' }: MoreScreenProps) {
       rows: [
         {
           label: 'Search Melo',
-          meta: 'jump to pots, subscriptions, settings and actions',
+          meta: 'jump to pots, bills and commitments, settings and actions',
           to: 'search',
         },
       ],

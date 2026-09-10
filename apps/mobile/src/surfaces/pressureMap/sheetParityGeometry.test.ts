@@ -8,7 +8,6 @@ const source = readFileSync(fileURLToPath(new URL('./Sheet.tsx', import.meta.url
 describe('shared sheet parity geometry', () => {
   it('allows every panel to shrink inside the keyboard-reduced safe viewport', () => {
     expect(source).toMatch(/panel: \{[\s\S]*?flexShrink: 1,/);
-    expect(source).toContain('paddingTop: insets.top');
   });
 
   it('keeps the pinned 36x3 grip and 27px content start across every sheet', () => {

@@ -214,7 +214,7 @@ const SCREEN_TITLE: Readonly<Record<ScreenId, string>> = {
   'add-bill': 'Add a bill',
   'add-debt': 'Add a debt',
   recovery: 'Recovery',
-  subs: 'Subscriptions',
+  subs: 'Bills and commitments',
   pots: 'Pots',
   ritual: 'Payday ritual',
   insights: 'Insights',

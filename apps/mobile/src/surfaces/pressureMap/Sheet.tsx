@@ -18,6 +18,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -26,23 +27,33 @@ import {
 } from 'react';
 import {
   Animated,
+  Dimensions,
   Easing,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
+  type KeyboardEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion as useSystemReducedMotion } from 'react-native-reanimated';
 
 import { elevation, gap, useTheme, type Palette } from './kit';
 import { announceSurfaceRepaint } from './sheetRepaint';
-import { resolveSheetBottomOffset } from './sheetGeometry';
+import {
+  resolveSheetBottomOffset,
+  resolveSheetFocusedScroll,
+  resolveSheetKeyboardFrame,
+  resolveSheetNavigationOffset,
+  resolveSheetViewport,
+  type SheetWindowFrame,
+} from './sheetGeometry';
 
 // The web sheet rounds its top to 28px (rounded-t-[28px]). The kit's radius.xxl (32) is a
 // touch too round for the sheet lip, so the sheet keeps its own constant to match the web.
@@ -55,7 +66,7 @@ const SHEET_RADIUS = 28;
 const HANDLE_WIDTH = 36;
 const HANDLE_HEIGHT = 3;
 
-// The pinned sheet rises through no more than 82% of the window so the children never push the
+// The pinned sheet rises through no more than 92% of the window so the children never push the
 // scrim entirely off the top; anything beyond that scrolls inside the panel.
 const MAX_HEIGHT_FRACTION = 0.92;
 
@@ -171,7 +182,7 @@ export function Sheet({
   scrollKey,
   scrollRef,
 }: SheetProps) {
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
   const portal = useContext(SheetPortalContext);
   // Screen content receives a zero-inset viewport from FolioShell. Portalled sheets still own
@@ -179,21 +190,40 @@ export function Sheet({
   const insets = portal?.insets ?? localInsets;
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
-  const maxHeight = Math.max(
-    0,
-    Math.min(Math.round(height * MAX_HEIGHT_FRACTION), height - insets.top - insets.bottom),
-  );
+  const rootRef = useRef<View>(null);
+  const [windowFrame, setWindowFrame] = useState<SheetWindowFrame>({ x: 0, y: 0, width, height });
+  const [keyboardMetrics, setKeyboardMetrics] = useState(() => Keyboard.metrics());
+  const screenHeight = Dimensions.get('screen').height;
   // Android portal sheets already live inside the shell's safe product viewport. Applying the
   // full-window navigation inset again made the panel materially taller than the pinned sheet.
   // iOS Modal sheets still own the full window and retain their native safe-area contribution.
-  const panelBottomPadding = Platform.OS === 'ios' ? insets.bottom + gap.xl : gap.xl + gap.sm;
+  const restingPanelBottomPadding =
+    Platform.OS === 'ios' ? insets.bottom + gap.xl : gap.xl + gap.sm;
   const portalId = useId();
   const usesAndroidPortal = Platform.OS === 'android' && portal !== null;
-  const panelBottomOffset = resolveSheetBottomOffset({
-    platform: Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : 'other',
-    usesAndroidPortal,
-    bottomInset: insets.bottom,
+  const restingBottomOffset = usesAndroidPortal
+    ? resolveSheetNavigationOffset(windowFrame, screenHeight, insets.bottom)
+    : resolveSheetBottomOffset({
+        platform: Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : 'other',
+        usesAndroidPortal,
+        bottomInset: insets.bottom,
+      });
+  const keyboardFrame = resolveSheetKeyboardFrame(
+    keyboardMetrics,
+    Platform.OS === 'android' ? Number(Platform.Version) : null,
+    screenHeight,
+    insets.bottom,
+  );
+  const viewport = resolveSheetViewport({
+    frame: windowFrame,
+    keyboard: keyboardFrame,
+    topInset: insets.top,
+    bottomOffset: restingBottomOffset,
+    maxHeightFraction: MAX_HEIGHT_FRACTION,
   });
+  const maxHeight = viewport.maxHeight;
+  const panelBottomOffset = viewport.bottom;
+  const panelBottomPadding = viewport.keyboardOccludesBottom ? gap.md : restingPanelBottomPadding;
   // Self-hosting sheets discover AccessibilityInfo asynchronously after mounting. Reanimated keeps
   // the same Android system preference synchronously, which prevents even one unwanted animated
   // frame when Remove animations is already on.
@@ -212,8 +242,83 @@ export function Sheet({
   const entryHeight = useRef(height);
   const internalScrollRef = useRef<ScrollView>(null);
   const bodyScrollRef = scrollRef ?? internalScrollRef;
+  const scrollY = useRef(0);
+  const focusFrame = useRef<number | null>(null);
+  const keepFocusedInputVisible = useCallback(() => {
+    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    focusFrame.current = requestAnimationFrame(() => {
+      focusFrame.current = null;
+      const focused = TextInput.State.currentlyFocusedInput();
+      const body = bodyScrollRef.current;
+      if (!visible || !scrollable || !focused || !body) return;
+      const bodyNative = body.getNativeScrollRef();
+      if (!bodyNative) return;
+      bodyNative.measureInWindow((_bodyX, bodyTop, _bodyWidth, bodyHeight) => {
+        focused.measureInWindow((_inputX, inputTop, _inputWidth, inputHeight) => {
+          // Focus can change while native measurements are in flight.
+          if (TextInput.State.currentlyFocusedInput() !== focused) return;
+          const nextY = resolveSheetFocusedScroll({
+            scrollY: scrollY.current,
+            inputTop,
+            inputHeight,
+            bodyTop,
+            bodyHeight,
+          });
+          if (Math.abs(nextY - scrollY.current) > 1) {
+            scrollY.current = nextY;
+            body.scrollTo({ y: nextY, animated: !shouldReduceMotion });
+          }
+        });
+      });
+    });
+  }, [bodyScrollRef, scrollable, shouldReduceMotion, visible]);
+  const measureViewport = useCallback(() => {
+    rootRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      if (measuredWidth <= 0 || measuredHeight <= 0) return;
+      setWindowFrame((current) =>
+        current.x === x &&
+        current.y === y &&
+        current.width === measuredWidth &&
+        current.height === measuredHeight
+          ? current
+          : { x, y, width: measuredWidth, height: measuredHeight },
+      );
+      keepFocusedInputVisible();
+    });
+  }, [keepFocusedInputVisible]);
+  useLayoutEffect(() => {
+    if (visible) measureViewport();
+  }, [visible, width, height, measureViewport]);
   useEffect(() => {
-    if (visible) bodyScrollRef.current?.scrollTo({ y: 0, animated: false });
+    if (!visible) return;
+    setKeyboardMetrics(Keyboard.metrics());
+    const show = (event: KeyboardEvent) => {
+      if (Platform.OS === 'ios' && !shouldReduceMotion) Keyboard.scheduleLayoutAnimation(event);
+      setKeyboardMetrics(event.endCoordinates);
+      measureViewport();
+    };
+    const hide = (event: KeyboardEvent) => {
+      if (Platform.OS === 'ios' && !shouldReduceMotion) Keyboard.scheduleLayoutAnimation(event);
+      setKeyboardMetrics(undefined);
+      measureViewport();
+    };
+    const subscriptions = [
+      Keyboard.addListener(
+        Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow',
+        show,
+      ),
+      Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', hide),
+    ];
+    return () => {
+      subscriptions.forEach((subscription) => subscription.remove());
+      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    };
+  }, [measureViewport, shouldReduceMotion, visible]);
+  useEffect(() => {
+    if (visible) {
+      scrollY.current = 0;
+      bodyScrollRef.current?.scrollTo({ y: 0, animated: false });
+    }
   }, [visible, scrollKey, bodyScrollRef]);
   const scrimOpacity = useRef(new Animated.Value(0)).current;
   const wasVisible = useRef(visible);
@@ -307,21 +412,24 @@ export function Sheet({
   const sheetLayer = useMemo(
     () =>
       visible ? (
-        <View style={[layout.root, usesAndroidPortal ? layout.portalLayer : undefined]}>
+        <View
+          ref={rootRef}
+          collapsable={false}
+          onLayout={measureViewport}
+          onFocus={keepFocusedInputVisible}
+          style={[layout.root, usesAndroidPortal ? layout.portalLayer : undefined]}
+        >
           <AnimatedPressable
             accessible={false}
             importantForAccessibility="no"
             onPress={handleClose}
             style={[s.scrim, { opacity: scrimOpacity }]}
           />
-          <KeyboardAvoidingView
-            // Edge-to-edge Android no longer guarantees that adjustResize will lift an absolute
-            // sheet. Constrain the avoider height there so focused inputs stay above the IME, and
-            // reserve the top safe area so a tall keyboard-lifted form never sits under the status
-            // bar. iOS keeps its padding behaviour.
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          <View
+            // The panel and sticky footer live in the measured rectangle above the actual IME.
+            // Using explicit edges also handles Android windows that have already resized.
             pointerEvents="box-none"
-            style={[layout.avoider, { bottom: panelBottomOffset, paddingTop: insets.top }]}
+            style={[layout.avoider, { top: viewport.top, bottom: panelBottomOffset }]}
           >
             <Animated.View
               accessibilityViewIsModal
@@ -357,7 +465,13 @@ export function Sheet({
                   contentContainerStyle={layout.scrollContent}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
-                  automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                  automaticallyAdjustKeyboardInsets={false}
+                  onLayout={keepFocusedInputVisible}
+                  onContentSizeChange={keepFocusedInputVisible}
+                  onScroll={(event) => {
+                    scrollY.current = event.nativeEvent.contentOffset.y;
+                  }}
+                  scrollEventThrottle={16}
                   showsVerticalScrollIndicator
                 >
                   {children}
@@ -367,7 +481,7 @@ export function Sheet({
               )}
               {footer ? <View style={s.footer}>{footer}</View> : null}
             </Animated.View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
       ) : null,
     [
@@ -377,6 +491,9 @@ export function Sheet({
       handleClose,
       insets.bottom,
       insets.top,
+      viewport.top,
+      measureViewport,
+      keepFocusedInputVisible,
       maxHeight,
       panelBottomOffset,
       panelBottomPadding,
@@ -445,8 +562,7 @@ const layout = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
-  // The keyboard avoider overlays the same flex-end column as root, so the panel still sits at the
-  // bottom; when the keyboard shows on iOS the avoider's padding pushes the panel up above it.
+  // Explicit top/bottom edges constrain the panel and footer above the measured keyboard.
   avoider: {
     position: 'absolute',
     top: 0,

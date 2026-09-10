@@ -83,14 +83,14 @@ function selectionReply(change: RequestedChange, count: number): string {
       : 'There are no paused subscriptions to resume.';
   }
   return change === 'pause'
-    ? 'Which subscription do you want to pause? Nothing changes until you review it in Subscriptions.'
-    : 'Which subscription do you want to resume? Nothing changes until you review it in Subscriptions.';
+    ? 'Which subscription do you want to pause? Nothing changes until you review it in Bills and commitments.'
+    : 'Which subscription do you want to resume? Nothing changes until you review it in Bills and commitments.';
 }
 
 /**
  * Resolve a narrowly-scoped subscription command from local state. This never writes. It only
  * names an existing row, calculates the exact active-recurring-total delta, and routes the user to
- * the dedicated Subscriptions surface where the reversible change already belongs.
+ * the dedicated Bills and commitments surface where the reversible change already belongs.
  */
 export function resolveMeloSubscriptionRequest(
   prompt: string,
@@ -139,7 +139,7 @@ export function resolveMeloSubscriptionRequest(
       state: 'review',
       reply: `I found ${subscription.name}, but its stored monthly amount needs review before I can calculate a change. Nothing changed.`,
       actionLabel: 'Review subscription amount',
-      actionDetail: `Open Subscriptions and correct ${subscription.name} before pausing or resuming it.`,
+      actionDetail: `Open Bills and commitments and correct ${subscription.name} before pausing or resuming it.`,
     };
   }
   const currentMonthlyMinor = monthlyMinor(state.subs, state.subPaused);
@@ -149,7 +149,7 @@ export function resolveMeloSubscriptionRequest(
     return {
       state: 'review',
       reply: `${subscription.name} is already paused, so its ${poundsFromMinor(subscriptionMinor)} monthly charge is already excluded from your active recurring total. Nothing changed.`,
-      actionLabel: 'Open subscriptions',
+      actionLabel: 'Open bills and commitments',
       actionDetail: `Review ${subscription.name} and its current paused state locally.`,
     };
   }
@@ -157,7 +157,7 @@ export function resolveMeloSubscriptionRequest(
     return {
       state: 'review',
       reply: `${subscription.name} is already active at ${poundsFromMinor(subscriptionMinor)} a month. Nothing changed.`,
-      actionLabel: 'Open subscriptions',
+      actionLabel: 'Open bills and commitments',
       actionDetail: `Review ${subscription.name} and its current active state locally.`,
     };
   }
@@ -174,6 +174,6 @@ export function resolveMeloSubscriptionRequest(
       request.change === 'pause'
         ? `Review ${subscription.name} pause`
         : `Review ${subscription.name} resume`,
-    actionDetail: `Open Subscriptions to review and apply the ${request.change}; the dedicated surface keeps the change reversible.`,
+    actionDetail: `Open Bills and commitments to review and apply the ${request.change}; the dedicated surface keeps the change reversible.`,
   };
 }
