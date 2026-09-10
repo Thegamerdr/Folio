@@ -281,7 +281,12 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
             {financialAmountLabel(financialPlan, financePresentation)}
           </Text>
           <View style={s.numberRow}>
-            <Text style={[s.number, { color: t.ink }]}>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+              numberOfLines={1}
+              style={[s.number, { color: t.ink }]}
+            >
               {formatMoney(financialPlan.safeToSpendMinor / 100)}
             </Text>
           </View>
@@ -539,6 +544,7 @@ function makeStyles(t: Palette) {
     number: {
       fontFamily: serif.display,
       fontSize: 56,
+      flexShrink: 1,
       lineHeight: 56,
       fontVariant: ['tabular-nums'],
     },

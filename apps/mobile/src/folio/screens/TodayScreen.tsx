@@ -668,6 +668,9 @@ export function TodayScreen({
               <Text style={[styles.heroQualifier, { color: t.muted }]}>about</Text>
             ) : null}
             <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+              numberOfLines={1}
               style={[
                 styles.heroNumber,
                 { color: t.ink, fontSize: heroFigureSize, lineHeight: heroFigureSize * 0.9 },
@@ -1519,6 +1522,7 @@ const styles = StyleSheet.create({
   heroNumber: {
     fontFamily: serif.display,
     fontSize: 64,
+    flexShrink: 1,
     lineHeight: 64,
     fontVariant: ['tabular-nums'],
   },
