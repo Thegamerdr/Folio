@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getState, resetToEmpty, setPartial, togglePaused, repayToPot } from '../store';
+import {
+  getState,
+  resetToEmpty,
+  setPartial,
+  togglePaused,
+  repayToPot,
+  subscriptionWithPause,
+} from '../store';
 import { MODE_LABEL } from './modes/types';
 import {
   ritualOptionalSteps,
@@ -45,6 +52,26 @@ describe('ritual step meaning and continuity', () => {
       detail:
         'Melo has not paused payments with the provider. Check their payment schedule before relying on this date.',
     });
+  });
+  it('does not present an automatically inferred pause reason as the user’s reason', () => {
+    const paused = subscriptionWithPause(
+      {
+        name: 'Evidence streaming',
+        cost: 20,
+        nextRenewalDaysAway: 2,
+        nextRenewalISO: '2026-09-12',
+        usesPerMonth: 0,
+        lastUsedDaysAgo: 0,
+      },
+      true,
+      '2026-09-10',
+    );
+    expect(paused.pauseReason).toBe("you hadn't used it");
+    const presentation = ritualPausePresentation(paused);
+    expect(presentation.date).toBe('Paused in your forecast until 13 Sept 2026');
+    expect(presentation.detail).toContain('Melo has not paused payments with the provider.');
+    expect(JSON.stringify(presentation)).not.toMatch(/because|hadn.t used|resumes/);
+    expect(ritualPausePresentation({ cost: 20 }).date).toBe('Paused in your forecast');
   });
   it('keeps optional steps stable after their existing repayment and resume mutations run', () => {
     setPartial({

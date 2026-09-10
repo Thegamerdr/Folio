@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { getState, resetToEmpty, type AppState } from '../store';
 import { buildFinancialPlanFromState } from './financialPlan';
 import { buildRecoveryRoutePreview } from './recoveryPreview';
-import { selectRecoveryPreviewPresentation } from './recoveryPreviewPresentation';
+import {
+  recoveryPathCaption,
+  selectRecoveryPreviewPresentation,
+} from './recoveryPreviewPresentation';
 
 const now = new Date('2026-09-10T12:00:00Z');
 beforeEach(() => resetToEmpty());
@@ -34,6 +37,35 @@ function fixture(): AppState {
   };
 }
 describe('Recovery preview safety prerequisites', () => {
+  it('labels a £20 improvement separately from the £5 result of a £15 gap', () => {
+    const base = fixture();
+    const state: AppState = {
+      ...base,
+      currentBalance: { ...base.currentBalance, amount: 905 },
+      subs: base.subs.map((sub) => ({ ...sub, cost: 20 })),
+    };
+    const plan = buildFinancialPlanFromState(state, { now });
+    const route = buildRecoveryRoutePreview(state, now);
+    expect(plan.safeToSpendMinor).toBe(-1500);
+    expect(route.shortfall).toBe(15);
+    expect(route.subscriptionLift).toBe(20);
+    const after = -route.shortfall + route.subscriptionLift;
+    expect(after).toBe(5);
+    expect(
+      recoveryPathCaption({
+        hasSelection: true,
+        estimateOnly: false,
+        improvement: route.subscriptionLift,
+        shortfall: route.shortfall,
+      }),
+    ).toBe('+£20 forecast improvement');
+    expect(selectRecoveryPreviewPresentation(state, plan, after, true)).toMatchObject({
+      closesGap: true,
+      canReassure: false,
+      mood: 'concern',
+    });
+    expect(plan.safeToSpendMinor).toBe(-1500);
+  });
   it('keeps a canonical positive pause preview conditional while overdue rent remains', () => {
     const state = fixture();
     const before = JSON.stringify(state);

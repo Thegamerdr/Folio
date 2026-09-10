@@ -69,6 +69,7 @@ import { formatMoney, formatFinancialDate } from '@/folio/lib/financialPresentat
 import { toFinancialPlanInput } from '@/folio/lib/financialPlan';
 import { setSubscriptionOccurrenceResolution } from '@/folio/lib/obligationState';
 import { createScopedFinancialUndo } from '@/folio/lib/scopedFinancialUndo';
+import { ritualPausePresentation } from '@/folio/lib/ritualStepPresentation';
 
 import {
   type AppState,
@@ -844,6 +845,7 @@ function SubscriptionRow({
 }) {
   const hasTrial = typeof sub.trialEndsInDays === 'number';
   const annualCost = subscriptionAnnualCost(sub);
+  const pausePresentation = paused ? ritualPausePresentation(sub) : null;
   const [manageOpen, setManageOpen] = useState(false);
   const latestPaid = Object.entries(sub.obligationOccurrences ?? {})
     .filter(([, resolution]) => resolution.status === 'paid')
@@ -882,10 +884,9 @@ function SubscriptionRow({
                     ? 'Yearly commitment'
                     : 'Monthly commitment'}
           </Text>
-          {paused && (sub.pauseReason || sub.pausedUntil) ? (
-            <Text style={s.pauseDetail} numberOfLines={2}>
-              {sub.pauseReason ? `paused because ${sub.pauseReason}` : 'paused for one cycle'}
-              {sub.pausedUntil ? ` · resumes ${formatArchiveDate(sub.pausedUntil)}` : ''}
+          {pausePresentation ? (
+            <Text style={s.pauseDetail}>
+              {pausePresentation.date}. {pausePresentation.detail}
             </Text>
           ) : null}
         </View>

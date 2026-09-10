@@ -70,7 +70,10 @@ import {
   type WhatIfHold,
 } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
-import { buildWhatIfPresentation } from '@/folio/lib/whatIfPresentation';
+import {
+  buildWhatIfPresentation,
+  selectWhatIfCurrentPresentation,
+} from '@/folio/lib/whatIfPresentation';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 import {
   selectFinancialPresentation,
@@ -425,6 +428,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
     [appState, now],
   );
   const presentation = selectFinancialPresentation(appState, plan);
+  const currentPresentation = selectWhatIfCurrentPresentation(appState, plan);
   const scenario = useMemo(
     () => buildWhatIfPresentation(appState, now ?? EPOCH, amount, recurrence, paydayShift),
     [appState, now, amount, recurrence, paydayShift],
@@ -732,11 +736,10 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
                   : 'Current · after recorded costs'}
               </Text>
               <Text style={styles.tileValue}>{formatGBP(baseLow)}</Text>
-              <Text style={styles.tileCaption}>
-                {newLow < 0
-                  ? 'No room remains after recorded costs and buffer.'
-                  : `Until ${formatFinancialDate(scenario.preview.nextIncomeDate)}`}
-              </Text>
+              <Text style={styles.tileCaption}>{currentPresentation.caption}</Text>
+              {currentPresentation.qualification ? (
+                <Text style={styles.tileCaption}>{currentPresentation.qualification}</Text>
+              ) : null}
             </View>
           </View>
 
@@ -851,15 +854,16 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
                   ]}
                 >
                   <Text style={styles.holdAmount}>
-                    £{hold.amount} <Text style={styles.holdRecurrence}>· {hold.recurrence}</Text>
+                    {formatGBP(hold.amount)}{' '}
+                    <Text style={styles.holdRecurrence}>· {hold.recurrence}</Text>
                   </Text>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Remove £${hold.amount} ${hold.recurrence} hold`}
+                    accessibilityLabel={`Remove ${formatGBP(hold.amount)} ${hold.recurrence} hold`}
                     onPress={() => removeWhatIfHold(hold.id)}
-                    hitSlop={10}
+                    style={styles.removeHoldButton}
                   >
-                    <Text style={styles.removeHold}>remove</Text>
+                    <Text style={styles.removeHold}>Remove</Text>
                   </Pressable>
                 </View>
               ))}
@@ -1228,16 +1232,32 @@ function makeStyles(t: Palette) {
     holdRow: {
       alignItems: 'center',
       flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: gap.sm,
       justifyContent: 'space-between',
-      minHeight: 44,
+      minHeight: 56,
+      paddingVertical: gap.xs,
     },
     holdAmount: {
       color: t.ink,
+      flexBasis: 120,
+      flexGrow: 1,
+      flexShrink: 1,
       fontSize: 13,
       fontVariant: ['tabular-nums'],
     },
     holdRecurrence: { color: t.muted, fontSize: 11.5 },
-    removeHold: { color: t.muted, fontSize: 11.5 },
+    removeHoldButton: {
+      alignItems: 'center',
+      backgroundColor: t.inset,
+      borderRadius: radius.md,
+      flexShrink: 0,
+      justifyContent: 'center',
+      minHeight: 48,
+      minWidth: 64,
+      paddingHorizontal: gap.sm,
+    },
+    removeHold: { color: t.ink, fontSize: 13 },
     saveHold: {
       alignItems: 'center',
       backgroundColor: t.calm,

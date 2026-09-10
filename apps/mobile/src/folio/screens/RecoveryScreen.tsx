@@ -87,7 +87,10 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { getState, nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
 import { buildRecoveryReceipt, type RecoveryAction } from '@/folio/lib/recoveryReceipt';
 import { fundedPotForShortfall } from '@/folio/lib/shortfallNavigation';
-import { selectRecoveryPreviewPresentation } from '@/folio/lib/recoveryPreviewPresentation';
+import {
+  recoveryPathCaption,
+  selectRecoveryPreviewPresentation,
+} from '@/folio/lib/recoveryPreviewPresentation';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { buildRecoveryRoutePreview, RECOVERY_BILL_NUDGE_DAYS } from '@/folio/lib/recoveryPreview';
 import { EmptyState } from '@/folio/ui/EmptyState';
@@ -862,13 +865,12 @@ function RecoveryPathPreview({
   const baseD = routePath(base, domain);
   const candidateD = candidate ? routePath(candidate, domain) : '';
   const estimateOnly = selectedMove !== null && !candidate;
-  const caption = selectedMove
-    ? estimateOnly
-      ? `+${formatMoney(selectedLift)} estimated from recent spending`
-      : `+${formatMoney(selectedLift)} after recorded costs`
-    : shortfall > 0
-      ? 'Projected path to payday'
-      : 'Projected path to payday · no gap';
+  const caption = recoveryPathCaption({
+    hasSelection: selectedMove !== null,
+    estimateOnly,
+    improvement: selectedLift,
+    shortfall,
+  });
 
   return (
     <View

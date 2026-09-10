@@ -34,6 +34,7 @@ import {
   Text,
   View,
   type LayoutChangeEvent,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -92,6 +93,7 @@ import {
   financialAmountLabel,
 } from '@/folio/lib/financialPresentation';
 import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
+import { shouldStackTextRows } from '@/folio/lib/readableLayout';
 
 import { derivePressure } from './today/pressure';
 import { selectPaydayTightPoint, tightPointDayLabel } from '@/folio/lib/moneyPath';
@@ -140,6 +142,9 @@ export function TodayScreen({
   const t = useTodayTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
+  const { width, fontScale } = useWindowDimensions();
+  // This four-part header has less spare width than paired financial rows.
+  const stackHeader = fontScale > 1 || shouldStackTextRows(width, fontScale, 48);
 
   // Live store reads. Today's tightest mirrors the Route/Calendar exactly — but the route inputs
   // (subs/subPaused/subOverrides/transactions/income/balance/pots) are now read inside `useRoute`,
@@ -530,40 +535,54 @@ export function TodayScreen({
   return (
     <Animated.View style={[styles.root, enterStyle, { paddingTop: insets.top }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Source authority: one subordinate status row only. Date + payday horizon sit on the
-            left; the plain-language state + weather disc sit on the right. Melo has no standalone
-            header doorway in the accepted composition. */}
+        {/* Keep the compact status header at baseline size. Enlarged text gets separate rows
+            for date, payday and state so every existing action remains readable. */}
         <View style={[styles.header, { paddingTop: gap.xs }]}>
-          <View style={styles.headerRow}>
-            <View style={styles.headerHorizon}>
-              <Text style={[styles.headerDate, { color: t.muted }]} numberOfLines={1}>
+          <View style={[styles.headerRow, stackHeader && styles.headerRowStacked]}>
+            <View style={[styles.headerHorizon, stackHeader && styles.headerHorizonStacked]}>
+              <Text
+                style={[styles.headerDate, { color: t.muted }]}
+                numberOfLines={stackHeader ? undefined : 1}
+              >
                 {(now ?? new Date()).toLocaleDateString('en-GB', {
                   day: 'numeric',
                   month: 'short',
                 })}
               </Text>
-              <Text style={[styles.headerSeparator, { color: t.muted }]} aria-hidden>
-                {' · '}
-              </Text>
+              {!stackHeader ? (
+                <Text style={[styles.headerSeparator, { color: t.muted }]} aria-hidden>
+                  {' · '}
+                </Text>
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${daysToPayday} day${daysToPayday === 1 ? '' : 's'} to payday`}
                 onPress={() => nav.go('ritual')}
                 style={({ pressed: p }) => [styles.headerAction, p ? pressed : undefined]}
               >
-                <Text style={[styles.headerDays, { color: t.muted }]} numberOfLines={1}>
+                <Text
+                  style={[styles.headerDays, { color: t.muted }]}
+                  numberOfLines={stackHeader ? undefined : 1}
+                >
                   {daysToPayday}d to payday
                 </Text>
               </Pressable>
             </View>
-            <View style={styles.headerStateGroup}>
+            <View style={[styles.headerStateGroup, stackHeader && styles.headerStateGroupStacked]}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Current state: ${STATE_WORD[effectiveMode]}. Tap to change.`}
                 onPress={() => nav.openSheet('lens-picker')}
-                style={({ pressed: p }) => [styles.headerAction, p ? pressed : undefined]}
+                style={({ pressed: p }) => [
+                  styles.headerAction,
+                  stackHeader && styles.headerStateActionStacked,
+                  p ? pressed : undefined,
+                ]}
               >
-                <Text style={[styles.headerState, { color: t.muted }]} numberOfLines={1}>
+                <Text
+                  style={[styles.headerState, { color: t.muted }]}
+                  numberOfLines={stackHeader ? undefined : 1}
+                >
                   {STATE_WORD[effectiveMode]}
                 </Text>
               </Pressable>
@@ -1343,6 +1362,15 @@ const styles = StyleSheet.create({
     columnGap: 12,
     minHeight: 44,
   },
+  headerRowStacked: { flexDirection: 'column', alignItems: 'stretch' },
+  headerHorizonStacked: {
+    flex: 0,
+    width: '100%',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  headerStateGroupStacked: { width: '100%', flexShrink: 1 },
+  headerStateActionStacked: { flex: 1, minWidth: 0 },
   headerHorizon: {
     flex: 1,
     minWidth: 0,
@@ -1355,7 +1383,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     columnGap: 8,
   },
-  headerAction: { minHeight: 48, justifyContent: 'center' },
+  headerAction: { minHeight: 48, maxWidth: '100%', justifyContent: 'center' },
   trialRow: {
     minHeight: 28,
     alignItems: 'flex-end',

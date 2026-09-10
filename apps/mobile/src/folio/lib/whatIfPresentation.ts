@@ -1,6 +1,28 @@
-import { calculateFinancialPlan } from '@folio/finance-engine';
+import { calculateFinancialPlan, type FinancialPlanResult } from '@folio/finance-engine';
 import type { AppState, WhatIfHold } from '../store';
 import { toFinancialPlanInput } from './financialPlan';
+import { formatFinancialDate, selectFinancialPresentation } from './financialPresentation';
+
+/** The current tile describes the current plan, independent of the proposed spend or payday. */
+export function selectWhatIfCurrentPresentation(state: AppState, plan: FinancialPlanResult) {
+  const presentation = selectFinancialPresentation(state, plan);
+  const amountDescription =
+    plan.safeToSpendMinor > 0
+      ? 'Remaining after recorded costs and buffer.'
+      : plan.safeToSpendMinor === 0
+        ? 'No room remains after recorded costs and buffer.'
+        : 'Recorded costs and buffer leave a gap.';
+  return {
+    caption: `${amountDescription}${plan.nextIncomeDate ? ` Until ${formatFinancialDate(plan.nextIncomeDate)}.` : ''}`,
+    qualification:
+      !presentation.complete ||
+      !plan.nextIncomeDate ||
+      presentation.overdueCount > 0 ||
+      presentation.pendingReview > 0
+        ? presentation.label
+        : null,
+  };
+}
 
 /** Preview uses exactly the saved-hold contract; moving payday remains a separate, unsaved test. */
 export function buildWhatIfPresentation(

@@ -2,6 +2,26 @@ import type { FinancialPlanResult } from '@folio/finance-engine';
 import type { AppState } from '../store';
 import { formatMoney, selectFinancialPresentation } from './financialPresentation';
 
+/** The chart annotation names the move's change, separately from the resulting amount. */
+export function recoveryPathCaption({
+  hasSelection,
+  estimateOnly,
+  improvement,
+  shortfall,
+}: {
+  hasSelection: boolean;
+  estimateOnly: boolean;
+  improvement: number;
+  shortfall: number;
+}) {
+  if (!hasSelection) {
+    return shortfall > 0 ? 'Projected path to payday' : 'Projected path to payday · no gap';
+  }
+  return estimateOnly
+    ? `+${formatMoney(improvement)} estimated from recent spending`
+    : `+${formatMoney(improvement)} forecast improvement`;
+}
+
 /** A forecast preview does not confirm overdue payments or unchecked source figures. Keep those
  * recorded prerequisites until commit, while presenting the existing canonical move's amount. */
 export function selectRecoveryPreviewPresentation(

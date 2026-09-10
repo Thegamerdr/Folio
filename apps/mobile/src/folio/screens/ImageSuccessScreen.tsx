@@ -320,14 +320,16 @@ export function ImageSuccessScreen({
   // Keep the large statement out of this screen's ScrollView. Its FlatList owns vertical scrolling.
   if (isBulk) {
     return (
-      <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
+      // The account picker and review list must stay visible even if a native entrance
+      // animation is interrupted by keyboard dismissal or an account-selection rerender.
+      <View style={[styles.root, { backgroundColor: t.canvas }]}>
         <BulkStatementLanding
           nav={nav}
           candidates={rawCandidates}
           {...(closingBalance !== undefined ? { closingBalance } : {})}
           onAdded={() => clearReaderCandidates()}
         />
-      </Animated.View>
+      </View>
     );
   }
 
