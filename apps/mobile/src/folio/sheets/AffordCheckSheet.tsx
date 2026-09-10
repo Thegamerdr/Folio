@@ -229,18 +229,41 @@ function AffordCheckForm({
       onClose={onClose}
       reduceMotion={reduceMotion}
       footer={
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: amount <= 0 }}
-          disabled={amount <= 0}
-          onPress={() => {
-            setCheckedAmount(amount);
-            Keyboard.dismiss();
-          }}
-          style={[s.shelfCta, { opacity: amount > 0 ? 1 : 0.5 }]}
-        >
-          <Text style={s.shelfCtaLabel}>Check this amount</Text>
-        </Pressable>
+        verdict === null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: amount <= 0 }}
+            disabled={amount <= 0}
+            onPress={() => {
+              setCheckedAmount(amount);
+              Keyboard.dismiss();
+            }}
+            style={[s.shelfCta, { opacity: amount > 0 ? 1 : 0.5 }]}
+          >
+            <Text style={s.shelfCtaLabel}>Check this amount</Text>
+          </Pressable>
+        ) : (
+          <View style={s.footerActions}>
+            {canShelf && amount > 0 && (
+              <PressCta
+                label="Shelf it for a day"
+                onPress={shelfIt}
+                reduceMotion={reduceMotion}
+                style={s.shelfCta}
+                labelStyle={s.shelfCtaLabel}
+                accessibilityLabel="Shelf it for a day"
+              />
+            )}
+            <PressCta
+              label="Done"
+              onPress={onClose}
+              reduceMotion={reduceMotion}
+              style={[s.doneCta, canShelf && amount > 0 ? s.doneCtaSecondary : s.doneCtaPrimary]}
+              labelStyle={canShelf && amount > 0 ? s.doneCtaLabelSecondary : s.doneCtaLabelPrimary}
+              accessibilityLabel="Done"
+            />
+          </View>
+        )
       }
     >
       <View style={s.body}>
@@ -332,26 +355,6 @@ function AffordCheckForm({
               : 'Enter an amount, then check the current plan.'}
           </Text>
         )}
-        <View style={s.ctaRow}>
-          {canShelf && amount > 0 && (
-            <PressCta
-              label="Shelf it for a day"
-              onPress={shelfIt}
-              reduceMotion={reduceMotion}
-              style={s.shelfCta}
-              labelStyle={s.shelfCtaLabel}
-              accessibilityLabel="Shelf it for a day"
-            />
-          )}
-          <PressCta
-            label="Done"
-            onPress={onClose}
-            reduceMotion={reduceMotion}
-            style={[s.doneCta, canShelf && amount > 0 ? s.doneCtaSecondary : s.doneCtaPrimary]}
-            labelStyle={canShelf && amount > 0 ? s.doneCtaLabelSecondary : s.doneCtaLabelPrimary}
-            accessibilityLabel="Done"
-          />
-        </View>
       </View>
     </Sheet>
   );
@@ -439,7 +442,6 @@ function makeStyles(t: Palette) {
     },
     amountValueRow: { alignItems: 'baseline', flexDirection: 'row' },
     body: { paddingBottom: gap.sm },
-    ctaRow: { flexDirection: 'row', gap: gap.sm, marginTop: gap.lg + gap.xs },
     currency: {
       color: t.calm,
       fontFamily: serif.display,
@@ -460,6 +462,7 @@ function makeStyles(t: Palette) {
       borderColor: t.hairline,
       borderWidth: StyleSheet.hairlineWidth,
     },
+    footerActions: { flexDirection: 'row', gap: gap.sm },
     eyebrow: {
       color: t.muted,
       fontFamily: serif.displayItalic,
