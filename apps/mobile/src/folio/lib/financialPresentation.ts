@@ -96,6 +96,16 @@ export function selectFinancialPresentation(state: AppState, plan: FinancialPlan
   };
 }
 
+/** Shortfall copy is only authoritative for a complete plan with a known income date. */
+export function shouldShowShortfall(
+  plan: Pick<FinancialPlanResult, 'safeToSpendMinor' | 'nextIncomeDate'> | null,
+  presentation: Pick<ReturnType<typeof selectFinancialPresentation>, 'complete'>,
+): boolean {
+  return Boolean(
+    presentation.complete && plan?.nextIncomeDate && plan.safeToSpendMinor < 0,
+  );
+}
+
 export function formatFinancialDate(iso: string | null | undefined): string {
   if (!iso) return 'Not set';
   return new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', {

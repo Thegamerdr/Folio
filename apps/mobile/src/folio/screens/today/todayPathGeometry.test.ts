@@ -100,6 +100,7 @@ describe('Today source-authoritative journey', () => {
 
     expect(movements.map((event) => event.label)).toEqual(['Council Tax', 'Energy']);
     expect(movements.map((event) => event.amount)).toEqual([-120, -68]);
+    expect(movements.map((event) => event.date)).toEqual(['2026-08-21', '2026-08-23']);
   });
 
   it('summarizes projected incoming and outgoing movements through payday', () => {

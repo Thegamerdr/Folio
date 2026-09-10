@@ -858,9 +858,23 @@ export function TodayScreen({
               scrub={scrub}
               focusX={focusX}
               focusLabel={focusLabel}
+              hideEventLabels
               onTightTap={() => nav.go('calendar')}
             />
           </View>
+
+          {pathEvents.length > 0 ? (
+            <View style={styles.pathEventRows}>
+              {pathEvents.map((event) => (
+                <Text
+                  key={`${event.date}-${event.label}`}
+                  style={[styles.pathEventRow, { color: t.muted }]}
+                >
+                  {event.label} · {formatDayProse(event.date)} · {formatGBP(event.amount)}
+                </Text>
+              ))}
+            </View>
+          ) : null}
 
           <Pressable
             accessibilityRole="button"
@@ -1668,6 +1682,16 @@ const styles = StyleSheet.create({
   svgWrap: {
     width: '100%',
     height: 164,
+  },
+  pathEventRows: {
+    marginTop: gap.xs,
+    gap: 4,
+  },
+  pathEventRow: {
+    fontFamily: weightFamily(400),
+    fontSize: 12.5,
+    lineHeight: 19,
+    flexShrink: 1,
   },
 
   scrubHint: {

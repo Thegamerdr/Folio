@@ -16,6 +16,7 @@ import {
   financialAmountLabel,
   qualifyModeSuggestion,
   selectFinancialPresentation,
+  shouldShowShortfall,
 } from './financialPresentation';
 
 const now = new Date('2026-09-09T12:00:00Z');
@@ -62,6 +63,42 @@ function fullState(): AppState {
 }
 beforeEach(() => resetToEmpty());
 describe('financial presentation prerequisites and coherent results', () => {
+  it('surfaces Shortfall for a complete known plan whose buffer creates a canonical gap', () => {
+    const state = fullState();
+    state.currentBalance.amount = 1435;
+    const plan = buildFinancialPlanFromState(state, { now });
+    const presentation = selectFinancialPresentation(state, plan);
+
+    expect(plan.safeToSpendMinor).toBe(-1500);
+    expect(presentation).toMatchObject({ complete: true, incomeKnown: true });
+    expect(shouldShowShortfall(plan, presentation)).toBe(true);
+  });
+
+  it('does not surface Shortfall for an incomplete or absent canonical plan', () => {
+    const incomplete = fullState();
+    incomplete.onboarding = {
+      ...incomplete.onboarding,
+      done: false,
+      financialSetupConfirmed: false,
+    };
+    const incompletePlan = buildFinancialPlanFromState(incomplete, { now });
+    const incompletePresentation = selectFinancialPresentation(incomplete, incompletePlan);
+
+    expect(incompletePresentation.complete).toBe(false);
+    expect(shouldShowShortfall(incompletePlan, incompletePresentation)).toBe(false);
+    expect(shouldShowShortfall(null, selectFinancialPresentation(incomplete, null))).toBe(false);
+  });
+
+  it('does not surface Shortfall for a complete positive canonical plan', () => {
+    const state = fullState();
+    const plan = buildFinancialPlanFromState(state, { now });
+    const presentation = selectFinancialPresentation(state, plan);
+
+    expect(plan.safeToSpendMinor).toBe(35000);
+    expect(presentation.complete).toBe(true);
+    expect(shouldShowShortfall(plan, presentation)).toBe(false);
+  });
+
   it('labels a negative result as a gap even when the separate status concerns overdue bills', () => {
     const state = fullState();
     state.currentBalance.amount = 100;

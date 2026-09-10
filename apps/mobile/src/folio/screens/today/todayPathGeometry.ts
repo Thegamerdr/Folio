@@ -45,6 +45,7 @@ export type TodayJourneyEvent = Readonly<{
   x: number;
   label: string;
   amount: number;
+  date: string;
 }>;
 
 export type TodayCalendarMovement = Readonly<{
@@ -136,6 +137,7 @@ export function buildTodayJourneyEvents(
         x: Math.round(30 + (days / horizon) * 340),
         label: event.title ?? '',
         amount: event.amount ?? 0,
+        date: event.date,
       };
     })
     .filter((event) => event.x > 55 && event.x < 345 && Math.abs(event.x - tightX) > 34)

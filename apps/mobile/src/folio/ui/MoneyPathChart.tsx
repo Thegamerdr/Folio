@@ -26,6 +26,8 @@ export type MoneyPathChartProps = {
   scrub?: number | undefined;
   focusX?: number | null | undefined;
   focusLabel?: string | null | undefined;
+  /** Keep event markers while moving their names into readable native rows. */
+  hideEventLabels?: boolean | undefined;
   onTightTap?: (() => void) | undefined;
 };
 
@@ -67,6 +69,7 @@ export function MoneyPathChart({
   scrub = 0,
   focusX,
   focusLabel,
+  hideEventLabels = false,
   onTightTap,
 }: MoneyPathChartProps) {
   const t = useTheme();
@@ -168,7 +171,7 @@ export function MoneyPathChart({
             const y = yAt(points, event.x);
             const outgoing = event.amount < 0;
             const ink = outgoing ? t.muted : t.positive;
-            const showLabel = namedEvents.has(event.x);
+            const showLabel = !hideEventLabels && namedEvents.has(event.x);
             return (
               <G key={`event-${index}`}>
                 <Line

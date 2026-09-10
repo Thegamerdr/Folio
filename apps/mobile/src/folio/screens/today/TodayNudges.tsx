@@ -41,9 +41,11 @@ import { selectMeloTodayMoneyNudge } from '@/folio/lib/meloToneGuidance';
 import {
   qualifyModeSuggestion,
   selectFinancialPresentation,
+  shouldShowShortfall,
 } from '@/folio/lib/financialPresentation';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import type { Nav, Pressure } from '@/folio/types';
+import { formatGBP } from './format';
 import { useTodayTheme } from './todayTheme';
 
 // Stable empty fallback for the optional store slot — DEFAULTS/load always populate `reviewQueue`,
@@ -55,11 +57,6 @@ const EMPTY_INCOME_SOURCES: IncomeSource[] = [];
 const MIN_TAP = 48;
 
 const RECENT_CLOSE_WINDOW_MS = 3 * 86_400_000;
-
-/** Shortfall is a route-pressure decision, not a formatting side effect. */
-export function shouldShowShortfall(pressure: Pressure): boolean {
-  return pressure === 'overspent';
-}
 
 /**
  * Pure predicate for the "offer the payday ritual" nudge. Extracted from the
@@ -115,7 +112,6 @@ type Nudge = {
 
 export function TodayNudges({
   nav,
-  pressure,
   tightestSpare,
 }: {
   nav: Nav;
@@ -142,6 +138,12 @@ export function TodayNudges({
   const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const meloTone = useAppStore((st) => st.melo?.tone ?? 'calm');
   const shelf = useShelf();
+  const now = useDayClock();
+  const financialPlan = useMemo(
+    () => (onboarding.done && now ? buildFinancialPlanFromState(appState, { now }) : null),
+    [appState, now, onboarding.done],
+  );
+  const financePresentation = selectFinancialPresentation(appState, financialPlan);
 
   // Age out expired queue items once on mount (web: `sweepReviewQueue()` in the mount effect).
   useEffect(() => {
@@ -167,8 +169,9 @@ export function TodayNudges({
 
   const nudges: Nudge[] = [];
 
-  // If Today is showing the "overspent" pressure band, Shortfall is the single most important
-  // door. Gate on the threaded route pressure, never on a clamped/rounded display number.
+  // A complete canonical plan with a negative safe-to-spend amount is the single most important
+  // door. The threaded pressure prop remains a caller-compatibility seam but cannot override the
+  // authoritative plan or surface Shortfall for an unknown picture.
   //
   // The diagnosis sentence is mode-aware (Plan 108, D2 reframe) — survival/debt/reset anchor
   // on payday (their VOICE contracts allow it), stability.ts's voice explicitly bans "make it"
@@ -176,7 +179,7 @@ export function TodayNudges({
   // entirely (irregular: runway not days; growth/optimizer/planning/household: cadence not
   // payday). The "three calm moves" CTA sentence is unaffected by any voice ban, so it stays
   // common across every mode.
-  if (shouldShowShortfall(pressure)) {
+  if (shouldShowShortfall(financialPlan, financePresentation)) {
     const shortfallDiagnosis =
       moneyMode === 'stability'
         ? 'The plan does not hold to payday as things stand.'
@@ -229,7 +232,7 @@ export function TodayNudges({
       tone: 'melo',
       label:
         ripeShelf.length === 1
-          ? `You parked ${first.label} · £${first.amount} a day ago. Still want it?`
+          ? `You parked ${first.label} · ${formatGBP(first.amount)} a day ago. Still want it?`
           : `${ripeShelf.length} things you parked yesterday — still want them?`,
       cta: 'Look →',
       onPress: () => nav.openSheet('shelf'),
@@ -247,7 +250,7 @@ export function TodayNudges({
     nudges.push({
       key: 'melo-sub',
       tone: 'melo',
-      label: `Melo caught ${nextSub.name} · renews in ${nextSub.nextRenewalDaysAway} ${nextSub.nextRenewalDaysAway === 1 ? 'day' : 'days'} for £${nextSub.cost.toFixed(2)}. Pause for a month?`,
+      label: `Melo caught ${nextSub.name} · renews in ${nextSub.nextRenewalDaysAway} ${nextSub.nextRenewalDaysAway === 1 ? 'day' : 'days'} for ${formatGBP(nextSub.cost, true)}. Pause for a month?`,
       cta: 'Pause →',
       onPress: () => nav.openMelo({ prefill: `Yes — pause ${nextSub.name} for a month.` }),
     });
@@ -261,15 +264,16 @@ export function TodayNudges({
     nudges.push({
       key: 'melo-tight',
       tone: 'melo',
-      label: `Melo sees £${gapToFind} between your low point and your goal. Want to talk it through?`,
+      label: `Melo sees ${formatGBP(gapToFind)} between your low point and your goal. Want to talk it through?`,
       cta: 'Talk it through →',
-      onPress: () => nav.openMelo({ prefill: `Help me find £${gapToFind} before the low point.` }),
+      onPress: () =>
+        nav.openMelo({ prefill: `Help me find ${formatGBP(gapToFind)} before the low point.` }),
     });
   } else if (meloMoneyNudge === 'spending-review') {
     nudges.push({
       key: 'melo-spend',
       tone: 'melo',
-      label: `Melo tracked £${recentSpend.toFixed(0)} out the door in the last 7 days. Want to look at where?`,
+      label: `Melo tracked ${formatGBP(Math.round(recentSpend))} out the door in the last 7 days. Want to look at where?`,
       cta: 'Open →',
       onPress: () => nav.openMelo({ prefill: 'Where did my money go this week?' }),
     });
@@ -277,12 +281,6 @@ export function TodayNudges({
 
   // Payday ritual — if payday is within 2 days or already past today without a close, surface
   // the ritual so it stops being a hidden More link.
-  const now = useDayClock();
-  const financialPlan = useMemo(
-    () => (onboarding.done && now ? buildFinancialPlanFromState(appState, { now }) : null),
-    [appState, now, onboarding.done],
-  );
-  const financePresentation = selectFinancialPresentation(appState, financialPlan);
   // Routed through the income-cadence engine (lib/income.ts) rather than re-deriving day-of-month
   // math locally — that local version was also wrong for weekly/fortnightly/four-weekly/
   // last-working-day earners, and skipped the payday engine's Feb-31 clamp + weekend shift even for
