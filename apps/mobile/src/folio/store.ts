@@ -54,6 +54,7 @@ import {
 import { normaliseMerchant } from './lib/subSignals';
 import { synthesizeHistoryCycles } from './lib/historyCycles';
 import { makeWin, hasWin, type TinyWin, type TinyWinKind } from './lib/wins';
+import { computeGreenStreak } from './lib/streaks';
 import type { DismissReason, DismissRecord } from './lib/melo/dismissReasons';
 import type { OneMoveImpression } from './lib/melo/oneMove';
 import { PERSONAL_MELO_TOOL_NAMES, type PersonalMeloToolName } from './lib/melo/toolContract';
@@ -2660,10 +2661,7 @@ export function addCycle(c: CycleRecord) {
       occurredAt: new Date(c.closedAt).toISOString(),
     },
   );
-  if (
-    cycles.length >= 4 &&
-    cycles.slice(0, 4).every((cycle) => cycle.tightPoint >= 0 && cycle.spare >= 0)
-  ) {
+  if (computeGreenStreak(cycles) >= 4) {
     awardTinyWin('four-week-green-streak');
   }
 }

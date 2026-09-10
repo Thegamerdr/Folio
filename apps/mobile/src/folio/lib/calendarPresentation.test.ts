@@ -1,8 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { getState, type AppState } from '../store';
-import { buildCalendarPresentation } from './calendarPresentation';
+import { buildCalendarPresentation, knownCalendarBalances } from './calendarPresentation';
 import { buildFinancialPlanFromState } from './financialPlan';
 import { routeFromStore } from './storeRoute';
+
+describe('Calendar trend with incomplete date coverage', () => {
+  it('does not turn missing past days or dates beyond the forecast into zero', () => {
+    expect(
+      knownCalendarBalances(['2026-09-01', '2026-09-10', '2026-09-11', '2027-10-01'], {
+        '2026-09-10': 1690,
+        '2026-09-11': 1680,
+      }),
+    ).toEqual([1690, 1680]);
+  });
+  it('preserves real zero and negative balances and leaves unknown ranges empty', () => {
+    expect(knownCalendarBalances(['a', 'b', 'c'], { a: 0, b: -12.45, c: NaN })).toEqual([
+      0, -12.45,
+    ]);
+    expect(knownCalendarBalances(['a', 'b'], {})).toEqual([]);
+  });
+});
 
 export function calendarFixture(): AppState {
   const base = getState();

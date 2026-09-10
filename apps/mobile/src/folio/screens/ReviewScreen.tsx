@@ -100,6 +100,8 @@ import { openEvidenceDocument } from '@/folio/lib/documentVault';
 import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { formatGBP } from '@/folio/screens/today/format';
 import { formatEditableAmount } from '@/folio/screens/reviewFormat';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { reviewHistoryPresentation } from '@/folio/screens/reviewHistoryPresentation';
 import type { Nav } from '@/folio/types';
 
 // The single candidate this screen reviews — the eventual shape of one CandidateMoneyItem from a
@@ -409,9 +411,11 @@ export function ReviewScreen({
     const top = queue[0];
     return top ? { item: top, count: queue.length } : null;
   });
+  const [cashAtReview] = useState(() => buildFinancialPlanFromState(getState()));
   const queuedCandidate = useMemo(
-    () => (queued ? candidateFromQueueItem(queued.item, getState().currentBalance.amount) : null),
-    [queued],
+    () =>
+      queued ? candidateFromQueueItem(queued.item, cashAtReview.currentBalanceMinor / 100) : null,
+    [queued, cashAtReview],
   );
 
   // Whether a REAL candidate was handed in — directly as a prop, or pulled from the persisted
@@ -482,6 +486,12 @@ export function ReviewScreen({
 
   const signedDelta = candidate.flow === 'out' ? -editedAmount : editedAmount;
   const previewAmount = useCountUp(editedAmount, COUNT_MS, reduceMotion);
+  const historyPresentation = reviewHistoryPresentation(
+    cashAtReview,
+    editedAmount,
+    candidate.flow,
+    isBusiness,
+  );
 
   // The de-dupe proposal for THIS candidate against existing rows, or null (the pure engine decides).
   // Skipped when there's no real candidate, once sealed, before the clock mounts, or when the
@@ -759,10 +769,6 @@ export function ReviewScreen({
       candidate.flow === 'in'
         ? ([...SOURCE_PERSONAL_CATEGORIES, 'Income'] as const)
         : SOURCE_PERSONAL_CATEGORIES;
-    const afterAmount = Math.max(
-      0,
-      candidate.before + (candidate.flow === 'out' ? -editedAmount : editedAmount),
-    );
     const hidden = (getState().ignoredReviewSigs ?? []).length;
 
     return (
@@ -830,24 +836,22 @@ export function ReviewScreen({
               { backgroundColor: t.surface, borderColor: t.hairline },
             ]}
           >
-            <View>
-              <Text style={[sourceStyles.balanceLabel, { color: t.muted }]}>Now</Text>
+            <View style={sourceStyles.balanceColumn}>
+              <Text style={[sourceStyles.balanceLabel, { color: t.muted }]}>History entry</Text>
               <Text style={[sourceStyles.balanceValue, { color: t.ink }]}>
-                {formatGBP(candidate.before)}
+                {historyPresentation.entry}
               </Text>
             </View>
-            <View style={sourceStyles.balanceArrow}>
-              <View style={[sourceStyles.arrowRule, { backgroundColor: t.hairline }]} />
-              <Text style={[sourceStyles.arrowGlyph, { color: t.muted }]}>→</Text>
-              <View style={[sourceStyles.arrowRule, { backgroundColor: t.hairline }]} />
-            </View>
-            <View style={sourceStyles.afterBlock}>
-              <Text style={[sourceStyles.balanceLabel, { color: t.muted }]}>After</Text>
-              <Text style={[sourceStyles.balanceValue, { color: t.calm }]}>
-                {formatGBP(Math.round(afterAmount))}
+            <View style={sourceStyles.balanceColumn}>
+              <Text style={[sourceStyles.balanceLabel, { color: t.muted }]}>Tracked cash</Text>
+              <Text style={[sourceStyles.balanceValue, { color: t.ink }]}>
+                {historyPresentation.cash}
               </Text>
             </View>
           </View>
+          <Text style={[sourceStyles.balanceDetail, { color: t.muted }]}>
+            {historyPresentation.detail}
+          </Text>
 
           <View style={sourceStyles.categoryBlock}>
             <Text style={[sourceStyles.categoryEyebrow, { color: t.muted }]}>Category</Text>
@@ -1034,9 +1038,7 @@ export function ReviewScreen({
   // populated / offline / error — the real one-decision card. offline ≡ populated (local-first); a
   // direct error mount still shows the card so the user can decide on the candidate in hand.
   const isOut = candidate.flow === 'out';
-  const balanceLine = isBusiness
-    ? `to Business activity · current cash stays ${formatGBP(candidate.before)}`
-    : `to your history · balance stays ${formatGBP(candidate.before)}`;
+  const balanceLine = historyPresentation.detail;
 
   // Position + provenance. Queue-fed cards read honestly from the queue ("1 of N", the item's own
   // intake source); the direct-candidate path keeps its original literals byte-for-byte.
@@ -1861,6 +1863,7 @@ const sourceStyles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: gap.md,
     marginTop: gap.xl + gap.xs,
     paddingHorizontal: gap.lg,
@@ -1873,10 +1876,8 @@ const sourceStyles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     marginTop: gap.xs,
   },
-  balanceArrow: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: gap.xs },
-  arrowRule: { flex: 1, height: StyleSheet.hairlineWidth },
-  arrowGlyph: { fontSize: 14, lineHeight: 16 },
-  afterBlock: { alignItems: 'flex-end' },
+  balanceColumn: { flexGrow: 1, flexBasis: 120 },
+  balanceDetail: { fontSize: 12, lineHeight: 18, marginTop: gap.sm },
   categoryBlock: { marginTop: gap.xl },
   categoryEyebrow: {
     fontSize: 11,

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentation';
 import type { Debt, TimelineEvent, Transaction } from '@/folio/store';
 import { selectDebtTrackingPresentation } from '@/folio/lib/debtTrackingPresentation';
+import { selectDebtMinimumPresentation } from '@/folio/lib/debtMinimumPresentation';
 import type { FinancialPlanResult } from '@folio/finance-engine';
 import * as debtEngine from '@/folio/lib/modes/debtEngine';
 import { gap, radius, serif, type Palette } from '@/folio/theme';
@@ -101,14 +102,9 @@ export function DebtCommitmentSurface({
       : Number.isFinite(summary.monthsAtMin)
         ? `${summary.monthsAtMin} mo`
         : 'minimums do not clear interest';
+  const nextMinimum = selectDebtMinimumPresentation(canonicalPlan);
   const nextDueLabel =
-    summary.daysToNextDue === null
-      ? 'not scheduled'
-      : summary.daysToNextDue === 0
-        ? 'today'
-        : summary.daysToNextDue === 1
-          ? 'tomorrow'
-          : `in ${summary.daysToNextDue} d`;
+    nextMinimum?.dueLabel ?? (canonicalPlan ? 'None in this forecast' : 'Not available');
 
   return (
     <View style={styles.block}>
@@ -119,7 +115,7 @@ export function DebtCommitmentSurface({
       <View style={[styles.tripleRow, { borderColor: t.hairline }]}>
         <Stat label="Required / mo" value={formatGBP(summary.minSum)} t={t} />
         <Stat label="Payoff at minimums" value={monthsAtMin} t={t} divided />
-        <Stat label="Next payment" value={nextDueLabel} t={t} divided />
+        <Stat label="Next minimum" value={nextDueLabel} t={t} divided />
       </View>
       <Pressable
         accessibilityRole="button"
@@ -155,9 +151,9 @@ export function DebtCommitmentSurface({
           </Text>
         </View>
       ) : null}
-      {summary.nextDue ? (
-        <Text style={[styles.nextLine, { color: t.muted }]}>
-          {`${summary.nextDue.name} · ${formatGBP(summary.nextDue.minPayment)} on the ${ordinal(summary.nextDue.dueDom)}`}
+      {nextMinimum ? (
+        <Text style={[styles.nextLine, { color: nextMinimum.overdue ? t.repair : t.muted }]}>
+          {`${nextMinimum.label} · ${nextMinimum.amountLabel}`}
         </Text>
       ) : null}
       <View style={styles.ctaRow}>
@@ -201,13 +197,6 @@ function Stat({
 
 function formatGBP(amount: number): string {
   return formatMoney(amount);
-}
-
-function ordinal(day: number): string {
-  const mod100 = day % 100;
-  if (mod100 >= 11 && mod100 <= 13) return `${day}th`;
-  const mod10 = day % 10;
-  return `${day}${mod10 === 1 ? 'st' : mod10 === 2 ? 'nd' : mod10 === 3 ? 'rd' : 'th'}`;
 }
 
 const styles = StyleSheet.create({

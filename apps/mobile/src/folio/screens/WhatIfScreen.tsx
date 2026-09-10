@@ -430,6 +430,8 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
     [appState, now, amount, recurrence, paydayShift],
   );
   const baseLow = plan.safeToSpendMinor / 100;
+  const previewPresentation = selectFinancialPresentation(appState, scenario.preview);
+  const savedPresentation = selectFinancialPresentation(appState, scenario.savedHold);
 
   // Days this would last — newLow ÷ the real daily burn (trailing-28-day average spend from
   // transactions, ENGINES §6). With no recent spend there is no defensible duration, so the screen
@@ -486,7 +488,11 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
   // The dynamic verdict band (web kit calm|soft|alert), reconciled to the canonical Melo vocabulary the
   // same way the Today wave did: alert → concern, soft → curious, calm → calm.
   const mood: MeloMood =
-    breachesGoal || newLow < TIGHT ? 'concern' : newLow < EASY ? 'curious' : 'calm';
+    !previewPresentation.canReassure || breachesGoal || newLow < TIGHT
+      ? 'concern'
+      : newLow < EASY
+        ? 'curious'
+        : 'calm';
 
   const meloLine =
     !presentation.canReassure && baseLow >= 0
@@ -696,7 +702,11 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
               when a floor is set), and Days this would last (count-up, negative under 5d) + pots total. */}
           <View style={styles.tilesRow}>
             <View style={styles.tile}>
-              <Text style={styles.tileLabel}>After this · safe to spend</Text>
+              <Text style={styles.tileLabel}>
+                {previewPresentation.canReassure
+                  ? 'After this · safe to spend'
+                  : 'After this · after recorded costs'}
+              </Text>
               <Text
                 style={[styles.tileValue, lowIsNegative ? styles.tileValueNegative : undefined]}
               >
@@ -716,7 +726,11 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
             </View>
 
             <View style={styles.tile}>
-              <Text style={styles.tileLabel}>Current safe to spend</Text>
+              <Text style={styles.tileLabel}>
+                {presentation.canReassure
+                  ? 'Current safe to spend'
+                  : 'Current · after recorded costs'}
+              </Text>
               <Text style={styles.tileValue}>{formatGBP(baseLow)}</Text>
               <Text style={styles.tileCaption}>
                 {newLow < 0
@@ -854,7 +868,9 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
 
           <Text style={styles.tileCaption}>
             Saving adds a hypothetical {recurrence} hold to your plan. With your actual payday
-            dates, safe to spend becomes {formatGBP(scenario.savedHold.safeToSpendMinor / 100)}
+            dates,{' '}
+            {savedPresentation.canReassure ? 'safe to spend' : 'the amount after recorded costs'}{' '}
+            becomes {formatGBP(scenario.savedHold.safeToSpendMinor / 100)}
             {scenario.savedHold.safeToSpendMinor < 0 ? ' — the plan still has a gap' : ''}. Your
             cash balance does not change.
           </Text>

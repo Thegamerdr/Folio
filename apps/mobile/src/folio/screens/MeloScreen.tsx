@@ -105,8 +105,11 @@ import { useAppStore, setMelo, setMeloPrimerSeen } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
 import { canShowUpsell } from '@/folio/lib/lensPaywall';
 import { deriveModeState, MODE_LABEL, type MeloWeather, type MoneyMode } from '@/folio/lib/modes';
-import { deriveMeloMemory } from '@/folio/lib/melo/memory';
-import { useRoute } from '@/folio/lib/storeRoute';
+import { deriveMeloMemory, formatMeloMemoryTime } from '@/folio/lib/melo/memory';
+import { selectMeloFinancialHealth } from '@/folio/lib/melo/financialHealth';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { latestLivedCycle } from '@/folio/lib/historyCycles';
+import { useDayClock } from '@/folio/lib/useDayClock';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
 import { MeloCompanionHost } from '@/folio/ui/MeloCompanionHost';
 import {
@@ -130,16 +133,6 @@ export type MeloScreenProps = {
   state?: MeloScreenState;
 };
 
-// Plumage labels — ported verbatim from the web's `vitalityLabel` bands.
-type Plumage = 'dim' | 'warm' | 'bright' | 'radiant';
-
-function vitalityLabel(v: number): Plumage {
-  if (v < 0.28) return 'dim';
-  if (v < 0.55) return 'warm';
-  if (v < 0.82) return 'bright';
-  return 'radiant';
-}
-
 function weatherLabel(weather: MeloWeather): string {
   switch (weather) {
     case 'sunny':
@@ -161,16 +154,6 @@ function weatherLabel(weather: MeloWeather): string {
   }
 }
 
-const PLUMAGE_COPY: Record<Plumage, { line: string; caption: string }> = {
-  dim: { line: 'Feathers drawn in.', caption: "The path is thin. He's holding still with you." },
-  warm: { line: 'Warm at the edges.', caption: 'Enough to breathe. The ember is patient.' },
-  bright: { line: 'Bright and steady.', caption: "The runway holds. He's alert, not anxious." },
-  radiant: {
-    line: 'Full plumage, quietly lit.',
-    caption: 'Real headroom. The ember runs warm.',
-  },
-};
-
 // Companion touches — verbatim from the web `WARDROBE` list.
 const WARDROBE: readonly { id: string; label: string; note: string; plus: boolean }[] = [
   { id: 'scarf', label: 'Ember scarf', note: 'cool months', plus: false },
@@ -181,6 +164,7 @@ const WARDROBE: readonly { id: string; label: string; note: string; plus: boolea
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 const SLIDE_FROM_X = 28;
 const SLIDE_MS = 360;
+const EPOCH = new Date(0);
 
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
@@ -203,6 +187,8 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
+  const appState = useAppStore((s) => s);
+  const now = useDayClock();
   const melo = useAppStore((s) => s.melo ?? { quietMode: false, wardrobe: [] });
   const moneyMode = useAppStore((s) => s.moneyMode ?? 'survival') as MoneyMode;
   const onboarding = useAppStore((s) => s.onboarding);
@@ -248,7 +234,15 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
   const { canAccess, fullUnlocked } = useLens();
 
-  const route = useRoute(new Date());
+  const financialPlan = useMemo(
+    () => buildFinancialPlanFromState(appState, { now: now ?? EPOCH }),
+    [appState, now],
+  );
+  const health = useMemo(
+    () => selectMeloFinancialHealth(appState, financialPlan),
+    [appState, financialPlan],
+  );
+  const lastReview = useMemo(() => latestLivedCycle(cycles), [cycles]);
 
   const modeState = useMemo(
     () =>
@@ -258,53 +252,39 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         pots,
         subs,
         subPaused,
-        tightestSpare: route.tightPoint.amount,
-        tightestDate: route.tightPoint.date,
-        ritualCompletedRecently: !!cycles[0]?.closedAt,
-        hour: new Date().getHours(),
+        tightestSpare: financialPlan.safeToSpendMinor / 100,
+        tightestDate: financialPlan.shortfallDate ?? financialPlan.asOf,
+        ritualCompletedRecently: !!lastReview,
+        hour: (now ?? EPOCH).getHours(),
       }),
-    [moneyMode, currentBalance, onboarding, pots, subs, subPaused, route, cycles],
+    [moneyMode, currentBalance, onboarding, pots, subs, subPaused, financialPlan, lastReview, now],
   );
-
-  // Source-owned live vitality: safe runway (65%), pot health (30%), and a small recent-ritual
-  // lift. This never persists and is not a level or streak.
-  const vitality = useMemo(() => {
-    const income = Math.max(1, onboarding.monthlyIncome);
-    const tightestSpare = route.tightPoint.amount;
-    const safe = Math.max(0, Math.min(1, tightestSpare / income / 0.4));
-    const potShare = pots.length
-      ? pots.filter((pot) => pot.goal > 0 && pot.saved / pot.goal >= 0.6).length / pots.length
-      : 0.5;
-    const fresh = cycles[0]?.closedAt ? 0.08 : 0;
-    let next = safe * 0.65 + potShare * 0.3 + fresh;
-    if (tightestSpare < 0) next = Math.min(next, 0.22);
-    return Math.max(0, Math.min(1, next));
-  }, [cycles, onboarding.monthlyIncome, pots, route.tightPoint.amount]);
-  const plumage = vitalityLabel(vitality);
-  const plumageCopy = PLUMAGE_COPY[plumage];
-
-  // Four dots visualise vitality as a plumage reading — not a level.
-  const dotCount = plumage === 'dim' ? 1 : plumage === 'warm' ? 2 : plumage === 'bright' ? 3 : 4;
+  const mood = health.presentation.canReassure ? modeState.mood : 'concern';
+  const weather: MeloWeather = health.presentation.canReassure
+    ? modeState.weather
+    : health.presentation.complete && financialPlan.safeToSpendMinor < 0
+      ? 'storm'
+      : 'fog';
+  const { plumage, dotCount } = health;
 
   const recoveryActive = moneyMode === 'reset';
-  const safeZoneTotal = modeState.safeZone.amount;
-  const upsellsOn = canShowUpsell({
-    weather: modeState.weather,
-    recoveryActive,
-    safeZoneTotal,
-    quietMode: melo.quietMode,
-  });
+  const safeZoneTotal = financialPlan.safeToSpendMinor / 100;
+  const upsellsOn =
+    health.presentation.canReassure &&
+    canShowUpsell({
+      weather,
+      recoveryActive,
+      safeZoneTotal,
+      quietMode: melo.quietMode,
+    });
 
-  const lastCycle = cycles[0]?.closedAt;
+  const lastCycle = lastReview?.closedAt;
   const memory = useMemo(() => deriveMeloMemory(tinyWins, cycles, 10), [tinyWins, cycles]);
   const activeSubs = subs.filter((subscription) => !subPaused[subscription.name]).length;
   const fundedPots = pots.filter((pot) => pot.saved > 0).length;
   const lensLabel =
     moneyMode === 'survival' ? 'Make it to payday' : MODE_LABEL[moneyMode].toLowerCase();
-  const contextAction = useMemo(
-    () => derivePersonalContextAction(modeState.mood),
-    [modeState.mood],
-  );
+  const contextAction = useMemo(() => derivePersonalContextAction(mood), [mood]);
   const presence = deriveMeloPresence({ quietMode: melo.quietMode, action: contextAction });
 
   // slide-in-r — drives the whole screen.
@@ -352,7 +332,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   }
 
   // loading — Melo curious + a line, never a spinner (per the hard rule + STATES.md).
-  if (state === 'loading') {
+  if (state === 'loading' || now === null) {
     return (
       <View
         style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.huge }]}
@@ -416,16 +396,16 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         <View style={styles.heroWrap}>
           <MeloCompanionHost
             size={162}
-            mood={melo.quietMode ? 'calm' : modeState.mood}
+            mood={melo.quietMode ? 'calm' : mood}
             pose="none"
             position={preferredPosition}
             presence={presence}
-            accessibilityLabel={`Melo, ${modeState.mood}`}
+            accessibilityLabel={`Melo, ${mood}`}
           />
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Chat with Melo, ${melo.quietMode ? 'quiet' : modeState.mood}`}
+            accessibilityLabel={`Chat with Melo, ${melo.quietMode ? 'quiet' : mood}`}
             onPress={() => nav.openMelo()}
             style={({ pressed: isPressed }) => [
               styles.tapToTalk,
@@ -434,7 +414,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
           >
             <Text style={[styles.tapToTalkLabel, { color: t.muted }]}>TAP TO CHAT · </Text>
             <Text style={[styles.tapToTalkMood, { color: t.muted }]}>
-              {melo.quietMode ? 'Quiet' : modeState.mood}
+              {melo.quietMode ? 'Quiet' : mood}
             </Text>
           </Pressable>
 
@@ -458,10 +438,8 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
           {/* Live state line — weather + lens, no chip container. Locked Full lens shows a small
               lock so the paywall state is legible without opening the picker. */}
           <View style={styles.lensLine}>
-            <MeloWeatherGlyph weather={modeState.weather} size={12} />
-            <Text style={[styles.lensLineText, { color: t.muted }]}>
-              {weatherLabel(modeState.weather)}
-            </Text>
+            <MeloWeatherGlyph weather={weather} size={12} />
+            <Text style={[styles.lensLineText, { color: t.muted }]}>{weatherLabel(weather)}</Text>
             <Text style={[styles.lensSeparator, { color: t.muted }]}>·</Text>
             <Text style={[styles.lensLineText, { color: t.muted }]}>{lensLabel} lens</Text>
             {modeLocked ? (
@@ -489,26 +467,30 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               <Text style={[styles.sectionHint, { color: t.muted }]}>live · money health</Text>
             </View>
             <View style={styles.plumageRow}>
-              <Text style={[styles.plumageWord, { color: t.ink }]}>{plumage}</Text>
-              <View
-                style={styles.plumageMeter}
-                accessibilityLabel={`plumage ${plumage}, ${dotCount} of 4`}
-              >
-                <Text style={[styles.plumageCount, { color: t.muted }]}>{dotCount}/4</Text>
-                <View style={styles.plumageTrack}>
-                  {[0, 1, 2, 3].map((i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.plumageSegment,
-                        { backgroundColor: i < dotCount ? t.calm : t.inset },
-                      ]}
-                    />
-                  ))}
+              <Text style={[styles.plumageWord, { color: t.ink }]}>
+                {health.scored ? plumage : health.presentation.label}
+              </Text>
+              {health.scored ? (
+                <View
+                  style={styles.plumageMeter}
+                  accessibilityLabel={`plumage ${plumage}, ${dotCount} of 4`}
+                >
+                  <Text style={[styles.plumageCount, { color: t.muted }]}>{dotCount}/4</Text>
+                  <View style={styles.plumageTrack}>
+                    {[0, 1, 2, 3].map((i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.plumageSegment,
+                          { backgroundColor: i < dotCount ? t.calm : t.inset },
+                        ]}
+                      />
+                    ))}
+                  </View>
                 </View>
-              </View>
+              ) : null}
             </View>
-            <Text style={[styles.plumageCaption, { color: t.muted }]}>{plumageCopy.caption}</Text>
+            <Text style={[styles.plumageCaption, { color: t.muted }]}>{health.caption}</Text>
           </View>
         ) : null}
 
@@ -565,18 +547,13 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
                       style={[
                         styles.memoryDot,
                         {
-                          backgroundColor:
-                            event.kind === 'cycle-green'
-                              ? t.positive
-                              : event.kind === 'cycle-red'
-                                ? t.repair
-                                : t.calm,
+                          backgroundColor: event.kind === 'win' ? t.calm : t.muted,
                         },
                       ]}
                     />
                     <Text style={[styles.memoryLine, { color: t.ink }]}>{event.line}</Text>
                     <Text style={[styles.memoryWhen, { color: t.muted }]}>
-                      {relativeTime(event.at)}
+                      {formatMeloMemoryTime(event.at, now)}
                     </Text>
                   </View>
                 ))}
@@ -744,7 +721,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
       <MeloContextSheet
         visible={contextOpen}
         onClose={() => setContextOpen(false)}
-        mood={modeState.mood}
+        mood={mood}
         presence={presence}
         action={contextAction}
         quietMode={melo.quietMode}
@@ -776,19 +753,6 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
 function formatWholePounds(value: number): string {
   return formatMoney(value);
-}
-
-function relativeTime(iso: string): string {
-  const then = Date.parse(iso);
-  if (!Number.isFinite(then)) return '';
-  const minutes = Math.max(0, Math.round((Date.now() - then) / 60_000));
-  if (minutes < 2) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return `${Math.round(days / 30)}mo ago`;
 }
 
 function ReadingCell({
@@ -974,6 +938,7 @@ const styles = StyleSheet.create({
     marginTop: gap.md,
   },
   plumageWord: {
+    flexShrink: 1,
     fontFamily: serif.display,
     fontSize: 16,
     lineHeight: 20,

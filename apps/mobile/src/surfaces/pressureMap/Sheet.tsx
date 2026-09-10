@@ -40,6 +40,8 @@ import {
   useWindowDimensions,
   View,
   type KeyboardEvent,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion as useSystemReducedMotion } from 'react-native-reanimated';
@@ -47,6 +49,7 @@ import { useReducedMotion as useSystemReducedMotion } from 'react-native-reanima
 import { elevation, gap, useTheme, type Palette } from './kit';
 import { announceSurfaceRepaint } from './sheetRepaint';
 import {
+  measureSheetFrame,
   resolveSheetBottomOffset,
   resolveSheetFocusedScroll,
   resolveSheetKeyboardFrame,
@@ -107,6 +110,88 @@ type SheetPortalApi = {
 const SheetPortalContext = createContext<SheetPortalApi | null>(null);
 const SheetOverlayContext = createContext(false);
 export const useSheetOverlayActive = () => useContext(SheetOverlayContext);
+
+function useSheetKeyboardMetrics(visible: boolean, reduceMotion: boolean) {
+  const [metrics, setMetrics] = useState(() => Keyboard.metrics());
+  useEffect(() => {
+    if (!visible) return;
+    setMetrics(Keyboard.metrics());
+    const show = (event: KeyboardEvent) => {
+      if (Platform.OS === 'ios' && !reduceMotion) Keyboard.scheduleLayoutAnimation(event);
+      setMetrics(event.endCoordinates);
+    };
+    const hide = (event: KeyboardEvent) => {
+      if (Platform.OS === 'ios' && !reduceMotion) Keyboard.scheduleLayoutAnimation(event);
+      setMetrics(undefined);
+    };
+    const subscriptions = [
+      Keyboard.addListener(
+        Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow',
+        show,
+      ),
+      Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', hide),
+    ];
+    return () => subscriptions.forEach((subscription) => subscription.remove());
+  }, [visible, reduceMotion]);
+  return metrics;
+}
+
+/** The same measured IME intersection for a full-page form with fixed controls below its scroller. */
+export function KeyboardSafeView({
+  children,
+  style,
+  reduceMotion = false,
+  enabled = true,
+}: {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+  reduceMotion?: boolean;
+  enabled?: boolean;
+}) {
+  const { width, height } = useWindowDimensions();
+  const localInsets = useSafeAreaInsets();
+  const portal = useContext(SheetPortalContext);
+  const insets = portal?.insets ?? localInsets;
+  const rootRef = useRef<View>(null);
+  const [frame, setFrame] = useState<SheetWindowFrame>({ x: 0, y: 0, width, height });
+  const metrics = useSheetKeyboardMetrics(enabled, reduceMotion);
+  const keyboard = resolveSheetKeyboardFrame(
+    enabled ? metrics : undefined,
+    Platform.OS === 'android' ? Number(Platform.Version) : null,
+    Dimensions.get('screen').height,
+    insets.bottom,
+  );
+  const viewport = resolveSheetViewport({
+    frame,
+    keyboard,
+    topInset: 0,
+    bottomOffset: 0,
+    maxHeightFraction: 1,
+  });
+  const measure = useCallback(() => {
+    measureSheetFrame(rootRef.current, Platform.OS === 'android', (next) => {
+      setFrame((current) =>
+        current.x === next.x &&
+        current.y === next.y &&
+        current.width === next.width &&
+        current.height === next.height
+          ? current
+          : next,
+      );
+    });
+  }, []);
+  useLayoutEffect(measure, [width, height, metrics, measure]);
+  return (
+    <View
+      ref={rootRef}
+      collapsable={false}
+      onLayout={measure}
+      style={[style, { paddingBottom: viewport.bottom }]}
+    >
+      {children}
+    </View>
+  );
+}
 
 /**
  * Keeps Android sheets in the app's primary native window while still letting screen-owned sheets
@@ -190,9 +275,14 @@ export function Sheet({
   const insets = portal?.insets ?? localInsets;
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
+  // Reanimated reads the system preference synchronously, including the first sheet frame.
+  const systemReduceMotion = useSystemReducedMotion();
+  // Capture builds paint at rest; normal builds retain the user's motion preference.
+  const captureMode = process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true';
+  const shouldReduceMotion = captureMode || reduceMotion === true || systemReduceMotion;
   const rootRef = useRef<View>(null);
   const [windowFrame, setWindowFrame] = useState<SheetWindowFrame>({ x: 0, y: 0, width, height });
-  const [keyboardMetrics, setKeyboardMetrics] = useState(() => Keyboard.metrics());
+  const keyboardMetrics = useSheetKeyboardMetrics(visible, shouldReduceMotion);
   const screenHeight = Dimensions.get('screen').height;
   // Android portal sheets already live inside the shell's safe product viewport. Applying the
   // full-window navigation inset again made the panel materially taller than the pinned sheet.
@@ -224,18 +314,6 @@ export function Sheet({
   const maxHeight = viewport.maxHeight;
   const panelBottomOffset = viewport.bottom;
   const panelBottomPadding = viewport.keyboardOccludesBottom ? gap.md : restingPanelBottomPadding;
-  // Self-hosting sheets discover AccessibilityInfo asynchronously after mounting. Reanimated keeps
-  // the same Android system preference synchronously, which prevents even one unwanted animated
-  // frame when Remove animations is already on.
-  const systemReduceMotion = useSystemReducedMotion();
-  // Capture APKs are deterministic evidence artifacts, so they must paint the requested sheet at
-  // rest on the first committed frame. Besides removing timing variance from a 124-frame batch,
-  // this avoids Android/Fabric retaining the portal layer's initial off-screen transform when a
-  // deep link replaces one capture surface with another in the same activity. Ordinary builds keep
-  // the product animation unless the user has requested reduced motion.
-  const captureMode = process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true';
-  const shouldReduceMotion = captureMode || reduceMotion === true || systemReduceMotion;
-
   // translateY animates the panel up from below; scrimOpacity fades the ink ground in.
   // Both are refs so they survive re-renders and we can drive them imperatively.
   const translateY = useRef(new Animated.Value(height)).current;
@@ -273,47 +351,26 @@ export function Sheet({
     });
   }, [bodyScrollRef, scrollable, shouldReduceMotion, visible]);
   const measureViewport = useCallback(() => {
-    rootRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-      if (measuredWidth <= 0 || measuredHeight <= 0) return;
+    measureSheetFrame(rootRef.current, usesAndroidPortal, (next) => {
       setWindowFrame((current) =>
-        current.x === x &&
-        current.y === y &&
-        current.width === measuredWidth &&
-        current.height === measuredHeight
+        current.x === next.x &&
+        current.y === next.y &&
+        current.width === next.width &&
+        current.height === next.height
           ? current
-          : { x, y, width: measuredWidth, height: measuredHeight },
+          : next,
       );
       keepFocusedInputVisible();
     });
-  }, [keepFocusedInputVisible]);
+  }, [keepFocusedInputVisible, usesAndroidPortal]);
   useLayoutEffect(() => {
     if (visible) measureViewport();
-  }, [visible, width, height, measureViewport]);
+  }, [visible, width, height, keyboardMetrics, measureViewport]);
   useEffect(() => {
-    if (!visible) return;
-    setKeyboardMetrics(Keyboard.metrics());
-    const show = (event: KeyboardEvent) => {
-      if (Platform.OS === 'ios' && !shouldReduceMotion) Keyboard.scheduleLayoutAnimation(event);
-      setKeyboardMetrics(event.endCoordinates);
-      measureViewport();
-    };
-    const hide = (event: KeyboardEvent) => {
-      if (Platform.OS === 'ios' && !shouldReduceMotion) Keyboard.scheduleLayoutAnimation(event);
-      setKeyboardMetrics(undefined);
-      measureViewport();
-    };
-    const subscriptions = [
-      Keyboard.addListener(
-        Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow',
-        show,
-      ),
-      Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', hide),
-    ];
     return () => {
-      subscriptions.forEach((subscription) => subscription.remove());
       if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
     };
-  }, [measureViewport, shouldReduceMotion, visible]);
+  }, []);
   useEffect(() => {
     if (visible) {
       scrollY.current = 0;

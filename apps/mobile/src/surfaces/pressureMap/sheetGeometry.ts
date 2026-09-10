@@ -18,6 +18,39 @@ export function resolveSheetBottomOffset({
 }
 
 export type SheetWindowFrame = Readonly<{ x: number; y: number; width: number; height: number }>;
+type SheetMeasurable = {
+  measure: (
+    callback: (
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      pageX: number,
+      pageY: number,
+    ) => void,
+  ) => void;
+  measureInWindow: (
+    callback: (x: number, y: number, width: number, height: number) => void,
+  ) => void;
+};
+
+/** Android Fabric subtracts visibleWindowFrame.top from measureInWindow via viewportOffset.
+ * Primary-window IME and layout positions instead share the root coordinates returned by measure.
+ * Modal/iOS windows retain their measured window origin. */
+export function measureSheetFrame(
+  view: SheetMeasurable | null,
+  primaryAndroidWindow: boolean,
+  receive: (frame: SheetWindowFrame) => void,
+) {
+  if (!view) return;
+  const save = (x: number, y: number, width: number, height: number) => {
+    if (width > 0 && height > 0) receive({ x, y, width, height });
+  };
+  if (primaryAndroidWindow)
+    view.measure((_x, _y, width, height, pageX, pageY) => save(pageX, pageY, width, height));
+  else view.measureInWindow(save);
+}
+
 export type SheetKeyboardFrame = Readonly<{
   screenX: number;
   screenY: number;

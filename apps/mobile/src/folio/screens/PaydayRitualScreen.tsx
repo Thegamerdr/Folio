@@ -53,7 +53,7 @@
 //   • The page root stays static. Android can retain full-screen transformed layers after navigation,
 //     so motion is reserved for the progress, values, seal, and Melo rather than the entire surface.
 //   • The step-4 textarea is a multiline TextInput (autoFocus, maxLength 140, 3 lines) on an inset
-//     well; KeyboardAvoidingView keeps the bottom CTAs reachable when the keyboard pops.
+//     well; the shell's measured keyboard viewport keeps the bottom CTAs reachable mid-edit.
 //
 // Tokens only — no new colour, font, spacing, radius, or shadow. Tap targets are >=44px (CTAs h-58 /
 // h-44; back glyph carries hitSlop). Banned visible words (import / rows / parser / extraction / OCR /
@@ -65,8 +65,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -110,13 +108,12 @@ import { endLensTrialIfExpired } from '@/folio/lib/lens';
 import { computeGreenStreak } from '@/folio/lib/streaks';
 import { computeRitualLedgerActuals, type RitualLedgerActuals } from '@/folio/lib/potLedgerActuals';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { selectPaydayTightPoint } from '@/folio/lib/moneyPath';
 import { setPots, addToPot } from '@/folio/store';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
-import {
-  formatFinancialDate,
-  formatMoney,
-  selectFinancialPresentation,
-} from '@/folio/lib/financialPresentation';
+import { selectRitualFinancialReview } from '@/folio/lib/ritualFinancialReview';
+import { previewRitualCompletion } from '@/folio/lib/ritualCompletion';
+import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentation';
 import { formatDayProse } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
 import { MODE_LABEL, type MoneyMode } from '@/folio/lib/modes/types';
@@ -705,6 +702,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   // that transient result (`route = null`).
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
+  const paydayTight = useMemo(() => (route ? selectPaydayTightPoint(route) : null), [route]);
   const financialPlan = useMemo(
     () => buildFinancialPlanFromState(appState, { now: now ?? EPOCH }),
     [appState, now],
@@ -724,14 +722,14 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       spent: ledger.spent,
       setAside: ledger.setAside,
       spare: route ? route.spare : 0,
-      tightPoint: route ? route.tightPoint.amount : 0,
+      tightPoint: paydayTight?.amount ?? 0,
     }),
-    [ledger, route],
+    [ledger, route, paydayTight],
   );
 
   // The real tightest day, in the same prose form Today uses ("Tuesday 8"). Null until the route
   // resolves, which gates step 3's body onto an honest fallback for that single pre-engine frame.
-  const tightestDayProse = route ? formatFinancialDate(route.tightPoint.date) : null;
+  const tightestDayProse = paydayTight ? formatFinancialDate(paydayTight.date) : null;
 
   // Pot first-names for step 2's populated body — the first word of each pot that still tops up
   // (perWeek > 0), joined by ", " (web parity).
@@ -773,7 +771,12 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       .filter((r) => r.owed > 0);
   }, [potLedger, pots]);
   const totalOwed = owedByPot.reduce((sum, r) => sum + r.owed, 0);
-  const repayHeadroom = Math.max(0, Math.min(totalOwed, actuals.spare));
+  const { presentation, availableForExtra, repayHeadroom, spendingSummary } =
+    selectRitualFinancialReview(appState, financialPlan, totalOwed);
+  const completion = useMemo(
+    () => previewRitualCompletion(appState, financialPlan, now ?? EPOCH),
+    [appState, financialPlan, now],
+  );
 
   const steps: RitualStep[] = [
     {
@@ -815,15 +818,18 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
             body:
               owedByPot.map((r) => `${r.name}: ${poundsGrouped(r.owed)} owed`).join('. ') +
               (repayHeadroom > 0
-                ? `. You've got ${poundsGrouped(actuals.spare)} left over. Repay ${poundsGrouped(repayHeadroom)} now — the rest can wait.`
-                : '. Nothing left over this cycle. It can wait another month, calmly.'),
+                ? `. Up to ${formatMoney(repayHeadroom)} fits after your recorded costs and buffer. Record a repayment you have already made.`
+                : presentation.canReassure
+                  ? '. No money is available for an extra repayment after recorded costs and buffer. You can skip this step.'
+                  : `. ${presentation.message} You can skip this step.`),
             stat: { label: 'To repay', value: totalOwed, tone: 'accent' as ModeStepTone },
             melo:
               repayHeadroom > 0
-                ? `Puts ${poundsGrouped(repayHeadroom)} back where it belongs.`
+                ? 'This records your repayment. No money is transferred.'
                 : 'No pressure. Pots understand.',
             meloMood: 'calm' as MeloMood,
-            cta: repayHeadroom > 0 ? `Repay ${poundsGrouped(repayHeadroom)}` : 'Skip for now',
+            cta:
+              repayHeadroom > 0 ? `Record ${formatMoney(repayHeadroom)} repayment` : 'Skip for now',
             onConfirm: () => {
               if (repayHeadroom <= 0) return;
               let remaining = repayHeadroom;
@@ -842,7 +848,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       headlineLead: step3.headlineLead,
       headlineAccent: step3.headlineAccent,
       headlineTrail: step3.headlineTrail,
-      body: `Lowest projected balance before payday: ${formatMoney(actuals.tightPoint)} on ${tightestDayProse ?? 'the date shown in your plan'}. ${financialPlan.safeToSpendMinor < 0 ? `Shortfall after protected costs and buffer: ${formatMoney(-financialPlan.safeToSpendMinor / 100)}.` : `Safe to spend after protected costs and buffer: ${formatMoney(financialPlan.safeToSpendMinor / 100)}.`} ${selectFinancialPresentation(appState, financialPlan).canReassure ? '' : selectFinancialPresentation(appState, financialPlan).message}`,
+      body: `Lowest projected balance before payday: ${formatMoney(actuals.tightPoint)} on ${tightestDayProse ?? 'the date shown in your plan'}. ${spendingSummary}`,
       stat: {
         label: 'Lowest projected balance',
         value: actuals.tightPoint,
@@ -970,8 +976,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   // A skipped/unconfigured first run is not a £0 cycle. Guard the route itself (not only its callers)
   // so More, Melo, Insights, or a stale navigation trail can never turn absent data into praise for a
   // month the user did not record.
-  const needsSetup =
-    !onboardingDone || !selectFinancialPresentation(appState, financialPlan).complete;
+  const needsSetup = !onboardingDone || !presentation.complete;
   const todayKey = (now ?? EPOCH).toISOString().slice(0, 10);
   const firstCycle =
     !cycles.some((cycle) => !cycle.reconstructed) &&
@@ -1056,10 +1061,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   // populated / offline / error — the real four-step ceremony. offline ≡ populated (local-first); a
   // direct error mount still shows the ritual so the user can close the cycle in hand.
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={styles.flex}>
       <View
         style={[
           styles.screen,
@@ -1153,7 +1155,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
             {step === 0 && greenStreak >= 1 ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${greenStreak} safe cycles in a row. Open Insights.`}
+                accessibilityLabel={`${greenStreak} recorded reviews in a row with forecast cash at £0 or above. Open Insights.`}
                 onPress={() => nav.go('insights')}
                 style={[
                   styles.streakChip,
@@ -1164,11 +1166,12 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
                 <Text style={[styles.streakChipText, { color: t.ink }]}>
                   {greenStreak === 1 ? (
                     <>
-                      Last month closed <Text style={{ color: t.calm }}>safe</Text>.
+                      Last review: forecast cash <Text style={{ color: t.calm }}>£0 or above</Text>.
                     </>
                   ) : (
                     <>
-                      <Text style={{ color: t.calm }}>{greenStreak}</Text> safe cycles in a row.
+                      <Text style={{ color: t.calm }}>{greenStreak}</Text> reviews in a row:
+                      forecast cash £0 or above.
                     </>
                   )}
                 </Text>
@@ -1268,6 +1271,10 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
               </View>
             ) : current.isNote ? (
               <View style={styles.noteBlock}>
+                <Text style={[styles.body, { color: t.muted }]}>{completion.scope}</Text>
+                {completion.effect ? (
+                  <Text style={[styles.body, { color: t.ink }]}>{completion.effect}</Text>
+                ) : null}
                 <TextInput
                   accessibilityLabel="One line for next-you"
                   autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
@@ -1296,9 +1303,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
           {step === 1 ? (
             <View style={styles.noteBlock}>
               <Text style={[styles.body, { color: t.muted }]}>
-                Available after recorded costs and buffer:{' '}
-                {formatMoney(Math.max(0, financialPlan.safeToSpendMinor / 100))}. Top-ups set money
-                aside; they do not send a bank transfer.
+                {spendingSummary} Top-ups set money aside; they do not send a bank transfer.
               </Text>
               <Text style={[styles.body, { color: t.muted }]}>
                 Recorded in this review: {formatMoney(recordedAllocation)}. Entered top-ups waiting
@@ -1328,17 +1333,11 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
                   <Pressable
                     accessibilityRole="button"
                     disabled={
-                      !(
-                        Number(topUps[pot.id]) > 0 &&
-                        Number(topUps[pot.id]) <= Math.max(0, financialPlan.safeToSpendMinor / 100)
-                      )
+                      !(Number(topUps[pot.id]) > 0 && Number(topUps[pot.id]) <= availableForExtra)
                     }
                     onPress={() => {
                       const amount = Number(topUps[pot.id]);
-                      if (
-                        amount > 0 &&
-                        amount <= Math.max(0, financialPlan.safeToSpendMinor / 100)
-                      ) {
+                      if (amount > 0 && amount <= availableForExtra) {
                         addToPot(pot.id, amount);
                         setRecordedAllocation((total) => total + amount);
                         setTopUps((draft) => ({ ...draft, [pot.id]: '' }));
@@ -1467,7 +1466,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
           <Text style={[styles.secondaryLabel, { color: t.muted }]}>Save and finish later</Text>
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

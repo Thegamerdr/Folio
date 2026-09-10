@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getState, type AppState, type WhatIfHold } from '../store';
 import { buildFinancialPlanFromState } from './financialPlan';
 import { buildWhatIfPresentation } from './whatIfPresentation';
+import { selectFinancialPresentation } from './financialPresentation';
 
 function fixture(): AppState {
   const base = getState();
@@ -53,6 +54,22 @@ describe('What If canonical preview', () => {
     expect(
       buildWhatIfPresentation(state, NOW, 500, 'monthly').preview.safeToSpendMinor,
     ).toBeLessThan(0);
+  });
+  it('does not turn a positive preview into reassurance while overdue costs remain', () => {
+    const state = fixture();
+    state.onboarding = { ...state.onboarding, financialSetupConfirmed: true };
+    state.calendarEvents = [
+      { id: 'unpaid', title: 'Rent', date: '2026-09-08', amount: 100, kind: 'out' },
+    ];
+    const result = buildWhatIfPresentation(state, NOW, 40, 'once', 1);
+    for (const plan of [result.preview, result.savedHold]) {
+      expect(plan.safeToSpendMinor).toBeGreaterThan(0);
+      expect(selectFinancialPresentation(state, plan)).toMatchObject({
+        complete: true,
+        canReassure: false,
+        overdueCount: 1,
+      });
+    }
   });
 });
 

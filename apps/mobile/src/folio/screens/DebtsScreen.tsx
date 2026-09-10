@@ -11,6 +11,7 @@ import {
 } from '@/folio/lib/financialPresentation';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
 import { selectDebtTrackingPresentation } from '@/folio/lib/debtTrackingPresentation';
+import { selectDebtMinimumPresentation } from '@/folio/lib/debtMinimumPresentation';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
@@ -163,9 +164,7 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
             <Text style={[styles.planHeadline, { color: t.ink }]}>Outstanding debts</Text>
           )}
           {activeDebts.map((debt) => {
-            const obligation = plan.pendingObligations.find((item) =>
-              item.id.startsWith(`debt-minimum:${debt.id}:`),
-            );
+            const nextMinimum = selectDebtMinimumPresentation(plan, debt.id);
             return (
               <View key={debt.id} style={[styles.row, { borderBottomColor: t.hairline }]}>
                 <Pressable
@@ -180,16 +179,13 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
                   <Text style={[styles.planStatValue, { color: t.ink }]}>
                     {formatMoney(debt.balance)} outstanding
                   </Text>
-                  <Text
-                    style={[
-                      styles.meta,
-                      { color: obligation && obligation.date < plan.asOf ? t.repair : t.muted },
-                    ]}
-                  >
-                    {formatMoney(debt.minPayment)} minimum ·{' '}
-                    {obligation
-                      ? `${obligation.date < plan.asOf ? 'Overdue' : 'Due'} ${formatFinancialDate(obligation.date)}`
-                      : `Due day ${debt.dueDom} each month`}
+                  <Text style={[styles.meta, { color: nextMinimum?.overdue ? t.repair : t.muted }]}>
+                    {nextMinimum
+                      ? `${nextMinimum.amountLabel} · ${nextMinimum.dueLabel}`
+                      : 'No minimum scheduled in this forecast'}
+                  </Text>
+                  <Text style={[styles.meta, { color: t.muted }]}>
+                    {formatMoney(debt.minPayment)} recorded monthly minimum · Due day {debt.dueDom}
                   </Text>
                   <Text style={[styles.meta, { color: t.muted }]}>
                     {debt.aprKnown === false

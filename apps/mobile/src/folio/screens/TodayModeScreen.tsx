@@ -30,7 +30,11 @@ import { useAppStore, type Debt } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
-import { selectFinancialPresentation, formatMoney } from '@/folio/lib/financialPresentation';
+import {
+  selectFinancialPresentation,
+  formatMoney,
+  financialAmountLabel,
+} from '@/folio/lib/financialPresentation';
 import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
@@ -1072,7 +1076,9 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
             <Text style={[s.modeLabel, { color: t.muted }]}>{cfg.label}</Text>
           </View>
           <Text style={[s.headline, { color: t.muted }]}>
-            {canonicalMoneyMode ? financePresentation.label : cfg.headline}
+            {canonicalMoneyMode
+              ? financialAmountLabel(canonicalPlan, financePresentation)
+              : cfg.headline}
           </Text>
           <View style={s.numberRow}>
             <Text style={[s.number, { color: t.ink }]}>
@@ -1098,7 +1104,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
             {verdictTail}
           </Text>
           <Text style={[s.formula, { color: t.muted }]}>{outerFormula}</Text>
-          {!financePresentation.canReassure && (
+          {!financePresentation.canReassure && outerFormula !== financePresentation.message && (
             <Text style={[s.formula, { color: t.muted }]}>{financePresentation.message}</Text>
           )}
 

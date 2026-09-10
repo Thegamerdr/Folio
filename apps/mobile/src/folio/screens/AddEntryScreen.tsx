@@ -58,8 +58,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   Pressable,
   StyleSheet,
@@ -391,10 +389,7 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
         },
       ]}
     >
-      <KeyboardAvoidingView
-        style={styles.formLayout}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <View style={styles.formLayout}>
         <ScrollView
           style={styles.formLayout}
           contentContainerStyle={styles.formBody}
@@ -545,7 +540,7 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
             </Pressable>
           </Animated.View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Animated.View>
   );
 }

@@ -19,6 +19,10 @@
 // batch that owns them lands the real port.
 
 // Every screen the shell can show. Mirrors the web ScreenId union, name-for-name.
+import type { RecoveryReceipt } from './lib/recoveryReceipt';
+
+export type ScreenPayload = Readonly<{ recovery?: RecoveryReceipt }>;
+
 export type ScreenId =
   | 'start'
   | 'guided'
@@ -142,7 +146,7 @@ export type Pressure = 'safe' | 'calm' | 'soft' | 'pressured' | 'overspent';
 // The nav contract the shell exposes to screens (the RN mirror of the web Nav). The shell is an
 // in-memory state machine; screens call these instead of touching state directly.
 export type Nav = {
-  go: (screen: ScreenId) => void;
+  go: (screen: ScreenId, payload?: ScreenPayload) => void;
   back: () => void;
   // openSheet takes an optional payload for sheets that need a real subject. Only 'edit-txn' reads
   // it today (`{ id }` = the posted transaction to correct); every other caller passes the SheetId

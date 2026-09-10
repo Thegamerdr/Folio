@@ -31,7 +31,11 @@ import { useRoute } from '@/folio/lib/storeRoute';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
-import { selectFinancialPresentation, formatMoney } from '@/folio/lib/financialPresentation';
+import {
+  selectFinancialPresentation,
+  formatMoney,
+  financialAmountLabel,
+} from '@/folio/lib/financialPresentation';
 import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
 import { presentStabilityCanonicalPlan } from '@/folio/lib/stabilityPresentation';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
@@ -267,7 +271,9 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
 
           {/* The hero stays non-interactive and reads the canonical protected plan when available.
               The Safe Zone door below remains the place to inspect the dated commitments. */}
-          <Text style={[s.headline, { color: t.muted }]}>{financePresentation.label}</Text>
+          <Text style={[s.headline, { color: t.muted }]}>
+            {financialAmountLabel(financialPlan, financePresentation)}
+          </Text>
           <View style={s.numberRow}>
             <Text style={[s.number, { color: t.ink }]}>
               {formatMoney(financialPlan.safeToSpendMinor / 100)}

@@ -31,28 +31,34 @@ export function selectFinancialPresentation(state: AppState, plan: FinancialPlan
     overdueCount === 0 &&
     pendingReview === 0 &&
     (plan?.safeToSpendMinor ?? -1) >= 0;
-  const label = !complete
-    ? 'We need your numbers'
-    : overdueCount > 0
-      ? 'Overdue commitments need attention'
-      : pendingReview > 0
-        ? 'Some figures need your review'
-        : !plan?.nextIncomeDate
-          ? 'No next income date'
-          : plan.safeToSpendMinor < 0
-            ? 'Gap after bills, essentials and buffer'
-            : 'Safe to spend until payday';
-  const message = !complete
-    ? `Add or confirm your ${needs.join(', ')}. Only numbers you add are used.`
-    : overdueCount > 0
-      ? `${overdueCount} overdue ${overdueCount === 1 ? 'commitment is' : 'commitments are'} still reserved. Check what has actually been paid.`
-      : pendingReview > 0
-        ? 'Review the pending figures before relying on this estimate.'
-        : !plan?.nextIncomeDate
-          ? 'No expected income is recorded. Review your income dates before relying on a spending amount.'
-          : plan.safeToSpendMinor < 0
-            ? 'The current plan leaves a gap. Review the costs and dates that create it.'
-            : 'After your recorded bills, essentials, debt minimums and buffer.';
+  const label =
+    plan === null
+      ? 'Checking your plan'
+      : !complete
+        ? 'We need your numbers'
+        : overdueCount > 0
+          ? 'Overdue commitments need attention'
+          : pendingReview > 0
+            ? 'Some figures need your review'
+            : !plan?.nextIncomeDate
+              ? 'No next income date'
+              : plan.safeToSpendMinor < 0
+                ? 'Gap after bills, essentials and buffer'
+                : 'Safe to spend until payday';
+  const message =
+    plan === null
+      ? 'Checking your recorded numbers and dates.'
+      : !complete
+        ? `Add or confirm your ${needs.join(', ')}. Only numbers you add are used.`
+        : overdueCount > 0
+          ? `${overdueCount} overdue ${overdueCount === 1 ? 'commitment is' : 'commitments are'} still reserved. Check what has actually been paid.`
+          : pendingReview > 0
+            ? 'Review the pending figures before relying on this estimate.'
+            : !plan?.nextIncomeDate
+              ? 'No expected income is recorded. Review your income dates before relying on a spending amount.'
+              : plan.safeToSpendMinor < 0
+                ? 'The current plan leaves a gap. Review the costs and dates that create it.'
+                : 'After your recorded bills, essentials, debt minimums and buffer.';
   return {
     complete,
     needs,
@@ -76,6 +82,17 @@ export function formatFinancialDate(iso: string | null | undefined): string {
     year: 'numeric',
     timeZone: 'UTC',
   });
+}
+
+/** Name the amount itself separately from an overdue/review status that qualifies it. */
+export function financialAmountLabel(
+  plan: Pick<FinancialPlanResult, 'safeToSpendMinor'>,
+  presentation: Pick<ReturnType<typeof selectFinancialPresentation>, 'canReassure'>,
+): string {
+  if (plan.safeToSpendMinor < 0) return 'Gap after bills, essentials and buffer';
+  return presentation.canReassure
+    ? 'Safe to spend until payday'
+    : 'After recorded costs and buffer';
 }
 
 export function formatMoney(amount: number, decimals = false): string {

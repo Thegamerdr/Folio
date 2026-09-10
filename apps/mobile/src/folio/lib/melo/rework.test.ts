@@ -83,7 +83,7 @@ describe('Melo rework engines', () => {
       [win],
       [cycle('2026-07-17', 20, 10), cycle('2026-07-16', -5, 2)],
     );
-    expect(memory.map((event) => event.kind)).toEqual(['win', 'cycle-green', 'cycle-red']);
+    expect(memory.map((event) => event.kind)).toEqual(['win', 'cycle-review', 'cycle-review']);
   });
 
   it('counts only the uninterrupted newest safe-zone run', () => {

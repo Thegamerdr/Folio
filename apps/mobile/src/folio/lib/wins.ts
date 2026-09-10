@@ -51,10 +51,19 @@ export const WIN_COPY: Record<TinyWinKind, string> = {
   'first-pot-funded': 'You funded a pot on purpose.',
   'first-sub-caught': 'Caught your first sub. Handled it.',
   'first-postcard-shared': 'First postcard shared. Your words, sent.',
-  'first-sub-cancelled': 'One subscription stopped. That saving keeps going.',
+  'first-sub-cancelled':
+    'One recurring bill removed from Melo. Its provider schedule is unchanged.',
   'first-pot-fully-funded': 'One pot, fully funded.',
-  'four-week-green-streak': 'Four green cycles in a row. Quiet rhythm.',
+  'four-week-green-streak': 'Four recorded reviews in a row with forecast balances of £0 or above.',
 };
+
+/** Older review badges may have counted reconstructed history. Keep the saved milestone
+ * without repeating its old safety claim or retroactively asserting four completed reviews. */
+export function tinyWinMessage(win: TinyWin): string {
+  if (win.kind === 'four-week-green-streak' && win.message !== WIN_COPY[win.kind])
+    return 'Recorded forecast review milestone.';
+  return WIN_COPY[win.kind] ?? win.message;
+}
 
 export function makeWin(kind: TinyWinKind): TinyWin {
   return {

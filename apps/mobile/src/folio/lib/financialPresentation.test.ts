@@ -12,6 +12,7 @@ import { buildFinancialPlanFromState } from './financialPlan';
 import {
   formatFinancialDate,
   formatMoney,
+  financialAmountLabel,
   selectFinancialPresentation,
 } from './financialPresentation';
 
@@ -59,6 +60,39 @@ function fullState(): AppState {
 }
 beforeEach(() => resetToEmpty());
 describe('financial presentation prerequisites and coherent results', () => {
+  it('labels a negative result as a gap even when the separate status concerns overdue bills', () => {
+    const state = fullState();
+    state.currentBalance.amount = 100;
+    state.subs[0] = {
+      ...state.subs[0]!,
+      nextRenewalISO: '2026-09-08',
+      obligationAnchorISO: '2026-09-08',
+    };
+    const plan = buildFinancialPlanFromState(state, { now });
+    const presentation = selectFinancialPresentation(state, plan);
+    expect(presentation.label).toBe('Overdue commitments need attention');
+    expect(plan.safeToSpendMinor).toBeLessThan(0);
+    expect(financialAmountLabel(plan, presentation)).toBe('Gap after bills, essentials and buffer');
+  });
+  it('keeps a positive unreviewed amount conditional while retaining the confirmed safe label', () => {
+    const state = fullState();
+    const plan = buildFinancialPlanFromState(state, { now });
+    expect(financialAmountLabel(plan, selectFinancialPresentation(state, plan))).toBe(
+      'Safe to spend until payday',
+    );
+    state.reviewQueue = [
+      {
+        id: 'pending',
+        source: 'paste',
+        merchant: 'Groceries',
+        amount: -12.34,
+        addedAt: now.toISOString(),
+      },
+    ];
+    const pending = selectFinancialPresentation(state, plan);
+    expect(pending.label).toBe('Some figures need your review');
+    expect(financialAmountLabel(plan, pending)).toBe('After recorded costs and buffer');
+  });
   it('never treats reset or a neutral zero account as a confirmed money picture', () => {
     expect(present()).toMatchObject({ complete: false, balanceKnown: false, canReassure: false });
   });
@@ -123,6 +157,25 @@ describe('financial presentation prerequisites and coherent results', () => {
     expect(p.complete).toBe(true);
     expect(p.canReassure).toBe(false);
     expect(p.label).toBe('No next income date');
+  });
+  it('does not mistake an uncalculated mount-frame plan for missing income', () => {
+    const state = fullState();
+    const waiting = selectFinancialPresentation(state, null);
+    expect(waiting).toMatchObject({
+      complete: true,
+      canReassure: false,
+      label: 'Checking your plan',
+      message: 'Checking your recorded numbers and dates.',
+    });
+    const ready = buildFinancialPlanFromState(state, { now });
+    expect(ready.nextIncomeDate).toBe('2026-10-09');
+    expect(selectFinancialPresentation(state, ready)).toMatchObject({
+      canReassure: true,
+      label: 'Safe to spend until payday',
+    });
+    state.incomeSources = [];
+    state.onboarding.monthlyIncome = 0;
+    expect(present(state)).toMatchObject({ canReassure: false, label: 'No next income date' });
   });
   it('does not reuse cached figures after a changed input, including mutable caller fixtures', () => {
     const state = fullState();

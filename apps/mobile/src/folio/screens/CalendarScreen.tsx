@@ -111,7 +111,7 @@ import {
   formatFinancialDate,
 } from '@/folio/lib/financialPresentation';
 import { useUndo } from '@/folio/ui/useUndo';
-import { buildCalendarPresentation } from '@/folio/lib/calendarPresentation';
+import { buildCalendarPresentation, knownCalendarBalances } from '@/folio/lib/calendarPresentation';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import {
@@ -1047,21 +1047,14 @@ function WeekView({
   const monthLabel = weekStart.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const todayIso = isoDay(today);
 
-  // Projected balance — spare £ at the end of each day, carried forward when a day has no events.
-  const trend = useMemo(() => {
-    const vals: number[] = [];
-    let last: number | null = null;
-    for (const d of days) {
-      const iso = isoDay(d);
-      if (typeof spareByDay[iso] === 'number') last = spareByDay[iso] ?? last;
-      vals.push(last ?? 0);
-    }
-    return vals;
-  }, [days, spareByDay]);
-
-  const minV = Math.min(...trend);
-  const maxV = Math.max(...trend);
-  const tightIdx = trend.indexOf(minV);
+  // Only dates represented by the canonical forecast contribute to its range.
+  const trend = useMemo(
+    () => knownCalendarBalances(days.map(isoDay), spareByDay),
+    [days, spareByDay],
+  );
+  const minV = trend.length ? Math.min(...trend) : null;
+  const maxV = trend.length ? Math.max(...trend) : null;
+  const tightIdx = minV === null ? -1 : trend.indexOf(minV);
 
   return (
     <View style={layout.weekStack}>
@@ -1088,9 +1081,11 @@ function WeekView({
       {/* Spare-trend card — "What's left this week" + low/high, with the accent sparkline beneath. */}
       <View style={s.trendCard}>
         <View style={layout.trendHead}>
-          <Text style={s.trendLabel}>What&apos;s left this week</Text>
+          <Text style={s.trendLabel}>Projected balance this week</Text>
           <Text style={s.trendRange}>
-            low {formatGBP(minV)} · high {formatGBP(maxV)}
+            {minV === null || maxV === null
+              ? 'No forecast for these dates'
+              : `low ${formatGBP(minV)} · high ${formatGBP(maxV)}`}
           </Text>
         </View>
         <Sparkline
@@ -1164,7 +1159,7 @@ function WeekView({
                 <Text style={s.dayHeader}>{formatDayHeader(iso)}</Text>
                 <View style={layout.dayHeadRight}>
                   {typeof spare === 'number' ? (
-                    <Text style={s.spareRight}>{formatGBP(spare)} left</Text>
+                    <Text style={s.spareRight}>{formatGBP(spare)} projected balance</Text>
                   ) : null}
                   {/* "Full day →" — the Week day header's full-detail entry point (opens
                       SheetDayDetail). Mirrors the web's per-block button next to the spare figure. */}
@@ -1254,19 +1249,12 @@ function MonthView({
     return arr;
   }, [monthAnchor]);
 
-  // Spare-line sparkline under the grid — carries spare £ forward through every day of the month, so
-  // flat stretches read as "nothing happens".
+  // Missing days are outside the known forecast, so they cannot create a fictional £0 low.
   const monthDays = useMemo(() => cells.filter((c): c is Date => c !== null), [cells]);
-  const spareLine = useMemo(() => {
-    const vals: number[] = [];
-    let last: number | null = null;
-    for (const d of monthDays) {
-      const iso = isoDay(d);
-      if (typeof spareByDay[iso] === 'number') last = spareByDay[iso] ?? last;
-      vals.push(last ?? 0);
-    }
-    return vals;
-  }, [monthDays, spareByDay]);
+  const spareLine = useMemo(
+    () => knownCalendarBalances(monthDays.map(isoDay), spareByDay),
+    [monthDays, spareByDay],
+  );
   const minS = spareLine.length ? Math.min(...spareLine) : 0;
 
   const monthLabel = monthAnchor.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });

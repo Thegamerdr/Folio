@@ -56,6 +56,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { tinyWinMessage } from '@/folio/lib/wins';
 import Svg, {
   Circle,
   Defs,
@@ -464,16 +465,16 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
         {greenStreak >= 2 ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${greenStreak} cycles closed in the safe zone`}
+            accessibilityLabel={`${greenStreak} recorded reviews in a row with forecast cash at £0 or above. Open cycle review.`}
             onPress={() => nav.go('ritual')}
             style={({ pressed }) => [s.streakCard, pressed ? s.pressed : undefined]}
           >
             <View style={s.streakMarker} />
             <View style={s.streakCopy}>
-              <Text style={s.streakEyebrow}>Safe-zone rhythm</Text>
+              <Text style={s.streakEyebrow}>Recorded forecasts</Text>
               <Text style={s.streakLine}>
-                <Text style={s.streakValue}>{greenStreak}</Text> cycles closed in the safe zone in a
-                row.
+                <Text style={s.streakValue}>{greenStreak}</Text> reviews in a row with forecast cash
+                at £0 or above.
               </Text>
             </View>
           </Pressable>
@@ -500,7 +501,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
                   key={w.id}
                   style={[s.winRow, i < arr.length - 1 ? s.noteRowDivider : undefined]}
                 >
-                  <Text style={s.winMessage}>{w.message}</Text>
+                  <Text style={s.winMessage}>{tinyWinMessage(w)}</Text>
                   <Text style={s.winDate}>
                     {new Date(w.awardedAt).toLocaleDateString('en-GB', { weekday: 'long' })}
                   </Text>

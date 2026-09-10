@@ -11,6 +11,17 @@ const DAY = 86_400_000;
 const shift = (iso: string, days: number) =>
   new Date(Date.parse(`${iso}T00:00:00Z`) + days * DAY).toISOString().slice(0, 10);
 
+/** Missing history and dates outside the forecast are unknown, never a zero balance. */
+export function knownCalendarBalances(
+  dates: readonly string[],
+  balances: Readonly<Record<string, number | undefined>>,
+): number[] {
+  return dates.flatMap((date) => {
+    const value = balances[date];
+    return typeof value === 'number' && Number.isFinite(value) ? [value] : [];
+  });
+}
+
 /** One read-only presentation for Calendar and Full day. Financial dates, unpaid amounts and
  * balances come from the same plan as Today. Calendar-only notes and recorded history are retained.
  * Always use date-only UTC for the legacy informational derivation: local midnight shifts dates

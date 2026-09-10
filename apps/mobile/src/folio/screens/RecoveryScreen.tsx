@@ -84,7 +84,8 @@ import Animated, {
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
-import { nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
+import { getState, nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
+import { buildRecoveryReceipt, type RecoveryAction } from '@/folio/lib/recoveryReceipt';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { buildRecoveryRoutePreview, RECOVERY_BILL_NUDGE_DAYS } from '@/folio/lib/recoveryPreview';
 import { EmptyState } from '@/folio/ui/EmptyState';
@@ -229,6 +230,7 @@ function getRecoveryCopy(mode: MoneyMode): RecoveryCopy {
 // `commit` applies the move's real, available store mutation once, on Rebuild. `subName` (when
 // present) ties a "Pause a sub" move to a live sub so the commit pauses the right one.
 type Move = {
+  action: RecoveryAction;
   id: string;
   /** The card's small uppercase kind label (e.g. "Pause a sub"). */
   kind: string;
@@ -356,6 +358,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   const routeReady = now !== null;
 
   const [picked, setPicked] = useState<string | null>(null);
+  const [commitMessage, setCommitMessage] = useState<string | null>(null);
 
   // The base route — the live verdict. Its tight point's depth below zero IS the shortfall. Recovery
   // is an overspent-only surface: a direct mount with no real money picture or no negative tight point
@@ -399,6 +402,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
       bill
         ? {
             id: 'move-bill',
+            action: { kind: 'move-bill', name: bill.name, days: billNudgeDays },
             kind: 'Move a bill',
             title: `Move ${bill.name} ${billNudgeDays} days later`,
             delta: `+${formatMoney(billLift)} in the forecast`,
@@ -415,6 +419,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
       pausable
         ? {
             id: 'pause-sub',
+            action: { kind: 'pause-sub', name: pausable.name },
             kind: 'Pause a sub',
             title: `Pause the next ${pausable.name} charge in the forecast`,
             delta: `+${formatMoney(subLift)} in the forecast`,
@@ -432,6 +437,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
       holdDailyCap > 0
         ? {
             id: 'hold-spend',
+            action: { kind: 'hold-spend', dailyCap: holdDailyCap, days: 3 },
             kind: 'Set a hold',
             title: 'Hold spending for 3 days',
             delta: `+${formatMoney(holdLift)} estimated`,
@@ -471,13 +477,23 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // commit the move first, then navigate.
   function onRebuild() {
     if (!pickedMove || committedRef.current) return;
+    const beforeState = getState();
+    const at = new Date();
+    const currentPlan = buildFinancialPlanFromState(beforeState, { now: at });
+    if (beforeState !== appState || currentPlan.safeToSpendMinor !== plan.safeToSpendMinor) {
+      setPicked(null);
+      setNow(at);
+      setCommitMessage('Your numbers changed. Review the move again before saving.');
+      return;
+    }
     committedRef.current = true;
     pickedMove.commit();
-    void triggerFeedback(reachesRoom ? 'shortfall-closed' : 'recovery-confirm', {
+    const receipt = buildRecoveryReceipt(beforeState, getState(), pickedMove.action, at);
+    void triggerFeedback('recovery-confirm', {
       soundEnabled,
       quietMode,
     });
-    nav.go('today-after');
+    nav.go('today-after', { recovery: receipt });
   }
 
   // empty — no overspent verdict to recover from. Per the spec, Recovery is only reached from an
@@ -742,6 +758,11 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           />
         </View>
 
+        {commitMessage ? (
+          <Text accessibilityRole="alert" style={[styles.cardCaption, { color: t.repair }]}>
+            {commitMessage}
+          </Text>
+        ) : null}
         {/* Primary CTA — disabled until a move is picked; commits the move, routes to today-after.
             Label is mode-tinted (BREAKS-PARITY fix). */}
         {moves.length > 0 ? (

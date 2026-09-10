@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  measureSheetFrame,
   resolveSheetBottomOffset,
   resolveSheetFocusedScroll,
   resolveSheetKeyboardFrame,
   resolveSheetNavigationOffset,
   resolveSheetViewport,
+  type SheetWindowFrame,
 } from './sheetGeometry';
 
 describe('resolveSheetBottomOffset', () => {
@@ -40,6 +42,87 @@ describe('resolveSheetBottomOffset', () => {
         bottomInset: -1,
       }),
     ).toBe(0);
+  });
+});
+
+describe('native keyboard measurement coordinates', () => {
+  function measuredFrame(
+    primaryAndroidWindow: boolean,
+    root: SheetWindowFrame,
+    viewportOffsetY: number,
+  ) {
+    const frames: SheetWindowFrame[] = [];
+    measureSheetFrame(
+      {
+        measure: (receive) => receive(0, 0, root.width, root.height, root.x, root.y),
+        measureInWindow: (receive) =>
+          receive(root.x, root.y + viewportOffsetY, root.width, root.height),
+      },
+      primaryAndroidWindow,
+      (frame) => frames.push(frame),
+    );
+    return frames[0]!;
+  }
+
+  it('excludes the changing Android Fabric viewport offset so the whole panel ends at the IME in capture 058', () => {
+    const frame = measuredFrame(true, { x: 0, y: 0, width: 360, height: 740 }, -24);
+    const viewport = resolveSheetViewport({
+      frame,
+      keyboard: { screenX: 0, screenY: 441, width: 360, height: 251 },
+      topInset: 24,
+      bottomOffset: 48,
+    });
+    expect(frame.y).toBe(0);
+    expect(viewport).toMatchObject({ top: 24, bottom: 299, maxHeight: 417 });
+    expect(frame.y + frame.height - viewport.bottom).toBe(1323 / 3);
+  });
+
+  it('keeps the resting Android panel above the navigation bar when the viewport offset changes back', () => {
+    const frame = measuredFrame(true, { x: 0, y: 0, width: 360, height: 740 }, 0);
+    const viewport = resolveSheetViewport({ frame, topInset: 24, bottomOffset: 48 });
+    expect(frame.y + frame.height - viewport.bottom).toBe(2076 / 3);
+  });
+
+  it('preserves measured window coordinates for Modal and iOS presentation', () => {
+    expect(measuredFrame(false, { x: 0, y: 0, width: 360, height: 700 }, 40)).toEqual({
+      x: 0,
+      y: 40,
+      width: 360,
+      height: 700,
+    });
+  });
+
+  it('also constrains a full-page form with its own offset without subtracting the keyboard twice', () => {
+    const keyboard = { screenX: 0, screenY: 441, width: 360, height: 251 };
+    const frame = measuredFrame(true, { x: 24, y: 40, width: 312, height: 576 }, -24);
+    const viewport = resolveSheetViewport({
+      frame,
+      keyboard,
+      topInset: 0,
+      bottomOffset: 0,
+      maxHeightFraction: 1,
+    });
+    expect(viewport.bottom).toBe(175);
+    expect(frame.y + frame.height - viewport.bottom).toBe(keyboard.screenY);
+    const resized = { ...frame, height: 401 };
+    expect(
+      resolveSheetViewport({ frame: resized, keyboard, topInset: 0, bottomOffset: 0 }).bottom,
+    ).toBe(0);
+  });
+
+  it('ignores an unmounted or not-yet-laid-out native view', () => {
+    const frames: SheetWindowFrame[] = [];
+    const receive = (frame: SheetWindowFrame) => frames.push(frame);
+    measureSheetFrame(null, true, receive);
+    measureSheetFrame(
+      {
+        measure: (callback) => callback(0, 0, 0, 0, 0, 0),
+        measureInWindow: (callback) => callback(0, 0, 0, 0),
+      },
+      true,
+      receive,
+    );
+    expect(frames).toEqual([]);
   });
 });
 

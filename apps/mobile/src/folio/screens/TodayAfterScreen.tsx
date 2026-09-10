@@ -1,30 +1,5 @@
-/**
- * @rn-screen    TodayAfterScreen
- * @rn-stack     Today > After (transient)
- * @purpose      Show the path re-drawing after a meaningful change (review accepted, sub paused).
- *               Faithful 1:1 RN port of the web design source
- *               (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenTodayAfter.tsx).
- * @reads        nav.pressure, transactions (declared on the web; the screen renders the design's
- *               before/after demo numbers — they belong to the unbuilt money-path engine, see @notes)
- * @writes       —
- * @opens-sheet  melo-chat (top-right Melo button) · route-detail (the 'Your low point / open' tile —
- *               opened by the body but understated in the web doc block; wired here per fidelityRisks)
- * @copy         FROZEN — every visible string ships verbatim (COPY_DECK + the screen's literal labels).
- * @tokens       canvas(--paper) · surface · inset · ink · muted(--muted-ink) · hairline · calm(--accent) ·
- *               positive · Fraunces headlines · tabular money
- * @motion       route-draw 2.2s (accent line only) · count-up 700ms · slide-in-r 360ms ·
- *               press .97 · Melo breathe (cheer 4.4s) · all collapse to final state under reduce-motion
- * @melo-mood    cheer (both Melo instances) — one less thing waiting, still on track (MELO_MOODS:
- *               "TodayAfter (route re-drawn) → cheer"); never escalate to celebrate (cycle-close only)
- * @notes        STATES.md TodayAfter: empty=n/a · error="falls back to Today" · offline=populated ·
- *               loading=route-draw (Melo curious + line, never a spinner). The £283 / −£42 /
- *               "after adding Tesco" verdict + both SVG path 'd' strings are the design's HARDCODED
- *               before/after demo of the money-path engine (not yet built — ENGINES §6), tagged
- *               `// @rn-engine money-path`. Preview-then-commit: this screen only navigates, it
- *               performs no store mutation. The verdict line + Melo reassurance-strip quote are
- *               mode-tinted per moneyMode (AFTER_VERDICT table, 1:1 web ScreenTodayAfter.tsx
- *               lines 55-66) — not a single hardcoded pair.
- */
+/** Current plan after a saved change. Recovery carries an explicit before/after receipt; visits
+ * without one show the current canonical plan without guessing which historical record changed. */
 
 import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -38,42 +13,16 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import {
-  elevation,
-  gap,
-  PressureScreen,
-  pressed,
-  radius,
-  serif,
-  useCountUp,
-  useTheme,
-} from '@/folio/theme';
+import { elevation, gap, PressureScreen, pressed, radius, serif, useTheme } from '@/folio/theme';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { useAppStore } from '@/folio/store';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { formatMoney } from '@/folio/lib/financialPresentation';
+import { selectAfterChangePresentation, type RecoveryReceipt } from '@/folio/lib/recoveryReceipt';
 import type { RoutePoint } from '@/folio/lib/moneyPath';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import type { Nav } from '@/folio/types';
-import type { MoneyMode } from '@/folio/lib/modes/types';
-
-// Mode-tinted verdict for the "one less thing waiting" moment. 1:1 port of the web's AFTER_VERDICT
-// table (ScreenTodayAfter.tsx lines 55-66) — the spare number is unchanged; only the framing shifts
-// so Growth doesn't read like Survival and Reset doesn't read like Optimizer. FROZEN copy.
-const AFTER_VERDICT: Record<MoneyMode, { line: string; melo: string }> = {
-  survival: {
-    line: 'You make it to payday.',
-    melo: "One less thing waiting. You're still on track.",
-  },
-  stability: { line: 'The shape still holds.', melo: 'Buffer intact. Nothing to do.' },
-  growth: { line: 'Still room to save.', melo: 'That trim feeds the pace next month.' },
-  debt: { line: 'Still on the plan.', melo: 'Small win. It compounds.' },
-  optimizer: { line: 'Leak closed. Cleaner shape.', melo: 'One down. The rest can wait a cycle.' },
-  reset: { line: 'One small step held.', melo: 'That counts. Rest the plan.' },
-  irregular: { line: 'Runway just got longer.', melo: 'Every trim buys a week.' },
-  household: { line: 'Your share still holds.', melo: 'Household stays square.' },
-  planning: { line: 'The goal moved closer.', melo: 'Steady nudges the date.' },
-  lowVis: { line: 'A little clearer.', melo: 'Each move sharpens the picture.' },
-};
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -87,36 +36,8 @@ const VB_H = 120;
 const SVG_RENDER_H = 110; // the web rendered the 400×120 viewBox into a 110px-tall box
 const ROUTE_DASH = 1200; // >= the new accent line's length so route-draw never clips (web strokeDasharray)
 
-// @rn-engine money-path — WIRED to the real route. The spare-at-payday verdict, the new route line +
-// fill, and the lowest / payday marker positions all come from the shared store→money-path bridge
-// (@/folio/lib/storeRoute → computeRoute), the same engine Today, Calendar and the pressure-map
-// TodayAfter draw from — so this transient re-states the user's actual path, not a baked demo.
-//
-// Change provenance (the ghost of the OLD route + the "What changed" −£42 delta) needs a before/after
-// pair: the pre-change route vs the route after the just-accepted change. The honest "before" can ONLY
-// be captured at the instant the change is applied, because the two upstream flows into this screen —
-//   • RecoveryScreen.onRebuild():     pickedMove.commit()  then  nav.go('today-after')
-//   • VisualizerScreen.acceptSelected(): addTransaction(...) loop  then  nav.go('today-after')
-// — both mutate the live store FIRST and navigate SECOND. The pre-change curve exists in the store only
-// up to that mutating call; by the time `nav.go` runs, the shell renders Today After, or any read here
-// fires, the store already holds the AFTER-route and the before-route is gone. So the snapshot must be
-// taken inside those two screens, one statement before the mutation, and threaded to this screen.
-//
-// Threading it honestly is a cross-file refactor OUTSIDE this fix's allowed edit surface
-// (TodayAfterScreen.tsx / store.ts / FolioShell.tsx): it requires editing RecoveryScreen + Visualizer
-// to snapshot the pre-mutation route, and either widening `nav.go` (types.ts) to carry the payload or
-// adding an ephemeral `beforeRoutePoints` store field those two screens write before committing. None
-// of those files may be touched here. The three editable files cannot capture it on their own:
-//   • store.ts has no injected "now" to compute a route and its mutators (togglePaused / nudgeSub /
-//     setTightPointGoal / addToPot / addTransaction) are shared by many flows that never reach this
-//     screen — auto-snapshotting on each would FABRICATE a "before" for unrelated edits, not honesty.
-//   • FolioShell.go and this screen both run AFTER the mutation, so neither can ever observe the before.
-// Rather than fake the ghost from the current curve (a fabricated line the design forbids), the screen
-// keeps the single honest line: it draws the user's REAL current route and omits the dashed ghost. Per
-// the design contract ("if no change context, show the current route") this is the faithful fallback;
-// the FROZEN "What changed" copy ships verbatim as the design's settled-state framing. Restoring the
-// two-line before/after is a follow-up that touches RecoveryScreen + VisualizerScreen + the nav/store
-// thread — see the matching note at the ghost's draw site below.
+// The plot shows the current cash path. The headline uses the protected spending limit from
+// finance-engine; saved recovery comparisons use only the explicit action receipt.
 
 // The preview plot lives in the web's authored 400×120 viewBox; these bands are the drawable region
 // the route maps into (matching the pressure-map TodayAfter preview so the curve reads as the same
@@ -194,7 +115,15 @@ const EPOCH = new Date(0);
  *  Folio is local-first). Defaults to 'populated'. */
 type ScreenState = 'populated' | 'loading' | 'error' | 'empty' | 'offline';
 
-export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state?: ScreenState }) {
+export function TodayAfterScreen({
+  nav,
+  state = 'populated',
+  recovery,
+}: {
+  nav: Nav;
+  state?: ScreenState;
+  recovery?: RecoveryReceipt | undefined;
+}) {
   const t = useTheme();
   const reduceMotion = useReduceMotion();
 
@@ -220,31 +149,16 @@ export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
 
-  // The settled spare-at-payday verdict + the re-drawn route preview both read from the real route.
-  const spareTarget = route ? Math.round(route.spare) : 0;
-  const geometry = useMemo(() => previewGeometry(route?.points ?? []), [route]);
-
-  // count-up — the spare balance ticks up over 700ms (cubic ease-out). Money never slides in with the
-  // screen; it counts. Collapses to the final value under reduce-motion. (web: useCountUp(283, 700))
-  const balance = useCountUp(spareTarget, 700, reduceMotion);
-
-  // What actually changed: the most-recently-added transaction. The store keeps transactions
-  // newest-first, and this screen is reached immediately after addTransaction (Visualizer accept /
-  // Recovery rebuild). The screen carries no separate change payload, so transactions[0] IS the
-  // change — its real merchant + signed amount drive the honest "what changed" copy below, never a
-  // hardcoded "Tesco · −£42".
-  const lastTxn = useAppStore((s) => s.transactions[0]);
-  const changeMerchant = lastTxn?.merchant ?? 'your change';
-  const changeAmount = lastTxn?.amount ?? 0;
-  const changeMagnitude = Math.abs(Math.round(changeAmount));
-  const changeIsOut = changeAmount < 0;
-  // The verdict is conditional on the REAL spare, never an unconditional "you make it".
-  const makesIt = spareTarget >= 0;
-
-  // Mode-tinted verdict (1:1 web parity, ScreenTodayAfter.tsx AFTER_VERDICT) — the frozen line/melo
-  // pair shifts with the user's declared MoneyMode instead of collapsing to two hardcoded strings.
-  const moneyMode = useAppStore((s) => s.moneyMode ?? 'survival');
-  const verdict = AFTER_VERDICT[moneyMode] ?? AFTER_VERDICT.survival;
+  const appState = useAppStore((value) => value);
+  const plan = useMemo(
+    () => buildFinancialPlanFromState(appState, { now: now ?? EPOCH }),
+    [appState, now],
+  );
+  const model = selectAfterChangePresentation(appState, plan, recovery);
+  const geometry = useMemo(
+    () => previewGeometry(route?.points.slice(0, route.daysToPayday + 1) ?? []),
+    [route],
+  );
 
   // slide-in-r — the whole screen enters from the right (translateX 28→0) over 360ms.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -310,7 +224,9 @@ export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state
           >
             <Text style={[styles.backArrow, { color: t.muted }]}>←</Text>
           </Pressable>
-          <Text style={[styles.eyebrow, { color: t.muted }]}>One less thing waiting</Text>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>
+            {model.receipt ? 'Change saved' : 'Current plan'}
+          </Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Open Melo"
@@ -321,24 +237,29 @@ export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state
               p ? pressed : undefined,
             ]}
           >
-            {/* Web always renders this instance as mood="cheer" (ScreenTodayAfter.tsx line 83),
-                unconditionally — never tinted by outcome. */}
-            <Melo size={22} mood="cheer" />
+            <Melo size={22} mood={model.canReassure ? 'calm' : 'concern'} />
           </Pressable>
         </View>
 
         {/* Verdict block */}
         <View style={styles.verdictBlock} accessibilityLiveRegion="polite">
-          <Text style={[styles.positiveLine, { color: makesIt ? t.positive : t.repair }]}>
-            {verdict.line}
+          <Text style={[styles.positiveLine, { color: model.canReassure ? t.positive : t.repair }]}>
+            {model.headline}
           </Text>
           <View style={styles.amountRow}>
-            <Text style={[styles.amount, { color: t.ink }]}>
-              £{Math.round(balance).toLocaleString('en-GB')}
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+              style={[styles.amount, { color: t.ink }]}
+            >
+              {model.amount === null ? '—' : formatMoney(model.amount)}
             </Text>
-            <Text style={[styles.amountSuffix, { color: t.muted }]}>spare</Text>
+            <Text style={[styles.amountSuffix, { color: t.muted }]}>
+              {model.amount === null ? 'needs checking' : model.amountLabel}
+            </Text>
           </View>
-          <Text style={[styles.subLine, { color: t.muted }]}>after adding {changeMerchant}</Text>
+          <Text style={[styles.subLine, { color: t.muted }]}>{model.changeTitle}</Text>
         </View>
 
         {/* What-changed card */}
@@ -350,18 +271,25 @@ export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state
           ]}
         >
           <View style={styles.cardHead}>
-            <Text style={[styles.eyebrow, { color: t.muted }]}>What changed</Text>
-            <Text style={[styles.delta, { color: t.calm }]}>
-              {changeIsOut ? '−' : '+'}£{changeMagnitude.toLocaleString('en-GB')}
+            <Text style={[styles.eyebrow, { color: t.muted }]}>
+              {model.receipt ? 'Saved change · before → after' : 'Current plan'}
             </Text>
           </View>
-          <Text style={[styles.cardBody, { color: t.ink }]}>
-            {changeMerchant} {changeIsOut ? 'lowered' : 'raised'} your low point by{' '}
-            <Text style={[styles.cardBodyAccent, { color: t.calm }]}>
-              £{changeMagnitude.toLocaleString('en-GB')}
+          <Text style={[styles.cardBody, { color: t.ink }]}>{model.changeDetail}</Text>
+          {model.rows.map((row) => (
+            <View key={row.label} style={styles.receiptRow}>
+              <Text style={[styles.cardBody, { color: t.muted }]}>{row.label}</Text>
+              <Text style={[styles.cardBody, { color: t.ink }]}>
+                {formatMoney(row.before)} → {formatMoney(row.after)}
+              </Text>
+            </View>
+          ))}
+          {model.changedSinceReceipt ? (
+            <Text style={[styles.cardBody, { color: t.muted }]}>
+              Your plan has changed again since this saved action. The amount above is your current
+              position.
             </Text>
-            .
-          </Text>
+          ) : null}
           <View style={[styles.divider, { backgroundColor: t.hairline }]} />
 
           <View style={styles.svgWrap}>
@@ -373,16 +301,7 @@ export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state
                 </LinearGradient>
               </Defs>
 
-              {/* Ghost of the old route — static dashed hairline (the design's "before" line). It is
-                  OMITTED here, not faked. The honest before-route can only be snapshotted at the
-                  instant the change is applied, inside the two upstream flows (RecoveryScreen.onRebuild
-                  → commit; VisualizerScreen.acceptSelected → addTransaction) — each mutates the store
-                  first and navigates here second, so by the time this screen reads the route the
-                  before-curve is already gone. Capturing + threading it is a cross-file refactor outside
-                  this fix's editable surface (it needs RecoveryScreen + VisualizerScreen + the nav/store
-                  thread, none touchable here); see the full provenance note at the top of this file.
-                  Drawing a ghost from the current curve would fabricate a route the user never had, so
-                  the screen keeps one honest line until that before/after thread lands. */}
+              {/* Current cash path; no before-line is inferred from historical transactions. */}
 
               {/* Area under the new route — static fill, from the real route geometry. */}
               <Path d={geometry.areaD} fill="url(#afterFill)" />
@@ -429,8 +348,8 @@ export function TodayAfterScreen({ nav, state = 'populated' }: { nav: Nav; state
 
         {/* Melo reassurance strip */}
         <View style={[styles.meloStrip, { backgroundColor: t.inset }]}>
-          <Melo size={28} mood="cheer" />
-          <Text style={[styles.meloQuote, { color: t.ink }]}>“{verdict.melo}”</Text>
+          <Melo size={28} mood={model.canReassure ? 'calm' : 'concern'} />
+          <Text style={[styles.meloQuote, { color: t.ink }]}>“{model.message}”</Text>
         </View>
 
         {/* Exit tiles */}
@@ -486,6 +405,7 @@ function useReduceMotion(): boolean {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  receiptRow: { gap: gap.xs, marginTop: gap.md },
   scrollContent: { paddingBottom: gap.xxl },
 
   // Header — px-7 pt-4 pb-2, space-between (web)
@@ -526,10 +446,12 @@ const styles = StyleSheet.create({
   amountRow: {
     marginTop: gap.sm,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'baseline',
     gap: gap.sm,
   },
   amount: {
+    maxWidth: '100%',
     fontFamily: serif.display,
     fontSize: 64,
     lineHeight: 64, // leading-none

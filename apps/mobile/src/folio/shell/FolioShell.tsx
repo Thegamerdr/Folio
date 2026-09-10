@@ -60,7 +60,7 @@ import {
   subscribeSurfaceRepaint,
 } from '@/surfaces/pressureMap/sheetRepaint';
 import type { ProductScreen } from '@/surfaces/pressureMap/productScreen';
-import { Sheet, SheetPortalProvider } from '@/surfaces/pressureMap/Sheet';
+import { KeyboardSafeView, Sheet, SheetPortalProvider } from '@/surfaces/pressureMap/Sheet';
 
 import { StartScreen } from '@/folio/screens/StartScreen';
 import { TodayScreen } from '@/folio/screens/TodayScreen';
@@ -157,7 +157,15 @@ import {
 } from '@/folio/lib/persistenceRuntime';
 import { derivePressure } from '@/folio/screens/today/pressure';
 import { triggerFeedback } from '@/folio/lib/feedback';
-import type { MeloIntent, Nav, Pressure, ScreenId, SheetId, SheetPayload } from '@/folio/types';
+import type {
+  MeloIntent,
+  Nav,
+  Pressure,
+  ScreenId,
+  ScreenPayload,
+  SheetId,
+  SheetPayload,
+} from '@/folio/types';
 import {
   getParityHarnessConfig,
   getParityRuntimeControl,
@@ -447,6 +455,7 @@ export function FolioShell() {
   // on `start`; here the shell opens on `today` so the bottom nav has a lit home from the first
   // frame (Start is reachable but is not a tab). One screen, one optional sheet.
   const [screen, setScreen] = useState<ScreenId>(parity?.screen ?? 'today');
+  const [screenPayload, setScreenPayload] = useState<ScreenPayload | undefined>(undefined);
   const [sheet, setSheet] = useState<SheetId>(parity?.sheet ?? null);
   const [workspaceSheetVisible, setWorkspaceSheetVisible] = useState(false);
   const [portalSheetOpen, setPortalSheetOpen] = useState(false);
@@ -502,6 +511,7 @@ export function FolioShell() {
     setLogSpendAmount(undefined);
     setAffordAmount(undefined);
     setScreen(parityRuntime.screen);
+    setScreenPayload(undefined);
     setSheet(parityRuntime.sheet);
   }, [parity, parityRuntime]);
 
@@ -597,7 +607,7 @@ export function FolioShell() {
   // Opening a screen closes any open sheet (a navigation supersedes a transient sheet) — faithful
   // to the web setScreen, which clears the sheet before navigating. Each navigation also pushes the
   // destination onto the back-history trail (web nav.go pushes to historyRef before setScreen).
-  const go = useCallback((next: ScreenId) => {
+  const go = useCallback((next: ScreenId, payload?: ScreenPayload) => {
     historyRef.current.push(next);
     setSheet(null);
     setWorkspaceSheetVisible(false);
@@ -610,6 +620,7 @@ export function FolioShell() {
     setLogSpendAmount(undefined);
     setAffordAmount(undefined);
     setScreen(next);
+    setScreenPayload(next === 'today-after' ? payload : undefined);
   }, []);
 
   const back = useCallback(() => {
@@ -632,6 +643,7 @@ export function FolioShell() {
     setLogSpendAmount(undefined);
     setAffordAmount(undefined);
     setScreen(prev);
+    setScreenPayload(undefined);
   }, []);
 
   // Open a sheet, carrying the optional payload for sheets that need a real subject. 'edit-txn'
@@ -706,6 +718,7 @@ export function FolioShell() {
     setAffordAmount(undefined);
     setPressureOverride(null);
     setScreen('today');
+    setScreenPayload(undefined);
   }, []);
 
   // Android hardware back — bridged to the shell's own nav machine, in UI-stack order: an open
@@ -817,8 +830,9 @@ export function FolioShell() {
             key={`route-frame-${screen}`}
             style={[shellStyles.routeFrame, { backgroundColor: t.canvas }]}
           >
-            <View
-              collapsable={false}
+            <KeyboardSafeView
+              enabled={sheet === null && !workspaceSheetVisible && !portalSheetOpen}
+              reduceMotion={reduceMotion}
               style={[shellStyles.screenHost, { backgroundColor: t.canvas }]}
             >
               <ScreenErrorBoundary
@@ -828,10 +842,15 @@ export function FolioShell() {
                 forceError={captureGlobalSurface === 'global.screen-error-boundary'}
               >
                 <SafeAreaInsetsContext.Provider value={screenInsets}>
-                  <ScreenView screen={screen} nav={nav} pressure={activePressure} />
+                  <ScreenView
+                    screen={screen}
+                    nav={nav}
+                    pressure={activePressure}
+                    payload={screenPayload}
+                  />
                 </SafeAreaInsetsContext.Provider>
               </ScreenErrorBoundary>
-            </View>
+            </KeyboardSafeView>
             {screen !== 'review' &&
             screen !== 'plan' &&
             sheet === null &&
@@ -1238,7 +1257,17 @@ function TodayByMode({ nav, pressure }: { nav: Nav; pressure: Pressure }) {
 // blank one, rather than as a sign more waves are pending.
 // ---------------------------------------------------------------------------
 
-function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pressure: Pressure }) {
+function ScreenView({
+  screen,
+  nav,
+  pressure,
+  payload,
+}: {
+  screen: ScreenId;
+  nav: Nav;
+  pressure: Pressure;
+  payload: ScreenPayload | undefined;
+}) {
   const activeWorkspaceKind = useAppStore(
     (state) =>
       state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)?.kind ??
@@ -1305,7 +1334,7 @@ function ScreenView({ screen, nav, pressure }: { screen: ScreenId; nav: Nav; pre
   if (screen === 'whatif') return <WhatIfScreen nav={nav} pressure={pressure} />;
   if (screen === 'shortfall') return <ShortfallScreen nav={nav} />;
   if (screen === 'recovery') return <RecoveryScreen nav={nav} />;
-  if (screen === 'today-after') return <TodayAfterScreen nav={nav} />;
+  if (screen === 'today-after') return <TodayAfterScreen nav={nav} recovery={payload?.recovery} />;
 
   // Wave 5 — the hub / data-trust / time-of-record / commitments / rough-number / companion surfaces,
   // completing the full UI. `more` is the hub, `privacy` the data-trust page, `timeline` the

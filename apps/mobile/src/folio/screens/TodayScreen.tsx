@@ -89,7 +89,7 @@ import { buildFinancialPlanFromState, toFinancialPlanInput } from '@/folio/lib/f
 import { selectFinancialPresentation, formatMoney } from '@/folio/lib/financialPresentation';
 import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
 
-import { derivePressure, pressureLine } from './today/pressure';
+import { derivePressure } from './today/pressure';
 import { selectPaydayTightPoint, tightPointDayLabel } from '@/folio/lib/moneyPath';
 import { formatDayProse, formatGBP, groupedPounds } from './today/format';
 import { TodayNudges } from './today/TodayNudges';
@@ -136,8 +136,6 @@ export function TodayScreen({
   const t = useTodayTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
-
-  const line = pressureLine[suppliedPressure];
 
   // Live store reads. Today's tightest mirrors the Route/Calendar exactly — but the route inputs
   // (subs/subPaused/subOverrides/transactions/income/balance/pots) are now read inside `useRoute`,
@@ -495,16 +493,13 @@ export function TodayScreen({
       ? `${formatMoney(Math.abs(scrubLowAmount))} short`
       : `${formatMoney(scrubLowAmount)} after recorded costs`;
 
-  // Loading branch (STATES.md / spec): never a spinner. When the shell explicitly hands a loading
-  // state, Folio holds the screen on Melo (curious) + one quoted line — the same calm "working it
-  // out" affordance the rest of the app uses — instead of flashing the fallback figures. The
-  // mount-gate transient (now === null) stays on the populated layout with the pressureLow fallback,
-  // exactly as the web did, so a normal open never shows this branch.
-  if (state === 'loading') {
+  // The date and plan are not known on the mount frame. Wait for them before making any
+  // setup or financial claim, including whether the user has a next income date.
+  if (isLoading) {
     return (
       <Animated.View style={[styles.root, enterStyle]}>
         <PressureScreen centered>
-          <MeloLine mood="curious" text={line} />
+          <MeloLine mood="curious" text="Checking your recorded numbers and dates." />
         </PressureScreen>
       </Animated.View>
     );
@@ -707,7 +702,7 @@ export function TodayScreen({
           {greenStreak >= 2 ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Safe zone streak: ${greenStreak} cycles. Open Insights.`}
+              accessibilityLabel={`${greenStreak} recorded reviews in a row with forecast cash at £0 or above. Open Insights.`}
               onPress={() => nav.go('insights')}
               style={({ pressed: isPressed }) => [
                 styles.streakChip,
@@ -717,7 +712,8 @@ export function TodayScreen({
             >
               <View style={[styles.streakDot, { backgroundColor: t.positive }]} />
               <Text style={[styles.streakText, { color: t.ink }]}>
-                <Text style={{ color: t.calm }}>{greenStreak}</Text> cycles in the safe zone
+                <Text style={{ color: t.calm }}>{greenStreak}</Text> reviews: forecast cash £0 or
+                above
               </Text>
             </Pressable>
           ) : null}
