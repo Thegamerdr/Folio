@@ -619,10 +619,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
 
   // populated / offline — the real account read. offline = populated (local-first).
   return (
-    <Animated.View
-      style={[styles.root, enterStyle, { backgroundColor: t.canvas, paddingTop: insets.top }]}
-    >
+    <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView
+        style={[styles.viewport, { backgroundColor: t.canvas, marginTop: insets.top }]}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.content,
@@ -1462,6 +1461,12 @@ function AccountRow({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  // Keep the safe-area boundary outside the scrolling content. Padding on the scroll content can
+  // move away with its offset and allow large-font headings to paint beneath Android system icons.
+  viewport: {
+    flex: 1,
+    overflow: 'hidden',
   },
   loading: {
     flex: 1,

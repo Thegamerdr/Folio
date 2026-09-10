@@ -157,6 +157,56 @@ describe('financial presentation prerequisites and coherent results', () => {
       canReassure: true,
     });
   });
+  it('withholds reassuring copy when a future commitment is actively paused', () => {
+    const state = fullState();
+    state.subPaused = { 'Rent + bills': true };
+    state.subs[0] = {
+      ...state.subs[0]!,
+      pausedAt: '2026-09-09',
+      pausedUntil: '2026-09-13',
+    };
+    const plan = buildFinancialPlanFromState(state, { now });
+    const presentation = selectFinancialPresentation(state, plan);
+    expect(plan.safeToSpendMinor).toBeGreaterThan(35000);
+    expect(presentation).toMatchObject({
+      pausedForecastCount: 1,
+      nudgedForecastCount: 0,
+      forecastAssumptionCount: 1,
+      canReassure: false,
+      label: 'Check your forecast changes',
+    });
+    expect(financialAmountLabel(plan, presentation)).toBe('After recorded costs and buffer');
+  });
+  it('withholds reassuring copy when a future commitment is date-nudged', () => {
+    const state = fullState();
+    state.subOverrides = { 'Rent + bills': 3 };
+    const plan = buildFinancialPlanFromState(state, { now });
+    const presentation = selectFinancialPresentation(state, plan);
+    expect(presentation).toMatchObject({
+      pausedForecastCount: 0,
+      nudgedForecastCount: 1,
+      forecastAssumptionCount: 1,
+      canReassure: false,
+      label: 'Check your forecast changes',
+    });
+    expect(financialAmountLabel(plan, presentation)).toBe('After recorded costs and buffer');
+  });
+  it('does not keep an expired pause from a stale persisted flag', () => {
+    const state = fullState();
+    state.subPaused = { 'Rent + bills': true };
+    state.subs[0] = {
+      ...state.subs[0]!,
+      pausedAt: '2026-09-01',
+      pausedUntil: '2026-09-09',
+    };
+    const plan = buildFinancialPlanFromState(state, { now });
+    expect(selectFinancialPresentation(state, plan)).toMatchObject({
+      pausedForecastCount: 0,
+      forecastAssumptionCount: 0,
+      canReassure: true,
+      label: 'Safe to spend until payday',
+    });
+  });
   it('keeps an overdue reserve while withholding reassurance', () => {
     const state = fullState();
     state.subs = [

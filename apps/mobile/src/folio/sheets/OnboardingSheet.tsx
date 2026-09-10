@@ -52,6 +52,7 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 
 import {
   Eyebrow,
+  CheckGlyph,
   gap,
   money,
   pressed,
@@ -791,9 +792,18 @@ function OnboardingFlow({
       onPress={() => setCostsConfirmed((previous) => !previous)}
       style={s.confirmation}
     >
-      <Text style={s.skipLabel}>
-        {costsConfirmed ? '☑' : '☐'} I’ve included my regular costs, essentials and buffer.
-      </Text>
+      <View style={s.confirmationRow}>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          style={[s.checkbox, costsConfirmed ? s.checkboxChecked : null]}
+        >
+          {costsConfirmed ? <CheckGlyph color={t.inverse} size={16} /> : null}
+        </View>
+        <Text style={[s.skipLabel, s.confirmationLabel]}>
+          I’ve included my regular costs, essentials and buffer.
+        </Text>
+      </View>
     </Pressable>
   );
   const footer = (
@@ -1888,6 +1898,19 @@ function makeStyles(t: Palette) {
     error: { color: t.repair, fontSize: 13, lineHeight: 18, marginTop: gap.xs },
     selectedGoal: { color: t.muted, fontSize: 12, lineHeight: 17, marginBottom: gap.sm },
     confirmation: { minHeight: 48, justifyContent: 'center', paddingVertical: gap.sm },
+    confirmationRow: { alignItems: 'center', flexDirection: 'row', gap: gap.sm },
+    checkbox: {
+      alignItems: 'center',
+      borderColor: t.muted,
+      borderRadius: radius.sm,
+      borderWidth: 2,
+      flexShrink: 0,
+      height: gap.lg,
+      justifyContent: 'center',
+      width: gap.lg,
+    },
+    checkboxChecked: { backgroundColor: t.calm, borderColor: t.calm },
+    confirmationLabel: { flex: 1, flexShrink: 1 },
     footerActions: { flexDirection: 'row', justifyContent: 'space-evenly' },
     footerAction: { minHeight: 48, justifyContent: 'center', paddingHorizontal: gap.lg },
     summaryRow: {

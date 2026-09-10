@@ -25,11 +25,26 @@ export function selectFinancialPresentation(state: AppState, plan: FinancialPlan
   const overdueCount = overdue.length;
   const pendingReview =
     (state.reviewQueue?.length ?? 0) + (state.reviewQueueSpillover?.length ?? 0);
+  // A paused or nudged future commitment is a user-owned forecast assumption. The finance engine
+  // still owns the amount; this gate only keeps shared copy from calling the resulting estimate
+  // unconditionally safe until the user confirms the changed date/occurrence.
+  const pausedForecastCount = state.subs.filter((subscription) => {
+    if (!state.subPaused[subscription.name]) return false;
+    return plan?.asOf === undefined || subscription.pausedUntil === undefined
+      ? true
+      : subscription.pausedUntil > plan.asOf;
+  }).length;
+  const nudgedForecastCount = state.subs.filter((subscription) => {
+    const delta = state.subOverrides[subscription.name];
+    return typeof delta === 'number' && Number.isFinite(delta) && delta !== 0;
+  }).length;
+  const forecastAssumptionCount = pausedForecastCount + nudgedForecastCount;
   const canReassure =
     complete &&
     Boolean(plan?.nextIncomeDate) &&
     overdueCount === 0 &&
     pendingReview === 0 &&
+    forecastAssumptionCount === 0 &&
     (plan?.safeToSpendMinor ?? -1) >= 0;
   const label =
     plan === null
@@ -42,9 +57,11 @@ export function selectFinancialPresentation(state: AppState, plan: FinancialPlan
             ? 'Some figures need your review'
             : !plan?.nextIncomeDate
               ? 'No next income date'
-              : plan.safeToSpendMinor < 0
-                ? 'Gap after bills, essentials and buffer'
-                : 'Safe to spend until payday';
+              : forecastAssumptionCount > 0
+                ? 'Check your forecast changes'
+                : plan.safeToSpendMinor < 0
+                  ? 'Gap after bills, essentials and buffer'
+                  : 'Safe to spend until payday';
   const message =
     plan === null
       ? 'Checking your recorded numbers and dates.'
@@ -56,9 +73,11 @@ export function selectFinancialPresentation(state: AppState, plan: FinancialPlan
             ? 'Review the pending figures before relying on this estimate.'
             : !plan?.nextIncomeDate
               ? 'No expected income is recorded. Review your income dates before relying on a spending amount.'
-              : plan.safeToSpendMinor < 0
-                ? 'The current plan leaves a gap. Review the costs and dates that create it.'
-                : 'After your recorded bills, essentials, debt minimums and buffer.';
+              : forecastAssumptionCount > 0
+                ? 'Your forecast includes paused or moved bills. This does not change payments with your provider. Check what is actually due before relying on this estimate.'
+                : plan.safeToSpendMinor < 0
+                  ? 'The current plan leaves a gap. Review the costs and dates that create it.'
+                  : 'After your recorded bills, essentials, debt minimums and buffer.';
   return {
     complete,
     needs,
@@ -68,6 +87,9 @@ export function selectFinancialPresentation(state: AppState, plan: FinancialPlan
     overdue,
     overdueCount,
     pendingReview,
+    pausedForecastCount,
+    nudgedForecastCount,
+    forecastAssumptionCount,
     canReassure,
     label,
     message,
