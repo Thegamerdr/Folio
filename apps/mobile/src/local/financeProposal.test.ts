@@ -18,6 +18,41 @@ const snapshot = {
 };
 
 describe('local finance proposals', () => {
+  it('clarifies an imperative payment but only proposes an explicitly completed payment', () => {
+    expect(parseLocalFinanceProposal('Pay 40 to Final card')).toBeNull();
+    const requested = buildLocalMeloTurn({
+      prompt: 'Pay 40 to Final card',
+      snapshot,
+      tone: 'calm',
+      context: { lastIntent: 'check_purchase', lastDetectedAmountMinor: 4000 },
+    });
+    expect(requested.intent).toBe('review_debts');
+    expect(requested.suggestions).toEqual([]);
+    expect(requested.reply).toContain('Has this payment already happened?');
+    const completed = buildLocalMeloTurn({
+      prompt: 'I paid 40 to Final card',
+      snapshot,
+      tone: 'calm',
+      context: requested.context,
+    });
+    expect(completed.suggestions).toEqual([
+      expect.objectContaining({
+        name: 'log_debt_payment',
+        args: expect.objectContaining({
+          amount: 40,
+          debtName: 'Final card',
+          preview: {
+            availableNowMinor: snapshot.availableNowMinor,
+            beforeTotalDebtMinor: snapshot.totalDebtMinor,
+            tightestBalanceMinor: snapshot.tightestBalanceMinor,
+          },
+        }),
+      }),
+    ]);
+    expect(completed.reply).toMatch(/review/i);
+    expect(parseLocalFinanceProposal('Can I pay 40 to Final card?')).toBeNull();
+  });
+
   it('proposes a named debt payment without writing it', () => {
     expect(parseLocalFinanceProposal('I paid £400 off Klarna')).toEqual({
       name: 'log_debt_payment',

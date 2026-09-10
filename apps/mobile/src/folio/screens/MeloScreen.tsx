@@ -97,7 +97,7 @@ import Animated, {
 
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
-import { formatMoney } from '@/folio/lib/financialPresentation';
+import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentation';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
@@ -684,10 +684,10 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
         {/* Rituals */}
         <View style={[styles.section, styles.ritualsSection]}>
-          <View style={styles.sectionHeaderRow}>
+          <View style={styles.ritualHeader}>
             <Text style={[styles.sectionTitle, { color: t.ink }]}>Rituals</Text>
             <Text style={[styles.sectionHint, { color: t.muted }]}>
-              {lastCycle ? `last · ${lastCycle}` : 'never run'}
+              {lastCycle ? `reviewed · ${formatFinancialDate(lastCycle)}` : 'no recorded review'}
             </Text>
           </View>
           <View style={styles.ritualsGrid}>
@@ -701,7 +701,9 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               ]}
             >
               <Text style={[styles.ritualLabel, { color: t.ink }]}>Payday</Text>
-              <Text style={[styles.ritualHint, { color: t.muted }]}>close the cycle together</Text>
+              <Text style={[styles.ritualHint, { color: t.muted }]}>
+                review your forecast together
+              </Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -713,7 +715,9 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               ]}
             >
               <Text style={[styles.ritualLabel, { color: t.ink }]}>Sunday look</Text>
-              <Text style={[styles.ritualHint, { color: t.muted }]}>what shifted this week</Text>
+              <Text style={[styles.ritualHint, { color: t.muted }]}>
+                your recorded forecast reviews
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -916,6 +920,10 @@ const styles = StyleSheet.create({
   },
   ritualsSection: {
     marginBottom: gap.xxl,
+  },
+  ritualHeader: {
+    alignItems: 'flex-start',
+    gap: gap.xs,
   },
   sectionHeaderRow: {
     alignItems: 'baseline',

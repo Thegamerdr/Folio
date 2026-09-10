@@ -16,6 +16,8 @@
 //      6-month trend window actually contains a reconstructed month.
 
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { URL } from 'node:url';
 
 import type { CycleRecord } from '../store';
 import { synthesizeHistoryCycles, type ReconstructedCycleRecord } from '../lib/historyCycles';
@@ -191,5 +193,30 @@ describe('actual same-day review comparison', () => {
     expect(read.pattern).toContain('£120.23');
     expect(read.interpretation).toContain('may cover the same period');
     expect(JSON.stringify(read)).not.toMatch(/closed with|lived cycle|more breathing room|months/);
+  });
+});
+
+describe('empty Insights preserves the recorded-review prerequisite', () => {
+  const source = readFileSync(new URL('./InsightsScreen.tsx', import.meta.url), 'utf8');
+  const emptyBranch = source.slice(
+    source.indexOf('if (cycles.length === 0)'),
+    source.indexOf('// ----- POPULATED'),
+  );
+
+  it('describes missing forecast reviews without claiming a completed month is required', () => {
+    expect(emptyBranch).toContain('No reviews recorded yet');
+    expect(emptyBranch).toContain('No forecast reviews yet');
+    expect(emptyBranch).toContain(
+      'After you save a forecast review, its summary and any note will appear here.',
+    );
+    expect(emptyBranch).not.toMatch(/copy\.insights\.empty|wrapped up|real cycle|payday-to-payday/);
+  });
+
+  it('retains the setup doorway and return to Today without inventing a chart', () => {
+    expect(emptyBranch).toContain('const needsSetup = !onboardingDone');
+    expect(emptyBranch).toContain('Add your numbers first');
+    expect(emptyBranch).toContain("nav.openSheet('onboarding')");
+    expect(emptyBranch).toContain("label: 'Back to today', onPress: () => nav.go('today')");
+    expect(emptyBranch).not.toContain('<TrendChart');
   });
 });

@@ -739,6 +739,7 @@ export function draftMeloLocalAiResponse(input: MeloLocalAiRequest): MeloLocalAi
     detectedAmountMinor,
     intent,
     snapshot: input.snapshot,
+    paymentInstruction: isUnconfirmedPaymentInstruction(prompt),
   });
   const financialConclusion = buildFinancialConclusion({
     detectedAmountMinor,
@@ -1554,6 +1555,12 @@ export function buildPhase11CoverageRows(
   ];
 }
 
+function isUnconfirmedPaymentInstruction(prompt: string): boolean {
+  return /^(?:please\s+)?(?:pay|send)\s+(?:£\s*)?[\d,]+(?:\.\d{1,2})?\s+(?:to|towards?|off|on)\s+\S/i.test(
+    prompt.trim(),
+  );
+}
+
 export function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
   if (includesAny(prompt, ['invoice', 'invoices', 'overdue', 'owed to me', 'client payment'])) {
     return 'review_business_invoices';
@@ -1597,6 +1604,10 @@ export function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
   if (includesAny(prompt, ['client', 'clients', 'customer', 'customers'])) {
     return 'review_business_clients';
   }
+
+  // An instruction is not evidence that money has already moved. Keep it on the review path;
+  // the mobile completed-event parser alone may propose recording an already-made payment.
+  if (isUnconfirmedPaymentInstruction(prompt)) return 'review_debts';
 
   if (
     includesAny(prompt, [
@@ -1753,7 +1764,9 @@ export function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
     return 'review_import';
   }
 
-  if (includesAny(prompt, ['bad month', 'repair', 'car', 'emergency', 'recovery', 'short'])) {
+  if (
+    /\b(?:bad months?|repairs?|cars?|emergenc(?:y|ies)|recovery|short|shortfalls?)\b/i.test(prompt)
+  ) {
     return 'plan_recovery';
   }
 
@@ -1922,7 +1935,11 @@ function buildMeloLocalAnswer(input: {
   detectedAmountMinor: number | null;
   amountText: string | null;
   amountCandidatesMinor: readonly number[];
+  paymentInstruction: boolean;
 }): string {
+  if (input.paymentInstruction && input.snapshot.workspaceKind !== 'business') {
+    return 'Melo cannot send money. Has this payment already happened? If it has, tell me the amount and debt name using “I paid…” and I will show the cash and debt changes for your review before saving. If you are considering a payment, open Debts to review it first.';
+  }
   if (input.snapshot.hasMoneyPicture === false || input.snapshot.setupComplete === false) {
     return input.snapshot.workspaceKind === 'business'
       ? 'I do not have a confirmed Business picture to work from yet. Add a Business account or dated record, then I can answer from this workspace without inventing income or commitments.'
@@ -1992,18 +2009,18 @@ function buildMeloLocalAnswer(input: {
         return `I found ${input.amountCandidatesMinor.map(formatMinorAmount).join(' and ')} in that question. Which single amount should I check?`;
       }
       if (input.detectedAmountMinor === null || input.amountText === null) {
-        return `I can check it, but I need the amount first. Right now the local Safe Zone is ${safeZonePosition}, with ${tightest} at the tightest point.`;
+        return `Enter the amount you want to check. Your current plan has ${available} after recorded costs and buffer, with a lowest projected cash balance of ${tightest}.`;
       }
 
       const afterPurchase = input.snapshot.availableNowMinor - input.detectedAmountMinor;
       const afterPurchaseText = formatMinorAmount(afterPurchase);
       if (afterPurchase < 0) {
-        return `${input.amountText} would leave the Safe Zone ${formatMinorAmount(
+        return `${input.amountText} would leave a ${formatMinorAmount(
           Math.abs(afterPurchase),
-        )} below its target. I would treat that as review-only and look for something to move before saving anything.`;
+        )} gap after recorded costs and buffer. Review the what-if before deciding; nothing has changed.`;
       }
 
-      return `${input.amountText} is possible in the local route, leaving about ${afterPurchaseText} in the Safe Zone. I would still keep it as a reviewed what-if, not an automatic change.`;
+      return `${input.amountText} would leave about ${afterPurchaseText} safe to spend until payday in your current plan. Review the what-if before deciding; nothing has changed.`;
     }
 
     case 'explain_position':

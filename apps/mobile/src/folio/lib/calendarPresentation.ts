@@ -1,5 +1,6 @@
 import type { AppState } from '../store';
 import { buildFinancialPlanFromState, toFinancialPlanInput } from './financialPlan';
+import { formatFinancialDate } from './financialPresentation';
 import {
   deriveCalendarEvents,
   deriveHistoricalDayEvents,
@@ -62,7 +63,24 @@ export function buildCalendarPresentation(state: AppState, now: Date, windowDays
         ? (input.debts ?? []).find((row) => item.id.startsWith(`debt-minimum:${row.id}:`))
         : undefined;
     const pot = item.id === 'pots:protected' || item.id.startsWith('derived:pot');
-    const status = date < today ? 'Overdue' : date === today ? 'Due today' : 'Due';
+    // The adapter keeps the actual subscription occurrence in its stable ID. A temporary
+    // forecast shift changes the displayed day, not when the bill is due with its provider.
+    const obligationDate = sub ? item.id.slice(-10) : date;
+    const forecastShifted = Boolean(sub && date !== obligationDate);
+    const overdue = obligationDate < today;
+    const forecastDatePassed = forecastShifted && date < today;
+    const status = overdue
+      ? 'Overdue'
+      : forecastDatePassed
+        ? 'Forecast date passed'
+        : obligationDate === today
+          ? 'Due today'
+          : 'Due';
+    const obligationNote = `${status} · ${
+      overdue || forecastDatePassed
+        ? 'still reserved until confirmed paid'
+        : 'not yet confirmed paid'
+    }${forecastShifted ? `. Bill due ${formatFinancialDate(obligationDate)}; provider date unchanged.` : ''}`;
     const kind = item.amountMinor < 0 ? ('out' as const) : ('in' as const);
     add({
       id: manual?.id ?? item.id,
@@ -89,7 +107,7 @@ export function buildCalendarPresentation(state: AppState, now: Date, windowDays
             ? 'Daily share of your weekly essentials'
             : pot
               ? 'Money set aside · excluded from available balance'
-              : `${status} · ${date < today ? 'still reserved until confirmed paid' : 'not yet confirmed paid'}`,
+              : obligationNote,
       ...(sub
         ? {
             subName: sub.name,

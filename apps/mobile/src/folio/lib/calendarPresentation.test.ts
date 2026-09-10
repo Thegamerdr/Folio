@@ -106,11 +106,14 @@ describe('one Calendar presentation for the parent and Full day', () => {
       expect.objectContaining({ date: '2026-09-19', amountMinor: 4000, source: 'debt-minimum' }),
     );
   });
-  it('retains moved overdue and confirmed-paid dates without duplicate outflows', () => {
+  it('retains moved forecast and confirmed-paid dates without duplicate outflows', () => {
     const state = calendarFixture();
     state.subOverrides = { 'Rent + bills': -6 };
     expect(buildCalendarPresentation(state, NOW).eventsByDay['2026-09-06']).toContainEqual(
-      expect.objectContaining({ amount: -950, note: expect.stringContaining('Overdue') }),
+      expect.objectContaining({
+        amount: -950,
+        note: expect.stringContaining('Forecast date passed'),
+      }),
     );
     state.subs = [
       { ...state.subs[0]!, obligationOccurrences: { '2026-09-12': { status: 'paid' } } },
@@ -123,6 +126,50 @@ describe('one Calendar presentation for the parent and Full day', () => {
       }),
     );
     expect(paid.eventsByDay['2026-09-06']?.some((event) => event.amount === -950)).toBe(false);
+  });
+  it('does not call a future bill overdue when only its forecast date moves into the past', () => {
+    const state = calendarFixture();
+    state.subOverrides = { 'Rent + bills': -3 };
+    const now = new Date('2026-09-10T12:00:00Z');
+    const plan = buildFinancialPlanFromState(state, { now });
+    const model = buildCalendarPresentation(state, now);
+    const rent = model.eventsByDay['2026-09-09']?.find((event) => event.title === 'Rent + bills');
+    expect(rent).toMatchObject({
+      id: 'subscription:Rent + bills:2026-09-12',
+      date: '2026-09-09',
+      amount: -950,
+      note: 'Forecast date passed · still reserved until confirmed paid. Bill due 12 Sept 2026; provider date unchanged.',
+    });
+    expect(model.plan).toEqual(plan);
+    expect(model.plan.currentBalanceMinor).toBe(180000);
+    expect(model.plan.events.filter((event) => event.id === rent?.id)).toHaveLength(1);
+    expect(state.subs[0]?.nextRenewalISO).toBe('2026-09-12');
+    expect(state.subs[0]?.obligationOccurrences).toBeUndefined();
+  });
+  it('keeps a real overdue bill overdue when its forecast moves into the future', () => {
+    const state = calendarFixture();
+    state.subs = [
+      {
+        ...state.subs[0]!,
+        nextRenewalISO: '2026-09-08',
+        obligationAnchorISO: '2026-09-08',
+      },
+    ];
+    state.subOverrides = { 'Rent + bills': 6 };
+    const now = new Date('2026-09-10T12:00:00Z');
+    const plan = buildFinancialPlanFromState(state, { now });
+    const model = buildCalendarPresentation(state, now);
+    expect(model.eventsByDay['2026-09-14']).toContainEqual(
+      expect.objectContaining({
+        id: 'subscription:Rent + bills:2026-09-08',
+        date: '2026-09-14',
+        amount: -950,
+        note: 'Overdue · still reserved until confirmed paid. Bill due 8 Sept 2026; provider date unchanged.',
+      }),
+    );
+    expect(model.plan).toEqual(plan);
+    expect(model.plan.currentBalanceMinor).toBe(180000);
+    expect(state.subs[0]?.obligationOccurrences).toBeUndefined();
   });
   it('keeps empty dates empty and manual history visible in Full day', () => {
     const state = calendarFixture();
@@ -182,7 +229,7 @@ it('keeps later Month and direct Full day dates in the canonical horizon and agr
   const route = routeFromStore(state, NOW);
   for (const point of route.points) expect(model.spareByDay[point.date]).toBe(point.y);
 });
-it('reserves overdue money exactly once on today while displaying its original due date', () => {
+it('reserves a passed forecast once on today while displaying its shifted date', () => {
   const state = calendarFixture();
   state.subOverrides = { 'Rent + bills': -6 };
   const model = buildCalendarPresentation(state, NOW);

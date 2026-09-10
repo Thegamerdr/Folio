@@ -42,10 +42,8 @@
 //     dashed avg line + one dot + the label render (spec sub-branch (b)).
 //   • The accent word is UPRIGHT terracotta inside the Fraunces line (web <em class="not-italic
 //     text-accent">) — built as three Text runs so the accented word is the single coloured run.
-//   • The empty-state strings come from COPY_DECK via copy.insights.empty.* (the keys that exist):
-//     head/body/cta. The **bold** marker in the head string maps to EmptyState's single accent word.
-//     The web in-file empty strings drift from the deck (spec COPY DRIFT) — per the hard rule "copy
-//     VERBATIM via '@/folio/copy/copy' keys where they exist", the deck wins for the keyed strings.
+//   • The empty state preserves the review prerequisite. Its copy describes saved forecast reviews,
+//     which can share a date; it does not imply that recording one completes a payday-to-payday month.
 //   • Melo presence: the populated branch instantiates Melo ONLY via the conditional cheer MeloLine
 //     (paused subs); no standalone calm Melo is added (spec: "No mood = no Melo"). The empty branch's
 //     Melo is the EmptyState's own curious Melo.
@@ -144,16 +142,6 @@ function useReduceMotion(): boolean {
     };
   }, []);
   return reduce;
-}
-
-// Strip a single **bold** marker from a deck string → { lead, accent } for EmptyState. The deck head
-// "Close one cycle **first.**" carries the accent word in **…**; EmptyState colours its `accent` and
-// leads with the rest. The marker is the deck's source of truth for which word is the accent word.
-function splitBoldHeadline(deckString: string): string {
-  // EmptyState takes a plain string and accents the LAST word; the deck marks the accent word with
-  // **…** and it IS the last word here, so removing the marker leaves EmptyState's last-word accent
-  // landing on exactly the marked word. Keep punctuation attached.
-  return deckString.replace(/\*\*(.+?)\*\*/g, '$1');
 }
 
 export type InsightsScreenProps = {
@@ -284,7 +272,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
           />
 
           <View style={s.titleBlock}>
-            <Text style={s.eyebrowItalic}>Nothing wrapped up yet</Text>
+            <Text style={s.eyebrowItalic}>No reviews recorded yet</Text>
             <Text accessibilityRole="header" style={s.headline}>
               {retro.title.lead}
               <Text style={s.headlineAccent}>{retro.title.accent}</Text>
@@ -295,15 +283,11 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
           <View style={s.emptyBlock}>
             <EmptyState
               mood="curious"
-              headline={
-                needsSetup
-                  ? 'Start with your first picture'
-                  : splitBoldHeadline(copy.insights.empty.head)
-              }
+              headline={needsSetup ? 'Add your numbers first' : 'No forecast reviews yet'}
               body={
                 needsSetup
-                  ? 'Add your balance and payday. Melo will wait for a real cycle before showing patterns.'
-                  : copy.insights.empty.body
+                  ? 'Add your numbers first. After you save a forecast review, its summary will appear here.'
+                  : 'After you save a forecast review, its summary and any note will appear here.'
               }
               cta={
                 needsSetup
