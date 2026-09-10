@@ -556,7 +556,7 @@ export function TodayScreen({
               ) : null}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${daysToPayday} day${daysToPayday === 1 ? '' : 's'} to payday`}
+                accessibilityLabel={`${daysToPayday} day${daysToPayday === 1 ? '' : 's'} to next payday`}
                 onPress={() => nav.go('ritual')}
                 style={({ pressed: p }) => [styles.headerAction, p ? pressed : undefined]}
               >
@@ -564,7 +564,7 @@ export function TodayScreen({
                   style={[styles.headerDays, { color: t.muted }]}
                   numberOfLines={stackHeader ? undefined : 1}
                 >
-                  {daysToPayday}d to payday
+                  {daysToPayday}d to next payday
                 </Text>
               </Pressable>
             </View>
@@ -700,7 +700,7 @@ export function TodayScreen({
           >
             <Text style={[styles.heroCaption, { color: t.muted }]}>
               {tight.tightestDate
-                ? `${effectiveMode === 'survival' ? 'lowest before payday' : `Payday forecast low: ${formatGBP(routeTightestAmount)}`} · ${tightPointDayLabel(tight.tightestDate, now ?? EPOCH)}`
+                ? `${effectiveMode === 'survival' ? `Projected cash low: ${formatGBP(routeTightestAmount)}` : `Payday forecast low: ${formatGBP(routeTightestAmount)}`} · ${tightPointDayLabel(tight.tightestDate, now ?? EPOCH)}`
                 : 'at its lowest point'}
             </Text>
             <Text style={[styles.balanceAttribution, { color: t.muted }]}>
