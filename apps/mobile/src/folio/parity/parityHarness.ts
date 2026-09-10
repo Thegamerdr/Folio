@@ -21,6 +21,8 @@ import {
   removeEvidenceDocument,
   resetToEmpty,
   setCurrentBalance,
+  setBufferAmount,
+  setEssentialsWeeklyAmount,
   setIncomeSources,
   setMeloPrimerSeen,
   setOnboarding,
@@ -56,12 +58,27 @@ export type ParityTheme = 'light' | 'dark';
 type PersonalFixture = Readonly<{
   kind: 'personal';
   designPressure: 'safe' | 'calm' | 'soft' | 'pressured' | 'overspent';
+  /** Clean QA recipes opt out of legacy design adapter rows and seeded history. */
+  captureClean?: boolean;
   balance: number;
   balanceSource: 'user-entered' | 'corrected';
   confidence: BalanceConfidence;
   income: number;
   payday: number;
-  subscriptions: ReadonlyArray<Readonly<{ name: string; cost: number; daysAway: number }>>;
+  financialSetupConfirmed?: boolean;
+  weeklyEssentials?: number;
+  bufferAmount?: number;
+  subscriptions: ReadonlyArray<
+    Readonly<{
+      name: string;
+      cost: number;
+      daysAway: number;
+      nextRenewalISO?: string;
+      obligationAnchorISO?: string;
+      obligationOccurrences?: NonNullable<Sub['obligationOccurrences']>;
+      renewalPeriodDays?: number;
+    }>
+  >;
   pots?: ReadonlyArray<
     Readonly<{
       id: string;
@@ -492,7 +509,14 @@ function fixtureSubscriptions(fixture: PersonalFixture): Sub[] {
     name: row.name,
     cost: row.cost,
     nextRenewalDaysAway: row.daysAway,
-    nextRenewalISO: isoDay(row.daysAway),
+    nextRenewalISO: row.nextRenewalISO ?? isoDay(row.daysAway),
+    ...(row.obligationAnchorISO === undefined
+      ? {}
+      : { obligationAnchorISO: row.obligationAnchorISO }),
+    ...(row.obligationOccurrences === undefined
+      ? {}
+      : { obligationOccurrences: row.obligationOccurrences }),
+    ...(row.renewalPeriodDays === undefined ? {} : { renewalPeriodDays: row.renewalPeriodDays }),
     lastUsedDaysAgo: 0,
     usesPerMonth: 1,
   }));
@@ -519,6 +543,9 @@ function configurePersonalBase(input: PersonalFixture): void {
     name: fixtureManifest.personalDefaults.name,
     payday: input.payday,
     monthlyIncome: input.income,
+    ...(input.financialSetupConfirmed === undefined
+      ? {}
+      : { financialSetupConfirmed: input.financialSetupConfirmed }),
   });
   setCurrentBalance({
     amount: input.balance,
@@ -536,19 +563,23 @@ function configurePersonalBase(input: PersonalFixture): void {
     },
   ]);
   setSubs(fixtureSubscriptions(input));
+  if (input.bufferAmount !== undefined) setBufferAmount(input.bufferAmount);
+  if (input.weeklyEssentials !== undefined) setEssentialsWeeklyAmount(input.weeklyEssentials);
   setMeloPrimerSeen(true);
-  for (const event of fixtureManifest.designAdapter.implicitCalendarEvents) {
-    addCalendarEvent({
-      id: event.id,
-      date: event.date,
-      kind: event.kind,
-      title: event.title,
-      ...(event.note === undefined ? {} : { note: event.note }),
-      ...(event.amount === undefined ? {} : { amount: event.amount }),
-    });
-  }
-  for (const transaction of fixtureManifest.personalDefaults.transactions) {
-    addTransaction(transaction);
+  if (!input.captureClean) {
+    for (const event of fixtureManifest.designAdapter.implicitCalendarEvents) {
+      addCalendarEvent({
+        id: event.id,
+        date: event.date,
+        kind: event.kind,
+        title: event.title,
+        ...(event.note === undefined ? {} : { note: event.note }),
+        ...(event.amount === undefined ? {} : { amount: event.amount }),
+      });
+    }
+    for (const transaction of fixtureManifest.personalDefaults.transactions) {
+      addTransaction(transaction);
+    }
   }
   setPots([...(input.pots ?? [])]);
   addPinnedSourcePotCadenceAdapters(input);

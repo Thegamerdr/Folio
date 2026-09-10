@@ -259,6 +259,53 @@
         { "name": "Energy", "cost": 68, "daysAway": 4 }
       ]
     },
+    "qa-same-day-payday": {
+      "kind": "personal",
+      "designPressure": "safe",
+      "captureClean": true,
+      "balance": 1800,
+      "balanceSource": "user-entered",
+      "confidence": "corrected",
+      "income": 1800,
+      "payday": 9,
+      "financialSetupConfirmed": true,
+      "weeklyEssentials": 70,
+      "bufferAmount": 200,
+      "subscriptions": [
+        {
+          "name": "Rent and bills",
+          "cost": 950,
+          "daysAway": 3,
+          "nextRenewalISO": "2026-09-12",
+          "obligationAnchorISO": "2026-09-12"
+        }
+      ]
+    },
+    "qa-overdue-rent": {
+      "kind": "personal",
+      "designPressure": "safe",
+      "captureClean": true,
+      "balance": 1800,
+      "balanceSource": "user-entered",
+      "confidence": "corrected",
+      "income": 1800,
+      "payday": 28,
+      "financialSetupConfirmed": true,
+      "weeklyEssentials": 70,
+      "bufferAmount": 200,
+      "subscriptions": [
+        {
+          "name": "Rent and bills",
+          "cost": 950,
+          "daysAway": 0,
+          "nextRenewalISO": "2026-09-12",
+          "obligationAnchorISO": "2026-09-12",
+          "obligationOccurrences": {
+            "2026-09-12": { "status": "unpaid", "amountMinor": 95000 }
+          }
+        }
+      ]
+    },
     "provisional-low-confidence": {
       "kind": "personal",
       "designPressure": "soft",

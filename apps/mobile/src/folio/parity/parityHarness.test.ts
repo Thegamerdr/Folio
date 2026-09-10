@@ -12,13 +12,15 @@ vi.mock('./decisionDialogs', () => ({ getParityDecisionDialog: vi.fn(() => undef
 import { getState, hasConfiguredMoneyPicture } from '../store';
 import { deriveCalendarEvents } from '../lib/calendarEvents';
 import { findCaughtSubs } from '../lib/caughtSubs';
+import { buildFinancialPlanFromState } from '../lib/financialPlan';
+import { selectFinancialPresentation } from '../lib/financialPresentation';
 import { routeFromStore } from '../lib/storeRoute';
 import { activateParityHarness, type ParityFixtureId } from './parityHarness';
 
-function activate(fixture: ParityFixtureId) {
+function activate(fixture: ParityFixtureId, nowISO = '2026-08-18T08:00:00.000Z') {
   activateParityHarness({
     fixture,
-    nowISO: '2026-08-18T08:00:00.000Z',
+    nowISO,
     screen: 'today',
     sheet: null,
     globalSurface: null,
@@ -136,6 +138,75 @@ describe('visual parity fixture harness', () => {
         category: 'income',
       },
     ]);
+  });
+
+  it('builds clean QA same-day and overdue bill recipes through canonical finance authorities', () => {
+    const sameDay = activate('qa-same-day-payday', '2026-09-09T12:00:00.000Z');
+    const sameDayPlan = buildFinancialPlanFromState(sameDay, {
+      now: new Date('2026-09-09T12:00:00.000Z'),
+    });
+    expect(sameDay.calendarEvents).toEqual([]);
+    expect(sameDay.transactions).toEqual([]);
+    expect(sameDay.onboarding).toMatchObject({
+      done: true,
+      payday: 9,
+      monthlyIncome: 1800,
+      financialSetupConfirmed: true,
+    });
+    expect(sameDay.incomeSources?.[0]).toMatchObject({ dayOfMonth: 9, amount: 1800 });
+    expect(sameDayPlan.safeToSpendMinor).toBe(35_000);
+    expect(selectFinancialPresentation(sameDay, sameDayPlan)).toMatchObject({
+      complete: true,
+      canReassure: true,
+    });
+
+    const overdue = activate('qa-overdue-rent', '2026-09-13T12:00:00.000Z');
+    const overduePlan = buildFinancialPlanFromState(overdue, {
+      now: new Date('2026-09-13T12:00:00.000Z'),
+    });
+    expect(overdue.calendarEvents).toEqual([]);
+    expect(overdue.transactions).toEqual([]);
+    expect(overdue.subs).toEqual([
+      expect.objectContaining({
+        name: 'Rent and bills',
+        cost: 950,
+        obligationAnchorISO: '2026-09-12',
+        obligationOccurrences: {
+          '2026-09-12': { status: 'unpaid', amountMinor: 95_000 },
+        },
+      }),
+    ]);
+    expect(overduePlan.safeToSpendMinor).toBe(50_000);
+    expect(overduePlan.pendingObligations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          date: '2026-09-12',
+          label: 'Rent and bills',
+          amountMinor: 95_000,
+        }),
+      ]),
+    );
+    expect(selectFinancialPresentation(overdue, overduePlan)).toMatchObject({
+      complete: true,
+      overdueCount: 1,
+      canReassure: false,
+    });
+  });
+
+  it('keeps clean QA recipes inert when the capture guard is disabled', () => {
+    vi.stubEnv('EXPO_PUBLIC_MELO_PARITY_CAPTURE', 'false');
+    const before = getState();
+    activateParityHarness({
+      fixture: 'qa-overdue-rent',
+      nowISO: '2026-09-13T12:00:00.000Z',
+      screen: 'subs',
+      sheet: null,
+      globalSurface: null,
+      theme: 'light',
+    });
+    expect(getState()).toBe(before);
+    expect(getState().subs).toEqual(before.subs);
+    expect(getState().calendarEvents).toEqual(before.calendarEvents);
   });
 
   it('feeds the confirmed fixture through the native calendar and route authorities', () => {
