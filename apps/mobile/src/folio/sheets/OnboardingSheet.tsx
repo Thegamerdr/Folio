@@ -502,7 +502,11 @@ function OnboardingFlow({
   });
 
   const [step, setStep] = useState(initialField === 'payday' ? (isReturning ? 1 : 3) : 0);
-  const [showSummary, setShowSummary] = useState(isReturning && !initialField);
+  // Returning users start in the summary. First-run users enter it after Pots, and an edited row
+  // returns directly to the summary instead of replaying every following step.
+  const [hasEnteredSummary, setHasEnteredSummary] = useState(isReturning && !initialField);
+  const [reviewingRow, setReviewingRow] = useState(false);
+  const showSummary = hasEnteredSummary;
   const [costsConfirmed, setCostsConfirmed] = useState(false);
   const [showMoreGoals, setShowMoreGoals] = useState(false);
   const [intentLabel, setIntentLabel] = useState(
@@ -718,9 +722,16 @@ function OnboardingFlow({
   function handlePrimary() {
     if (numericError !== null) return;
     Keyboard.dismiss();
+    if (reviewingRow) {
+      setSaveError(null);
+      setHasEnteredSummary(true);
+      setReviewingRow(false);
+      setCostsConfirmed(false);
+      return;
+    }
     if (isReturning) {
       setSaveError(null);
-      setShowSummary(true);
+      setHasEnteredSummary(true);
       setCostsConfirmed(false);
       return;
     }
@@ -728,8 +739,10 @@ function OnboardingFlow({
       setStep((x) => x + 1);
       return;
     }
-    if (!costsConfirmed) return;
-    done();
+    setSaveError(null);
+    setHasEnteredSummary(true);
+    setReviewingRow(false);
+    setCostsConfirmed(false);
   }
 
   const numericError =
@@ -757,13 +770,65 @@ function OnboardingFlow({
   const allNumbersValid =
     incomeInputValue !== undefined &&
     balanceInputValue !== undefined &&
+    (isReturning || parseManualMoney(modeExtraInput, { allowZero: true }) !== undefined) &&
     (cadence !== 'monthly' || paydayInputValue !== undefined) &&
     parseManualMoney(essentialsInput, { allowZero: true }) !== undefined &&
     parseManualMoney(bufferInput, { allowZero: true }) !== undefined &&
     parseManualMoney(commitmentInput, { allowZero: true }) !== undefined &&
     (bundledCommitmentAmount === 0 || commitmentDayValue !== undefined);
+  const invalidReviewIndex = !allNumbersValid
+    ? !isReturning && parseManualMoney(modeExtraInput, { allowZero: true }) === undefined
+      ? 2
+      : incomeInputValue === undefined
+        ? 5
+        : balanceInputValue === undefined
+          ? STEP_BALANCE
+          : cadence === 'monthly' && paydayInputValue === undefined
+            ? STEP_PAYDAY
+            : parseManualMoney(essentialsInput, { allowZero: true }) === undefined ||
+                parseManualMoney(bufferInput, { allowZero: true }) === undefined
+              ? STEP_ESSENTIALS
+              : parseManualMoney(commitmentInput, { allowZero: true }) === undefined ||
+                  (bundledCommitmentAmount > 0 && commitmentDayValue === undefined)
+                ? STEP_COMMITMENT
+                : null
+    : null;
+  const summaryValidationError =
+    invalidReviewIndex === null
+      ? null
+      : invalidReviewIndex === STEP_COMMITMENT &&
+          parseManualMoney(commitmentInput, { allowZero: true }) === undefined
+        ? 'Check the highlighted regular payment amount before saving.'
+        : invalidReviewIndex === STEP_PAYDAY || invalidReviewIndex === STEP_COMMITMENT
+          ? 'Check the highlighted day before saving.'
+          : invalidReviewIndex === STEP_ESSENTIALS
+            ? 'Check the highlighted essentials or buffer amount before saving.'
+            : invalidReviewIndex === STEP_BALANCE
+              ? 'Check the highlighted current balance before saving.'
+              : invalidReviewIndex === 5
+                ? 'Check the highlighted income amount before saving.'
+                : `Check the highlighted ${extra.eyebrow.toLowerCase()} amount before saving.`;
+  const selectedPotSummary = POT_TEMPLATES.filter((template) => picked.has(template.id))
+    .map(
+      (template) =>
+        `${template.name} (${poundsTabular(template.goal)} goal · ${poundsTabular(template.perWeek)}/wk)`,
+    )
+    .join(', ');
   const reviewRows = [
     { label: 'Name', value: name || 'Not set', index: 0 },
+    ...(!isReturning
+      ? [
+          { label: 'Goal', value: intentLabel, index: 1 },
+          {
+            label: intentMode === 'debt' ? 'Debt estimate' : extra.eyebrow,
+            value:
+              intentMode === 'debt'
+                ? `${money(Math.round(modeExtra * 100))} · estimate; recorded debts are separate`
+                : money(Math.round(modeExtra * 100)),
+            index: 2,
+          },
+        ]
+      : []),
     {
       label: 'Pay frequency',
       value: CADENCE_OPTIONS.find((option) => option.cadence === cadence)?.label ?? cadence,
@@ -791,6 +856,9 @@ function OnboardingFlow({
       value: `${money(Math.round(bundledCommitmentAmount * 100))} / month${bundledCommitmentAmount > 0 ? ` · due day ${commitmentDayInput}` : ' · none included'}`,
       index: STEP_COMMITMENT,
     },
+    ...(!isReturning
+      ? [{ label: 'Pots', value: selectedPotSummary || 'None selected', index: STEP_POTS }]
+      : []),
   ];
   const confirmation = (
     <Pressable
@@ -815,10 +883,15 @@ function OnboardingFlow({
   );
   const footer = (
     <View>
-      {showSummary || (!isReturning && isLast) ? confirmation : null}
+      {showSummary ? confirmation : null}
       {!showSummary && numericError ? (
         <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
           {numericError}
+        </Text>
+      ) : null}
+      {showSummary && summaryValidationError ? (
+        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
+          {summaryValidationError}
         </Text>
       ) : null}
       {showSummary && saveError ? (
@@ -832,25 +905,15 @@ function OnboardingFlow({
       <Pressable
         accessibilityRole="button"
         accessibilityState={{
-          disabled: showSummary
-            ? !costsConfirmed || !allNumbersValid
-            : numericError !== null || (!isReturning && isLast && !costsConfirmed),
+          disabled: showSummary ? !costsConfirmed || !allNumbersValid : numericError !== null,
         }}
-        disabled={
-          showSummary
-            ? !costsConfirmed || !allNumbersValid
-            : numericError !== null || (!isReturning && isLast && !costsConfirmed)
-        }
+        disabled={showSummary ? !costsConfirmed || !allNumbersValid : numericError !== null}
         onPress={showSummary ? done : handlePrimary}
         style={[
           s.primary,
           {
             marginTop: gap.xs,
-            opacity: (
-              showSummary
-                ? !costsConfirmed || !allNumbersValid
-                : numericError !== null || (!isReturning && isLast && !costsConfirmed)
-            )
+            opacity: (showSummary ? !costsConfirmed || !allNumbersValid : numericError !== null)
               ? 0.45
               : 1,
           },
@@ -858,11 +921,13 @@ function OnboardingFlow({
       >
         <Text style={s.primaryLabel}>
           {showSummary
-            ? 'Save changes'
+            ? isReturning
+              ? 'Save changes'
+              : 'Save my setup'
             : isReturning
               ? 'Review changes'
-              : isLast
-                ? 'Save my setup'
+              : isLast || reviewingRow
+                ? 'Review my setup'
                 : 'Next'}
         </Text>
       </Pressable>
@@ -873,7 +938,13 @@ function OnboardingFlow({
             style={s.footerAction}
             onPress={() => {
               Keyboard.dismiss();
-              isReturning ? setShowSummary(true) : setStep((previous) => Math.max(0, previous - 1));
+              if (reviewingRow || isReturning) {
+                setHasEnteredSummary(true);
+                setReviewingRow(false);
+                setCostsConfirmed(false);
+              } else {
+                setStep((previous) => Math.max(0, previous - 1));
+              }
             }}
           >
             <Text style={s.skipLabel}>Back</Text>
@@ -896,7 +967,7 @@ function OnboardingFlow({
         footer={footer}
       >
         <Text accessibilityRole="header" style={s.headline}>
-          Review your numbers
+          {isReturning ? 'Review your numbers' : 'Review my setup'}
         </Text>
         <Text style={s.help}>
           Check your balance, payday and regular costs. Tap a row to change it; nothing changes
@@ -909,19 +980,26 @@ function OnboardingFlow({
             accessibilityLabel={`Edit ${row.label}`}
             onPress={() => {
               setStep(Math.max(0, visibleStepIndices.indexOf(row.index)));
-              setShowSummary(false);
+              setHasEnteredSummary(false);
+              setReviewingRow(true);
+              setCostsConfirmed(false);
             }}
             style={s.summaryRow}
           >
             <Text style={s.cadenceLabel}>
               {row.label} <Text style={s.skipLabel}> · Edit</Text>
             </Text>
-            <Text style={s.help}>{row.value}</Text>
+            <Text style={s.help}>
+              {row.value}
+              {row.index === invalidReviewIndex ? ' · Needs correction' : ''}
+            </Text>
           </Pressable>
         ))}
         <Text style={s.help}>
-          Only numbers you add are used. Add any other bills from Plan. Cancel keeps your existing
-          data unchanged.
+          Only numbers you add are used. Add any other bills from Plan.{' '}
+          {isReturning
+            ? 'Cancel keeps your existing data unchanged.'
+            : 'Finish later leaves these entries unsaved.'}
         </Text>
       </Sheet>
     );
