@@ -194,7 +194,9 @@ const {
             ? { rows: [], rowsAffected: 0 }
             : { rows: [{ payload: syncState.payload }], rowsAffected: 0 };
         }
-        if (normalized.startsWith('SELECT payload, payload_sha256 FROM folio_workspace_sync_state')) {
+        if (
+          normalized.startsWith('SELECT payload, payload_sha256 FROM folio_workspace_sync_state')
+        ) {
           return syncState === undefined
             ? { rows: [], rowsAffected: 0 }
             : {
@@ -562,6 +564,20 @@ beforeEach(() => {
 });
 
 describe('lossless SQLCipher workspace generations', () => {
+  it('retries a busy native manifest open and reads its newest authenticated generation', async () => {
+    const workspace = createPersonalWorkspaceRoot().workspaces[0]!;
+    const root = createPersonalWorkspaceRoot();
+    const manifest = createWorkspaceManifest(root, '2026-09-10T11:59:00.000Z');
+    const saved = await saveNativeWorkspaceManifestGeneration(workspace, manifest);
+    open.mockImplementationOnce(() => {
+      throw new Error('database is locked');
+    });
+    const loaded = await loadNativeWorkspaceManifestGenerations(workspace);
+    expect(loaded.status).toBe('ok');
+    expect(loaded.generations[0]).toEqual(saved);
+    expect(nativeQuarantine).not.toHaveBeenCalled();
+  });
+
   it('builds sync metadata from the prior exact generation inside the state transaction', async () => {
     const workspace = businessWorkspace();
     const firstSync = JSON.stringify({

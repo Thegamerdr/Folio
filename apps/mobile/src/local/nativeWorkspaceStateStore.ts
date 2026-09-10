@@ -34,6 +34,7 @@ import {
   resolveLocalLedgerWorkspaceEncryptionKey,
 } from './nativeLocalSecurity.js';
 import { OpSqliteDatabaseDriver } from './nativeSqliteDriver.js';
+import { isTransientDatabaseLock, withNativeDatabaseAccess } from './nativeDatabaseAccess.js';
 
 const TABLE_NAME = 'folio_workspace_vault_generations';
 const CANONICAL_BINDING_TABLE_NAME = 'folio_workspace_vault_canonical_bindings';
@@ -106,10 +107,19 @@ export type NativeWorkspaceSyncStateBuilder = (
 export async function loadNativeWorkspaceSyncState(
   workspace: PersistedWorkspace,
 ): Promise<NativeWorkspaceSyncState | null> {
+  return withNativeDatabaseAccess(String(workspace.id), () =>
+    loadNativeWorkspaceSyncStateUnlocked(workspace),
+  );
+}
+
+async function loadNativeWorkspaceSyncStateUnlocked(
+  workspace: PersistedWorkspace,
+): Promise<NativeWorkspaceSyncState | null> {
   requireLedgerWorkspaceIdentity(workspace);
   if (Platform.OS === 'web') return null;
   const encryptionKey = await resolveLocalLedgerWorkspaceEncryptionKey(workspace);
-  if (getLastLocalDatabaseKeyState() === 'secure_store_unavailable_fallback') throw new Error('Secure storage is unavailable; the sync journal was not opened.');
+  if (getLastLocalDatabaseKeyState() === 'secure_store_unavailable_fallback')
+    throw new Error('Secure storage is unavailable; the sync journal was not opened.');
   const db = open({ name: workspaceLedgerDatabaseName(workspace.id), encryptionKey });
   try {
     await ensureVaultTables(db);
@@ -127,7 +137,8 @@ export async function loadNativeWorkspaceSyncState(
       typeof row.updated_at !== 'string'
     )
       throw new Error('The saved sync journal is unreadable. It was not reset.');
-    if ((await sha256(row.payload)) !== row.payload_sha256) throw new Error('The saved sync journal failed its integrity check. It was not reset.');
+    if ((await sha256(row.payload)) !== row.payload_sha256)
+      throw new Error('The saved sync journal failed its integrity check. It was not reset.');
     return { payload: row.payload, payloadSha256: row.payload_sha256, updatedAt: row.updated_at };
   } finally {
     db.close();
@@ -156,6 +167,15 @@ export async function loadNativeCanonicalSnapshotForGeneration(
   workspace: PersistedWorkspace,
   generation: NativeWorkspaceVaultGeneration,
 ): Promise<NativeCanonicalSnapshotLoad> {
+  return withNativeDatabaseAccess(String(workspace.id), () =>
+    loadNativeCanonicalSnapshotUnlocked(workspace, generation),
+  );
+}
+
+async function loadNativeCanonicalSnapshotUnlocked(
+  workspace: PersistedWorkspace,
+  generation: NativeWorkspaceVaultGeneration,
+): Promise<NativeCanonicalSnapshotLoad> {
   requireLedgerWorkspaceIdentity(workspace);
   if (generation.workspaceId !== String(workspace.id)) return { status: 'mismatch' };
   if (Platform.OS === 'web') return { status: 'unavailable' };
@@ -163,7 +183,8 @@ export async function loadNativeCanonicalSnapshotForGeneration(
   let encryptionKey: string;
   try {
     encryptionKey = await resolveLocalLedgerWorkspaceEncryptionKey(workspace);
-  } catch {
+  } catch (reason: unknown) {
+    if (isTransientDatabaseLock(reason)) throw reason;
     return { status: 'unreadable' };
   }
   if (getLastLocalDatabaseKeyState() === 'secure_store_unavailable_fallback') {
@@ -214,7 +235,8 @@ export async function loadNativeCanonicalSnapshotForGeneration(
         snapshot,
       };
     });
-  } catch {
+  } catch (reason: unknown) {
+    if (isTransientDatabaseLock(reason)) throw reason;
     return { status: 'unreadable' };
   } finally {
     db.close();
@@ -346,6 +368,12 @@ export async function clearQuarantinedNativeWorkspaceVaults(
 }
 
 async function loadRecord(
+  ...args: Parameters<typeof loadRecordUnlocked>
+): Promise<NativeWorkspaceVaultLoad> {
+  return withNativeDatabaseAccess(String(args[0].id), () => loadRecordUnlocked(...args));
+}
+
+async function loadRecordUnlocked(
   workspace: PersistedWorkspace,
   recordKind: NativeVaultRecordKind,
   recordId: string,
@@ -356,7 +384,8 @@ async function loadRecord(
   let encryptionKey: string;
   try {
     encryptionKey = await resolveLocalLedgerWorkspaceEncryptionKey(workspace);
-  } catch {
+  } catch (reason: unknown) {
+    if (isTransientDatabaseLock(reason)) throw reason;
     return { status: 'unreadable', generations: [], invalidGenerationCount: 1 };
   }
   if (getLastLocalDatabaseKeyState() === 'secure_store_unavailable_fallback') {
@@ -400,7 +429,8 @@ async function loadRecord(
       generations,
       invalidGenerationCount,
     };
-  } catch {
+  } catch (reason: unknown) {
+    if (isTransientDatabaseLock(reason)) throw reason;
     return { status: 'unreadable', generations: [], invalidGenerationCount: 1 };
   } finally {
     db?.close();
@@ -408,6 +438,12 @@ async function loadRecord(
 }
 
 async function saveRecord(
+  ...args: Parameters<typeof saveRecordUnlocked>
+): Promise<NativeWorkspaceVaultGeneration> {
+  return withNativeDatabaseAccess(String(args[0].id), () => saveRecordUnlocked(...args));
+}
+
+async function saveRecordUnlocked(
   workspace: PersistedWorkspace,
   recordKind: NativeVaultRecordKind,
   recordId: string,
@@ -464,10 +500,9 @@ async function saveRecord(
       const existingSync = await transaction.execute<{
         payload?: unknown;
         payload_sha256?: unknown;
-      }>(
-        `SELECT payload, payload_sha256 FROM ${SYNC_STATE_TABLE_NAME} WHERE workspace_id = ?`,
-        [String(workspace.id)],
-      );
+      }>(`SELECT payload, payload_sha256 FROM ${SYNC_STATE_TABLE_NAME} WHERE workspace_id = ?`, [
+        String(workspace.id),
+      ]);
       const existingSyncRow = existingSync.rows[0] as
         | { payload?: unknown; payload_sha256?: unknown }
         | undefined;

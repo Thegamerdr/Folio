@@ -271,7 +271,11 @@ const partitionParkedUri = `${DOC_DIR}${partitionNames.parked}`;
 const manifestUri = `${DOC_DIR}melo.workspace-manifest.v1.json`;
 const manifestTmpUri = `${DOC_DIR}melo.workspace-manifest.v1.tmp.json`;
 
-beforeEach(() => {
+beforeEach(async () => {
+  // A stopped controller still owns its already-started write. Finish it before replacing the
+  // mock filesystem, just as a recreated Activity must before reading the next generation.
+  const resume = await quiescePersistenceWrites();
+  resume();
   fsState.clear();
   vi.clearAllMocks();
   loadNativeWorkspaceStateGenerations.mockResolvedValue({
@@ -315,6 +319,122 @@ describe('SQLCipher workspace authority', () => {
       committedAt: '2026-07-16T04:00:00.000Z',
     };
   }
+
+  it('keeps boot pending through a locked manifest and loads the latest valid generation instead of stale rollback money', async () => {
+    vi.useFakeTimers();
+    try {
+      resetToEmpty();
+      setPartial({ nextYouNote: 'older rollback' });
+      fsState.set(mainUri, getPersistBlob(PERSONAL_WORKSPACE_ID));
+      setPartial({
+        onboarding: {
+          ...getState().onboarding,
+          done: true,
+          name: 'Saved',
+          payday: 10,
+          monthlyIncome: 1800,
+        },
+        currentBalance: { ...getState().currentBalance, amount: 1700 },
+        nextYouNote: 'latest recorded review',
+      });
+      const latest = getPersistBlob(PERSONAL_WORKSPACE_ID);
+      resetToEmpty();
+      loadNativeWorkspaceManifestGenerations.mockRejectedValueOnce(new Error('database is locked'));
+      loadNativeWorkspaceStateGenerations.mockResolvedValue({
+        status: 'ok',
+        generations: [generation(latest, 5)],
+        invalidGenerationCount: 0,
+      });
+      const loading = loadPersistedActiveWorkspace();
+      expect(loadPersistedActiveWorkspace()).toBe(loading);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(loadNativeWorkspaceStateGenerations).not.toHaveBeenCalled();
+      expect(FS.readAsStringAsync).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(250);
+      await loading;
+      expect(getState().currentBalance.amount).toBe(1700);
+      expect(getState().nextYouNote).toBe('latest recorded review');
+      expect(getHydrationOutcome()).toBe('ok');
+      expect(quarantineNativeWorkspaceVault).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('drains the stopped writer before Activity recreation hydrates its newest committed state', async () => {
+    vi.useFakeTimers();
+    let stop: (() => void) | undefined;
+    try {
+      resetToEmpty();
+      let durable = getPersistBlob(PERSONAL_WORKSPACE_ID);
+      let release!: () => void;
+      saveNativeWorkspaceStateGeneration.mockImplementationOnce(async (_workspace, payload) => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        durable = payload;
+        return { generation: 5 };
+      });
+      loadNativeWorkspaceStateGenerations.mockImplementation(async () => ({
+        status: 'ok',
+        generations: [generation(durable, 5)],
+        invalidGenerationCount: 0,
+      }));
+      stop = startPersisting(PERSONAL_WORKSPACE_ID);
+      setPartial({ nextYouNote: 'newest before recreation' });
+      await vi.advanceTimersByTimeAsync(400);
+      expect(saveNativeWorkspaceStateGeneration).toHaveBeenCalledOnce();
+      stop();
+      stop = undefined;
+      const loading = loadPersistedActiveWorkspace();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(loadNativeWorkspaceManifestGenerations).not.toHaveBeenCalled();
+      release();
+      await loading;
+      expect(getState().nextYouNote).toBe('newest before recreation');
+      expect(getHydrationOutcome()).toBe('ok');
+      expect(quarantineNativeWorkspaceVault).not.toHaveBeenCalled();
+    } finally {
+      stop?.();
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not read an older file when the current SQLCipher state is temporarily locked', async () => {
+    const busy = new Error('SQLITE_LOCKED');
+    fsState.set(mainUri, getPersistBlob(PERSONAL_WORKSPACE_ID));
+    loadNativeWorkspaceStateGenerations.mockRejectedValueOnce(busy);
+    await expect(loadPersisted(PERSONAL_WORKSPACE_ID)).rejects.toBe(busy);
+    expect(FS.readAsStringAsync).not.toHaveBeenCalled();
+    expect(quarantineNativeWorkspaceVault).not.toHaveBeenCalled();
+  });
+
+  it('retries a temporarily locked canonical binding before completing hydration', async () => {
+    vi.useFakeTimers();
+    try {
+      const latest = getPersistBlob(PERSONAL_WORKSPACE_ID);
+      loadNativeWorkspaceStateGenerations.mockResolvedValue({
+        status: 'ok',
+        generations: [generation(latest, 5)],
+        invalidGenerationCount: 0,
+      });
+      loadNativeCanonicalSnapshotForGeneration.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
+      const loading = loadPersistedActiveWorkspace();
+      let finished = false;
+      void loading.then(() => {
+        finished = true;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(finished).toBe(false);
+      await vi.advanceTimersByTimeAsync(250);
+      await loading;
+      expect(loadNativeCanonicalSnapshotForGeneration).toHaveBeenCalledTimes(2);
+      expect(getHydrationOutcome()).toBe('ok');
+      expect(quarantineNativeWorkspaceVault).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it('preserves a newer local edit that arrives during a remote projection commit', async () => {
     setPartial({

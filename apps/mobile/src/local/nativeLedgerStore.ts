@@ -2,6 +2,7 @@
 import { Platform } from 'react-native';
 import { migrateCanonicalSnapshotToSqliteRepository } from '@folio/storage';
 import type { WorkspaceId } from '@folio/domain';
+import { isTransientDatabaseLock, withNativeDatabaseAccess } from './nativeDatabaseAccess';
 
 import {
   workspaceLedgerDatabaseName,
@@ -143,6 +144,14 @@ function requireUsableLedgerWorkspace(workspace: PersistedWorkspace): PersistedW
 export async function loadLocalLedgerState(
   workspace: PersistedWorkspace,
 ): Promise<LocalLedgerState | null> {
+  return withNativeDatabaseAccess(String(workspace.id), () =>
+    loadLocalLedgerStateUnlocked(workspace),
+  );
+}
+
+async function loadLocalLedgerStateUnlocked(
+  workspace: PersistedWorkspace,
+): Promise<LocalLedgerState | null> {
   requireUsableLedgerWorkspace(workspace);
   if (Platform.OS === 'web') return null;
 
@@ -173,6 +182,15 @@ export async function loadLocalLedgerState(
 }
 
 export async function saveLocalLedgerState(
+  workspace: PersistedWorkspace,
+  state: LocalLedgerState,
+): Promise<void> {
+  return withNativeDatabaseAccess(String(workspace.id), () =>
+    saveLocalLedgerStateUnlocked(workspace, state),
+  );
+}
+
+async function saveLocalLedgerStateUnlocked(
   workspace: PersistedWorkspace,
   state: LocalLedgerState,
 ): Promise<void> {
@@ -207,6 +225,12 @@ const localLedgerTableNames = [
 ] as const;
 
 export async function clearLocalLedgerStorage(workspace: PersistedWorkspace): Promise<void> {
+  return withNativeDatabaseAccess(String(workspace.id), () =>
+    clearLocalLedgerStorageUnlocked(workspace),
+  );
+}
+
+async function clearLocalLedgerStorageUnlocked(workspace: PersistedWorkspace): Promise<void> {
   requireLedgerWorkspaceIdentity(workspace);
   if (Platform.OS === 'web') return;
 
@@ -231,7 +255,8 @@ async function clearLocalLedgerDatabase(
     for (const table of localLedgerTableNames) {
       try {
         await db.execute(`DELETE FROM ${table}`);
-      } catch {
+      } catch (reason: unknown) {
+        if (isTransientDatabaseLock(reason)) throw reason;
         // The table may not exist yet on a fresh install; ignore and continue.
       }
     }
@@ -270,7 +295,8 @@ async function loadLocalLedgerStateWithKey(
     const snapshotState = normalizeLocalLedgerState(parsed);
     await migrateLoadedLocalLedgerStateToCanonicalSqlite(db, snapshotState, workspace);
     return snapshotState;
-  } catch {
+  } catch (reason: unknown) {
+    if (isTransientDatabaseLock(reason)) throw reason;
     return null;
   } finally {
     db.close();

@@ -94,6 +94,7 @@ import {
   type WorkspaceRoot,
 } from './workspaceRoot';
 import type { PersistedWorkspace } from './workspaceRoot';
+import { isTransientDatabaseLock } from '../../local/nativeDatabaseAccess';
 import {
   getPersistenceRuntimeState,
   classifyPersistenceDiagnostic,
@@ -167,6 +168,10 @@ const WRITE_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000] as const;
 
 let activePersistenceRetry: (() => void) | null = null;
 let activePersistenceQuiesce: (() => Promise<() => void>) | null = null;
+// A stopped controller may still be finishing its already-started atomic write. An Activity
+// recreation must await that generation before deciding which saved state is authoritative.
+let stoppedPersistenceWrites: Promise<void> = Promise.resolve();
+let activeWorkspaceLoad: Promise<WorkspaceId> | null = null;
 
 /** Ask the live persistence controller to retry immediately. */
 export function requestPersistenceRetry(): boolean {
@@ -181,6 +186,7 @@ export function requestPersistenceRetry(): boolean {
  * are flushed once the returned idempotent resume function runs.
  */
 export async function quiescePersistenceWrites(): Promise<() => void> {
+  await stoppedPersistenceWrites;
   if (activePersistenceQuiesce === null) return () => undefined;
   return activePersistenceQuiesce();
 }
@@ -353,7 +359,8 @@ async function tryApplyBoundCanonicalMoneyProjection(
     );
     moneyHydrationAuthority = 'canonical-sqlcipher';
     return true;
-  } catch {
+  } catch (reason: unknown) {
+    if (isTransientDatabaseLock(reason)) throw reason;
     return false;
   }
 }
@@ -406,11 +413,10 @@ export async function loadPersisted(workspaceId: WorkspaceId): Promise<void> {
   moneyHydrationAuthority = 'exact-app-state';
   nativeStateUnreadableWorkspaces.delete(String(workspaceId));
   let nativeUnreadable = false;
-  const native = await loadNativeWorkspaceStateGenerations(workspace).catch(() => ({
-    status: 'unreadable' as const,
-    generations: [] as const,
-    invalidGenerationCount: 1,
-  }));
+  const native = await loadNativeWorkspaceStateGenerations(workspace).catch((reason: unknown) => {
+    if (isTransientDatabaseLock(reason)) throw reason;
+    return { status: 'unreadable' as const, generations: [] as const, invalidGenerationCount: 1 };
+  });
   if (native.status === 'ok' || native.status === 'recovered') {
     for (const [index, generation] of native.generations.entries()) {
       if (!tryHydratePlaintext(generation.payload, workspaceId)) continue;
@@ -816,6 +822,9 @@ export function startPersisting(initialWorkspaceId: WorkspaceId): () => void {
 
   return () => {
     stopped = true;
+    stoppedPersistenceWrites = Promise.all([stoppedPersistenceWrites, writeChain]).then(
+      () => undefined,
+    );
     clearRetry();
     debounced.cancel();
     unsubscribe();
@@ -1250,11 +1259,10 @@ type WorkspaceManifestResolution = Readonly<{
  * source only; a valid file result is recommitted to SQLCipher after its selected partition loads. */
 async function readAuthoritativeWorkspaceManifest(): Promise<WorkspaceManifestResolution> {
   const personal = createPersonalWorkspaceRoot().workspaces[0]!;
-  const native = await loadNativeWorkspaceManifestGenerations(personal).catch(() => ({
-    status: 'unreadable' as const,
-    generations: [] as const,
-    invalidGenerationCount: 1,
-  }));
+  const native = await loadNativeWorkspaceManifestGenerations(personal).catch((reason: unknown) => {
+    if (isTransientDatabaseLock(reason)) throw reason;
+    return { status: 'unreadable' as const, generations: [] as const, invalidGenerationCount: 1 };
+  });
   if (native.status === 'ok' || native.status === 'recovered') {
     for (const [index, generation] of native.generations.entries()) {
       const manifest = parseWorkspaceManifest(generation.payload);
@@ -1309,6 +1317,7 @@ async function healSqlCipherAuthorityAfterFallbackLoad(
   } catch (reason: unknown) {
     // Full disk and key-storage failures are not database corruption. Preserve every byte and let
     // the normal persistence controller retry without moving the live database family.
+    if (isTransientDatabaseLock(reason)) throw reason;
     if (classifyPersistenceFailure(reason) !== 'unknown') return;
   }
 
@@ -1339,7 +1348,38 @@ async function healSqlCipherAuthorityAfterFallbackLoad(
 }
 
 /** Load the manifest-selected partition, falling back to Personal without exposing a partial root. */
-export async function loadPersistedActiveWorkspace(): Promise<WorkspaceId> {
+export function loadPersistedActiveWorkspace(): Promise<WorkspaceId> {
+  if (activeWorkspaceLoad !== null) return activeWorkspaceLoad;
+  const loading = (async () => {
+    const resume = await quiescePersistenceWrites();
+    try {
+      for (;;) {
+        try {
+          return await loadPersistedActiveWorkspaceOnce();
+        } catch (reason: unknown) {
+          if (!isTransientDatabaseLock(reason)) throw reason;
+          // Keep the existing native loading gate until the current generation can be verified.
+          // A temporarily locked reader must never choose an older rollback file or quarantine it.
+          await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        }
+      }
+    } finally {
+      resume();
+    }
+  })();
+  activeWorkspaceLoad = loading;
+  void loading.then(
+    () => {
+      if (activeWorkspaceLoad === loading) activeWorkspaceLoad = null;
+    },
+    () => {
+      if (activeWorkspaceLoad === loading) activeWorkspaceLoad = null;
+    },
+  );
+  return loading;
+}
+
+async function loadPersistedActiveWorkspaceOnce(): Promise<WorkspaceId> {
   const manifestResolution = await readAuthoritativeWorkspaceManifest();
   const manifest = manifestResolution.manifest;
   if (manifest === null) {
