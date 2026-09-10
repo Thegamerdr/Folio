@@ -88,6 +88,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
     shouldStackTextRows(width, fontScale) ||
     Boolean(lens.trialCycleId && !lens.fullUnlocked && lens.trialDaysLeft !== null);
   const stackSummary = shouldStackTextRows(width, fontScale);
+  const stackMonthShape = stackSummary || width < 420;
 
   const now = useDayClock();
   const appState = useAppStore((st) => st);
@@ -342,7 +343,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
             ) : null}
           </View>
 
-          <View style={[s.monthShapeRow, stackSummary && s.monthShapeRowStacked]}>
+          <View style={[s.monthShapeRow, stackMonthShape && s.monthShapeRowStacked]}>
             {(
               [
                 { label: 'Monthly income', value: monthlyIn, tone: t.positive },
@@ -354,7 +355,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
                 key={cell.label}
                 style={[
                   s.monthShapeCell,
-                  stackSummary && s.monthShapeCellStacked,
+                  stackMonthShape && s.monthShapeCellStacked,
                   { backgroundColor: t.inset },
                 ]}
               >
