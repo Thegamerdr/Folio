@@ -214,11 +214,14 @@ export function MoneyPathChart({
         const isToday = index === 0;
         const isPayday = index === points.length - 1;
         const isLow = point === tight && !isToday && !isPayday;
-        // Keep the station at its real date. Near an endpoint, the headline owns the low's
-        // amount/date rather than squeezing two labels together or falsifying the x position.
+        // Keep the station at its real x position. Near an endpoint, move the low amount inward
+        // with a leader rather than squeezing it against the neighboring station.
         const crowdedLow = isLow && (point.x - first.x < 70 || last.x - point.x < 70);
         const anchor = isToday ? 'start' : isPayday ? 'end' : 'middle';
         const dx = isToday ? -2 : isPayday ? 2 : 0;
+        const nearToday = isLow && point.x - first.x < 70;
+        const crowdedLowX = nearToday ? point.x + 44 : point.x - 44;
+        const crowdedLowAnchor = nearToday ? 'start' : 'end';
         return (
           <G key={`station-${index}`} onPress={isLow ? onTightTap : undefined}>
             <Line
@@ -254,18 +257,28 @@ export function MoneyPathChart({
                 strokeWidth={isLow ? 1.5 : 0}
               />
             )}
-            {!crowdedLow ? (
-              <SvgText
-                x={point.x + dx}
-                y={point.y - (isLow ? 15 : 13)}
-                textAnchor={anchor}
-                fontFamily={isLow ? 'InterTightBold' : 'InterTightSemiBold'}
-                fontSize={isLow ? 13 : 11}
-                fill={isLow ? t.calm : t.ink}
-              >
-                {point.value}
-              </SvgText>
+            {crowdedLow ? (
+              <Line
+                x1={point.x}
+                y1={point.y - 4}
+                x2={crowdedLowX}
+                y2={point.y - 13}
+                stroke={t.calm}
+                strokeWidth={0.9}
+                strokeDasharray="2 2"
+                opacity={0.75}
+              />
             ) : null}
+            <SvgText
+              x={crowdedLow ? crowdedLowX : point.x + dx}
+              y={point.y - (isLow ? 15 : 13)}
+              textAnchor={crowdedLow ? crowdedLowAnchor : anchor}
+              fontFamily={isLow ? 'InterTightBold' : 'InterTightSemiBold'}
+              fontSize={isLow ? 13 : 11}
+              fill={isLow ? t.calm : t.ink}
+            >
+              {point.value}
+            </SvgText>
             {!crowdedLow ? (
               <SvgText
                 x={point.x + dx}
