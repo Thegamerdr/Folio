@@ -38,6 +38,11 @@ import { resolvePayday } from '@/folio/lib/payday';
 import { latestLivedCycle } from '@/folio/lib/historyCycles';
 import { suggestMode } from '@/folio/lib/modes/suggest';
 import { selectMeloTodayMoneyNudge } from '@/folio/lib/meloToneGuidance';
+import {
+  qualifyModeSuggestion,
+  selectFinancialPresentation,
+} from '@/folio/lib/financialPresentation';
+import { useDayClock } from '@/folio/lib/useDayClock';
 import type { Nav, Pressure } from '@/folio/types';
 import { useTodayTheme } from './todayTheme';
 
@@ -272,20 +277,28 @@ export function TodayNudges({
 
   // Payday ritual — if payday is within 2 days or already past today without a close, surface
   // the ritual so it stops being a hidden More link.
-  const now = useMemo(() => new Date(), []);
+  const now = useDayClock();
+  const financialPlan = useMemo(
+    () => (onboarding.done && now ? buildFinancialPlanFromState(appState, { now }) : null),
+    [appState, now, onboarding.done],
+  );
+  const financePresentation = selectFinancialPresentation(appState, financialPlan);
   // Routed through the income-cadence engine (lib/income.ts) rather than re-deriving day-of-month
   // math locally — that local version was also wrong for weekly/fortnightly/four-weekly/
   // last-working-day earners, and skipped the payday engine's Feb-31 clamp + weekend shift even for
   // monthly earners. Prefers `incomeSources` (multi-cadence); falls back to the legacy DOM-only
   // `resolvePayday` for users not yet migrated onto sources — same fallback order storeRoute.ts and
   // lens.ts already use, so this nudge never disagrees with the Route/Today headline.
-  const daysToPayday = useMemo(() => {
-    if (!onboarding.done) return null;
-    const plan = buildFinancialPlanFromState(appState, { now });
-    return plan.nextIncomeDate
-      ? Math.round((Date.parse(plan.nextIncomeDate) - Date.parse(plan.asOf)) / 86_400_000)
-      : null;
-  }, [appState, now, onboarding.done]);
+  const daysToPayday = useMemo(
+    () =>
+      financialPlan?.nextIncomeDate
+        ? Math.round(
+            (Date.parse(financialPlan.nextIncomeDate) - Date.parse(financialPlan.asOf)) /
+              86_400_000,
+          )
+        : null,
+    [financialPlan],
+  );
   // The ritual-offer gate must key off the last LIVED (ritual-sealed) cycle only — a reconstructed
   // cycle synthesized from bulk-imported statement history (lib/historyCycles.ts, DATA_INTELLIGENCE.md
   // phase ④) is a best-effort estimate, never something the user actually walked through, so it must
@@ -295,7 +308,10 @@ export function TodayNudges({
   // Gate logic lives in the pure, independently-tested `shouldOfferRitual` above —
   // see its doc comment for the monthly-cap rationale.
   const offerRitual = useMemo(
-    () => shouldOfferRitual({ onboardingDone: onboarding.done, daysToPayday, lastClosedAt, now }),
+    () =>
+      now
+        ? shouldOfferRitual({ onboardingDone: onboarding.done, daysToPayday, lastClosedAt, now })
+        : false,
     [onboarding.done, daysToPayday, lastClosedAt, now],
   );
   if (offerRitual) {
@@ -328,18 +344,21 @@ export function TodayNudges({
   // mode itself; the switch is always a deliberate user tap on the picker row.
   const suggestion =
     onboarding.done && tightestSpare !== null
-      ? suggestMode(moneyMode, {
-          currentBalance,
-          onboarding,
-          pots,
-          subs,
-          subPaused,
-          tightestSpare,
-          tightestDate: null,
-          ritualCompletedRecently: false,
-          bufferAmount,
-          incomeSources,
-        })
+      ? qualifyModeSuggestion(
+          suggestMode(moneyMode, {
+            currentBalance,
+            onboarding,
+            pots,
+            subs,
+            subPaused,
+            tightestSpare: financialPlan ? financialPlan.safeToSpendMinor / 100 : tightestSpare,
+            tightestDate: null,
+            ritualCompletedRecently: false,
+            bufferAmount,
+            incomeSources,
+          }),
+          financePresentation,
+        )
       : null;
   if (suggestion) {
     nudges.push({

@@ -117,6 +117,14 @@ export function financialAmountLabel(
     : 'After recorded costs and buffer';
 }
 
+/** Mode suggestions are financial guidance too, so only show them for a qualified picture. */
+export function qualifyModeSuggestion<T>(
+  suggestion: T | null,
+  presentation: Pick<ReturnType<typeof selectFinancialPresentation>, 'canReassure'>,
+): T | null {
+  return presentation.canReassure ? suggestion : null;
+}
+
 export function formatMoney(amount: number, decimals = false): string {
   if (!Number.isFinite(amount)) return 'Not available';
   const hasPennies = Math.round(Math.abs(amount) * 100) % 100 !== 0;

@@ -9,10 +9,12 @@ import {
   type AppState,
 } from '../store';
 import { buildFinancialPlanFromState } from './financialPlan';
+import { suggestMode } from './modes/suggest';
 import {
   formatFinancialDate,
   formatMoney,
   financialAmountLabel,
+  qualifyModeSuggestion,
   selectFinancialPresentation,
 } from './financialPresentation';
 
@@ -176,6 +178,50 @@ describe('financial presentation prerequisites and coherent results', () => {
       label: 'Check your forecast changes',
     });
     expect(financialAmountLabel(plan, presentation)).toBe('After recorded costs and buffer');
+  });
+  it('withholds mode suggestions while a forecast change makes the picture conditional', () => {
+    const state = fullState();
+    state.subPaused = { 'Rent + bills': true };
+    state.subs[0] = {
+      ...state.subs[0]!,
+      pausedAt: '2026-09-09',
+      pausedUntil: '2026-09-13',
+    };
+    const pendingPlan = buildFinancialPlanFromState(state, { now });
+    const pending = selectFinancialPresentation(state, pendingPlan);
+    expect(pending.canReassure).toBe(false);
+    expect(qualifyModeSuggestion({ mode: 'stability' }, pending)).toBeNull();
+
+    const ready = fullState();
+    const readyPlan = buildFinancialPlanFromState(ready, { now });
+    expect(
+      qualifyModeSuggestion({ mode: 'stability' }, selectFinancialPresentation(ready, readyPlan)),
+    ).toEqual({
+      mode: 'stability',
+    });
+  });
+  it('qualifies mode thresholds against canonical safe-to-spend, including the protected buffer', () => {
+    const state = fullState();
+    const plan = buildFinancialPlanFromState(state, { now });
+    const modeInputs = {
+      currentBalance: state.currentBalance,
+      onboarding: state.onboarding,
+      pots: state.pots,
+      subs: state.subs,
+      subPaused: state.subPaused,
+      tightestDate: null,
+      ritualCompletedRecently: false,
+      bufferAmount: state.bufferAmount ?? 100,
+      incomeSources: state.incomeSources ?? [],
+    };
+
+    expect(plan.safeToSpendMinor).toBe(35000);
+    expect(
+      suggestMode('survival', { ...modeInputs, tightestSpare: plan.safeToSpendMinor / 100 }),
+    ).toBeNull();
+    expect(suggestMode('survival', { ...modeInputs, tightestSpare: 500 })).toEqual(
+      expect.objectContaining({ mode: 'stability' }),
+    );
   });
   it('withholds reassuring copy when a future commitment is date-nudged', () => {
     const state = fullState();

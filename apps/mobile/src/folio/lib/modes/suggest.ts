@@ -108,7 +108,7 @@ export function suggestMode(current: MoneyMode, inputs: ModeInputs): ModeSuggest
     return {
       mode: 'stability',
       label: MODE_LABEL.stability,
-      reason: 'Nothing here looks tight. A steadier view might feel better.',
+      reason: 'Try a steadier planning view.',
     };
   }
 
