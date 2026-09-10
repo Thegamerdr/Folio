@@ -993,12 +993,16 @@ function projectCompanionRuntimeState(
         ? {}
         : { soundEnabled: requireBoolean(melo.soundEnabled, 'Melo milestone sounds') }),
     },
-    tinyWins: (state.tinyWins ?? []).map((win, index) => ({
-      id: requireString(win.id, `Tiny win ${index} ID`),
-      kind: win.kind,
-      awardedAt: requireIsoInstant(win.awardedAt, `Tiny win ${win.id} time`),
-      message: requireString(win.message, `Tiny win ${win.id} message`),
-    })),
+    tinyWins: (state.tinyWins ?? []).map((win, index) => {
+      assertRowWorkspace(win, workspace, 'Tiny win');
+      return {
+        id: requireString(win.id, `Tiny win ${index} ID`),
+        ...(win.workspaceId === undefined ? {} : { workspaceId: workspace.id }),
+        kind: win.kind,
+        awardedAt: requireIsoInstant(win.awardedAt, `Tiny win ${win.id} time`),
+        message: requireString(win.message, `Tiny win ${win.id} message`),
+      };
+    }),
     meloPrimerSeen: state.meloPrimerSeen === true,
     lastOpenedAt:
       state.lastOpenedAt === undefined || state.lastOpenedAt === null

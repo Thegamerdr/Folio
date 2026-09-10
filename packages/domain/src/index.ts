@@ -1056,6 +1056,8 @@ export type StatementReadCacheState = Readonly<{
 
 export type TinyWinState = Readonly<{
   id: string;
+  /** Optional for legacy snapshots; current AppState rows carry their workspace owner. */
+  workspaceId?: WorkspaceId;
   kind:
     | 'danger-date-pushed'
     | 'first-10-saved'

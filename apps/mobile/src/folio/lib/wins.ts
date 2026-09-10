@@ -11,6 +11,8 @@
 //   - `awardedAt` is monotonic — the UI never re-orders older wins to feel "fresh"; that reads
 //     dishonest.
 //
+import type { WorkspaceId } from '@folio/domain';
+
 // @rn-engine tiny-wins — this file ports the pure data shape + one-shot-per-kind guard. Wiring the
 // actual award call-sites (danger-date-pushed / first-10-saved / afford-streak-3/7 /
 // bill-week-survived / first-green-after-red / first-pot-funded / first-sub-caught) into their real
@@ -34,6 +36,8 @@ export type TinyWinKind =
 
 export type TinyWin = {
   id: string;
+  /** Optional on legacy in-memory rows; persisted workspace rows are stamped by store.ts. */
+  workspaceId?: WorkspaceId;
   kind: TinyWinKind;
   /** ISO timestamp */
   awardedAt: string;

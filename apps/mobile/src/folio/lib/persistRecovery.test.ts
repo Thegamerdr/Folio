@@ -58,6 +58,7 @@ const {
   fsState,
   FS,
   forceDegraded,
+  forcePreparationFailure,
   saveLocalLedgerState,
   clearLocalLedgerStorage,
   loadNativeCanonicalSnapshotForGeneration,
@@ -100,10 +101,12 @@ const {
     }),
   };
   const forceDegraded = { next: false };
+  const forcePreparationFailure = { next: false };
   return {
     fsState,
     FS,
     forceDegraded,
+    forcePreparationFailure,
     saveLocalLedgerState: vi.fn(async () => undefined),
     clearLocalLedgerStorage: vi.fn(async () => undefined),
     loadNativeCanonicalSnapshotForGeneration: vi.fn(
@@ -169,6 +172,24 @@ vi.mock('@/folio/store', async () => {
       }
       return actual.consumeLoadDegraded();
     },
+  };
+});
+
+vi.mock('./canonicalStateProjection', async () => {
+  const actual = await vi.importActual<typeof import('./canonicalStateProjection')>(
+    './canonicalStateProjection',
+  );
+  return {
+    ...actual,
+    createCanonicalAppStateProjectionFromPayload: vi.fn(
+      (...args: Parameters<typeof actual.createCanonicalAppStateProjectionFromPayload>) => {
+        if (forcePreparationFailure.next) {
+          forcePreparationFailure.next = false;
+          throw new Error('synthetic canonical projection failure');
+        }
+        return actual.createCanonicalAppStateProjectionFromPayload(...args);
+      },
+    ),
   };
 });
 
@@ -290,6 +311,7 @@ beforeEach(async () => {
   saveNativeWorkspaceStateGeneration.mockResolvedValue({ generation: 1 });
   saveNativeWorkspaceManifestGeneration.mockResolvedValue({ generation: 1 });
   forceDegraded.next = false;
+  forcePreparationFailure.next = false;
   resetPersistenceRuntimeState();
   resetAll();
 });
@@ -902,6 +924,24 @@ describe('SQLCipher workspace authority', () => {
     expect(saveNativeWorkspaceManifestGeneration).not.toHaveBeenCalled();
     expect(FS.writeAsStringAsync).not.toHaveBeenCalled();
     expect(getPersistenceRuntimeState()).toMatchObject({ status: 'failed' });
+  });
+
+  it('reports canonical preparation failures before attempting any native write', async () => {
+    forcePreparationFailure.next = true;
+
+    await expect(persistCurrentStateNow(PERSONAL_WORKSPACE_ID)).rejects.toThrow(
+      'synthetic canonical projection failure',
+    );
+
+    expect(saveNativeWorkspaceStateGeneration).not.toHaveBeenCalled();
+    expect(saveNativeWorkspaceManifestGeneration).not.toHaveBeenCalled();
+    expect(FS.writeAsStringAsync).not.toHaveBeenCalled();
+    expect(getPersistenceRuntimeState()).toMatchObject({
+      status: 'failed',
+      workspaceId: PERSONAL_WORKSPACE_ID,
+      failureKind: 'unknown',
+      consecutiveFailures: 1,
+    });
   });
 
   it('does not demote a verified SQLCipher commit when the rollback file cannot refresh', async () => {

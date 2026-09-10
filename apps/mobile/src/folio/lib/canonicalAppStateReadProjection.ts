@@ -612,7 +612,18 @@ export function readCanonicalAppStateMoneyProjection(
         ? {}
         : { soundEnabled: companionRuntime.melo.soundEnabled }),
     },
-    tinyWins: companionRuntime.tinyWins.map((win) => ({ ...win })),
+    tinyWins: companionRuntime.tinyWins.map((win) => {
+      if (win.workspaceId !== undefined && String(win.workspaceId) !== String(workspaceId)) {
+        throw new Error('Canonical Tiny win is outside the requested workspace.');
+      }
+      return {
+        id: win.id,
+        ...(win.workspaceId === undefined ? {} : { workspaceId: workspaceId as WorkspaceId }),
+        kind: win.kind,
+        awardedAt: win.awardedAt,
+        message: win.message,
+      };
+    }),
     meloPrimerSeen: companionRuntime.meloPrimerSeen === true,
     lastOpenedAt: companionRuntime.lastOpenedAt ?? null,
     oneMoveHistory: (companionRuntime.oneMoveHistory ?? []).map((entry) => ({ ...entry })),

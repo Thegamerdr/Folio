@@ -943,23 +943,27 @@ export async function persistCurrentStateNow(
   syncStatePayload?: string,
   options?: Readonly<{ expectedSyncRevision?: number; plaintextOverride?: string }>,
 ): Promise<void> {
-  const files = partitionFileUris(workspaceId);
-  const workspace = workspaceMetadata(workspaceId);
-  const plaintext = options?.plaintextOverride ?? getPersistBlob(workspaceId);
   const persistedAt = new Date().toISOString();
-  const canonicalProjection = createCanonicalAppStateProjectionFromPayload(
-    plaintext,
-    workspace,
-    persistedAt,
-  );
-  // Capture after serializing the exact state. JavaScript mutation is synchronous, so this is the
-  // matching command set for that payload; receipts queued while the native write is in flight are
-  // excluded and will be handled by the next subscribed save.
-  const pendingCommands = snapshotPendingAppStateCommands(workspaceId);
-  const manifest = createWorkspaceManifest(getState(), persistedAt);
-  markPersistenceSaving(workspaceId, persistedAt);
-  let failureStage = 'workspace-state';
+  // Preparation must share the same failure boundary as the native write. A malformed state or
+  // projection error is still a failed save attempt and must remain visible to the retry/runtime
+  // machinery, while the diagnostic remains value-free.
+  let failureStage = 'preparation';
   try {
+    markPersistenceSaving(workspaceId, persistedAt);
+    const files = partitionFileUris(workspaceId);
+    const workspace = workspaceMetadata(workspaceId);
+    const plaintext = options?.plaintextOverride ?? getPersistBlob(workspaceId);
+    const canonicalProjection = createCanonicalAppStateProjectionFromPayload(
+      plaintext,
+      workspace,
+      persistedAt,
+    );
+    // Capture after serializing the exact state. JavaScript mutation is synchronous, so this is the
+    // matching command set for that payload; receipts queued while the native write is in flight
+    // are excluded and will be handled by the next subscribed save.
+    const pendingCommands = snapshotPendingAppStateCommands(workspaceId);
+    const manifest = createWorkspaceManifest(getState(), persistedAt);
+    failureStage = 'workspace-state';
     // SQLCipher is the authoritative commit path. The exact current partition is hash-checked and
     // read back inside its transaction before the Personal root is allowed to select it.
     await saveNativeWorkspaceStateGeneration(

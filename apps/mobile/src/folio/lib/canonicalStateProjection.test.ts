@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_ACCOUNT_ID, getState, resetToEmpty, type AppState } from '../store';
+import {
+  DEFAULT_ACCOUNT_ID,
+  addToPot,
+  getPersistBlob,
+  getState,
+  removeSub,
+  resetToEmpty,
+  setPartial,
+  type AppState,
+} from '../store';
 import { PERSONAL_WORKSPACE_ID, type PersistedWorkspace } from './workspaceRoot';
 import { canonicalAccountIdForSource } from '../../local/canonicalLedgerAdapter';
 
@@ -8,6 +17,7 @@ import {
   createCanonicalAppStateProjection,
   createCanonicalAppStateProjectionFromPayload,
 } from './canonicalStateProjection';
+import { readCanonicalAppStateMoneyProjection } from './canonicalAppStateReadProjection';
 
 function emptyState(): AppState {
   resetToEmpty();
@@ -240,5 +250,71 @@ describe('canonical AppState projection', () => {
     // The legacy source remains untouched for evidence/export; only the canonical relational
     // projection fails closed.
     expect(state.potLedger).toHaveLength(1);
+  });
+
+  it('round-trips workspace-owned cancellation and funding wins through the canonical read path', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    setPartial({
+      subs: [
+        {
+          name: 'Music',
+          cost: 15,
+          nextRenewalDaysAway: 12,
+          nextRenewalISO: '2026-09-22',
+          lastUsedDaysAgo: 0,
+          usesPerMonth: 1,
+        },
+      ],
+      subPaused: { Music: false },
+      pots: [
+        {
+          id: 'tiny-buffer',
+          name: 'Buffer',
+          saved: 0,
+          goal: 20,
+          perWeek: 20,
+          accent: true,
+        },
+      ],
+      potLedger: [],
+      cancelledSubs: [],
+      tinyWins: [],
+    });
+
+    removeSub('Music');
+    addToPot('tiny-buffer', 20, 'manual');
+    const after = getState();
+    const cancelledAt = after.cancelledSubs?.[0]?.cancelledAt;
+    if (cancelledAt === undefined) throw new Error('Expected the cancelled Music archive.');
+    const projection = createCanonicalAppStateProjectionFromPayload(
+      getPersistBlob(workspace.id),
+      workspace,
+      `${cancelledAt}T12:00:00.000Z`,
+    );
+    const read = readCanonicalAppStateMoneyProjection(
+      projection.repositorySnapshot,
+      String(workspace.id),
+      cancelledAt,
+    );
+
+    expect(read.subs).toEqual([]);
+    expect(read.cancelledSubs).toEqual(after.cancelledSubs);
+    expect(read.pots).toEqual(after.pots);
+    expect(read.potLedger).toEqual(after.potLedger);
+    expect(read.tinyWins).toEqual(after.tinyWins);
+    expect(read.tinyWins.map((win) => win.workspaceId)).toEqual([workspace.id, workspace.id]);
+
+    const foreignWin = {
+      ...(after.tinyWins ?? [])[0]!,
+      workspaceId: 'workspace_foreign' as typeof workspace.id,
+    };
+    expect(() =>
+      createCanonicalAppStateProjection(
+        { ...after, tinyWins: [foreignWin, ...(after.tinyWins ?? []).slice(1)] },
+        workspace,
+        `${cancelledAt}T12:00:00.000Z`,
+      ),
+    ).toThrow(/Tiny win is outside the canonical AppState workspace/i);
   });
 });
