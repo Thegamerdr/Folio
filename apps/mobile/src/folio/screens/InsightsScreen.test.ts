@@ -65,7 +65,7 @@ function fiveRowsIn(monthPrefix: string) {
 const TODAY = '2026-07-06';
 
 describe('InsightsScreen — reconstructed-cycle aggregation (DATA_INTELLIGENCE.md phase ④)', () => {
-  it('stat tiles / retrospect aggregate reconstructed cycles alongside lived ones (unfiltered)', () => {
+  it('retrospect excludes reconstructed estimates while retaining them in the labelled chart', () => {
     const lived: CycleRecord = {
       closedAt: '2026-05-25',
       label: 'May (lived)',
@@ -80,7 +80,7 @@ describe('InsightsScreen — reconstructed-cycle aggregation (DATA_INTELLIGENCE.
     // getRetrospect (the real engine InsightsScreen calls) must count BOTH cycles — the reconstructed
     // month is real spend/income history, just not a ritual-sealed one.
     const retro = getRetrospect('survival', withReconstructed, 0);
-    expect(retro.eyebrow).toBe('2 months done');
+    expect(retro.eyebrow).toContain('1 recorded review');
 
     // Same story for the trend chart window: both cycles appear, oldest-first.
     const trend = trendOf(withReconstructed);
@@ -158,9 +158,9 @@ describe('InsightsScreen — reconstructed-cycle aggregation (DATA_INTELLIGENCE.
       weeklySpent: 80,
       quietDays: 4,
     });
-    expect(read.fact).toContain('July closed with £120');
+    expect(read.fact).toContain('July review recorded projected payday cash of £120');
     expect(read.pattern).toContain('not a pattern yet');
-    expect(read.canOpenToday).toBe(false);
+    expect(read.canOpenToday).toBe(true);
   });
 
   it('separates a real negative movement into pattern, interpretation and action', () => {
@@ -171,8 +171,25 @@ describe('InsightsScreen — reconstructed-cycle aggregation (DATA_INTELLIGENCE.
       quietDays: 2,
     });
     expect(read.pattern).toContain('changed by −£60');
-    expect(read.interpretation).toContain('left less room');
+    expect(read.interpretation).toContain('does not establish actual spending');
     expect(read.action).toContain('Open Today');
     expect(read.canOpenToday).toBe(true);
+  });
+});
+
+describe('actual same-day review comparison', () => {
+  it('labels the £15 change as a forecast change, keeps £120.23 exact and avoids realized payday claims', () => {
+    const read = buildInsightsRead({
+      latest: { closedAt: '2026-09-10', label: 'September', spare: 1990, tightPoint: 200 },
+      prior: { closedAt: '2026-09-10', label: 'September', spare: 1975, tightPoint: 185 },
+      weeklySpent: 120.23,
+      quietDays: 6,
+    });
+    expect(read.fact).toContain('10 Sept 2026 review recorded projected payday cash of £1,990');
+    expect(read.pattern).toContain('Both reviews were recorded on 10 Sept 2026');
+    expect(read.pattern).toContain('forecast changed by £15');
+    expect(read.pattern).toContain('£120.23');
+    expect(read.interpretation).toContain('may cover the same period');
+    expect(JSON.stringify(read)).not.toMatch(/closed with|lived cycle|more breathing room|months/);
   });
 });

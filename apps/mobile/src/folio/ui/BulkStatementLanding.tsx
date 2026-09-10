@@ -1,17 +1,9 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import {
-  FlatList,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { gap, radius, serif, useTheme } from '@/folio/theme';
+import { gap, radius, serif, Sheet, useTheme } from '@/folio/theme';
+import { formatReviewDate } from '@/folio/screens/reviewFormat';
 import {
   filterStatementReviewRows,
   buildStatementReviewModel,
@@ -80,8 +72,20 @@ function money(amount: number): string {
 
 function shortDateRange(from?: string, to?: string): string {
   if (from === undefined) return 'Dates not supplied';
-  return from === to ? from : `${from} – ${to}`;
+  return from === to || to === undefined
+    ? formatReviewDate(from)
+    : `${formatReviewDate(from)} – ${formatReviewDate(to)}`;
 }
+
+const KIND_LABEL: Record<CandidateKind, string> = {
+  income: 'Income',
+  spend: 'Spending',
+  bill: 'Bill',
+  subscription: 'Subscription',
+  'debt-payment': 'Debt payment',
+  transfer: 'Transfer',
+  unknown: 'Needs review',
+};
 
 function issueLabel(row: StatementReviewRow): string {
   if (row.issue === 'possible-duplicate') return 'Possible duplicate';
@@ -134,7 +138,7 @@ const ReviewRow = memo(function ReviewRow({
           numberOfLines={1}
           style={[styles.meta, { color: row.status === 'issue' ? t.repairInk : t.muted }]}
         >
-          {`${candidate.date ?? 'No date'} · ${candidate.kind} · ${aside ? 'Kept aside' : issueLabel(row)}`}
+          {`${formatReviewDate(candidate.date)} · ${KIND_LABEL[candidate.kind]} · ${aside ? 'Kept aside' : issueLabel(row)}`}
         </Text>
       </View>
       <Text style={[styles.amount, { color: candidate.amount >= 0 ? t.positiveInk : t.ink }]}>
@@ -552,75 +556,91 @@ export function BulkStatementLanding({
         </Pressable>
       </View>
 
-      <Modal
+      <Sheet
         visible={editing !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEditing(null)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.editor, { backgroundColor: t.surface }]}>
-            <Text style={[styles.accountTitle, { color: t.ink }]}>Edit transaction</Text>
-            <TextInput
-              value={editMerchant}
-              onChangeText={setEditMerchant}
-              placeholder="Merchant"
-              placeholderTextColor={t.muted}
-              style={[
-                styles.input,
-                { color: t.ink, borderColor: t.hairline, backgroundColor: t.inset },
-              ]}
-            />
-            <TextInput
-              value={editAmount}
-              onChangeText={setEditAmount}
-              keyboardType="decimal-pad"
-              placeholder="Amount"
-              placeholderTextColor={t.muted}
-              style={[
-                styles.input,
-                { color: t.ink, borderColor: t.hairline, backgroundColor: t.inset },
-              ]}
-            />
-            <TextInput
-              value={editDate}
-              onChangeText={setEditDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={t.muted}
-              style={[
-                styles.input,
-                { color: t.ink, borderColor: t.hairline, backgroundColor: t.inset },
-              ]}
-            />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filters}
+        onClose={() => setEditing(null)}
+        scrollKey={editing?.id ?? ''}
+        footer={
+          <View style={styles.offerActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={saveEdit}
+              style={[styles.primary, styles.offerButton, { backgroundColor: t.calm }]}
             >
-              {KINDS.map((kind) => (
-                <Pressable
-                  key={kind}
-                  onPress={() => setEditKind(kind)}
-                  style={[styles.filter, { backgroundColor: editKind === kind ? t.calm : t.inset }]}
-                >
-                  <Text style={{ color: editKind === kind ? t.inverse : t.ink }}>{kind}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            <View style={styles.offerActions}>
-              <Pressable
-                onPress={saveEdit}
-                style={[styles.primary, styles.offerButton, { backgroundColor: t.calm }]}
-              >
-                <Text style={[styles.primaryLabel, { color: t.inverse }]}>Save</Text>
-              </Pressable>
-              <Pressable onPress={() => setEditing(null)} style={styles.secondaryButton}>
-                <Text style={{ color: t.muted }}>Cancel</Text>
-              </Pressable>
-            </View>
+              <Text style={[styles.primaryLabel, { color: t.inverse }]}>Save</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setEditing(null)}
+              style={styles.secondaryButton}
+            >
+              <Text style={{ color: t.muted }}>Cancel</Text>
+            </Pressable>
           </View>
+        }
+      >
+        <View style={styles.editor}>
+          <Text style={[styles.accountTitle, { color: t.ink }]}>Edit transaction</Text>
+          <Text style={[styles.accountHint, { color: t.muted }]}>Merchant</Text>
+          <TextInput
+            accessibilityLabel="Statement transaction merchant"
+            value={editMerchant}
+            onChangeText={setEditMerchant}
+            placeholder="Merchant"
+            placeholderTextColor={t.muted}
+            style={[
+              styles.input,
+              { color: t.ink, borderColor: t.hairline, backgroundColor: t.inset },
+            ]}
+          />
+          <Text style={[styles.accountHint, { color: t.muted }]}>
+            Amount · negative for money out
+          </Text>
+          <TextInput
+            accessibilityLabel="Statement transaction amount"
+            value={editAmount}
+            onChangeText={setEditAmount}
+            keyboardType="decimal-pad"
+            placeholder="Amount"
+            placeholderTextColor={t.muted}
+            style={[
+              styles.input,
+              { color: t.ink, borderColor: t.hairline, backgroundColor: t.inset },
+            ]}
+          />
+          <Text style={[styles.accountHint, { color: t.muted }]}>Date · YYYY-MM-DD</Text>
+          <TextInput
+            accessibilityLabel="Statement transaction date, year-month-day"
+            value={editDate}
+            onChangeText={setEditDate}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={t.muted}
+            style={[
+              styles.input,
+              { color: t.ink, borderColor: t.hairline, backgroundColor: t.inset },
+            ]}
+          />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filters}
+          >
+            {KINDS.map((kind) => (
+              <Pressable
+                key={kind}
+                accessibilityRole="button"
+                accessibilityState={{ selected: editKind === kind }}
+                onPress={() => setEditKind(kind)}
+                style={[styles.filter, { backgroundColor: editKind === kind ? t.calm : t.inset }]}
+              >
+                <Text style={{ color: editKind === kind ? t.inverse : t.ink }}>
+                  {KIND_LABEL[kind]}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
-      </Modal>
+      </Sheet>
     </View>
   );
 }
@@ -719,7 +739,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: gap.lg,
   },
   filters: { gap: gap.sm, paddingVertical: gap.sm },
-  filter: { borderRadius: radius.pill, paddingHorizontal: gap.md, paddingVertical: gap.sm },
+  filter: {
+    borderRadius: radius.pill,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+  },
   row: {
     alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -767,12 +793,5 @@ const styles = StyleSheet.create({
     marginTop: gap.lg,
     paddingHorizontal: gap.lg,
   },
-  modalBackdrop: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    flex: 1,
-    justifyContent: 'center',
-    padding: gap.xl,
-  },
-  editor: { borderRadius: radius.xl, maxWidth: 520, padding: gap.xl, width: '100%' },
+  editor: { width: '100%' },
 });

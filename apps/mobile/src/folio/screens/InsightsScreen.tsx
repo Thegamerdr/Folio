@@ -80,7 +80,9 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore, type CycleRecord } from '@/folio/store';
-import { getRetrospect, formatDelta } from '@/folio/lib/modes/retrospect';
+import { getRetrospect } from '@/folio/lib/modes/retrospect';
+import { formatMoney, formatFinancialDate } from '@/folio/lib/financialPresentation';
+import { selectRecordedReviews } from '@/folio/lib/recordedReviews';
 import { expectedMonthLabel, useCaughtAnnual } from '@/folio/lib/caughtAnnual';
 import { computeGreenStreak } from '@/folio/lib/streaks';
 import { buildInsightsRead, type InsightsRead } from './insightsRead';
@@ -98,8 +100,7 @@ function isReconstructed(c: CycleRecord): boolean {
 //   sign '−' (U+2212) for negatives; '£' + Math.abs(n) with en-GB grouping, no decimals.
 // ---------------------------------------------------------------------------
 function formatGBP(n: number): string {
-  const sign = n < 0 ? '−' : '';
-  return `${sign}£${Math.abs(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })}`;
+  return formatMoney(n);
 }
 
 // ---------------------------------------------------------------------------
@@ -191,11 +192,11 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   // month's approximation (setAside hardcoded 0, tightPoint a rough spend-minus-income proxy) into
   // a number presented as fact. Computed from LIVED cycles only, mirroring the `livedNotes` filter
   // below. The chart itself is unaffected — it keeps plotting every cycle (already captioned).
-  const livedCycles = useMemo(() => cycles.filter((c) => !isReconstructed(c)), [cycles]);
+  const livedCycles = useMemo(() => selectRecordedReviews(cycles), [cycles]);
   const hasReconstructedInAll = useMemo(() => cycles.some(isReconstructed), [cycles]);
 
   const avgTight = livedCycles.length
-    ? Math.round(livedCycles.reduce((acc, c) => acc + c.tightPoint, 0) / livedCycles.length)
+    ? livedCycles.reduce((acc, c) => acc + c.tightPoint, 0) / livedCycles.length
     : 0;
   const pausedCount = Object.values(subPaused).filter(Boolean).length;
   const greenStreak = useMemo(() => computeGreenStreak(cycles), [cycles]);
@@ -208,8 +209,6 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   // from the same honest-estimate approximation as tightPoint/setAside.
   const latestLived = livedCycles[0];
   const priorLived = livedCycles[1];
-  const spareDelta = latestLived && priorLived ? latestLived.spare - priorLived.spare : 0;
-  const prior = priorLived;
 
   // Mode-tinted retrospective framing (web `getRetrospect(mode, cycles, potsTotal)`) — the eyebrow,
   // headline, both KPI cards, the trend caption, and the Melo note all vary by moneyMode.
@@ -225,6 +224,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
     const week = transactions.filter(
       (t) =>
         new Date(t.when).getTime() >= weekAgo &&
+        new Date(t.when).getTime() <= now &&
         t.amount < 0 &&
         t.financialAction?.kind !== 'transfer',
     );
@@ -232,7 +232,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
     const daysWithSpend = new Set(week.map((t) => new Date(t.when).toISOString().slice(0, 10)))
       .size;
     const quietDays = Math.max(0, 7 - daysWithSpend);
-    return { spent: Math.round(spent), quietDays };
+    return { spent, quietDays };
   }, [transactions]);
 
   const authoredRead = useMemo<InsightsRead>(
@@ -254,7 +254,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   // empty/placeholder note. `.slice(0,4)` mirrors the original web window, applied AFTER filtering so
   // four real notes show whenever they exist, instead of the window being padded out by reconstructed
   // entries that render nothing.
-  const livedNotes = useMemo(() => cycles.filter((c) => !isReconstructed(c)).slice(0, 4), [cycles]);
+  const livedNotes = useMemo(() => livedCycles.slice(0, 4), [livedCycles]);
 
   // slide-in-r — drives the whole screen on both branches. Resolves to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -356,13 +356,6 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
             value={retro.primary.value}
             tone={retro.primary.tone === 'ink' ? undefined : retro.primary.tone}
             styles={s}
-            sub={
-              prior ? (
-                <Text style={[s.delta, spareDelta >= 0 ? s.deltaPositive : s.deltaNegative]}>
-                  {`${formatDelta(spareDelta)} vs ${prior.label}`}
-                </Text>
-              ) : undefined
-            }
           />
           <StatTile
             label="In pots right now"
@@ -378,29 +371,16 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
             styles={s}
           />
           <StatTile
-            label="Average set aside"
-            value={formatGBP(
-              livedCycles.length
-                ? Math.round(
-                    livedCycles.reduce((acc, c) => acc + c.setAside, 0) / livedCycles.length,
-                  )
-                : 0,
-            )}
+            label="Pot contributions at latest review"
+            value={latestLived ? formatMoney(latestLived.setAside) : 'Not recorded'}
             styles={s}
-            reduceMotion={reduceMotion}
-            countUpValue={
-              livedCycles.length
-                ? Math.round(
-                    livedCycles.reduce((acc, c) => acc + c.setAside, 0) / livedCycles.length,
-                  )
-                : 0
-            }
           />
         </View>
 
         <Text style={s.averagesCaption}>
-          Total left at cycle close adds the recorded closing amounts. It is not money transferred
-          to savings; pot contributions are shown separately.
+          Payday cash and low points are saved forecasts, not current available money. Pot
+          contributions cover the 30 days before the latest review; repeated reviews can cover the
+          same deposits. Nothing shown here confirms a bank transfer or debt repayment.
         </Text>
 
         {/* Honest averages caption — shown once, directly under the stat grid, whenever the
@@ -409,21 +389,31 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
             headline averages above are computed from lived months only, never blended with an
             approximation. DATA_INTELLIGENCE.md phase ④. */}
         {hasReconstructedInAll ? (
-          <Text style={s.averagesCaption}>{copy.insights.averages.livedOnlyCaption}</Text>
+          <Text style={s.averagesCaption}>Headline forecasts exclude imported estimates.</Text>
         ) : null}
 
         {/* Chart card — the only element with a shadow (shadow-card); tiles use hairline only.
             The trend caption is mode-tinted (web `retro.trendCaption`). */}
         <View style={s.chartCard}>
           <View style={s.chartTitleRow}>
-            <Text style={s.chartTitle}>{retro.trendCaption}</Text>
-            <ChartAvg avgTight={avgTight} styles={s} reduceMotion={reduceMotion} />
+            <Text style={s.chartTitle}>{`Saved low points · ${trend.length} records`}</Text>
+            {livedCycles.length ? (
+              <ChartAvg avgTight={avgTight} styles={s} reduceMotion={reduceMotion} />
+            ) : (
+              <Text style={s.chartAvg}>No recorded review average</Text>
+            )}
           </View>
-          <TrendChart trend={trend} avgTight={avgTight} palette={t} reduceMotion={reduceMotion} />
+          <TrendChart
+            trend={trend}
+            avgTight={avgTight}
+            showAverage={livedCycles.length > 0}
+            palette={t}
+            reduceMotion={reduceMotion}
+          />
           <View style={s.axisRow}>
-            {trend.map((c) => (
-              <Text key={c.closedAt} numberOfLines={1} style={s.axisTick}>
-                {c.label.slice(0, 3)}
+            {trend.map((c, index) => (
+              <Text key={`${c.closedAt}-${index}`} style={s.axisTick}>
+                {formatFinancialDate(c.closedAt)}
                 {isReconstructed(c) ? '*' : ''}
               </Text>
             ))}
@@ -440,7 +430,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
         {/* Mode-tinted Melo note (web `retro.meloNote`) — directly under the chart, ahead of the
             weekly digest / tiny wins / notes-from-past-you sections. */}
         <View style={s.meloNoteBlock}>
-          <MeloLine mood="calm" text={retro.meloNote} />
+          <MeloLine mood="curious" text={retro.meloNote} />
         </View>
 
         {/* Weekly digest — trailing 7 days, a calm 30-second read (web "This week, at a glance"). */}
@@ -448,11 +438,11 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
           <Text style={s.weeklyEyebrow}>This week, at a glance</Text>
           <View style={s.weeklyGrid}>
             <View style={s.weeklyCol}>
-              <Text style={s.weeklyLabel}>Spent</Text>
+              <Text style={s.weeklyLabel}>Recorded money out</Text>
               <Text style={s.weeklyValue}>{formatGBP(weekly.spent)}</Text>
             </View>
             <View style={s.weeklyCol}>
-              <Text style={s.weeklyLabel}>Quiet days</Text>
+              <Text style={s.weeklyLabel}>Days without recorded spending</Text>
               <Text
                 style={[s.weeklyValue, weekly.quietDays >= 3 ? s.tileValuePositive : undefined]}
               >
@@ -484,7 +474,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
           <View style={s.cancelSavingsBlock}>
             <MeloLine
               mood="calm"
-              text={`Still saving £${cancelSavingsMonthly}/mo since you cancelled ${cancelledSubs.length} subscription${cancelledSubs.length === 1 ? '' : 's'}.`}
+              text={`${formatMoney(cancelSavingsMonthly)} a month was removed from tracking across ${cancelledSubs.length} regular payment${cancelledSubs.length === 1 ? '' : 's'}. Check any cancellation with the provider.`}
             />
           </View>
         ) : null}
@@ -528,11 +518,11 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
               <Text style={s.annualEyebrow}>{copy.annual.card.eyebrow}</Text>
               <View style={s.annualRow}>
                 <Text style={s.annualMerchant}>{annualCandidate.merchant}</Text>
-                <Text style={s.annualAmount}>{formatGBP(Math.round(annualCandidate.amount))}</Text>
+                <Text style={s.annualAmount}>{formatGBP(annualCandidate.amount)}</Text>
               </View>
               <Text style={s.annualCaption}>
                 {copy.annual.card.body(
-                  formatGBP(Math.round(annualCandidate.amount)),
+                  formatGBP(annualCandidate.amount),
                   expectedMonthLabel(annualCandidate.lastSeen),
                 )}
               </Text>
@@ -550,12 +540,14 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
             <View style={s.notesCard}>
               {livedNotes.map((c, i, arr) => (
                 <View
-                  key={c.closedAt}
+                  key={`${c.closedAt}-${i}`}
                   style={[s.noteRow, i < arr.length - 1 ? s.noteRowDivider : undefined]}
                 >
                   <View style={s.noteHead}>
-                    <Text style={s.noteLabel}>{c.label}</Text>
-                    <Text style={s.noteSpare}>{`left over £${c.spare}`}</Text>
+                    <Text style={s.noteLabel}>{formatFinancialDate(c.closedAt)} review</Text>
+                    <Text
+                      style={s.noteSpare}
+                    >{`Payday cash forecast ${formatMoney(c.spare)}`}</Text>
                   </View>
                   {c.note ? <Text style={s.noteBody}>{`“${c.note}”`}</Text> : null}
                 </View>
@@ -568,10 +560,10 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
         {pausedCount > 0 ? (
           <View style={s.meloBlock}>
             <MeloLine
-              mood="cheer"
+              mood="curious"
               text={`${pausedCount} ${
                 pausedCount === 1 ? 'sub' : 'subs'
-              } paused — quietly working in your favour.`}
+              } paused in your forecast. Provider payments are unchanged.`}
             />
           </View>
         ) : null}
@@ -580,11 +572,11 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
         <View style={s.ctaBlock}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Share this month"
+            accessibilityLabel="Share recorded review"
             onPress={() => nav.openSheet('share')}
             style={({ pressed }) => [s.cta, pressed ? s.pressed : undefined]}
           >
-            <Text style={s.ctaLabel}>Share this month</Text>
+            <Text style={s.ctaLabel}>Share recorded review</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -604,8 +596,8 @@ function InsightReadBlock({
   return (
     <View style={styles.readBlock}>
       <Text style={styles.readEyebrow}>A closer read</Text>
-      <ReadLine label="Fact" value={read.fact} styles={styles} />
-      <ReadLine label="Pattern" value={read.pattern} styles={styles} />
+      <ReadLine label="Recorded forecast" value={read.fact} styles={styles} />
+      <ReadLine label="Comparison" value={read.pattern} styles={styles} />
       <ReadLine label="Interpretation" value={read.interpretation} styles={styles} />
       {read.canOpenToday ? (
         <Pressable
@@ -676,11 +668,14 @@ function StatTile({
   countUpValue?: number | undefined;
 }) {
   const counted = useCountUp(countUpValue ?? 0, COUNT_MS, reduceMotion ?? true);
-  const display = countUpValue !== undefined ? formatGBP(Math.round(counted)) : value;
+  const display = countUpValue !== undefined ? formatGBP(counted) : value;
   return (
     <View style={styles.tile}>
       <Text style={styles.tileLabel}>{label}</Text>
       <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+        numberOfLines={1}
         style={[
           styles.tileValue,
           tone === 'positive' ? styles.tileValuePositive : undefined,
@@ -707,7 +702,7 @@ function ChartAvg({
   reduceMotion: boolean;
 }) {
   const counted = useCountUp(avgTight, COUNT_MS, reduceMotion);
-  return <Text style={styles.chartAvg}>{`avg £${Math.round(counted)}`}</Text>;
+  return <Text style={styles.chartAvg}>{`Review average ${formatMoney(counted)}`}</Text>;
 }
 
 // ---------------------------------------------------------------------------
@@ -717,11 +712,13 @@ function ChartAvg({
 function TrendChart({
   trend,
   avgTight,
+  showAverage,
   palette,
   reduceMotion,
 }: {
   trend: { tightPoint: number; closedAt: string; label: string }[];
   avgTight: number;
+  showAverage: boolean;
   palette: Palette;
   reduceMotion: boolean;
 }) {
@@ -762,7 +759,7 @@ function TrendChart({
       height={CHART_H}
       viewBox={`0 0 ${CHART_W} ${CHART_H}`}
       accessibilityRole="image"
-      accessibilityLabel={`Lowest balance trend over your last ${n} months`}
+      accessibilityLabel={`Saved low-point snapshots over your last ${n} records. These are forecasts or labelled imported estimates, not completed months.`}
     >
       {/* COLOUR FIX (insights lane, DATA_INTELLIGENCE.md diagnosis item 1 — TERRACOTTA OVERLOAD):
           t.calm used to paint the gradient fill AND the drawn line AND the detected-annual-charge
@@ -778,14 +775,16 @@ function TrendChart({
       </Defs>
 
       {/* Dashed average line — always rendered. */}
-      <Line
-        x1={CHART_PAD_X}
-        x2={CHART_W - CHART_PAD_X}
-        y1={avgY}
-        y2={avgY}
-        stroke={t.hairline}
-        strokeDasharray="2 4"
-      />
+      {showAverage ? (
+        <Line
+          x1={CHART_PAD_X}
+          x2={CHART_W - CHART_PAD_X}
+          y1={avgY}
+          y2={avgY}
+          stroke={t.hairline}
+          strokeDasharray="2 4"
+        />
+      ) : null}
 
       {/* Area fill + route-draw line — only with more than one point (spec sub-branch (b)). Muted
           ink, not calm: the line is the trend, not the headline moment (see colour-fix note above). */}
@@ -816,7 +815,7 @@ function TrendChart({
         const isLast = i === ptsArr.length - 1;
         return (
           <Circle
-            key={p.c.closedAt}
+            key={`${p.c.closedAt}-${i}`}
             cx={p.x}
             cy={p.y}
             r={isLast ? 3.5 : 2.4}
@@ -838,7 +837,7 @@ function TrendChart({
           fill={t.ink}
           textAnchor={last.x > CHART_W - 40 ? 'end' : 'start'}
         >
-          {`£${last.c.tightPoint}`}
+          {formatMoney(last.c.tightPoint)}
         </SvgText>
       ) : null}
     </Svg>
@@ -1010,12 +1009,14 @@ function makeStyles(t: Palette) {
       elevation: 3,
     },
     chartTitleRow: {
-      alignItems: 'baseline',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      flexDirection: 'column',
+      gap: gap.xs,
       marginBottom: gap.md,
     },
     chartTitle: {
+      maxWidth: '100%',
+      flexShrink: 1,
       color: t.muted,
       fontSize: 11,
       letterSpacing: 11 * 0.12, // tracking-[0.12em]
@@ -1244,9 +1245,9 @@ function makeStyles(t: Palette) {
       borderBottomWidth: StyleSheet.hairlineWidth,
     },
     noteHead: {
-      alignItems: 'baseline',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      flexDirection: 'column',
+      gap: gap.xs,
     },
     noteLabel: {
       color: t.ink,

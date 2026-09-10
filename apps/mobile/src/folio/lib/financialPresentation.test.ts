@@ -93,6 +93,25 @@ describe('financial presentation prerequisites and coherent results', () => {
     expect(pending.label).toBe('Some figures need your review');
     expect(financialAmountLabel(plan, pending)).toBe('After recorded costs and buffer');
   });
+  it('keeps a zero remaining amount distinct from its overdue warning', () => {
+    const state = fullState();
+    state.subs[0] = {
+      ...state.subs[0]!,
+      nextRenewalISO: '2026-09-08',
+      obligationAnchorISO: '2026-09-08',
+    };
+    const initial = buildFinancialPlanFromState(state, { now });
+    state.currentBalance.amount -= initial.safeToSpendMinor / 100;
+    const plan = buildFinancialPlanFromState(state, { now });
+    const presentation = selectFinancialPresentation(state, plan);
+    expect(plan.safeToSpendMinor).toBe(0);
+    expect(presentation).toMatchObject({
+      label: 'Overdue commitments need attention',
+      overdueCount: 1,
+      canReassure: false,
+    });
+    expect(financialAmountLabel(plan, presentation)).toBe('After recorded costs and buffer');
+  });
   it('never treats reset or a neutral zero account as a confirmed money picture', () => {
     expect(present()).toMatchObject({ complete: false, balanceKnown: false, canReassure: false });
   });

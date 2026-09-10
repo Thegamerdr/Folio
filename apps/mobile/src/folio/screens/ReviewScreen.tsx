@@ -66,6 +66,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -731,6 +732,13 @@ export function ReviewScreen({
       });
     });
   }, [embedded, reduceMotion]);
+  const onReviewInputFocus = useCallback(() => {
+    // Editing takes precedence over the decorative entrance: native caret/IME can become visible
+    // before a translucent animated ancestor finishes drawing its form and fixed actions.
+    cancelAnimation(enter);
+    enter.value = 1;
+    keepReviewInputVisible();
+  }, [enter, keepReviewInputVisible]);
   useEffect(
     () => () => {
       if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
@@ -848,7 +856,7 @@ export function ReviewScreen({
             <View style={[sourceStyles.merchantRule, { borderBottomColor: t.hairline }]}>
               <TextInput
                 accessibilityLabel="Merchant"
-                onFocus={keepReviewInputVisible}
+                onFocus={onReviewInputFocus}
                 editable={!stamped}
                 onChangeText={setMerchant}
                 style={[sourceStyles.merchantInput, { color: t.ink }]}
@@ -861,7 +869,7 @@ export function ReviewScreen({
               </Text>
               <TextInput
                 accessibilityLabel="Amount"
-                onFocus={keepReviewInputVisible}
+                onFocus={onReviewInputFocus}
                 editable={!stamped}
                 inputMode="decimal"
                 keyboardType="decimal-pad"

@@ -322,7 +322,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const tightestDayProse = paydayTight ? formatFinancialDate(paydayTight.date) : null;
 
   const noted = note.trim().length > 0;
-  const frames = ritualStepFrames(moneyMode, actuals.setAside);
+  const frames = ritualStepFrames(moneyMode, actuals.setAside, resumePrompts.length > 0);
 
   // Repay-a-borrowed-pot step (BREAKS-PARITY fix) — inserted only when the user actually owes a pot
   // (ENGINES §4 borrow/repay ledger), so the ritual stays its normal length for clean months. Owed

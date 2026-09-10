@@ -76,7 +76,7 @@ import { useChartStyle } from '@/folio/lib/chartStyle';
 import { deriveModeState, type MoneyMode } from '@/folio/lib/modes';
 import { deriveOneMove } from '@/folio/lib/melo/oneMove';
 import { DISMISS_CHOICES, type DismissReason } from '@/folio/lib/melo/dismissReasons';
-import { computeGreenStreak } from '@/folio/lib/streaks';
+import { selectRecordedReviews } from '@/folio/lib/recordedReviews';
 import { useLens } from '@/folio/lib/lens';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
 import { MoneyPathChart } from '@/folio/ui/MoneyPathChart';
@@ -86,7 +86,11 @@ import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import type { Nav, Pressure } from '@/folio/types';
 import { simulateFinancialAffordability } from '@folio/finance-engine';
 import { buildFinancialPlanFromState, toFinancialPlanInput } from '@/folio/lib/financialPlan';
-import { selectFinancialPresentation, formatMoney } from '@/folio/lib/financialPresentation';
+import {
+  selectFinancialPresentation,
+  formatMoney,
+  financialAmountLabel,
+} from '@/folio/lib/financialPresentation';
 import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
 
 import { derivePressure } from './today/pressure';
@@ -247,7 +251,7 @@ export function TodayScreen({
     return count > 0 ? { gapDays, spend: Math.round(spend), income: Math.round(income) } : null;
   }, [now, prevOpenIso, transactions]);
 
-  const greenStreak = useMemo(() => computeGreenStreak(cycles), [cycles]);
+  const recordedReviewCount = useMemo(() => selectRecordedReviews(cycles).length, [cycles]);
   const ritualCompletedRecently = useMemo(() => {
     const lastClosed = cycles[0]?.closedAt;
     if (!lastClosed || !now) return false;
@@ -409,7 +413,7 @@ export function TodayScreen({
           : 'currency';
   const heroUnitLabel =
     financialPlan !== null
-      ? financePresentation.label
+      ? financialAmountLabel(financialPlan, financePresentation)
       : heroUnit === 'currency' && routeTightestAmount < 0
         ? `spare · £${groupedPounds(Math.abs(routeTightestAmount) + Math.round(scrub * 120))} short`
         : heroUnit === 'days'
@@ -615,9 +619,9 @@ export function TodayScreen({
 
         {/* Hero */}
         <View style={styles.hero}>
-          {greenStreak >= 2 ? (
+          {recordedReviewCount >= 2 ? (
             <Text style={[styles.heroStreakEyebrow, { color: t.muted }]}>
-              {greenStreak} calm cycles in a row
+              {recordedReviewCount} recorded reviews
             </Text>
           ) : null}
           <Text
@@ -699,22 +703,19 @@ export function TodayScreen({
               </Text>
             </View>
           ) : null}
-          {greenStreak >= 2 ? (
+          {recordedReviewCount >= 2 ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`${greenStreak} recorded reviews in a row with forecast cash at £0 or above. Open Insights.`}
+              accessibilityLabel={`View ${recordedReviewCount} recorded reviews in Insights.`}
               onPress={() => nav.go('insights')}
               style={({ pressed: isPressed }) => [
                 styles.streakChip,
-                { backgroundColor: t.calmSoft, borderColor: t.hairline },
+                { backgroundColor: t.inset, borderColor: t.hairline },
                 isPressed ? pressed : undefined,
               ]}
             >
-              <View style={[styles.streakDot, { backgroundColor: t.positive }]} />
-              <Text style={[styles.streakText, { color: t.ink }]}>
-                <Text style={{ color: t.calm }}>{greenStreak}</Text> reviews: forecast cash £0 or
-                above
-              </Text>
+              <View style={[styles.streakDot, { backgroundColor: t.muted }]} />
+              <Text style={[styles.streakText, { color: t.ink }]}>View recorded reviews →</Text>
             </Pressable>
           ) : null}
           {spendHold || whatIfHolds.length > 0 ? (

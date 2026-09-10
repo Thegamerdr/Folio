@@ -87,6 +87,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { getState, nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
 import { buildRecoveryReceipt, type RecoveryAction } from '@/folio/lib/recoveryReceipt';
 import { fundedPotForShortfall } from '@/folio/lib/shortfallNavigation';
+import { selectRecoveryPreviewPresentation } from '@/folio/lib/recoveryPreviewPresentation';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { buildRecoveryRoutePreview, RECOVERY_BILL_NUDGE_DAYS } from '@/folio/lib/recoveryPreview';
 import { EmptyState } from '@/folio/ui/EmptyState';
@@ -463,7 +464,12 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // clamped so a move never reads as overshooting the gap downward. Negative = still short, >= 0 =
   // reaches room. The re-drawn tight point, straight off the engine — not a guess.
   const after = pickedMove ? Math.max(-shortfall + pickedMove.deltaValue, -shortfall) : -shortfall;
-  const reachesRoom = after >= 0;
+  const previewPresentation = selectRecoveryPreviewPresentation(
+    appState,
+    plan,
+    after,
+    Boolean(pickedMove),
+  );
 
   // Count up the magnitude between selections (MOTION.md: money values count up, never slide).
   const afterMagnitude = Math.abs(after);
@@ -504,7 +510,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     const needsSetup = !presentation.complete;
     return (
       <EmptyState
-        mood="calm"
+        mood={presentation.canReassure ? 'calm' : 'concern'}
         headline={
           needsSetup
             ? 'We need your numbers'
@@ -543,12 +549,8 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // direct error mount still shows the surface so the user can act on the moves in hand. Eyebrow /
   // caption labels are mode-tinted (BREAKS-PARITY fix).
   const eyebrow = modeCopy.eyebrow;
-  const caption = pickedMove
-    ? reachesRoom
-      ? 'you reach payday with room'
-      : `still ${formatMoney(afterMagnitude)} short — review the remaining gap`
-    : 'to reach payday with room';
-  const sign = reachesRoom ? '+' : '−'; // U+2212 MINUS SIGN
+  const caption = previewPresentation.caption;
+  const sign = after >= 0 ? '+' : '−'; // Numeric sign does not imply financial reassurance.
   const afterValue = `${sign}${formatMoney(afterMagnitude)}`;
 
   return (
@@ -627,14 +629,16 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         <View
           style={[styles.shortfallCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
         >
-          <Melo size={56} mood={reachesRoom ? 'calm' : 'concern'} grounded={false} />
+          <Melo size={56} mood={previewPresentation.mood} grounded={false} />
           <View style={styles.shortfallBody} accessibilityLiveRegion="polite">
             <Text style={[styles.cardLabel, { color: t.muted }]}>
               {pickedMove ? modeCopy.afterLabel : modeCopy.shortfallLabel}
             </Text>
             <Text
-              accessibilityLabel={`${afterValue} ${caption}`}
-              style={[styles.afterValue, { color: reachesRoom ? t.positiveInk : t.repairInk }]}
+              style={[
+                styles.afterValue,
+                { color: previewPresentation.canReassure ? t.positiveInk : t.repairInk },
+              ]}
             >
               {afterValue}
             </Text>
@@ -757,13 +761,11 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             MeloLine adds the quotes. */}
         <View style={styles.meloAside}>
           <MeloLine
-            mood="calm"
+            mood={previewPresentation.mood}
             size={28}
             text={
               pickedMove
-                ? reachesRoom
-                  ? 'This preview covers the current gap. Check the change before saving it.'
-                  : 'This preview creates some room, but a gap remains.'
+                ? previewPresentation.meloLine
                 : moves.length
                   ? 'Choose a change to see its effect before saving.'
                   : 'We can look at what is due and what income is confirmed, one figure at a time.'

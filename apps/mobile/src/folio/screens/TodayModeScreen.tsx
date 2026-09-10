@@ -769,7 +769,6 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const { width, fontScale } = useWindowDimensions();
-  const stackHeader = shouldStackTextRows(width, fontScale);
 
   const subs = useAppStore((st) => st.subs);
   const onboarding = useAppStore((st) => st.onboarding);
@@ -784,6 +783,9 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   const monthlyIncome = useAppStore((st) => selectMonthlyIncome(st));
   const { style: chartStyle } = useChartStyle();
   const lens = useLens();
+  const stackHeader =
+    shouldStackTextRows(width, fontScale) ||
+    Boolean(lens.trialCycleId && !lens.fullUnlocked && lens.trialDaysLeft !== null);
   const hasRealData = useAppStore((st) => hasAnyUserData(st));
   const appState = useAppStore((st) => st);
 
@@ -918,6 +920,14 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   );
 
   const cfg = HERO[moneyMode];
+  const headline =
+    moneyMode === 'planning'
+      ? (plansSummary?.progresses.length ?? 0) > 0
+        ? 'Plan target remaining'
+        : pots.some((pot) => pot.goal > 0)
+          ? 'Pot goal remaining'
+          : 'No target yet'
+      : cfg.headline;
   const meloOpener = useMeloOpener(moneyMode);
 
   const growthPots = useMemo(() => {
@@ -1082,7 +1092,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
           <Text style={[s.headline, { color: t.muted }]}>
             {canonicalMoneyMode
               ? financialAmountLabel(canonicalPlan, financePresentation)
-              : cfg.headline}
+              : headline}
           </Text>
           <View style={s.numberRow}>
             <Text style={[s.number, { color: t.ink }]}>

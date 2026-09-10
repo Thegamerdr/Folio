@@ -32,6 +32,10 @@ describe('ritual step meaning and continuity', () => {
     expect(ritualStatText(1250, 'count')).toBe('1,250');
     expect(ritualStatText(-1250.34)).toBe('−£1,250.34');
   });
+  it('names the next optional pause step before the final note', () => {
+    expect(ritualStepFrames('debt', 0, true).forecast.cta).toBe('Review forecast pauses');
+    expect(ritualStepFrames('debt', 0, false).forecast.cta).toBe('Leave a note for next-you');
+  });
   it('does not infer a provider pause or a usage reason from the forecast setting', () => {
     expect(
       ritualPausePresentation({ cost: 12.34, renewalPeriodDays: 7, pausedUntil: '2026-09-13' }),

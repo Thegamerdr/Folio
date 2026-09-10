@@ -4,7 +4,11 @@ import { MODE_LABEL, type MoneyMode } from './modes/types';
 import { formatFinancialDate, formatMoney } from './financialPresentation';
 
 /** Every mode visits the same recorded-pot and forecast controls. Their labels name those actions. */
-export function ritualStepFrames(mode: MoneyMode, recordedSetAside: number) {
+export function ritualStepFrames(
+  mode: MoneyMode,
+  recordedSetAside: number,
+  hasForecastPauses = false,
+) {
   return {
     review: { eyebrow: `Review · ${MODE_LABEL[mode]}`, cta: 'Review pot amounts' },
     pots: {
@@ -20,7 +24,7 @@ export function ritualStepFrames(mode: MoneyMode, recordedSetAside: number) {
       headlineLead: 'Check the ',
       headlineAccent: 'forecast',
       headlineTrail: ' before payday.',
-      cta: 'Leave a note for next-you',
+      cta: hasForecastPauses ? 'Review forecast pauses' : 'Leave a note for next-you',
     },
   };
 }

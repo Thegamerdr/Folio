@@ -782,20 +782,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: gap.lg,
     paddingVertical: gap.md,
   },
-  // The eyebrow + value baseline row.
+  // Keep the amount intact; a long label or enlarged text moves it onto its own line.
   cardHead: {
     alignItems: 'baseline',
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: gap.sm,
+    rowGap: gap.xs,
     justifyContent: 'space-between',
   },
   // 11px uppercase tracked muted.
   cardEyebrow: {
+    maxWidth: '100%',
     fontSize: 11,
     letterSpacing: 1.54,
     textTransform: 'uppercase',
   },
   // The value — Fraunces 18px tabular ink.
   cardValue: {
+    flexShrink: 0,
+    maxWidth: '100%',
     fontFamily: serif.display,
     fontSize: 18,
     fontVariant: ['tabular-nums'],

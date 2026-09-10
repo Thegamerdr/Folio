@@ -73,7 +73,6 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const { width, fontScale } = useWindowDimensions();
-  const stackHeader = shouldStackTextRows(width, fontScale);
 
   const subs = useAppStore((st) => st.subs);
   const subPaused = useAppStore((st) => st.subPaused);
@@ -85,6 +84,9 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const hasRealData = useAppStore((st) => hasAnyUserData(st));
   const { style: chartStyle } = useChartStyle();
   const lens = useLens();
+  const stackHeader =
+    shouldStackTextRows(width, fontScale) ||
+    Boolean(lens.trialCycleId && !lens.fullUnlocked && lens.trialDaysLeft !== null);
 
   const now = useDayClock();
   const appState = useAppStore((st) => st);
