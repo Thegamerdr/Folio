@@ -87,6 +87,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const stackHeader =
     shouldStackTextRows(width, fontScale) ||
     Boolean(lens.trialCycleId && !lens.fullUnlocked && lens.trialDaysLeft !== null);
+  const stackSummary = shouldStackTextRows(width, fontScale);
 
   const now = useDayClock();
   const appState = useAppStore((st) => st);
@@ -181,10 +182,6 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
 
   const balanceSourceLabel = BALANCE_SOURCE_LABEL[currentBalance.source] ?? 'sample data';
 
-  const monthlyIn = monthlyIncome;
-  const monthlyOut = subs
-    .filter((sub) => !subPaused[sub.name])
-    .reduce((sum, sub) => sum + sub.cost, 0);
   const daysToPayday = route ? route.daysToPayday : 0;
 
   const meloOpener = useMeloOpener('stability');
@@ -207,6 +204,13 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
       </ScrollView>
     );
   }
+
+  const monthlyIn = monthlyIncome;
+  const billsReserved =
+    (financialPlan.protectedBeforeIncomeMinor -
+      financialPlan.livingCostMinor -
+      financialPlan.debtMinimumMinor) /
+    100;
 
   return (
     <ScrollView
@@ -338,15 +342,22 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
             ) : null}
           </View>
 
-          <View style={s.monthShapeRow}>
+          <View style={[s.monthShapeRow, stackSummary && s.monthShapeRowStacked]}>
             {(
               [
-                { label: 'Coming in', value: monthlyIn, tone: t.positive },
-                { label: 'Bills', value: monthlyOut, tone: t.muted },
+                { label: 'Monthly income', value: monthlyIn, tone: t.positive },
+                { label: 'Bills and commitments', value: billsReserved, tone: t.muted },
                 { label: 'Buffer', value: bufferAmount, tone: t.ink },
               ] as const
             ).map((cell) => (
-              <View key={cell.label} style={[s.monthShapeCell, { backgroundColor: t.inset }]}>
+              <View
+                key={cell.label}
+                style={[
+                  s.monthShapeCell,
+                  stackSummary && s.monthShapeCellStacked,
+                  { backgroundColor: t.inset },
+                ]}
+              >
                 <Text style={[s.monthShapeLabel, { color: t.muted }]}>{cell.label}</Text>
                 <Text style={[s.monthShapeValue, { color: cell.tone }]}>
                   {formatGBP(cell.value)}
@@ -571,7 +582,9 @@ function makeStyles(t: Palette) {
     },
     rhythmFoot: { marginTop: gap.sm, fontSize: 10.5, textAlign: 'center' },
     monthShapeRow: { marginTop: gap.lg, flexDirection: 'row', gap: gap.sm },
+    monthShapeRowStacked: { flexDirection: 'column' },
     monthShapeCell: { flex: 1, borderRadius: radius.md, padding: gap.sm, alignItems: 'center' },
+    monthShapeCellStacked: { flex: 0, width: '100%' },
     monthShapeLabel: { fontSize: 9.5, letterSpacing: 1.1, textTransform: 'uppercase' },
     monthShapeValue: {
       marginTop: 4,
