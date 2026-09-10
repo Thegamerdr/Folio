@@ -310,10 +310,10 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
           <Text style={[s.formula, { color: t.muted }]}>{financePresentation.message}</Text>
 
           <View style={s.rhythmBlock}>
-            <View style={s.rhythmHeaderRow}>
+            <View style={[s.rhythmHeaderRow, stackSummary && s.rhythmHeaderRowStacked]}>
               <Text style={[s.rhythmEyebrow, { color: t.muted }]}>Next 4 weeks</Text>
               <Text style={[s.rhythmCount, { color: t.muted }]}>
-                {upcomingCount} bills scheduled
+                {upcomingCount} {upcomingCount === 1 ? 'bill' : 'bills'} scheduled
               </Text>
             </View>
             <View style={s.rhythmChart}>
@@ -568,6 +568,7 @@ function makeStyles(t: Palette) {
       alignItems: 'center',
       justifyContent: 'space-between',
     },
+    rhythmHeaderRowStacked: { flexDirection: 'column', alignItems: 'flex-start', gap: gap.xs },
     rhythmEyebrow: { fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase' },
     rhythmCount: { fontSize: 10, fontVariant: ['tabular-nums'] },
     rhythmChart: { marginTop: gap.md },
