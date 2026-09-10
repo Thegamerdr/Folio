@@ -1,64 +1,6 @@
-// ShareSheet — the faithful 1:1 React Native port of the web "share your cycle" sheet
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetShare.tsx).
-//
-// @rn-sheet     ShareSheet
-// @purpose      Quiet win card for sharing a closed cycle. A bottom sheet showing a single share
-//               card (month label, spare left over, count of paused subscriptions) that the user
-//               can share via the native share sheet, copy, or dismiss.
-// @reads        cycles (most recent → cycles[0]) · subPaused (paused count). REAL store reads.
-// @writes       —  (no store writes; native Share / Clipboard side-effect only)
-// @copy         FROZEN — the visible strings are reproduced VERBATIM from the web original below.
-//               Several of them are NOT yet in COPY_DECK.md ('A quiet win', 'left over this month',
-//               the card sentences, '— quiet money, no spreadsheet', 'Share', 'Copied ✓',
-//               'Not now', the share text + title). They must be ADDED to COPY_DECK before ship and
-//               swapped for keyed entries; until then the keyed strings that DO exist read through
-//               '@/folio/copy/copy' (app.name 'Folio', currency.symbol '£'). The accent word renders
-//               terracotta + UPRIGHT (never italic), matching the web <em className="not-italic">.
-// @tokens       --paper (sheet body, via Sheet → t.surface) · --accent (t.calm — headline accent,
-//               brand dot, primary fill) · --accent-soft (t.calmSoft — card gradient start) ·
-//               --surface (t.surface — card gradient end) · --positive (t.positive — DECLARED, not
-//               visibly applied, per the web doc block; not invented here) · --hairline (t.hairline —
-//               card border) · --muted-ink (t.muted) · --ink (t.ink) · white (t.inverse — primary label).
-// @motion       sheet-rise + scrim-in (inherited from Sheet) · stamp / verdict-stamp on the win card
-//               (600ms back-out cubic-bezier(.34,1.56,.64,1) — the doc block's "stamp on render";
-//               the card stamping in IS the moment) · press 0.97 on both actions · all collapse to
-//               final state under reduce-motion (MOTION.md — reduced motion is the resolved layout).
-//
-// STATES (per ShareSheet.spec.md "stateBranches" — all five render):
-//   • populated, pausedCount > 1  — card body says "N quiet subscriptions paused. You made it…".
-//   • populated, pausedCount === 1 — card body says "1 quiet subscription paused. You made it…"
-//                                    (singular). The SHARE TEXT carries its OWN singular/plural
-//                                    decision ('sub'/'subs') — both are ported, never unified.
-//   • populated, pausedCount === 0 — card body collapses to just "You made it to the end of the month."
-//   • empty (no closed cycle)      — this sheet is the close-payoff, so showing a £0 card is off-tone.
-//                                    With cycles[] empty it renders the calm insights.empty doorway
-//                                    (EmptyState, Melo calm) rather than a fabricated £0 win
-//                                    (spec fidelityRisks — "only present this sheet when a cycle is
-//                                    closed"). 'Open the ritual' just dismisses here.
-//   • copied (button sub-state)    — the primary label flips "Share" → "Copied ✓" for 1600ms after a
-//                                    real Clipboard write (the explicit Copy fallback path only —
-//                                    NOT when the native share dialog is shown/dismissed).
-//
-//   loading / share-in-flight — while the native share dialog is opening the primary label swaps to
-//                "Sharing…" and disables; per the task's hard rule loading is Melo (curious) + a
-//                MeloLine, NEVER a spinner. error — a failed copy is swallowed honestly (no fake
-//                "Copied ✓"); the label simply stays "Share". offline — share/copy are local, so
-//                offline is identical to populated.
-//
-// Web Share fallback re-modelled for RN (spec fidelityRisks): on the web, share() tried
-// navigator.share then fell through to clipboard. On RN the native Share is primary; a user
-// dismiss (dismissedAction) is a silent no-op and does NOT copy. The "Copied ✓" affordance only
-// ever follows an actual Clipboard write via the explicit secondary Copy action.
-//
-// Design-system discipline: every colour / font / spacing / radius / shadow token comes from
-// '@/folio/theme' (which re-exports the pressure-map kit). Melo + MeloLine from '@/folio/melo/*',
-// strings from '@/folio/copy/copy', the empty doorway from '@/folio/ui/EmptyState'. Nothing new is
-// defined — no colour, font, spacing token, or dependency. Tap targets are >=44px; tap-only.
-//
-// @deps  react-native Share + Clipboard (core, dependency-free — same pattern as CalendarExportSheet)
-//        · react-native-svg LinearGradient (installed; the card's accent-soft→surface wash is drawn
-//          as an SVG background rect, the established in-repo gradient pattern — there is no
-//          expo-linear-gradient dependency).
+// Share a recorded forecast review through the native share sheet or explicit Copy.
+// Current forecast pauses are labelled separately; neither action changes financial records.
+// Native share dismissal remains a no-op, and the postcard award follows a completed share only.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -75,55 +17,28 @@ import {
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { elevation, gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
-import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { triggerFeedback } from '@/folio/lib/feedback';
 import { awardTinyWin, useAppStore } from '@/folio/store';
+import {
+  buildShareReviewPresentation,
+  type ShareReviewPresentation,
+} from '@/folio/lib/shareReviewPresentation';
 
-// ---------------------------------------------------------------------------
-// Frozen copy — VERBATIM from the web original. These are NOT yet in COPY_DECK.md (see @copy); they
-// are reproduced here so the port renders today and must be added to the deck + keyed before ship.
-// app.name and currency.symbol DO exist in the deck and are read through it.
-// ---------------------------------------------------------------------------
-
-const FROZEN = {
-  eyebrow: 'A quiet win',
-  // "Cycle closed, <monthLabel>." — monthLabel is the terracotta accent run (upright).
-  headlineLead: 'Cycle closed, ',
-  headlineTail: '.',
-  monthFallback: 'this month',
-  amountSub: 'left over this month',
+const SHARE_COPY = {
+  eyebrow: 'A recorded review',
+  headlineLead: 'Recorded ',
   footer: '— quiet money, no spreadsheet',
   shareLabel: 'Share',
   copiedLabel: 'Copied ✓',
   sharingLabel: 'Sharing…',
   copyLabel: 'Copy',
   dismiss: 'Not now',
-  shareTitle: 'Melo · cycle closed',
-  // Melo's quiet line while the native dialog is opening (loading is Melo + line, never a spinner).
-  sharingLine: 'Sending your quiet win…',
+  shareTitle: 'Melo · recorded forecast review',
+  sharingLine: 'Opening your forecast review…',
 } as const;
-
-// Card body — singular/plural on pausedCount, mirroring the web ternary exactly. pausedCount === 0
-// collapses to the bare "You made it…" line.
-function cardBodyText(pausedCount: number): string {
-  if (pausedCount > 0) {
-    const noun = pausedCount === 1 ? 'subscription' : 'subscriptions';
-    return `${pausedCount} quiet ${noun} paused. You made it to the end of the month.`;
-  }
-  return 'You made it to the end of the month.';
-}
-
-// Share-intent payload — a SEPARATE singular/plural decision ('sub'/'subs'), ported as-is and never
-// unified with the card body's 'subscription'/'subscriptions'. The £ comes from the deck symbol.
-function shareText(monthLabel: string, saved: number, pausedCount: number): string {
-  const noun = pausedCount === 1 ? 'sub' : 'subs';
-  const symbol = copy.global.currency.symbol;
-  const brand = copy.global.app.name;
-  return `Closed ${monthLabel} with ${brand} · ${symbol}${saved} spare, ${pausedCount} quiet ${noun} paused. Quiet money, no spreadsheet.`;
-}
 
 // ---------------------------------------------------------------------------
 // Reduced-motion hook (AccessibilityInfo-backed — mirrors the sibling sheets' hook).
@@ -159,24 +74,21 @@ export type ShareSheetProps = {
 export function ShareSheet({ visible, onClose }: ShareSheetProps) {
   const reduceMotion = useReduceMotion();
 
-  // REAL store reads. cycles[0] is the most recent closed cycle; an empty list means no cycle has
-  // been closed yet (the empty branch — this sheet is the payoff for closing one).
-  const cycles = useAppStore((s) => s.cycles);
-  const hasCycle = cycles.length > 0;
+  const cycles = useAppStore((state) => state.cycles);
+  const subPaused = useAppStore((state) => state.subPaused);
+  const pausedCount = Object.values(subPaused).filter(Boolean).length;
+  const presentation = buildShareReviewPresentation(cycles, pausedCount, copy.global.app.name);
 
   return (
     <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
-      {hasCycle ? (
-        <ShareBody reduceMotion={reduceMotion} onClose={onClose} />
+      {presentation ? (
+        <ShareBody presentation={presentation} reduceMotion={reduceMotion} onClose={onClose} />
       ) : (
-        // ---- empty branch — a calm doorway, never a fabricated £0 win (insights.empty.*). ----
-        // 'Open the ritual' would route to the close ritual; from the share sheet with no cycle the
-        // honest action is simply to dismiss back to where the ritual can be started.
         <EmptyState
-          mood="calm"
-          headline={copy.insights.empty.head}
-          body={copy.insights.empty.body}
-          cta={{ label: copy.insights.empty.cta, onPress: onClose }}
+          mood="curious"
+          headline="No recorded review yet"
+          body="Complete a payday review to create a forecast card."
+          cta={{ label: SHARE_COPY.dismiss, onPress: onClose }}
         />
       )}
     </Sheet>
@@ -190,19 +102,20 @@ export function ShareSheet({ visible, onClose }: ShareSheetProps) {
 
 type ShareStatus = 'idle' | 'sharing';
 
-function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: () => void }) {
+function ShareBody({
+  presentation,
+  reduceMotion,
+  onClose,
+}: {
+  presentation: ShareReviewPresentation;
+  reduceMotion: boolean;
+  onClose: () => void;
+}) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
 
-  // Most-recent closed cycle + paused count (both REAL reads — subPaused counted live).
-  const latest = useAppStore((state) => state.cycles[0]);
-  const subPaused = useAppStore((state) => state.subPaused);
   const quietMode = useAppStore((state) => state.melo?.quietMode === true);
   const soundEnabled = useAppStore((state) => state.melo?.soundEnabled === true);
-
-  const monthLabel = latest?.label ?? FROZEN.monthFallback;
-  const saved = latest?.spare ?? 0;
-  const pausedCount = Object.values(subPaused).filter(Boolean).length;
 
   const [copied, setCopied] = useState(false);
   const [status, setStatus] = useState<ShareStatus>('idle');
@@ -220,7 +133,7 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
     };
   }, []);
 
-  const text = shareText(monthLabel, saved, pausedCount);
+  const text = presentation.shareText;
 
   // stamp / verdict-stamp — the win card stamps in on render (600ms back-out). Final state (scale 1,
   // opacity 1) immediately under reduce-motion (MOTION.md: reduced motion is the resolved layout).
@@ -256,7 +169,7 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
     if (sharing) return;
     setStatus('sharing');
     try {
-      const result = await Share.share({ title: FROZEN.shareTitle, message: text });
+      const result = await Share.share({ title: SHARE_COPY.shareTitle, message: text });
       if (result.action === Share.sharedAction) {
         awardTinyWin('first-postcard-shared');
         void triggerFeedback('postcard-shared', { quietMode, soundEnabled });
@@ -283,19 +196,15 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
     }
   }
 
-  const amountLabel = `${copy.global.currency.symbol}${saved}`;
-
   return (
     <View style={s.body}>
       {/* Eyebrow — 11px, uppercase, tracked, muted. */}
-      <Text style={s.eyebrow}>{FROZEN.eyebrow}</Text>
+      <Text style={s.eyebrow}>{SHARE_COPY.eyebrow}</Text>
 
-      {/* "Cycle closed, <monthLabel>." — monthLabel renders terracotta + UPRIGHT (web <em not-italic
-          text-accent>); never italicised, never moved off the trailing period. */}
+      {/* The full recorded date identifies the snapshot being shared. */}
       <Text accessibilityRole="header" style={s.headline}>
-        {FROZEN.headlineLead}
-        <Text style={s.headlineAccent}>{monthLabel}</Text>
-        {FROZEN.headlineTail}
+        {SHARE_COPY.headlineLead}
+        <Text style={s.headlineAccent}>{presentation.recordedDate}</Text>
       </Text>
 
       {/* The share / win card — accent-soft→surface wash (drawn as an SVG background), hairline
@@ -326,28 +235,28 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
           <Text style={s.brandLabel}>{copy.global.app.name}</Text>
         </View>
 
-        {/* Hero amount — £{saved}, Fraunces 40px, tabular figures so money reads as money. */}
-        <Text style={s.cardAmount}>{amountLabel}</Text>
-        <Text style={s.cardAmountSub}>{FROZEN.amountSub}</Text>
+        {/* Display and share payload use the same signed, precisely formatted forecast. */}
+        <Text style={s.cardAmount}>{presentation.amount}</Text>
+        <Text style={s.cardAmountSub}>{presentation.amountLabel}</Text>
 
-        {/* Body — singular/plural on pausedCount, or the bare "You made it…" at 0. */}
-        <Text style={s.cardBody}>{cardBodyText(pausedCount)}</Text>
+        <Text style={s.cardBody}>{presentation.forecastScope}</Text>
+        <Text style={s.cardBody}>{presentation.currentPauses}</Text>
 
         {/* Italic Fraunces footer — the tagline tone. */}
-        <Text style={s.cardFooter}>{FROZEN.footer}</Text>
+        <Text style={s.cardFooter}>{SHARE_COPY.footer}</Text>
       </Animated.View>
 
       {/* Share-in-flight — Melo (curious) + a quiet line. Loading is NEVER a spinner. */}
       {sharing ? (
         <View style={s.sharingRow}>
-          <MeloLine text={FROZEN.sharingLine} mood="curious" size={28} />
+          <MeloLine text={SHARE_COPY.sharingLine} mood="curious" size={28} />
         </View>
       ) : null}
 
       {/* Primary — native Share. Disabled + dimmed while the dialog is opening. */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={sharing ? 'Sharing' : FROZEN.shareLabel}
+        accessibilityLabel={sharing ? 'Sharing' : SHARE_COPY.shareLabel}
         accessibilityState={{ disabled: sharing }}
         disabled={sharing}
         onPress={onShare}
@@ -359,32 +268,34 @@ function ShareBody({ reduceMotion, onClose }: { reduceMotion: boolean; onClose: 
         ]}
       >
         <Text style={[s.primaryLabel, { color: t.inverse }]}>
-          {sharing ? FROZEN.sharingLabel : FROZEN.shareLabel}
+          {sharing ? SHARE_COPY.sharingLabel : SHARE_COPY.shareLabel}
         </Text>
       </Pressable>
 
       {/* Copy — the explicit clipboard path, the only place "Copied ✓" appears. Low emphasis. */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={copied ? 'Copied' : FROZEN.copyLabel}
+        accessibilityLabel={copied ? 'Copied' : SHARE_COPY.copyLabel}
         disabled={sharing}
         hitSlop={10}
         onPress={onCopy}
         style={({ pressed }) => [s.secondary, pressed && !sharing ? s.pressed : undefined]}
       >
-        <Text style={s.secondaryLabel}>{copied ? FROZEN.copiedLabel : FROZEN.copyLabel}</Text>
+        <Text style={s.secondaryLabel}>
+          {copied ? SHARE_COPY.copiedLabel : SHARE_COPY.copyLabel}
+        </Text>
       </Pressable>
 
       {/* Dismiss — always an option, lowest emphasis. */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={FROZEN.dismiss}
+        accessibilityLabel={SHARE_COPY.dismiss}
         disabled={sharing}
         hitSlop={10}
         onPress={onClose}
         style={({ pressed }) => [s.dismiss, pressed && !sharing ? s.pressed : undefined]}
       >
-        <Text style={s.dismissLabel}>{FROZEN.dismiss}</Text>
+        <Text style={s.dismissLabel}>{SHARE_COPY.dismiss}</Text>
       </Pressable>
     </View>
   );
