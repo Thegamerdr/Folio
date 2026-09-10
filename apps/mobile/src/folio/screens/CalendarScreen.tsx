@@ -355,9 +355,9 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
 
   const [view, setView] = useState<CalendarView>('agenda');
 
-  // Cross-view "jump" — to the mode-anchored day (tightest / next-in / next-out / next payday), or to a
-  // specific date from Route detail. Views read `jumpDate`; bumping `jumpPulse` re-triggers a smooth
-  // scroll / offset realignment.
+  // One selected date survives Month/Week/Agenda changes and full-day sheets. Go there and Route
+  // detail set this same date explicitly; a stale request must never become a new tight-point jump.
+  // The pulse only asks the current view to reveal the selected date again.
   const [jumpPulse, setJumpPulse] = useState(0);
   const [jumpDate, setJumpDate] = useState<string | null>(null);
 
@@ -577,8 +577,9 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
                   accessibilityState={{ selected }}
                   accessibilityLabel={`${capitalize(v)} view`}
                   onPress={() => {
-                    setJumpDate(null);
+                    if (v === view) return;
                     setView(v);
+                    if (jumpDate) setJumpPulse((p) => p + 1);
                   }}
                   style={({ pressed }) => [
                     s.tab,
@@ -651,6 +652,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
                 today={today}
                 jumpDate={jumpDate}
                 jumpPulse={jumpPulse}
+                onSelectDate={setJumpDate}
               />
             ) : (
               <MonthView
@@ -663,6 +665,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
                 today={today}
                 jumpDate={jumpDate}
                 jumpPulse={jumpPulse}
+                onSelectDate={setJumpDate}
               />
             )}
           </View>
@@ -1003,6 +1006,7 @@ function WeekView({
   today,
   jumpDate,
   jumpPulse,
+  onSelectDate,
 }: {
   nav: Nav;
   t: Palette;
@@ -1013,6 +1017,7 @@ function WeekView({
   today: Date;
   jumpDate: string | null;
   jumpPulse: number;
+  onSelectDate: (date: string) => void;
 }) {
   const [offset, setOffset] = useState(0); // in weeks
 
@@ -1033,16 +1038,22 @@ function WeekView({
     [weekStart],
   );
 
-  // Jump to the week containing the jump target (route-detail date or tightest).
+  // Only an explicitly selected/requested date changes the visible week.
   useEffect(() => {
-    const target = jumpDate ?? tightestDate;
-    if (!target || jumpPulse === 0) return;
+    const target = jumpDate;
+    if (!target) return;
     const tgt = new Date(target + 'T00:00:00');
     const baseMon = new Date(today);
     baseMon.setDate(today.getDate() - ((today.getDay() + 6) % 7));
     const diffDays = Math.round((tgt.getTime() - baseMon.getTime()) / 86_400_000);
     setOffset(Math.floor(diffDays / 7));
-  }, [jumpPulse, jumpDate, tightestDate, today]);
+  }, [jumpPulse, jumpDate, today]);
+
+  const moveWeek = (direction: number) => {
+    const next = shiftIso(jumpDate ?? isoDay(weekStart), direction * 7);
+    setOffset((offset) => offset + direction);
+    onSelectDate(next);
+  };
 
   const monthLabel = weekStart.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const todayIso = isoDay(today);
@@ -1062,7 +1073,7 @@ function WeekView({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Previous week"
-          onPress={() => setOffset((o) => o - 1)}
+          onPress={() => moveWeek(-1)}
           style={({ pressed }) => [s.navRound, pressed ? layout.pressed : undefined]}
         >
           <Text style={s.navArrow}>‹</Text>
@@ -1071,7 +1082,7 @@ function WeekView({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Next week"
-          onPress={() => setOffset((o) => o + 1)}
+          onPress={() => moveWeek(1)}
           style={({ pressed }) => [s.navRound, pressed ? layout.pressed : undefined]}
         >
           <Text style={s.navArrow}>›</Text>
@@ -1166,8 +1177,14 @@ function WeekView({
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`See full detail for ${formatDayProse(iso)}`}
-                    onPress={() => nav.openSheet('day-detail', { date: iso })}
-                    style={({ pressed }) => [pressed ? layout.pressed : undefined]}
+                    onPress={() => {
+                      onSelectDate(iso);
+                      nav.openSheet('day-detail', { date: iso });
+                    }}
+                    style={({ pressed }) => [
+                      layout.fullDayAction,
+                      pressed ? layout.pressed : undefined,
+                    ]}
                   >
                     <Text style={s.fullDayLink}>Full day →</Text>
                   </Pressable>
@@ -1204,6 +1221,7 @@ function MonthView({
   today,
   jumpDate,
   jumpPulse,
+  onSelectDate,
 }: {
   nav: Nav;
   t: Palette;
@@ -1214,26 +1232,34 @@ function MonthView({
   today: Date;
   jumpDate: string | null;
   jumpPulse: number;
+  onSelectDate: (date: string) => void;
 }) {
   const todayIso = isoDay(today);
   const [offset, setOffset] = useState(0); // months
-  const [selected, setSelected] = useState<string>(todayIso);
+  const selected = jumpDate ?? todayIso;
 
   const monthAnchor = useMemo(
     () => new Date(today.getFullYear(), today.getMonth() + offset, 1),
     [today, offset],
   );
 
-  // Jump to month + select the target day (route-detail date or tightest).
+  // Preserve the selected date when this view mounts; no implicit tight-point fallback.
   useEffect(() => {
-    const target = jumpDate ?? tightestDate;
-    if (!target || jumpPulse === 0) return;
+    const target = jumpDate;
+    if (!target) return;
     const tgt = new Date(target + 'T00:00:00');
     const diff =
       (tgt.getFullYear() - today.getFullYear()) * 12 + (tgt.getMonth() - today.getMonth());
     setOffset(diff);
-    setSelected(target);
-  }, [jumpPulse, jumpDate, tightestDate, today]);
+  }, [jumpPulse, jumpDate, today]);
+
+  const moveMonth = (direction: number) => {
+    const next = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + direction, 1);
+    const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+    next.setDate(Math.min(new Date(selected + 'T00:00:00').getDate(), lastDay));
+    setOffset((offset) => offset + direction);
+    onSelectDate(isoDay(next));
+  };
 
   // Build the grid: leading blanks from the Monday-start week.
   const cells = useMemo(() => {
@@ -1266,7 +1292,7 @@ function MonthView({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Previous month"
-          onPress={() => setOffset((o) => o - 1)}
+          onPress={() => moveMonth(-1)}
           style={({ pressed }) => [s.navRound, pressed ? layout.pressed : undefined]}
         >
           <Text style={s.navArrow}>‹</Text>
@@ -1275,7 +1301,7 @@ function MonthView({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Next month"
-          onPress={() => setOffset((o) => o + 1)}
+          onPress={() => moveMonth(1)}
           style={({ pressed }) => [s.navRound, pressed ? layout.pressed : undefined]}
         >
           <Text style={s.navArrow}>›</Text>
@@ -1325,7 +1351,7 @@ function MonthView({
                 if (isSelected) {
                   nav.openSheet('day-detail', { date: iso });
                 } else {
-                  setSelected(iso);
+                  onSelectDate(iso);
                 }
               }}
               style={({ pressed }) => [
@@ -1404,7 +1430,7 @@ function MonthView({
               accessibilityRole="button"
               accessibilityLabel={`See full detail for ${formatDayProse(selected)}`}
               onPress={() => nav.openSheet('day-detail', { date: selected })}
-              style={({ pressed }) => [pressed ? layout.pressed : undefined]}
+              style={({ pressed }) => [layout.fullDayAction, pressed ? layout.pressed : undefined]}
             >
               <Text style={s.fullDayLink}>Full day →</Text>
             </Pressable>
@@ -1804,11 +1830,23 @@ const layout = StyleSheet.create({
 
   // Agenda
   agendaStack: { gap: gap.lg },
-  dayHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  dayHeadLeft: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexShrink: 1 },
-  // Wraps the spare-£ text + the Week block's "Full day →" button — mirrors the web's
-  // `flex items-baseline gap-2` on the day-block header's right side.
-  dayHeadRight: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  dayHead: { alignItems: 'stretch', gap: 6 },
+  dayHeadLeft: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    gap: 8,
+    flexShrink: 1,
+  },
+  // Date, projected cash and the action must not compete for one narrow header line.
+  dayHeadRight: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  fullDayAction: { minHeight: 48, minWidth: 48, justifyContent: 'center' },
   eventList: { gap: gap.sm, marginTop: 10 },
   eventListCompact: { gap: 6, marginTop: 8 },
   past: { opacity: 0.55 },
@@ -1818,9 +1856,8 @@ const layout = StyleSheet.create({
   weekStack: { gap: gap.md },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   trendHead: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
+    alignItems: 'stretch',
+    gap: 4,
     marginBottom: 6,
   },
   strip: { flexDirection: 'row', gap: 4 },
@@ -2088,7 +2125,7 @@ export function makeStyles(t: Palette) {
       fontFamily: serif.displayItalic,
       textTransform: 'none',
     },
-    spareRight: { color: t.muted, fontSize: 12.5, fontVariant: ['tabular-nums'] },
+    spareRight: { color: t.muted, fontSize: 12.5, fontVariant: ['tabular-nums'], flexShrink: 1 },
     // "Full day →" — Week block's full-detail entry point. Matches the web's
     // `text-[10.5px] uppercase tracking-[0.12em] text-[var(--accent)]` treatment.
     fullDayLink: {
@@ -2106,8 +2143,8 @@ export function makeStyles(t: Palette) {
 
     // Month / week nav
     navRound: {
-      width: 28,
-      height: 28,
+      width: 48,
+      height: 48,
       borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: t.hairline,
@@ -2120,8 +2157,18 @@ export function makeStyles(t: Palette) {
       fontSize: 12,
       letterSpacing: 1.68,
       textTransform: 'uppercase',
+      flex: 1,
+      textAlign: 'center',
+      marginHorizontal: 8,
     },
-    monthLabelDisplay: { color: t.ink, fontFamily: serif.display, fontSize: 16 },
+    monthLabelDisplay: {
+      color: t.ink,
+      fontFamily: serif.display,
+      fontSize: 16,
+      flex: 1,
+      textAlign: 'center',
+      marginHorizontal: 8,
+    },
 
     // Spare-trend card (week)
     trendCard: {

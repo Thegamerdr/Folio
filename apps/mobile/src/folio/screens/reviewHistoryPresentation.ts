@@ -7,12 +7,16 @@ export function reviewHistoryPresentation(
   amount: number,
   flow: 'in' | 'out',
   isBusiness = false,
+  hasDuplicateProposal = false,
 ) {
   const cash = formatMoney(plan.currentBalanceMinor / 100);
   const kind = flow === 'out' ? (isBusiness ? 'expense' : 'spend') : 'income';
+  const history = isBusiness ? 'Business activity' : 'your history';
   return {
     cash,
     entry: `${formatMoney(amount)} ${kind}`,
-    detail: `Adds ${formatMoney(amount)} to ${isBusiness ? 'Business activity' : 'your history'}. Tracked cash stays ${cash}.`,
+    detail: hasDuplicateProposal
+      ? `Link them keeps your original entry. Keep both adds another ${formatMoney(amount)} to ${history}. Tracked cash stays ${cash}.`
+      : `Adds ${formatMoney(amount)} to ${history}. Tracked cash stays ${cash}.`,
   };
 }

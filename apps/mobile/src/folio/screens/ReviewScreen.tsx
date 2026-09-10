@@ -480,13 +480,6 @@ export function ReviewScreen({
 
   const signedDelta = candidate.flow === 'out' ? -editedAmount : editedAmount;
   const previewAmount = useCountUp(editedAmount, COUNT_MS, reduceMotion);
-  const historyPresentation = reviewHistoryPresentation(
-    cashAtReview,
-    editedAmount,
-    candidate.flow,
-    isBusiness,
-  );
-
   // The de-dupe proposal for THIS candidate against existing rows, or null (the pure engine decides).
   // Skipped when there's no real candidate, once sealed, before the clock mounts, or when the
   // candidate's date can't be read — a candidate we can't compare is never merged on a guess.
@@ -505,6 +498,13 @@ export function ReviewScreen({
       now.toISOString().slice(0, 10),
     );
   }, [hasRealCandidate, stamped, now, candidate, signedDelta, merchant, transactions]);
+  const historyPresentation = reviewHistoryPresentation(
+    cashAtReview,
+    editedAmount,
+    candidate.flow,
+    isBusiness,
+    dupeProposal !== null,
+  );
 
   // Inputs and their fixed actions stay on a native, immediately visible root. A cancelled
   // entrance must never leave an editable card transparent after the keyboard or duplicate
@@ -869,7 +869,9 @@ export function ReviewScreen({
             ]}
           >
             <View style={sourceStyles.balanceColumn}>
-              <Text style={[sourceStyles.balanceLabel, { color: t.muted }]}>History entry</Text>
+              <Text style={[sourceStyles.balanceLabel, { color: t.muted }]}>
+                {dupeProposal ? 'Candidate entry' : 'History entry'}
+              </Text>
               <Text style={[sourceStyles.balanceValue, { color: t.ink }]}>
                 {historyPresentation.entry}
               </Text>
@@ -1216,13 +1218,15 @@ export function ReviewScreen({
             </View>
             <View accessibilityLiveRegion="polite" style={styles.projBody}>
               <Text style={[styles.projLead, { color: t.ink }]}>
-                {isBusiness
-                  ? isOut
-                    ? 'This will add a business expense of'
-                    : 'This will add business income of'
-                  : isOut
-                    ? 'This will add a spend of'
-                    : 'This will add income of'}
+                {dupeProposal
+                  ? 'This candidate records'
+                  : isBusiness
+                    ? isOut
+                      ? 'This will add a business expense of'
+                      : 'This will add business income of'
+                    : isOut
+                      ? 'This will add a spend of'
+                      : 'This will add income of'}
               </Text>
               <Text style={[styles.projBalance, { color: t.ink }]}>{formatGBP(previewAmount)}</Text>
               <Text style={[styles.projDelta, { color: t.muted }]}>{balanceLine}</Text>

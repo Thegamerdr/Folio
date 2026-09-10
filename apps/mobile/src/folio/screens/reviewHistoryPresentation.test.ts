@@ -23,6 +23,33 @@ afterEach(() => {
 });
 
 describe('reviewed history money receipt', () => {
+  it.each([
+    ['out', false, 'spend', 'your history'],
+    ['in', false, 'income', 'your history'],
+    ['out', true, 'expense', 'Business activity'],
+    ['in', true, 'income', 'Business activity'],
+  ] as const)(
+    'distinguishes linking from adding a second %s entry (business: %s)',
+    (flow, business, kind, history) => {
+      expect(
+        reviewHistoryPresentation({ currentBalanceMinor: 180000 }, 8.76, flow, business, true),
+      ).toEqual({
+        cash: '£1,800',
+        entry: `£8.76 ${kind}`,
+        detail: `Link them keeps your original entry. Keep both adds another £8.76 to ${history}. Tracked cash stays £1,800.`,
+      });
+    },
+  );
+
+  it('updates the consequence when editing changes duplicate status or amount', () => {
+    const plan = { currentBalanceMinor: 180000 };
+    const duplicate = reviewHistoryPresentation(plan, 8.76, 'out', false, true);
+    const ordinary = reviewHistoryPresentation(plan, 9.24, 'out', false, false);
+    expect(ordinary.detail).toBe('Adds £9.24 to your history. Tracked cash stays £1,800.');
+    expect(ordinary.entry).toBe('£9.24 spend');
+    expect(reviewHistoryPresentation(plan, 8.76, 'out', false, true)).toEqual(duplicate);
+  });
+
   it('shows exact imported pennies and unchanged canonical cash after accept and restart', () => {
     setPartial({
       accounts: [],
