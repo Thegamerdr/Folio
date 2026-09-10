@@ -684,6 +684,47 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
           setEditing(null);
           setShowEditDate(false);
         }}
+        footer={
+          <>
+            <ActionLink
+              label="Save bill changes"
+              color={t.calm}
+              onPress={() => {
+                if (!editing) return;
+                try {
+                  const before = getState();
+                  const patch = buildSubscriptionEditPatch(
+                    before,
+                    editing.name,
+                    {
+                      name: editName,
+                      cost: Number(editCost),
+                      periodDays: editPeriod,
+                      futureDate: editDate,
+                    },
+                    new Date(),
+                  );
+                  setPartial(patch);
+                  const undo = createScopedFinancialUndo(
+                    before,
+                    Object.keys(patch) as (keyof AppState)[],
+                  );
+                  showUndo('Bill details updated · current occurrence preserved', () => {
+                    if (!undo())
+                      Alert.alert(
+                        'Bill details kept',
+                        'Your bills have changed since this save. Review the current details before editing them.',
+                      );
+                  });
+                  setEditing(null);
+                } catch (error) {
+                  setEditError(error instanceof Error ? error.message : 'Check the bill details.');
+                }
+              }}
+            />
+            <ActionLink label="Cancel editing" color={t.muted} onPress={() => setEditing(null)} />
+          </>
+        }
       >
         <Text accessibilityRole="header" style={s.headline}>
           Edit bill
@@ -765,43 +806,6 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
             {editError}
           </Text>
         ) : null}
-        <ActionLink
-          label="Save bill changes"
-          color={t.calm}
-          onPress={() => {
-            if (!editing) return;
-            try {
-              const before = getState();
-              const patch = buildSubscriptionEditPatch(
-                before,
-                editing.name,
-                {
-                  name: editName,
-                  cost: Number(editCost),
-                  periodDays: editPeriod,
-                  futureDate: editDate,
-                },
-                new Date(),
-              );
-              setPartial(patch);
-              const undo = createScopedFinancialUndo(
-                before,
-                Object.keys(patch) as (keyof AppState)[],
-              );
-              showUndo('Bill details updated · current occurrence preserved', () => {
-                if (!undo())
-                  Alert.alert(
-                    'Bill details kept',
-                    'Your bills have changed since this save. Review the current details before editing them.',
-                  );
-              });
-              setEditing(null);
-            } catch (error) {
-              setEditError(error instanceof Error ? error.message : 'Check the bill details.');
-            }
-          }}
-        />
-        <ActionLink label="Cancel editing" color={t.muted} onPress={() => setEditing(null)} />
       </Sheet>
     </>
   );
