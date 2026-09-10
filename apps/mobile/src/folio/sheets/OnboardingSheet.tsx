@@ -2,10 +2,10 @@
 // @purpose      Progressive onboarding — identity, intent, income, current money, essentials,
 //               protected buffer, bundled commitments and optional pots.
 // @writes       setOnboarding, setMoneyMode, setModeExtra, setBufferAmount, setCurrentBalance, setPots
-// @copy         FROZEN (verbatim from '@/folio/copy/copy' + the spec's inline strings)
+// @copy         Plain setup copy; reviewed against the 0.0.5 screenshot correction specification.
 // @tokens       --paper (Sheet) · --accent (t.calm) · --accent-soft (t.calmSoft) ·
 //               --inset (t.inset) · --hairline (t.hairline) · --ink (t.ink) · --muted-ink (t.muted)
-// @motion       slide between steps · progress-pip width/colour tween · stamp on completion
+// @motion       fixed-width step fade · progress-pip width/colour tween
 //
 // Faithful RN port of the web design source with the manual finance fields added to make a first
 // run useful without Open Banking.
@@ -39,6 +39,7 @@ import {
   AccessibilityInfo,
   Animated,
   Easing,
+  Keyboard,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -67,6 +68,7 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore, type IncomeSource } from '@/folio/store';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
+import { isHorizontalSliderGesture, parseDayOfMonth } from '@/folio/lib/formDrafts';
 import type { MoneyMode } from '@/folio/lib/modes/types';
 import { isBusinessDay } from '@/folio/lib/payday';
 import {
@@ -135,7 +137,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 2000,
     step: 25,
-    hint: 'Anything above this reads as safe-to-spend.',
+    hint: 'This buffer stays protected alongside your bills and essentials.',
   },
   growth: {
     eyebrow: 'Monthly pace',
@@ -155,7 +157,7 @@ const MODE_EXTRA: Record<MoneyMode, ModeExtra> = {
     min: 0,
     max: 30000,
     step: 100,
-    hint: 'Ballpark. Saved — declare each debt properly whenever you like.',
+    hint: 'An estimate for your goal, separate from recorded debt balances. Add each named debt after setup.',
   },
   optimizer: {
     eyebrow: 'Target',
@@ -231,6 +233,7 @@ export type OnboardingSheetState = 'empty' | 'loading' | 'populated' | 'error' |
 export type OnboardingSheetProps = {
   // Whether the sheet is mounted/visible — wired straight to the kit Sheet primitive.
   visible: boolean;
+  initialField?: string | undefined;
   onClose: () => void;
   // Defaults to the real flow. The non-`populated` values exist to satisfy the spec's STATES matrix.
   state?: OnboardingSheetState | undefined;
@@ -291,10 +294,9 @@ const INCOME_RANGE_BY_CADENCE: Record<PayCadence, IncomeRange> = {
 };
 
 const STEP_SLIDE_MS = 360; // doc-block "slide between steps"
-const STAMP_MS = 600; // doc-block "stamp on completion"
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 const PROGRESS_PIP_MS = 400; // web transition-all duration-400
-const MIN_TAP = 44; // tap-only, >=44px
+const MIN_TAP = 48; // tap-only, >=44px
 
 // ---------------------------------------------------------------------------
 // Cadence selector — new "How does pay arrive?" step, ahead of the day picker.
@@ -380,7 +382,12 @@ function useReduceMotion(): boolean {
 // OnboardingSheet
 // ---------------------------------------------------------------------------
 
-export function OnboardingSheet({ visible, onClose, state = 'populated' }: OnboardingSheetProps) {
+export function OnboardingSheet({
+  visible,
+  onClose,
+  initialField,
+  state = 'populated',
+}: OnboardingSheetProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const reduceMotion = useReduceMotion();
@@ -396,9 +403,14 @@ export function OnboardingSheet({ visible, onClose, state = 'populated' }: Onboa
   }
 
   return (
-    <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
-      <OnboardingFlow styles={s} palette={t} reduceMotion={reduceMotion} onClose={onClose} />
-    </Sheet>
+    <OnboardingFlow
+      visible={visible}
+      initialField={initialField}
+      styles={s}
+      palette={t}
+      reduceMotion={reduceMotion}
+      onClose={onClose}
+    />
   );
 }
 
@@ -446,11 +458,15 @@ function OnboardingNonPopulated({
 // ---------------------------------------------------------------------------
 
 function OnboardingFlow({
+  visible,
+  initialField,
   styles: s,
   palette: t,
   reduceMotion,
   onClose,
 }: {
+  visible: boolean;
+  initialField?: string | undefined;
   styles: ReturnType<typeof makeStyles>;
   palette: Palette;
   reduceMotion: boolean;
@@ -478,30 +494,30 @@ function OnboardingFlow({
     return st.subs.find((subscription) => subscription.name === 'Rent + bills') ?? null;
   });
 
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(initialField === 'payday' ? (isReturning ? 1 : 3) : 0);
+  const [showSummary, setShowSummary] = useState(isReturning && !initialField);
+  const [costsConfirmed, setCostsConfirmed] = useState(false);
+  const [showMoreGoals, setShowMoreGoals] = useState(false);
+  const [intentLabel, setIntentLabel] = useState(
+    INTENT_OPTIONS.find((option) => option.mode === savedMode)?.label ?? INTENT_OPTIONS[0]!.label,
+  );
   const [name, setName] = useState(ob.name);
   const [payday, setPayday] = useState(savedIncomeSource?.dayOfMonth ?? ob.payday);
-  const [paydayInput, setPaydayInput] = useState(String(savedIncomeSource?.dayOfMonth ?? ob.payday));
+  const [paydayInput, setPaydayInput] = useState(
+    String(savedIncomeSource?.dayOfMonth ?? ob.payday),
+  );
   // Pay cadence (new step, ahead of the day picker) — see lib/income.ts. Monthly is the honest
   // default: it matches every existing user's behaviour byte-for-byte until they say otherwise.
   const [cadence, setCadence] = useState<PayCadence>(savedIncomeSource?.cadence ?? 'monthly');
   const [income, setIncome] = useState(savedIncomeSource?.amount ?? ob.monthlyIncome);
-  const [incomeInput, setIncomeInput] = useState(String(savedIncomeSource?.amount ?? ob.monthlyIncome));
+  const [incomeInput, setIncomeInput] = useState(
+    String(savedIncomeSource?.amount ?? ob.monthlyIncome),
+  );
   // The income slider's range/unit branches on the declared cadence — a weekly earner's
   // per-occurrence figure lives on a much smaller scale than a monthly one (see
   // INCOME_RANGE_BY_CADENCE above). Recomputed, not stored, so it always tracks `cadence`.
   const incomeRange = useMemo(() => INCOME_RANGE_BY_CADENCE[cadence], [cadence]);
-  // When the user changes cadence AFTER already having moved the income slider, clamp the captured
-  // value into the new range rather than leaving a stale out-of-range number (e.g. £2400 surviving
-  // a switch to weekly, where the max is £2000) — the slider itself only clamps at drag-time, so a
-  // cadence change with no further drag would otherwise leave an invisible out-of-range value.
-  useEffect(() => {
-    setIncome((prev) => {
-      const next = Math.min(incomeRange.max, Math.max(incomeRange.min, prev));
-      setIncomeInput(String(next));
-      return next;
-    });
-  }, [incomeRange]);
+  // Cadence changes the slider's suggested range, never the user's exact entered amount.
   // Anchor date for the three week-based cadences — "when did pay last arrive?" Defaults to today so
   // the date picker never opens on a blank/undefined value.
   const [anchorISO, setAnchorISO] = useState<string>(savedIncomeSource?.anchorISO ?? todayIso());
@@ -511,8 +527,15 @@ function OnboardingFlow({
   // follow-up captured value; EVERY mode's answer persists to `modeExtras` on done() (see there).
   const [intentMode, setIntentMode] = useState<MoneyMode>(savedMode);
   const [modeExtra, setModeExtra] = useState<number>(savedBuffer);
+  const [modeExtraInput, setModeExtraInput] = useState(String(savedBuffer));
   const [weeklyEssentials, setWeeklyEssentials] = useState<number>(savedEssentials);
   const [desiredBuffer, setDesiredBuffer] = useState<number>(savedBuffer);
+  const [essentialsInput, setEssentialsInput] = useState(String(savedEssentials));
+  const [bufferInput, setBufferInput] = useState(String(savedBuffer));
+  const [commitmentInput, setCommitmentInput] = useState(String(savedBundledCommitment?.cost ?? 0));
+  const [commitmentDayInput, setCommitmentDayInput] = useState(
+    String(Number(savedBundledCommitment?.nextRenewalISO?.slice(8, 10) ?? 1)),
+  );
   const [bundledCommitmentName, setBundledCommitmentName] = useState(
     savedBundledCommitment?.name ?? 'Rent + bills',
   );
@@ -531,8 +554,12 @@ function OnboardingFlow({
     String(currentBalance.source === 'sample' ? 0 : currentBalance.amount),
   );
   const incomeInputValue = parseManualMoney(incomeInput, { allowZero: true });
-  const balanceInputValue = parseManualMoney(balanceInput, { allowZero: true, allowNegative: true });
-  const paydayInputValue = /^\d{1,2}$/.test(paydayInput) ? Number(paydayInput) : undefined;
+  const balanceInputValue = parseManualMoney(balanceInput, {
+    allowZero: true,
+    allowNegative: true,
+  });
+  const paydayInputValue = parseDayOfMonth(paydayInput);
+  const commitmentDayValue = parseDayOfMonth(commitmentDayInput);
   // Picked pot templates — pre-select whatever the user already has so a returning user lands on
   // their kept pots and first-timers land on the store defaults (Holiday + Buffer + Christmas).
   const [picked, setPicked] = useState<Set<string>>(
@@ -551,7 +578,10 @@ function OnboardingFlow({
     });
   }
 
+  const savingRef = useRef(false);
   function done() {
+    if (savingRef.current || !costsConfirmed || !allNumbersValid) return;
+    savingRef.current = true;
     // The shared production seam distinguishes first-run sample cleanup from returning-user edits.
     const legacyPayday =
       cadence === 'monthly'
@@ -617,7 +647,10 @@ function OnboardingFlow({
     { eyebrow: 'Rhythm', head: { lead: 'When does payday ', accent: 'land?', tail: '' } },
     { eyebrow: 'Rough only', head: { lead: 'What lands, ', accent: 'roughly?', tail: '' } },
     { eyebrow: 'Today', head: { lead: "What's ", accent: 'in your account', tail: ' right now?' } },
-    { eyebrow: 'Essentials', head: { lead: 'What do you need for ', accent: 'the week?', tail: '' } },
+    {
+      eyebrow: 'Essentials',
+      head: { lead: 'What do you need for ', accent: 'the week?', tail: '' },
+    },
     { eyebrow: 'Bills', head: { lead: 'What needs ', accent: 'protecting?', tail: '' } },
     { eyebrow: 'Pots', head: { lead: 'What are you ', accent: 'saving for?', tail: '' } },
   ];
@@ -663,473 +696,728 @@ function OnboardingFlow({
     animation.start();
     return () => animation.stop();
   }, [step, reduceMotion, slide]);
-  const bodyTranslateX = slide.interpolate({ inputRange: [-1, 0, 1], outputRange: [-24, 0, 24] });
+  const bodyOpacity = slide.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.5, 1, 0.5] });
 
-  // Stamp on completion — a 600ms back-out scale pulse on the primary button as `done()` fires,
-  // then close. Under reduce-motion it is a no-op and we close immediately.
-  const stamp = useRef(new Animated.Value(1)).current;
   function handlePrimary() {
-    const invalidNumericStep =
-      (activeStepIndex === STEP_PAYDAY &&
-        (paydayInputValue === undefined || paydayInputValue < 1 || paydayInputValue > 31)) ||
-      (activeStepIndex === 5 && incomeInputValue === undefined) ||
-      (activeStepIndex === 6 && balanceInputValue === undefined);
-    if (invalidNumericStep) return;
+    if (numericError !== null) return;
+    Keyboard.dismiss();
+    if (isReturning) {
+      setShowSummary(true);
+      setCostsConfirmed(false);
+      return;
+    }
     if (!isLast) {
       setStep((x) => x + 1);
       return;
     }
-    if (reduceMotion) {
-      done();
-      return;
-    }
-    Animated.sequence([
-      Animated.timing(stamp, { toValue: 0.94, duration: 0, useNativeDriver: true }),
-      Animated.timing(stamp, {
-        toValue: 1.04,
-        duration: STAMP_MS * 0.55,
-        easing: EASE_OUT_EXPO,
-        useNativeDriver: true,
-      }),
-      Animated.timing(stamp, {
-        toValue: 1,
-        duration: STAMP_MS * 0.45,
-        easing: EASE_OUT_EXPO,
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (finished) done();
-    });
+    if (!costsConfirmed) return;
+    done();
   }
 
-  return (
-    <View style={s.body}>
-      {/* Progress pips — three states (active w7 accent · done w5 ink/60 · future w5 hairline). */}
-      <View style={s.pips}>
-        {visibleStepIndices.map((_, i) => (
-          <ProgressPip
-            key={i}
-            kind={i === step ? 'active' : i < step ? 'done' : 'future'}
-            palette={t}
-            reduceMotion={reduceMotion}
-          />
-        ))}
-      </View>
-
-      {/* Eyebrow with the documented Melo mood beside it (the web rendered no Melo; the spec asks the
-          port to add the mood). */}
-      <View style={s.eyebrowRow}>
-        <Melo mood={meloMood} size={24} grounded={false} />
-        <Eyebrow tone="muted">{current.eyebrow}</Eyebrow>
-      </View>
-
-      {/* Headline — one terracotta-italic accent run carved into the Fraunces line. */}
-      <Text style={s.headline} accessibilityRole="header">
-        {current.head.lead}
-        <Text style={s.headlineAccent}>{current.head.accent}</Text>
-        {current.head.tail}
+  const numericError =
+    activeStepIndex === STEP_PAYDAY && cadence === 'monthly' && paydayInputValue === undefined
+      ? 'Enter a day from 1 to 31.'
+      : activeStepIndex === 5 && incomeInputValue === undefined
+        ? 'Enter income of £0 or more.'
+        : activeStepIndex === STEP_BALANCE && balanceInputValue === undefined
+          ? 'Enter your current balance. A negative balance is allowed.'
+          : activeStepIndex === 2 &&
+              parseManualMoney(modeExtraInput, { allowZero: true }) === undefined
+            ? 'Enter an amount of £0 or more.'
+            : activeStepIndex === STEP_ESSENTIALS &&
+                (parseManualMoney(essentialsInput, { allowZero: true }) === undefined ||
+                  parseManualMoney(bufferInput, { allowZero: true }) === undefined)
+              ? 'Enter essentials and a buffer of £0 or more.'
+              : activeStepIndex === STEP_COMMITMENT &&
+                  parseManualMoney(commitmentInput, { allowZero: true }) === undefined
+                ? 'Enter a regular payment amount of £0 or more.'
+                : activeStepIndex === STEP_COMMITMENT &&
+                    bundledCommitmentAmount > 0 &&
+                    commitmentDayValue === undefined
+                  ? 'Enter a day from 1 to 31.'
+                  : null;
+  const allNumbersValid =
+    incomeInputValue !== undefined &&
+    balanceInputValue !== undefined &&
+    (cadence !== 'monthly' || paydayInputValue !== undefined) &&
+    parseManualMoney(essentialsInput, { allowZero: true }) !== undefined &&
+    parseManualMoney(bufferInput, { allowZero: true }) !== undefined &&
+    parseManualMoney(commitmentInput, { allowZero: true }) !== undefined &&
+    (bundledCommitmentAmount === 0 || commitmentDayValue !== undefined);
+  const reviewRows = [
+    { label: 'Name', value: name || 'Not set', index: 0 },
+    {
+      label: 'Pay frequency',
+      value: CADENCE_OPTIONS.find((option) => option.cadence === cadence)?.label ?? cadence,
+      index: STEP_CADENCE,
+    },
+    {
+      label: 'Payday',
+      value:
+        cadence === 'monthly'
+          ? `Day ${paydayInput} each month`
+          : cadence === 'last-working-day'
+            ? 'Last working day'
+            : `Last received ${new Date(`${anchorISO}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+      index: STEP_PAYDAY,
+    },
+    { label: 'Income', value: `${money(Math.round(income * 100))} ${incomeRange.unit}`, index: 5 },
+    { label: 'Current balance', value: money(Math.round(balance * 100)), index: STEP_BALANCE },
+    {
+      label: 'Essentials and buffer',
+      value: `${money(Math.round(weeklyEssentials * 100))} / week · ${money(Math.round(desiredBuffer * 100))} protected`,
+      index: STEP_ESSENTIALS,
+    },
+    {
+      label: bundledCommitmentName || 'Regular payment',
+      value: `${money(Math.round(bundledCommitmentAmount * 100))} / month${bundledCommitmentAmount > 0 ? ` · due day ${commitmentDayInput}` : ' · none included'}`,
+      index: STEP_COMMITMENT,
+    },
+  ];
+  const confirmation = (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: costsConfirmed }}
+      onPress={() => setCostsConfirmed((previous) => !previous)}
+      style={s.confirmation}
+    >
+      <Text style={s.skipLabel}>
+        {costsConfirmed ? '☑' : '☐'} I’ve included my regular costs, essentials and buffer.
       </Text>
-
-      {/* The per-step body — seven mutually exclusive branches, sliding on step change. */}
-      <Animated.View style={{ transform: [{ translateX: bodyTranslateX }] }}>
-        {activeStepIndex === 0 ? (
-          <TextInput
-            autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
-            value={name}
-            onChangeText={setName}
-            placeholder={copy.onb[1].placeholder}
-            placeholderTextColor={t.muted}
-            style={s.nameInput}
-            accessibilityLabel="Your name"
-            returnKeyType="next"
-          />
-        ) : null}
-
-        {/* Intent picker (BREAKS-PARITY fix) — the ten Money Modes, in the user's language. Choosing
-            one sets `intentMode`, which `done()` persists via `setMoneyMode`. */}
-        {!isReturning && activeStepIndex === 1 ? (
-          <View style={s.fieldBlock}>
-            <Text style={s.intentIntro}>
-              Choose one to start. You can change this later — Melo reshapes around it.
-            </Text>
-            <View style={s.intentList}>
-              {INTENT_OPTIONS.map((opt) => {
-                const on = intentMode === opt.mode;
-                return (
-                  <Pressable
-                    key={opt.label}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={`${opt.modeLabel}: ${opt.label}`}
-                    onPress={() => setIntentMode(opt.mode)}
-                    style={({ pressed: isPressed }) => [
-                      s.intentRow,
-                      on ? s.intentRowActive : s.intentRowInactive,
-                      isPressed ? pressed : null,
-                    ]}
-                  >
-                    <View style={s.intentRowText}>
-                      <Text style={s.intentModeLabel}>{opt.modeLabel}</Text>
-                      <Text style={s.intentLabel}>{opt.label}</Text>
-                    </View>
-                    <View style={[s.intentDotRing, on ? s.intentDotRingActive : null]}>
-                      {on ? <View style={s.intentDot} /> : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
-
-        {/* Mode-extra follow-up (BREAKS-PARITY fix) — one slider per mode, copy from MODE_EXTRA. */}
-        {!isReturning && activeStepIndex === 2 ? (
-          <View style={s.fieldBlock}>
-            <View style={s.valueRow}>
-              <Text style={s.bigValue}>
-                {extra.unit}
-                {modeExtra.toLocaleString()}
-              </Text>
-            </View>
-            <FolioSlider
-              min={extra.min}
-              max={extra.max}
-              step={extra.step}
-              value={modeExtra}
-              onChange={setModeExtra}
-              palette={t}
-              accessibilityLabel={extra.eyebrow}
-            />
-            <Text style={s.help}>{extra.hint}</Text>
-          </View>
-        ) : null}
-
-        {/* Cadence picker (new step, ahead of the day picker) — calm, jargon-free options. Choosing a
-            week-based cadence swaps the next step's slider for a date pick; monthly/last-working-day
-            keep the day-of-month slider (hidden for last-working-day, which needs no day input). */}
-        {activeStepIndex === STEP_CADENCE ? (
-          <View style={s.fieldBlock}>
-            <View style={s.intentList}>
-              {CADENCE_OPTIONS.map((opt) => {
-                const on = cadence === opt.cadence;
-                return (
-                  <Pressable
-                    key={opt.cadence}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={opt.label}
-                    onPress={() => setCadence(opt.cadence)}
-                    style={({ pressed: isPressed }) => [
-                      s.intentRow,
-                      on ? s.intentRowActive : s.intentRowInactive,
-                      isPressed ? pressed : null,
-                    ]}
-                  >
-                    <Text style={s.cadenceLabel}>{opt.label}</Text>
-                    <View style={[s.intentDotRing, on ? s.intentDotRingActive : null]}>
-                      {on ? <View style={s.intentDot} /> : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
-
-        {activeStepIndex === STEP_PAYDAY ? (
-          <View style={s.fieldBlock}>
-            {cadence === 'monthly' ? (
-              <>
-                <View style={s.valueRow}>
-                  <Text style={s.bigValue}>{String(payday)}</Text>
-                  <Text style={s.unit}>of the month</Text>
-                </View>
-                <TextInput
-                  value={paydayInput}
-                  onChangeText={(value) => {
-                    setPaydayInput(value);
-                    const parsed = /^\d{1,2}$/.test(value) ? Number(value) : undefined;
-                    if (parsed !== undefined && parsed >= 1 && parsed <= 31) setPayday(parsed);
-                  }}
-                  keyboardType="number-pad"
-                  style={s.amountInput}
-                  accessibilityLabel="Exact payday day of month"
-                />
-                <FolioSlider
-                  min={PAYDAY_MIN}
-                  max={PAYDAY_MAX}
-                  step={PAYDAY_STEP}
-                  value={payday}
-                  onChange={(value) => {
-                    setPayday(value);
-                    setPaydayInput(String(value));
-                  }}
-                  palette={t}
-                  accessibilityLabel="Payday day of the month"
-                />
-              </>
-            ) : null}
-
-            {cadence === 'last-working-day' ? (
-              <Text style={s.help}>
-                The last working day of each month — Melo works this out for you.
-              </Text>
-            ) : null}
-
-            {WEEK_BASED_CADENCES.has(cadence) ? (
-              <>
-                <Text style={s.help}>When did pay last arrive?</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Pick the date pay last arrived"
-                  onPress={() => setShowAnchorPicker(true)}
-                  style={({ pressed: isPressed }) => [s.anchorButton, isPressed ? pressed : null]}
-                >
-                  <Text style={s.bigValue}>{anchorISO}</Text>
-                </Pressable>
-                {showAnchorPicker ? (
-                  <DateTimePicker
-                    value={new Date(`${anchorISO}T00:00:00`)}
-                    mode="date"
-                    display="default"
-                    themeVariant={isDark ? 'dark' : 'light'}
-                    maximumDate={new Date()}
-                    onChange={(_event: DateTimePickerEvent, selected?: Date) => {
-                      setShowAnchorPicker(false);
-                      if (selected) setAnchorISO(isoFromDate(selected));
-                    }}
-                  />
-                ) : null}
-              </>
-            ) : null}
-          </View>
-        ) : null}
-
-        {activeStepIndex === 5 ? (
-          <View style={s.fieldBlock}>
-            <View style={s.valueRow}>
-              <Text style={s.bigValue}>{poundsTabular(income)}</Text>
-              <Text style={s.unit}>{incomeRange.unit}</Text>
-            </View>
-            <FolioSlider
-              min={incomeRange.min}
-              max={incomeRange.max}
-              step={incomeRange.step}
-              value={Math.min(incomeRange.max, Math.max(incomeRange.min, income))}
-              onChange={(value) => {
-                setIncome(value);
-                setIncomeInput(String(value));
-              }}
-              palette={t}
-              accessibilityLabel={`Rough income${incomeRange.unit}`}
-            />
-            <TextInput
-              value={incomeInput}
-              onChangeText={(value) => {
-                setIncomeInput(value);
-                const parsed = parseManualMoney(value, { allowZero: true });
-                if (parsed !== undefined) setIncome(parsed);
-              }}
-              keyboardType="decimal-pad"
-              style={s.amountInput}
-              accessibilityLabel={`Exact income${incomeRange.unit}`}
-            />
-            <Text style={s.help}>Doesn't need to be exact. Melo adjusts as you go.</Text>
-          </View>
-        ) : null}
-
-        {activeStepIndex === STEP_BALANCE ? (
-          <View style={s.fieldBlock}>
-            <View style={s.valueRow}>
-              <Text style={s.bigValue}>{poundsTabular(balance)}</Text>
-              <Text style={s.unit}>roughly</Text>
-            </View>
-            <FolioSlider
-              min={BALANCE_MIN}
-              max={BALANCE_MAX}
-              step={BALANCE_STEP}
-              value={Math.min(BALANCE_MAX, Math.max(BALANCE_MIN, balance))}
-              onChange={(value) => {
-                setBalance(value);
-                setBalanceInput(String(value));
-              }}
-              palette={t}
-              accessibilityLabel="Rough current account balance"
-            />
-            <TextInput
-              value={balanceInput}
-              onChangeText={(value) => {
-                setBalanceInput(value);
-                const parsed = parseManualMoney(value, { allowZero: true, allowNegative: true });
-                if (parsed !== undefined) setBalance(parsed);
-              }}
-              keyboardType="numbers-and-punctuation"
-              style={s.amountInput}
-              accessibilityLabel="Exact current account balance"
-            />
-            <Text style={s.help}>
-              Your guess is fine. Melo uses this as the starting point — every number you'll see is
-              anchored here, not a sample.
-            </Text>
-          </View>
-        ) : null}
-
-        {activeStepIndex === STEP_ESSENTIALS ? (
-          <View style={s.fieldBlock}>
-            <View style={s.valueRow}>
-              <Text style={s.bigValue}>{poundsTabular(weeklyEssentials)}</Text>
-              <Text style={s.unit}>/ week essentials</Text>
-            </View>
-            <TextInput
-              value={String(weeklyEssentials)}
-              onChangeText={(value) => {
-                const parsed = Number(value.replace(/[^0-9.]/g, ''));
-                if (Number.isFinite(parsed)) setWeeklyEssentials(Math.max(0, parsed));
-              }}
-              keyboardType="decimal-pad"
-              style={s.amountInput}
-              accessibilityLabel="Exact weekly essential living allowance"
-            />
-            <FolioSlider
-              min={0}
-              max={500}
-              step={5}
-              value={weeklyEssentials}
-              onChange={setWeeklyEssentials}
-              palette={t}
-              accessibilityLabel="Weekly essential living allowance"
-            />
-            <View style={[s.valueRow, { marginTop: gap.lg }]}>
-              <Text style={s.bigValue}>{poundsTabular(desiredBuffer)}</Text>
-              <Text style={s.unit}>protected buffer</Text>
-            </View>
-            <TextInput
-              value={String(desiredBuffer)}
-              onChangeText={(value) => {
-                const parsed = Number(value.replace(/[^0-9.]/g, ''));
-                if (Number.isFinite(parsed)) setDesiredBuffer(Math.max(0, parsed));
-              }}
-              keyboardType="decimal-pad"
-              style={s.amountInput}
-              accessibilityLabel="Exact protected cash buffer"
-            />
-            <FolioSlider
-              min={0}
-              max={1000}
-              step={10}
-              value={desiredBuffer}
-              onChange={setDesiredBuffer}
-              palette={t}
-              accessibilityLabel="Protected cash buffer"
-            />
-            <Text style={s.help}>
-              Essentials stay available until payday. The buffer can be £0 if you choose.
-            </Text>
-          </View>
-        ) : null}
-
-        {activeStepIndex === STEP_COMMITMENT ? (
-          <View style={s.fieldBlock}>
-            <TextInput
-              value={bundledCommitmentName}
-              onChangeText={setBundledCommitmentName}
-              placeholder="For example, rent + bills"
-              placeholderTextColor={t.muted}
-              style={s.nameInput}
-              accessibilityLabel="Recurring commitment name"
-            />
-            <View style={s.valueRow}>
-              <Text style={s.bigValue}>{poundsTabular(bundledCommitmentAmount)}</Text>
-              <Text style={s.unit}>/ month</Text>
-            </View>
-            <TextInput
-              value={String(bundledCommitmentAmount)}
-              onChangeText={(value) => {
-                const parsed = Number(value.replace(/[^0-9.]/g, ''));
-                if (Number.isFinite(parsed)) setBundledCommitmentAmount(Math.max(0, parsed));
-              }}
-              keyboardType="decimal-pad"
-              style={s.amountInput}
-              accessibilityLabel="Exact recurring commitment amount"
-            />
-            <FolioSlider
-              min={0}
-              max={COMMITMENT_MAX}
-              step={COMMITMENT_STEP}
-              value={bundledCommitmentAmount}
-              onChange={setBundledCommitmentAmount}
-              palette={t}
-              accessibilityLabel="Recurring commitment amount"
-            />
-            <View style={s.valueRow}>
-              <Text style={s.dueLabel}>Paid on the</Text>
-              <Text style={s.dueValue}>{bundledCommitmentDueDay}</Text>
-              <Text style={s.unit}>of each month</Text>
-            </View>
-            <FolioSlider
-              min={1}
-              max={31}
-              step={1}
-              value={bundledCommitmentDueDay}
-              onChange={setBundledCommitmentDueDay}
-              palette={t}
-              accessibilityLabel="Recurring commitment day"
-            />
-            <Text style={s.help}>
-              One bundled payment is fine. Add separate bills later from Plan.
-            </Text>
-          </View>
-        ) : null}
-
-        {!isReturning && activeStepIndex === STEP_POTS ? (
-          <View style={s.fieldBlock}>
-            <Text style={s.potsIntro}>
-              Pick any. Skip with none if you'd rather start blank — you can add later.
-            </Text>
-            <View style={s.potGrid}>
-              {POT_TEMPLATES.map((tpl) => (
-                <PotTile
-                  key={tpl.id}
-                  template={tpl}
-                  selected={picked.has(tpl.id)}
-                  onPress={() => togglePot(tpl.id)}
-                  styles={s}
-                />
-              ))}
-            </View>
-          </View>
-        ) : null}
-      </Animated.View>
-
-      {/* Primary — "Next" (steps 1-4) then "Begin quietly" (last step). Stamps on completion. */}
-      <Animated.View style={{ transform: [{ scale: stamp }] }}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={handlePrimary}
-          style={({ pressed: isPressed }) => [s.primary, isPressed ? pressed : null]}
-        >
-          <Text style={s.primaryLabel}>{isLast ? 'Begin quietly' : 'Next'}</Text>
-        </Pressable>
-      </Animated.View>
-
-      {/* Skip ≠ finished. It leaves onboarding.done false but clears any legacy sample state. */}
+    </Pressable>
+  );
+  const footer = (
+    <View>
+      {showSummary || (!isReturning && isLast) ? confirmation : null}
+      {!showSummary && numericError ? (
+        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
+          {numericError}
+        </Text>
+      ) : null}
+      {!showSummary && activeStepIndex === 1 ? (
+        <Text style={s.selectedGoal}>Selected: {intentLabel}</Text>
+      ) : null}
       <Pressable
         accessibilityRole="button"
-        onPress={skipForNow}
-        // Visual height stays the web's 40 (h-10); hitSlop extends the touch area to >=44px tall so
-        // the row meets the tap-target minimum without changing the faithful vertical rhythm (same
-        // technique Melo uses for small glyphs).
-        hitSlop={{ top: 2, bottom: 2 }}
-        style={({ pressed: isPressed }) => [s.skip, isPressed ? pressed : null]}
+        accessibilityState={{
+          disabled: showSummary
+            ? !costsConfirmed || !allNumbersValid
+            : numericError !== null || (!isReturning && isLast && !costsConfirmed),
+        }}
+        disabled={
+          showSummary
+            ? !costsConfirmed || !allNumbersValid
+            : numericError !== null || (!isReturning && isLast && !costsConfirmed)
+        }
+        onPress={showSummary ? done : handlePrimary}
+        style={[
+          s.primary,
+          {
+            marginTop: gap.xs,
+            opacity: (
+              showSummary
+                ? !costsConfirmed || !allNumbersValid
+                : numericError !== null || (!isReturning && isLast && !costsConfirmed)
+            )
+              ? 0.45
+              : 1,
+          },
+        ]}
       >
-        <Text style={s.skipLabel}>Skip for now</Text>
+        <Text style={s.primaryLabel}>
+          {showSummary
+            ? 'Save changes'
+            : isReturning
+              ? 'Review changes'
+              : isLast
+                ? 'Save my setup'
+                : 'Next'}
+        </Text>
       </Pressable>
-      <Text style={s.footer}>
-        {isReturning
-          ? "Skip if you need to. Nothing you've already added changes."
-          : 'Skip if you need to. Today stays empty, and Melo will not guess your numbers.'}
-      </Text>
+      <View style={s.footerActions}>
+        {!showSummary && (isReturning || step > 0) ? (
+          <Pressable
+            accessibilityRole="button"
+            style={s.footerAction}
+            onPress={() => {
+              Keyboard.dismiss();
+              isReturning ? setShowSummary(true) : setStep((previous) => Math.max(0, previous - 1));
+            }}
+          >
+            <Text style={s.skipLabel}>Back</Text>
+          </Pressable>
+        ) : null}
+        <Pressable accessibilityRole="button" style={s.footerAction} onPress={skipForNow}>
+          <Text style={s.skipLabel}>{isReturning ? 'Cancel' : 'Finish later'}</Text>
+        </Pressable>
+      </View>
     </View>
+  );
+
+  if (showSummary)
+    return (
+      <Sheet
+        visible={visible}
+        onClose={onClose}
+        reduceMotion={reduceMotion}
+        scrollKey="summary"
+        footer={footer}
+      >
+        <Text accessibilityRole="header" style={s.headline}>
+          Review your numbers
+        </Text>
+        <Text style={s.help}>
+          Check your balance, payday and regular costs. Tap a row to change it; nothing changes
+          until you save.
+        </Text>
+        {reviewRows.map((row) => (
+          <Pressable
+            key={row.index}
+            accessibilityRole="button"
+            accessibilityLabel={`Edit ${row.label}`}
+            onPress={() => {
+              setStep(Math.max(0, visibleStepIndices.indexOf(row.index)));
+              setShowSummary(false);
+            }}
+            style={s.summaryRow}
+          >
+            <Text style={s.cadenceLabel}>
+              {row.label} <Text style={s.skipLabel}> · Edit</Text>
+            </Text>
+            <Text style={s.help}>{row.value}</Text>
+          </Pressable>
+        ))}
+        <Text style={s.help}>
+          Only numbers you add are used. Add any other bills from Plan. Cancel keeps your existing
+          data unchanged.
+        </Text>
+      </Sheet>
+    );
+
+  return (
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      reduceMotion={reduceMotion}
+      scrollKey={step}
+      footer={footer}
+    >
+      <View style={s.body}>
+        {/* Progress pips — three states (active w7 accent · done w5 ink/60 · future w5 hairline). */}
+        <Text style={s.selectedGoal}>
+          {isReturning
+            ? `Edit · ${current.eyebrow}`
+            : `Step ${step + 1} of ${visibleStepIndices.length} · ${current.eyebrow}`}
+        </Text>
+        <View style={s.pips}>
+          {visibleStepIndices.map((_, i) => (
+            <ProgressPip
+              key={i}
+              kind={i === step ? 'active' : i < step ? 'done' : 'future'}
+              palette={t}
+              reduceMotion={reduceMotion}
+            />
+          ))}
+        </View>
+
+        {/* Eyebrow with the documented Melo mood beside it (the web rendered no Melo; the spec asks the
+          port to add the mood). */}
+        <View style={s.eyebrowRow}>
+          <Melo mood={meloMood} size={24} grounded={false} />
+          <Eyebrow tone="muted">{current.eyebrow}</Eyebrow>
+        </View>
+
+        {/* Headline — one terracotta-italic accent run carved into the Fraunces line. */}
+        <Text style={s.headline} accessibilityRole="header">
+          {current.head.lead}
+          <Text style={s.headlineAccent}>{current.head.accent}</Text>
+          {current.head.tail}
+        </Text>
+
+        {/* The per-step body — seven mutually exclusive branches, sliding on step change. */}
+        <Animated.View style={{ opacity: bodyOpacity, width: '100%' }}>
+          {activeStepIndex === 0 ? (
+            <TextInput
+              autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
+              value={name}
+              onChangeText={setName}
+              placeholder={copy.onb[1].placeholder}
+              placeholderTextColor={t.muted}
+              style={s.nameInput}
+              accessibilityLabel="Your name"
+              returnKeyType="next"
+            />
+          ) : null}
+
+          {/* Intent picker (BREAKS-PARITY fix) — the ten Money Modes, in the user's language. Choosing
+            one sets `intentMode`, which `done()` persists via `setMoneyMode`. */}
+          {!isReturning && activeStepIndex === 1 ? (
+            <View style={s.fieldBlock}>
+              <Text style={s.intentIntro}>
+                Choose one to start. You can change this later — Melo reshapes around it.
+              </Text>
+              <View style={s.intentList}>
+                {INTENT_OPTIONS.filter((_, index) => showMoreGoals || index < 4).map((opt) => {
+                  const on = intentLabel === opt.label;
+                  return (
+                    <Pressable
+                      key={opt.label}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`${opt.modeLabel}: ${opt.label}`}
+                      onPress={() => {
+                        setIntentMode(opt.mode);
+                        setIntentLabel(opt.label);
+                      }}
+                      style={({ pressed: isPressed }) => [
+                        s.intentRow,
+                        on ? s.intentRowActive : s.intentRowInactive,
+                        isPressed ? pressed : null,
+                      ]}
+                    >
+                      <View style={s.intentRowText}>
+                        <Text style={s.intentModeLabel}>{opt.label}</Text>
+                        <Text style={s.intentLabel}>{opt.modeLabel}</Text>
+                      </View>
+                      <View style={[s.intentDotRing, on ? s.intentDotRingActive : null]}>
+                        {on ? <View style={s.intentDot} /> : null}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showMoreGoals }}
+                style={s.footerAction}
+                onPress={() => setShowMoreGoals((previous) => !previous)}
+              >
+                <Text style={s.skipLabel}>{showMoreGoals ? 'Fewer goals' : 'More goals'}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {/* Mode-extra follow-up (BREAKS-PARITY fix) — one slider per mode, copy from MODE_EXTRA. */}
+          {!isReturning && activeStepIndex === 2 ? (
+            <View style={s.fieldBlock}>
+              <View style={s.valueRow}>
+                <Text style={s.bigValue}>
+                  {extra.unit}
+                  {modeExtra.toLocaleString()}
+                </Text>
+              </View>
+              <TextInput
+                value={modeExtraInput}
+                onChangeText={(raw) => {
+                  setModeExtraInput(raw);
+                  const parsed = parseManualMoney(raw, { allowZero: true });
+                  if (parsed !== undefined) setModeExtra(parsed);
+                }}
+                selectTextOnFocus
+                keyboardType="decimal-pad"
+                style={s.amountInput}
+                accessibilityLabel={`Exact ${extra.eyebrow.toLowerCase()} amount`}
+              />
+              <FolioSlider
+                min={extra.min}
+                max={extra.max}
+                step={extra.step}
+                value={modeExtra}
+                onChange={(value) => {
+                  setModeExtra(value);
+                  setModeExtraInput(String(value));
+                }}
+                palette={t}
+                accessibilityLabel={extra.eyebrow}
+              />
+              <Text style={s.help}>{extra.hint}</Text>
+            </View>
+          ) : null}
+
+          {/* Cadence picker (new step, ahead of the day picker) — calm, jargon-free options. Choosing a
+            week-based cadence swaps the next step's slider for a date pick; monthly/last-working-day
+            keep the day-of-month slider (hidden for last-working-day, which needs no day input). */}
+          {activeStepIndex === STEP_CADENCE ? (
+            <View style={s.fieldBlock}>
+              <View style={s.intentList}>
+                {CADENCE_OPTIONS.map((opt) => {
+                  const on = cadence === opt.cadence;
+                  return (
+                    <Pressable
+                      key={opt.cadence}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={opt.label}
+                      onPress={() => setCadence(opt.cadence)}
+                      style={({ pressed: isPressed }) => [
+                        s.intentRow,
+                        on ? s.intentRowActive : s.intentRowInactive,
+                        isPressed ? pressed : null,
+                      ]}
+                    >
+                      <Text style={s.cadenceLabel}>{opt.label}</Text>
+                      <View style={[s.intentDotRing, on ? s.intentDotRingActive : null]}>
+                        {on ? <View style={s.intentDot} /> : null}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
+          {activeStepIndex === STEP_PAYDAY ? (
+            <View style={s.fieldBlock}>
+              {cadence === 'monthly' ? (
+                <>
+                  <View style={s.valueRow}>
+                    <Text style={s.bigValue}>{paydayInput || '—'}</Text>
+                    <Text style={s.unit}>of the month</Text>
+                  </View>
+                  <TextInput
+                    value={paydayInput}
+                    selectTextOnFocus
+                    onChangeText={(value) => {
+                      setPaydayInput(value);
+                      const parsed = parseDayOfMonth(value);
+                      if (parsed !== undefined && parsed >= 1 && parsed <= 31) setPayday(parsed);
+                    }}
+                    keyboardType="number-pad"
+                    style={s.amountInput}
+                    accessibilityLabel="Exact payday day of month"
+                  />
+                  {paydayInputValue === undefined ? (
+                    <Text
+                      accessibilityRole="alert"
+                      accessibilityLiveRegion="polite"
+                      style={s.error}
+                    >
+                      Enter a day from 1 to 31.
+                    </Text>
+                  ) : (
+                    <FolioSlider
+                      min={PAYDAY_MIN}
+                      max={PAYDAY_MAX}
+                      step={PAYDAY_STEP}
+                      value={payday}
+                      onChange={(value) => {
+                        setPayday(value);
+                        setPaydayInput(String(value));
+                      }}
+                      palette={t}
+                      accessibilityLabel="Payday day of the month"
+                    />
+                  )}
+                  <Text style={s.help}>
+                    For shorter months, payday falls on the last day of the month.
+                  </Text>
+                </>
+              ) : null}
+
+              {cadence === 'last-working-day' ? (
+                <Text style={s.help}>
+                  The last working day of each month — Melo works this out for you.
+                </Text>
+              ) : null}
+
+              {WEEK_BASED_CADENCES.has(cadence) ? (
+                <>
+                  <Text style={s.help}>When did pay last arrive?</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Pick the date pay last arrived"
+                    onPress={() => setShowAnchorPicker(true)}
+                    style={({ pressed: isPressed }) => [s.anchorButton, isPressed ? pressed : null]}
+                  >
+                    <Text style={s.cadenceLabel}>
+                      {new Date(`${anchorISO}T12:00:00`).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </Text>
+                  </Pressable>
+                  {showAnchorPicker ? (
+                    <DateTimePicker
+                      value={new Date(`${anchorISO}T00:00:00`)}
+                      mode="date"
+                      display="default"
+                      themeVariant={isDark ? 'dark' : 'light'}
+                      maximumDate={new Date()}
+                      onChange={(_event: DateTimePickerEvent, selected?: Date) => {
+                        setShowAnchorPicker(false);
+                        if (selected) setAnchorISO(isoFromDate(selected));
+                      }}
+                    />
+                  ) : null}
+                </>
+              ) : null}
+            </View>
+          ) : null}
+
+          {activeStepIndex === 5 ? (
+            <View style={s.fieldBlock}>
+              <View style={s.valueRow}>
+                <Text style={s.bigValue}>{poundsTabular(income)}</Text>
+                <Text style={s.unit}>{incomeRange.unit}</Text>
+              </View>
+              <FolioSlider
+                min={incomeRange.min}
+                max={incomeRange.max}
+                step={incomeRange.step}
+                value={Math.min(incomeRange.max, Math.max(incomeRange.min, income))}
+                onChange={(value) => {
+                  setIncome(value);
+                  setIncomeInput(String(value));
+                }}
+                palette={t}
+                accessibilityLabel={`Rough income${incomeRange.unit}`}
+              />
+              <TextInput
+                value={incomeInput}
+                onChangeText={(value) => {
+                  setIncomeInput(value);
+                  const parsed = parseManualMoney(value, { allowZero: true });
+                  if (parsed !== undefined) setIncome(parsed);
+                }}
+                keyboardType="decimal-pad"
+                style={s.amountInput}
+                accessibilityLabel={`Exact income${incomeRange.unit}`}
+              />
+              <Text style={s.help}>Doesn't need to be exact. Melo adjusts as you go.</Text>
+            </View>
+          ) : null}
+
+          {activeStepIndex === STEP_BALANCE ? (
+            <View style={s.fieldBlock}>
+              <View style={s.valueRow}>
+                <Text style={s.bigValue}>{poundsTabular(balance)}</Text>
+                <Text style={s.unit}>available now</Text>
+              </View>
+              <FolioSlider
+                min={BALANCE_MIN}
+                max={BALANCE_MAX}
+                step={BALANCE_STEP}
+                value={Math.min(BALANCE_MAX, Math.max(BALANCE_MIN, balance))}
+                onChange={(value) => {
+                  setBalance(value);
+                  setBalanceInput(String(value));
+                }}
+                palette={t}
+                accessibilityLabel="Rough current account balance"
+              />
+              <TextInput
+                value={balanceInput}
+                onChangeText={(value) => {
+                  setBalanceInput(value);
+                  const parsed = parseManualMoney(value, { allowZero: true, allowNegative: true });
+                  if (parsed !== undefined) setBalance(parsed);
+                }}
+                keyboardType="decimal-pad"
+                style={s.amountInput}
+                accessibilityLabel="Exact current account balance"
+              />
+              <Pressable
+                accessibilityRole="button"
+                style={s.footerAction}
+                onPress={() => {
+                  const raw = balanceInput.startsWith('-')
+                    ? balanceInput.slice(1)
+                    : `-${balanceInput}`;
+                  setBalanceInput(raw);
+                  const parsed = parseManualMoney(raw, { allowZero: true, allowNegative: true });
+                  if (parsed !== undefined) setBalance(parsed);
+                }}
+              >
+                <Text style={s.skipLabel}>
+                  {balanceInput.startsWith('-')
+                    ? 'Use a positive balance'
+                    : 'Use a negative balance / overdraft'}
+                </Text>
+              </Pressable>
+              <Text style={s.help}>
+                Enter the balance available now, including income already received and payments
+                already taken. Only numbers you add are used; you can correct them anytime.
+              </Text>
+            </View>
+          ) : null}
+
+          {activeStepIndex === STEP_ESSENTIALS ? (
+            <View style={s.fieldBlock}>
+              <View style={s.valueRow}>
+                <Text style={s.bigValue}>{poundsTabular(weeklyEssentials)}</Text>
+                <Text style={s.unit}>/ week essentials</Text>
+              </View>
+              <TextInput
+                value={essentialsInput}
+                selectTextOnFocus
+                onChangeText={(value) => {
+                  setEssentialsInput(value);
+                  const parsed = parseManualMoney(value, { allowZero: true });
+                  if (parsed !== undefined) setWeeklyEssentials(parsed);
+                }}
+                keyboardType="decimal-pad"
+                style={s.amountInput}
+                accessibilityLabel="Exact weekly essential living allowance"
+              />
+              <FolioSlider
+                min={0}
+                max={500}
+                step={5}
+                value={weeklyEssentials}
+                onChange={(value) => {
+                  setWeeklyEssentials(value);
+                  setEssentialsInput(String(value));
+                }}
+                palette={t}
+                accessibilityLabel="Weekly essential living allowance"
+              />
+              <View style={[s.valueRow, { marginTop: gap.lg }]}>
+                <Text style={s.bigValue}>{poundsTabular(desiredBuffer)}</Text>
+                <Text style={s.unit}>protected buffer</Text>
+              </View>
+              <TextInput
+                value={bufferInput}
+                selectTextOnFocus
+                onChangeText={(value) => {
+                  setBufferInput(value);
+                  const parsed = parseManualMoney(value, { allowZero: true });
+                  if (parsed !== undefined) setDesiredBuffer(parsed);
+                }}
+                keyboardType="decimal-pad"
+                style={s.amountInput}
+                accessibilityLabel="Exact protected cash buffer"
+              />
+              <FolioSlider
+                min={0}
+                max={1000}
+                step={10}
+                value={desiredBuffer}
+                onChange={(value) => {
+                  setDesiredBuffer(value);
+                  setBufferInput(String(value));
+                }}
+                palette={t}
+                accessibilityLabel="Protected cash buffer"
+              />
+              <Text style={s.help}>
+                Essentials stay available until payday. The buffer can be £0 if you choose.
+              </Text>
+            </View>
+          ) : null}
+
+          {activeStepIndex === STEP_COMMITMENT ? (
+            <View style={s.fieldBlock}>
+              <TextInput
+                value={bundledCommitmentName}
+                onChangeText={setBundledCommitmentName}
+                placeholder="For example, rent + bills"
+                placeholderTextColor={t.muted}
+                style={s.nameInput}
+                accessibilityLabel="Recurring commitment name"
+              />
+              <View style={s.valueRow}>
+                <Text style={s.bigValue}>{poundsTabular(bundledCommitmentAmount)}</Text>
+                <Text style={s.unit}>/ month</Text>
+              </View>
+              <TextInput
+                value={commitmentInput}
+                selectTextOnFocus
+                onChangeText={(value) => {
+                  setCommitmentInput(value);
+                  const parsed = parseManualMoney(value, { allowZero: true });
+                  if (parsed !== undefined) setBundledCommitmentAmount(parsed);
+                }}
+                keyboardType="decimal-pad"
+                style={s.amountInput}
+                accessibilityLabel="Exact recurring commitment amount"
+              />
+              <FolioSlider
+                min={0}
+                max={COMMITMENT_MAX}
+                step={COMMITMENT_STEP}
+                value={bundledCommitmentAmount}
+                onChange={(value) => {
+                  setBundledCommitmentAmount(value);
+                  setCommitmentInput(String(value));
+                }}
+                palette={t}
+                accessibilityLabel="Recurring commitment amount"
+              />
+              <View style={s.valueRow}>
+                <Text style={s.dueLabel}>Due on day</Text>
+                <Text style={s.dueValue}>{commitmentDayInput || '—'}</Text>
+                <Text style={s.unit}>of each month</Text>
+              </View>
+              <TextInput
+                value={commitmentDayInput}
+                selectTextOnFocus
+                onChangeText={(raw) => {
+                  setCommitmentDayInput(raw);
+                  const parsed = parseDayOfMonth(raw);
+                  if (parsed !== undefined) setBundledCommitmentDueDay(parsed);
+                }}
+                keyboardType="number-pad"
+                style={s.amountInput}
+                accessibilityLabel="Exact regular payment due day"
+              />
+              {commitmentDayValue === undefined ? (
+                <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
+                  Enter a day from 1 to 31.
+                </Text>
+              ) : (
+                <FolioSlider
+                  min={1}
+                  max={31}
+                  step={1}
+                  value={bundledCommitmentDueDay}
+                  onChange={(value) => {
+                    setBundledCommitmentDueDay(value);
+                    setCommitmentDayInput(String(value));
+                  }}
+                  palette={t}
+                  accessibilityLabel="Recurring commitment day"
+                />
+              )}
+              <Text style={s.help}>
+                In shorter months, use the last day. This records when it is due; it does not mark a
+                payment as paid.
+              </Text>
+              <Text style={s.help}>
+                One bundled payment is fine. Add separate bills later from Plan.
+              </Text>
+            </View>
+          ) : null}
+
+          {!isReturning && activeStepIndex === STEP_POTS ? (
+            <View style={s.fieldBlock}>
+              <Text style={s.potsIntro}>
+                Pick any. Skip with none if you'd rather start blank — you can add later.
+              </Text>
+              <View style={s.potGrid}>
+                {POT_TEMPLATES.map((tpl) => (
+                  <PotTile
+                    key={tpl.id}
+                    template={tpl}
+                    selected={picked.has(tpl.id)}
+                    onPress={() => togglePot(tpl.id)}
+                    styles={s}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </Animated.View>
+
+        <Text style={s.footer}>
+          {isReturning
+            ? 'Cancel keeps everything you’ve already added unchanged.'
+            : activeStepIndex === STEP_POTS
+              ? 'You can add pots later. Save my setup keeps the numbers entered in these steps.'
+              : 'Only numbers you add are used. Entries in these steps are saved together at the end; Finish later leaves existing data unchanged.'}
+        </Text>
+      </View>
+    </Sheet>
   );
 }
 
@@ -1254,18 +1542,17 @@ function FolioSlider({
     return Math.min(max, Math.max(min, snapped));
   }
 
-  const responder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e) => {
-        onChange(valueFromX(e.nativeEvent.locationX));
-      },
-      onPanResponderMove: (e) => {
-        onChange(valueFromX(e.nativeEvent.locationX));
-      },
-    }),
-  ).current;
+  const responder = PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_event, gesture) =>
+      isHorizontalSliderGesture(gesture.dx, gesture.dy),
+    onPanResponderGrant: (e) => {
+      onChange(valueFromX(e.nativeEvent.locationX));
+    },
+    onPanResponderMove: (e) => {
+      onChange(valueFromX(e.nativeEvent.locationX));
+    },
+  });
 
   const thumbLeft = ratio * usable;
 
@@ -1472,8 +1759,8 @@ function makeStyles(t: Palette) {
     },
     footer: {
       color: t.muted,
-      fontSize: 10.5,
-      lineHeight: 15,
+      fontSize: 12,
+      lineHeight: 17,
       marginTop: gap.xs,
       opacity: 0.8,
       paddingHorizontal: gap.sm,
@@ -1508,7 +1795,7 @@ function makeStyles(t: Palette) {
       borderWidth: StyleSheet.hairlineWidth,
       color: t.ink,
       fontSize: 15,
-      height: gap.xxxl, // 48 — web h-12
+      minHeight: gap.xxxl, // 48 — grows with text
       marginTop: gap.lg + gap.xs,
       paddingHorizontal: gap.lg,
     },
@@ -1561,7 +1848,7 @@ function makeStyles(t: Palette) {
       alignItems: 'center',
       backgroundColor: t.calm,
       borderRadius: radius.lg,
-      height: gap.xxxl, // 48 — web h-12
+      minHeight: gap.xxxl, // 48 — grows with text
       justifyContent: 'center',
       marginTop: gap.xl,
     },
@@ -1589,7 +1876,18 @@ function makeStyles(t: Palette) {
     valueRow: {
       alignItems: 'baseline',
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: gap.sm,
+    },
+    error: { color: t.repair, fontSize: 13, lineHeight: 18, marginTop: gap.xs },
+    selectedGoal: { color: t.muted, fontSize: 12, lineHeight: 17, marginBottom: gap.sm },
+    confirmation: { minHeight: 48, justifyContent: 'center', paddingVertical: gap.sm },
+    footerActions: { flexDirection: 'row', justifyContent: 'space-evenly' },
+    footerAction: { minHeight: 48, justifyContent: 'center', paddingHorizontal: gap.lg },
+    summaryRow: {
+      paddingVertical: gap.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.hairline,
     },
   });
 }

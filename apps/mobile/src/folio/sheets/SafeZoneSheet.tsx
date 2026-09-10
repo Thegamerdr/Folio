@@ -12,12 +12,19 @@
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/sheets/SheetSafeZone.tsx).
 
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
-import { useAppStore, setBufferAmount } from '@/folio/store';
+import { getState, useAppStore, setBufferAmount } from '@/folio/store';
+import { createScopedFinancialUndo } from '@/folio/lib/scopedFinancialUndo';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 import { formatGBP } from '@/folio/screens/today/format';
+import {
+  selectFinancialPresentation,
+  formatFinancialDate,
+} from '@/folio/lib/financialPresentation';
+import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
+import { useUndo } from '@/folio/ui/useUndo';
 import type { Nav } from '@/folio/types';
 
 export type SafeZoneSheetProps = {
@@ -32,11 +39,25 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
 
   const appState = useAppStore((st) => st);
   const bufferAmount = appState.bufferAmount ?? 100;
+  const { showUndo } = useUndo();
+  function changeBuffer(amount: number) {
+    const before = getState();
+    setBufferAmount(amount);
+    const undo = createScopedFinancialUndo(before, ['bufferAmount']);
+    showUndo(`Buffer saved · ${formatGBP(amount)}`, () => {
+      if (!undo())
+        Alert.alert(
+          'Buffer kept',
+          'Your details have changed since this save. Review the current buffer before changing it.',
+        );
+    });
+  }
 
   // The sheet mounts fresh per open (FolioShell renders it only while active), so this is the
   // open moment — no module-scope clock that goes stale across midnight.
   const [now] = useState(() => new Date());
   const plan = useMemo(() => buildFinancialPlanFromState(appState, { now }), [appState, now]);
+  const presentation = selectFinancialPresentation(appState, plan);
   const daysLeft = plan.nextIncomeDate
     ? Math.max(
         1,
@@ -48,7 +69,7 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
       )
     : 0;
   const zone = {
-    total: Math.floor(plan.safeToSpendMinor / 100),
+    total: plan.safeToSpendMinor / 100,
     perDay: daysLeft > 0 ? Math.max(0, Math.floor(plan.safeToSpendMinor / 100 / daysLeft)) : 0,
     until: plan.nextIncomeDate,
     estimating: plan.timeline.length > 0,
@@ -56,37 +77,71 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
       {
         key: 'balance',
         label: 'In your account',
-        amount: Math.floor(plan.currentBalanceMinor / 100),
+        amount: plan.currentBalanceMinor / 100,
         editable: false,
       },
       {
-        key: 'shield',
-        label: 'Protected before income',
-        amount: -Math.floor(plan.protectedBeforeIncomeMinor / 100),
+        key: 'bills',
+        label: 'Bills and commitments',
+        amount:
+          -(plan.protectedBeforeIncomeMinor - plan.livingCostMinor - plan.debtMinimumMinor) / 100,
         editable: false,
-        hint: 'Reserved for bills, essentials and debt minimums',
+        hint: 'Includes unpaid and overdue commitments',
+      },
+      {
+        key: 'essentials',
+        label: 'Everyday essentials',
+        amount: -plan.livingCostMinor / 100,
+        editable: false,
+        hint: 'Your weekly allowance through this period',
+      },
+      {
+        key: 'minimums',
+        label: 'Debt minimums',
+        amount: -plan.debtMinimumMinor / 100,
+        editable: false,
+      },
+      {
+        key: 'reserve',
+        label: 'Reserved costs subtotal',
+        amount: -plan.protectedBeforeIncomeMinor / 100,
+        editable: false,
       },
       {
         key: 'buffer',
         label: 'Your buffer',
-        amount: -Math.floor(Math.max(0, bufferAmount)),
+        amount: -Math.max(0, bufferAmount),
         editable: true,
         hint: "The cushion you'd rather not touch",
       },
     ],
   };
 
+  if (!presentation.complete || !plan.nextIncomeDate)
+    return (
+      <Sheet visible={visible} onClose={onClose}>
+        <FinancialSetupNotice
+          state={appState}
+          plan={plan}
+          onSetup={() => {
+            onClose();
+            nav.openSheet('onboarding');
+          }}
+        />
+      </Sheet>
+    );
+
   return (
     <Sheet visible={visible} onClose={onClose}>
       <View style={s.body}>
-        <Text style={s.eyebrow}>YOUR SAFE ZONE</Text>
-        <Text style={s.headline}>About £{zone.perDay}/day</Text>
-        <Text style={s.rowHint}>
-          A separate spending budget after your Bills Shield and buffer.
-          {zone.until
-            ? ` Through ${new Date(`${zone.until}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}.`
-            : ''}
+        <Text style={s.eyebrow}>SEE THE WORKING</Text>
+        <Text style={s.headline}>
+          {presentation.canReassure ? 'Safe to spend' : presentation.label}
         </Text>
+        <Text style={s.rowHint}>
+          Until {formatFinancialDate(zone.until)} · before the next income arrives.
+        </Text>
+        {!presentation.canReassure && <Text style={s.rowHint}>{presentation.message}</Text>}
         <View style={s.numberRow}>
           {/* Sign-aware headline (plan 107 Step 4): `formatGBP` renders negatives as `−£60`
               (minus BEFORE the pound sign — same convention as SafeZoneWidget's formatter),
@@ -96,6 +151,10 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
             {formatGBP(zone.total)}
           </Text>
         </View>
+
+        <Text style={s.rowHint}>
+          Daily guide: about {formatGBP(zone.perDay)} per day. This is part of the total above.
+        </Text>
 
         <View style={[s.list, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           {zone.lines.map((line, idx) => (
@@ -110,29 +169,23 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
             >
               <View style={s.rowBody}>
                 <Text style={s.rowLabel}>{line.label}</Text>
-                {line.hint ? (
-                  <Text style={s.rowHint}>
-                    {line.key === 'shield'
-                      ? 'Reserved for bills through the date above'
-                      : line.hint}
-                  </Text>
-                ) : null}
+                {line.hint ? <Text style={s.rowHint}>{line.hint}</Text> : null}
               </View>
               {line.editable && line.key === 'buffer' ? (
                 <View style={s.stepperRow}>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Lower buffer by £10"
-                    onPress={() => setBufferAmount(Math.max(0, bufferAmount - 10))}
+                    onPress={() => changeBuffer(Math.max(0, bufferAmount - 10))}
                     style={[s.stepperBtn, { backgroundColor: t.inset, borderColor: t.hairline }]}
                   >
                     <Text style={s.stepperGlyph}>−</Text>
                   </Pressable>
-                  <Text style={s.stepperValue}>£{bufferAmount}</Text>
+                  <Text style={s.stepperValue}>{formatGBP(bufferAmount)}</Text>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Raise buffer by £10"
-                    onPress={() => setBufferAmount(bufferAmount + 10)}
+                    onPress={() => changeBuffer(bufferAmount + 10)}
                     style={[s.stepperBtn, { backgroundColor: t.inset, borderColor: t.hairline }]}
                   >
                     <Text style={s.stepperGlyph}>+</Text>
@@ -140,7 +193,7 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
                 </View>
               ) : (
                 <Text style={[s.rowValue, line.amount < 0 ? { color: t.muted } : null]}>
-                  {line.amount < 0 ? `−£${Math.abs(line.amount)}` : `£${line.amount}`}
+                  {formatGBP(line.amount)}
                 </Text>
               )}
             </View>
@@ -149,7 +202,8 @@ export function SafeZoneSheet({ visible, onClose, nav }: SafeZoneSheetProps) {
 
         {zone.estimating ? (
           <Text style={s.estimatingLine}>
-            Includes known bills through the budget date shown above.
+            Recorded costs are reserved before income on the date above. Buffer changes save
+            immediately; Undo restores the previous buffer.
           </Text>
         ) : null}
 
@@ -197,7 +251,8 @@ function makeStyles(t: Palette) {
       paddingHorizontal: gap.lg,
       paddingVertical: gap.md,
       flexDirection: 'row',
-      alignItems: 'baseline',
+      alignItems: 'flex-start',
+      flexWrap: 'wrap',
       justifyContent: 'space-between',
       gap: gap.sm,
     },
@@ -207,8 +262,8 @@ function makeStyles(t: Palette) {
     rowValue: { fontSize: 15, fontVariant: ['tabular-nums'], color: t.ink },
     stepperRow: { flexDirection: 'row', alignItems: 'center', gap: gap.xs },
     stepperBtn: {
-      width: 44,
-      height: 44,
+      width: 48,
+      height: 48,
       borderRadius: 22,
       borderWidth: StyleSheet.hairlineWidth,
       alignItems: 'center',
@@ -216,7 +271,7 @@ function makeStyles(t: Palette) {
     },
     stepperGlyph: { fontSize: 17, color: t.ink },
     stepperValue: {
-      width: 56,
+      minWidth: 56,
       textAlign: 'right',
       fontSize: 13.5,
       fontVariant: ['tabular-nums'],

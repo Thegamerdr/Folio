@@ -481,6 +481,7 @@ export function readCanonicalAppStateMoneyProjection(
       at: event.at,
       kind: event.kind,
       subject: event.subject,
+      ...(event.entityId === undefined ? {} : { entityId: event.entityId }),
       ...(event.note === undefined ? {} : { note: event.note }),
     }));
   const reviewQueue: NonNullable<AppState['reviewQueue']> = transactionIntelligence.reviewQueue.map(
@@ -1309,6 +1310,7 @@ function normalizedSourceMoneyProjection(
       at: event.at,
       kind: event.kind,
       subject: event.subject,
+      ...(event.entityId === undefined ? {} : { entityId: event.entityId }),
       ...(event.note === undefined ? {} : { note: event.note }),
     })),
     reviewQueue: (state.reviewQueue ?? []).map((item) => ({

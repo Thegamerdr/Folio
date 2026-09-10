@@ -108,11 +108,15 @@ import {
 } from '@/folio/store';
 import { endLensTrialIfExpired } from '@/folio/lib/lens';
 import { computeGreenStreak } from '@/folio/lib/streaks';
-import {
-  computeRitualLedgerActuals,
-  type RitualLedgerActuals,
-} from '@/folio/lib/potLedgerActuals';
+import { computeRitualLedgerActuals, type RitualLedgerActuals } from '@/folio/lib/potLedgerActuals';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { setPots, addToPot } from '@/folio/store';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import {
+  formatFinancialDate,
+  formatMoney,
+  selectFinancialPresentation,
+} from '@/folio/lib/financialPresentation';
 import { formatDayProse } from '@/folio/screens/today/format';
 import type { Nav } from '@/folio/types';
 import { MODE_LABEL, type MoneyMode } from '@/folio/lib/modes/types';
@@ -644,7 +648,13 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
+  const appState = useAppStore((st) => st);
   const [step, setStep] = useState(0);
+  const [creatingPot, setCreatingPot] = useState(false);
+  const [potName, setPotName] = useState('');
+  const [potGoal, setPotGoal] = useState('');
+  const [topUps, setTopUps] = useState<Record<string, string>>({});
+  const [recordedAllocation, setRecordedAllocation] = useState(0);
   const [sealed, setSealed] = useState(false);
 
   // Mount-gate the clock (mirrors TodayScreen): defer `new Date()` to an effect so the first render
@@ -695,6 +705,10 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   // that transient result (`route = null`).
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
+  const financialPlan = useMemo(
+    () => buildFinancialPlanFromState(appState, { now: now ?? EPOCH }),
+    [appState, now],
+  );
 
   // The two figures the route does not supply — direct trailing-30-day ledger reads, anchored to the
   // mount-gated `now` (EPOCH for the pre-gate frame, discarded the same way the route result is).
@@ -709,15 +723,15 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
     () => ({
       spent: ledger.spent,
       setAside: ledger.setAside,
-      spare: route ? Math.max(0, Math.round(route.spare)) : 0,
-      tightPoint: route ? Math.max(0, Math.round(route.tightPoint.amount)) : 0,
+      spare: route ? route.spare : 0,
+      tightPoint: route ? route.tightPoint.amount : 0,
     }),
     [ledger, route],
   );
 
   // The real tightest day, in the same prose form Today uses ("Tuesday 8"). Null until the route
   // resolves, which gates step 3's body onto an honest fallback for that single pre-engine frame.
-  const tightestDayProse = route ? formatDayProse(route.tightPoint.date) : null;
+  const tightestDayProse = route ? formatFinancialDate(route.tightPoint.date) : null;
 
   // Pot first-names for step 2's populated body — the first word of each pot that still tops up
   // (perWeek > 0), joined by ", " (web parity).
@@ -764,12 +778,16 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const steps: RitualStep[] = [
     {
       eyebrow: step1.eyebrow,
-      headlineLead: step1.headlineLead,
-      headlineAccent: step1.headlineAccent,
-      headlineTrail: step1.headlineTrail,
-      body: step1.body,
-      stat: { label: step1.statLabel, value: step1.statValue, tone: step1.statTone },
-      melo: step1.melo,
+      headlineLead: 'Review this ',
+      headlineAccent: 'cycle',
+      headlineTrail: '.',
+      body: `Recorded spending: ${formatMoney(actuals.spent)}. Recorded pot contributions: ${formatMoney(actuals.setAside)}. The balance figures below are the forecast at this review, not proof that bills were paid.`,
+      stat: {
+        label: 'Forecast balance at payday',
+        value: actuals.spare,
+        tone: actuals.spare < 0 ? 'accent' : 'ink',
+      },
+      melo: 'A dated review of what you recorded and what is still ahead.',
       meloMood: step1.meloMood,
       cta: step1.cta,
     },
@@ -778,11 +796,13 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       headlineLead: step2.headlineLead,
       headlineAccent: step2.headlineAccent,
       headlineTrail: step2.headlineTrail,
-      body: step2.body,
+      body: pots.length
+        ? 'Record a top-up you have made to a pot, or continue without allocating.'
+        : 'Create a pot here, or continue without allocating. A pot is optional.',
       stat: { label: step2.statLabel, value: step2.statValue, tone: step2.statTone },
-      melo: step2.melo,
+      melo: 'Set aside only what fits. Continuing with zero is fine.',
       meloMood: step2.meloMood,
-      cta: step2.cta,
+      cta: recordedAllocation > 0 ? 'Continue after allocating' : 'Continue without allocating',
     },
     // Repay step — only when the user actually owes a pot.
     ...(totalOwed > 0
@@ -822,9 +842,13 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       headlineLead: step3.headlineLead,
       headlineAccent: step3.headlineAccent,
       headlineTrail: step3.headlineTrail,
-      body: step3.body,
-      stat: { label: step3.statLabel, value: step3.statValue, tone: step3.statTone },
-      melo: step3.melo,
+      body: `Lowest projected balance before payday: ${formatMoney(actuals.tightPoint)} on ${tightestDayProse ?? 'the date shown in your plan'}. ${financialPlan.safeToSpendMinor < 0 ? `Shortfall after protected costs and buffer: ${formatMoney(-financialPlan.safeToSpendMinor / 100)}.` : `Safe to spend after protected costs and buffer: ${formatMoney(financialPlan.safeToSpendMinor / 100)}.`} ${selectFinancialPresentation(appState, financialPlan).canReassure ? '' : selectFinancialPresentation(appState, financialPlan).message}`,
+      stat: {
+        label: 'Lowest projected balance',
+        value: actuals.tightPoint,
+        tone: actuals.tightPoint < 0 ? 'accent' : 'ink',
+      },
+      melo: 'Check the dates and anything still unpaid before making a spending decision.',
       meloMood: step3.meloMood,
       cta: step3.cta,
     },
@@ -861,7 +885,9 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       headlineTrail: ' for next-you.',
       isNote: true,
       stat: { label: 'Note', value: noted ? 1 : 0, tone: noted ? 'positive' : 'ink' },
-      melo: noted ? 'Done. The month is wrapped up.' : 'Even a short line helps. Or skip it.',
+      melo: noted
+        ? 'Your note is ready. Finish to record this review.'
+        : 'Even a short line helps. Or skip it.',
       meloMood: noted ? 'celebrate' : 'calm',
       cta: 'Finish the review',
     },
@@ -932,9 +958,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
     }
 
     // Today → Share sheet → Melo chat, on the web's cadence. Timers are cleared on unmount.
-    nav.go('today');
-    shareRef.current = setTimeout(() => nav.openSheet('share'), SHARE_DELAY_MS);
-    meloRef.current = setTimeout(() => nav.openMelo({ seed: MELO_SEED }), MELO_DELAY_MS);
+    // Keep the completion receipt visible; history is inspectable without depending on a toast.
   }
 
   function onNoteChange(next: string) {
@@ -946,24 +970,42 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   // A skipped/unconfigured first run is not a £0 cycle. Guard the route itself (not only its callers)
   // so More, Melo, Insights, or a stale navigation trail can never turn absent data into praise for a
   // month the user did not record.
-  const needsSetup = !onboardingDone;
+  const needsSetup =
+    !onboardingDone || !selectFinancialPresentation(appState, financialPlan).complete;
+  const todayKey = (now ?? EPOCH).toISOString().slice(0, 10);
+  const firstCycle =
+    !cycles.some((cycle) => !cycle.reconstructed) &&
+    Boolean(appState.onboarding.createdAt) &&
+    appState.onboarding.createdAt!.slice(0, 10) >= todayKey &&
+    !transactions.some(
+      (transaction) => transaction.source !== 'seed' && transaction.when.slice(0, 10) < todayKey,
+    );
 
   // empty (screen-level) — "Nothing to close yet". The setup variant opens the real onboarding
   // sheet; an already-configured user simply returns to Today until their payday review is due.
-  if (state === 'empty' || needsSetup) {
+  if (state === 'empty' || needsSetup || firstCycle) {
     return (
       <EmptyState
         mood="calm"
-        headline={needsSetup ? 'Add your first money picture' : 'Nothing to close yet'}
+        headline={
+          needsSetup
+            ? 'Add your first money picture'
+            : firstCycle
+              ? 'Start your first cycle'
+              : 'Nothing to close yet'
+        }
         body={
           needsSetup
             ? 'Set your balance and payday first. The review will use what really happened after that.'
-            : "Your cycle wraps up at payday. Come back then and we'll close it together."
+            : `Your first cycle starts with the numbers you entered. Keep recording activity; your next payday is ${formatFinancialDate(financialPlan.nextIncomeDate)}. There is no completed cycle to close yet.`
         }
         cta={
           needsSetup
             ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
-            : { label: 'Back to today', onPress: () => nav.go('today') }
+            : {
+                label: firstCycle ? 'Start with Today' : 'Back to Today',
+                onPress: () => nav.go('today'),
+              }
         }
       />
     );
@@ -983,6 +1025,33 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       </View>
     );
   }
+
+  if (sealed)
+    return (
+      <View style={[styles.screen, { backgroundColor: t.canvas, paddingTop: insets.top + gap.lg }]}>
+        <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+          Cycle review recorded
+        </Text>
+        <Text style={[styles.body, { color: t.muted }]}>
+          Closed {formatFinancialDate(cycles[0]?.closedAt)}. Your note and review figures are saved
+          on this phone.
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.go('insights')}
+          style={[styles.primary, { backgroundColor: t.calm }]}
+        >
+          <Text style={[styles.primaryLabel, { color: t.inverse }]}>View closed cycle</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.go('today')}
+          style={styles.secondary}
+        >
+          <Text style={[styles.secondaryLabel, { color: t.ink }]}>Back to Today</Text>
+        </Pressable>
+      </View>
+    );
 
   // populated / offline / error — the real four-step ceremony. offline ≡ populated (local-first); a
   // direct error mount still shows the ritual so the user can close the cycle in hand.
@@ -1049,6 +1118,17 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
             {/* Balances the back button so the progress block stays centred (web w-5 spacer). */}
             <View style={styles.headerSpacer} />
           </View>
+
+          {step === 0 ? (
+            <Text style={[styles.body, { color: t.muted }]}>
+              Recorded activity:{' '}
+              {formatFinancialDate(
+                new Date(now.getTime() - 30 * 86_400_000).toISOString().slice(0, 10),
+              )}
+              –{formatFinancialDate(now.toISOString().slice(0, 10))}. Forecast: today–
+              {formatFinancialDate(financialPlan.nextIncomeDate)}.
+            </Text>
+          ) : null}
 
           {/* Copy block — eyebrow · headline (with the single upright accent word) · body or textarea. */}
           <View style={styles.copyBlock}>
@@ -1213,6 +1293,121 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
             )}
           </View>
 
+          {step === 1 ? (
+            <View style={styles.noteBlock}>
+              <Text style={[styles.body, { color: t.muted }]}>
+                Available after recorded costs and buffer:{' '}
+                {formatMoney(Math.max(0, financialPlan.safeToSpendMinor / 100))}. Top-ups set money
+                aside; they do not send a bank transfer.
+              </Text>
+              <Text style={[styles.body, { color: t.muted }]}>
+                Recorded in this review: {formatMoney(recordedAllocation)}. Entered top-ups waiting
+                to be recorded:{' '}
+                {formatMoney(
+                  Object.values(topUps).reduce(
+                    (sum, value) =>
+                      sum + (Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0),
+                    0,
+                  ),
+                )}
+                .
+              </Text>
+              {pots.map((pot) => (
+                <View key={pot.id} style={styles.noteBlock}>
+                  <Text style={[styles.body, { color: t.ink }]}>
+                    {pot.name} · {formatMoney(pot.saved)} saved
+                  </Text>
+                  <TextInput
+                    accessibilityLabel={`Top up ${pot.name}`}
+                    keyboardType="decimal-pad"
+                    value={topUps[pot.id] ?? ''}
+                    onChangeText={(value) => setTopUps((draft) => ({ ...draft, [pot.id]: value }))}
+                    placeholder="Amount already set aside"
+                    style={[styles.noteInput, { color: t.ink, backgroundColor: t.inset }]}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={
+                      !(
+                        Number(topUps[pot.id]) > 0 &&
+                        Number(topUps[pot.id]) <= Math.max(0, financialPlan.safeToSpendMinor / 100)
+                      )
+                    }
+                    onPress={() => {
+                      const amount = Number(topUps[pot.id]);
+                      if (
+                        amount > 0 &&
+                        amount <= Math.max(0, financialPlan.safeToSpendMinor / 100)
+                      ) {
+                        addToPot(pot.id, amount);
+                        setRecordedAllocation((total) => total + amount);
+                        setTopUps((draft) => ({ ...draft, [pot.id]: '' }));
+                      }
+                    }}
+                    style={styles.secondary}
+                  >
+                    <Text style={[styles.secondaryLabel, { color: t.calm }]}>Record top-up</Text>
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setCreatingPot((open) => !open)}
+                style={styles.secondary}
+              >
+                <Text style={[styles.secondaryLabel, { color: t.calm }]}>
+                  {creatingPot ? 'Cancel new pot' : 'Create a pot'}
+                </Text>
+              </Pressable>
+              {creatingPot ? (
+                <View>
+                  <TextInput
+                    accessibilityLabel="New pot name"
+                    value={potName}
+                    onChangeText={setPotName}
+                    placeholder="Pot name"
+                    style={[styles.noteInput, { color: t.ink, backgroundColor: t.inset }]}
+                  />
+                  <TextInput
+                    accessibilityLabel="New pot goal"
+                    keyboardType="decimal-pad"
+                    value={potGoal}
+                    onChangeText={setPotGoal}
+                    placeholder="Goal amount"
+                    style={[styles.noteInput, { color: t.ink, backgroundColor: t.inset }]}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={!potName.trim() || !(Number(potGoal) > 0)}
+                    onPress={() => {
+                      if (!potName.trim() || !(Number(potGoal) > 0)) return;
+                      setPots((current) => [
+                        ...current,
+                        {
+                          id: `pot-${Date.now()}`,
+                          name: potName.trim(),
+                          goal: Number(potGoal),
+                          saved: 0,
+                          perWeek: 0,
+                          accent: current.length === 0,
+                          cadence: { kind: 'after-payday' },
+                        },
+                      ]);
+                      setCreatingPot(false);
+                      setPotName('');
+                      setPotGoal('');
+                    }}
+                    style={styles.secondary}
+                  >
+                    <Text style={[styles.secondaryLabel, { color: t.calm }]}>
+                      Create pot and return to allocation
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
           {/* Stat card — surface, hairline, soft card lift; the label + the count-up money figure. */}
           <View style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
             {/* The ceremonial seal — only after finish. */}
@@ -1244,34 +1439,33 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
 
           {/* Spacer pins the CTAs to the bottom (web flex-1). */}
           <View style={styles.spacer} />
-
-          {/* Primary CTA — advance, or finish on the last step. Coral lift via the cta elevation. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: sealed }}
-            accessibilityLabel={current.cta}
-            disabled={sealed}
-            onPress={onAdvance}
-            style={({ pressed: isPressed }) => [
-              styles.primary,
-              { backgroundColor: t.calm },
-              sealed ? styles.primaryStamped : undefined,
-              isPressed && !sealed ? pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.primaryLabel, { color: t.inverse }]}>{current.cta}</Text>
-          </Pressable>
-
-          {/* Secondary — "Save and finish later" exits WITHOUT recording a cycle. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Save and finish later"
-            onPress={nav.back}
-            style={({ pressed: isPressed }) => [styles.secondary, isPressed ? pressed : undefined]}
-          >
-            <Text style={[styles.secondaryLabel, { color: t.muted }]}>Save and finish later</Text>
-          </Pressable>
         </ScrollView>
+        {/* Primary CTA — advance, or finish on the last step. Coral lift via the cta elevation. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: sealed }}
+          accessibilityLabel={current.cta}
+          disabled={sealed}
+          onPress={onAdvance}
+          style={({ pressed: isPressed }) => [
+            styles.primary,
+            { backgroundColor: t.calm },
+            sealed ? styles.primaryStamped : undefined,
+            isPressed && !sealed ? pressed : undefined,
+          ]}
+        >
+          <Text style={[styles.primaryLabel, { color: t.inverse }]}>{current.cta}</Text>
+        </Pressable>
+
+        {/* Secondary — "Save and finish later" exits WITHOUT recording a cycle. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Save and finish later"
+          onPress={nav.back}
+          style={({ pressed: isPressed }) => [styles.secondary, isPressed ? pressed : undefined]}
+        >
+          <Text style={[styles.secondaryLabel, { color: t.muted }]}>Save and finish later</Text>
+        </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
@@ -1301,7 +1495,7 @@ function StatMoney({
   palette: Palette;
   reduceMotion: boolean;
 }) {
-  const counted = useCountUp(value, COUNT_MS, reduceMotion);
+  const counted = value;
   const color =
     tone === 'positive' ? palette.positive : tone === 'accent' ? palette.calm : palette.ink;
 

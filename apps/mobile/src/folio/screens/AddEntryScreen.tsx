@@ -57,6 +57,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   Pressable,
   StyleSheet,
   Text,
@@ -78,6 +82,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { addCalendarEvent, setSubs, type Sub } from '@/folio/store';
+import { applyMoneyKey } from '@/folio/lib/formDrafts';
 import { buildDebtSchedule, type DebtCadence } from '@/folio/lib/debt';
 import { anchorIsoFor, daysUntilDayOfMonth } from '@/folio/lib/renewalMath';
 import type { Nav } from '@/folio/types';
@@ -215,12 +220,8 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
   const onKey = (k: (typeof KEYS)[number]) => {
     // Blur the name field so the OS keyboard never rises to hide the in-screen pad.
     nameRef.current?.blur();
-    setAmount((v) => {
-      if (k === '←') return v.slice(0, -1);
-      if (k === '.') return v.includes('.') ? v : (v || '0') + '.';
-      if (v.includes('.') && (v.split('.')[1]?.length ?? 0) >= 2) return v;
-      return (v + k).slice(0, 7);
-    });
+    Keyboard.dismiss();
+    setAmount((v) => applyMoneyKey(v, k));
   };
 
   // ---- slide-in-r — drives the whole screen -------------------------------------------------------
@@ -374,15 +375,9 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
     );
   }
 
-  // ---- populated / offline — the real, interactive form. offline degrades gracefully: the form is
-  // local-first, so it works the same; the only offline tell is the Melo line, which reassures that a
-  // statement added now is "saved, will read later".
-  const isOffline = state === 'offline';
+  // The same local form is available offline.
   const eyebrow = kind === 'bill' ? 'Add a regular payment' : 'Add a debt';
   const placeholder = kind === 'bill' ? 'Name · e.g. Rent or Netflix' : 'Name · e.g. Klarna sofa';
-  const meloText = isOffline
-    ? 'Saved. I’ll read it properly when you’re back online.'
-    : 'An estimate is fine. You can adjust it later.';
 
   return (
     <Animated.View
@@ -396,142 +391,161 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
         },
       ]}
     >
-      {/* Top bar — back glyph · eyebrow · balancing spacer. */}
-      <View style={styles.topBar}>
-        <Pressable
-          accessibilityLabel="Back"
-          accessibilityRole="button"
-          hitSlop={16}
-          onPress={nav.back}
-          style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
-        >
-          <Text style={[styles.backGlyph, { color: t.muted }]}>←</Text>
-        </Pressable>
-        <Text style={[styles.eyebrow, { color: t.muted }]}>{eyebrow}</Text>
-        <View style={styles.topBarSpacer} />
-      </View>
-
-      {/* Heading block — italic kicker + Fraunces headline with ONE upright terracotta accent word. */}
-      <View style={styles.headingBlock}>
-        <Text style={[styles.kicker, { color: t.muted }]}>One thing at a time</Text>
-        <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-          {kind === 'bill' ? 'What goes ' : "What's the "}
-          <Text style={[styles.headlineAccent, { color: t.calm }]}>
-            {kind === 'bill' ? 'out' : 'payment'}
-          </Text>
-          {kind === 'bill' ? ', and when?' : ', and how often?'}
-        </Text>
-      </View>
-
-      {/* Name input — surface well, hairline, focus border in terracotta (the web focus:ring). */}
-      <TextInput
-        ref={nameRef}
-        value={name}
-        onChangeText={setName}
-        onFocus={() => setNameFocused(true)}
-        onBlur={() => setNameFocused(false)}
-        placeholder={placeholder}
-        placeholderTextColor={t.muted}
-        style={[
-          styles.nameInput,
-          {
-            backgroundColor: t.surface,
-            color: t.ink,
-            borderColor: nameFocused ? t.calm : t.hairline,
-          },
-        ]}
-      />
-
-      {/* Amount display card — label + the £ amount, tabular figures, terracotta, em-dash when empty. */}
-      <View style={[styles.amountCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-        <Text style={[styles.fieldLabel, { color: t.muted }]}>Amount</Text>
-        <Text
-          accessibilityLabel={amount ? `${POUND}${amount}` : 'No amount yet'}
-          style={[styles.amountValue, { color: t.calm }]}
-        >
-          {amount ? `${POUND}${amount}` : `${POUND}—`}
-        </Text>
-      </View>
-
-      {/* When / How often — two inline select cells (label on top, value below). A tap cycles to the
-          next option (an on-brand inline picker, not a stock dropdown). */}
-      <View style={styles.selectRow}>
-        <SelectCell
-          label="When"
-          value={when}
-          options={WHEN_OPTIONS}
-          onCycle={setWhen}
-          surface={t.surface}
-          hairline={t.hairline}
-          mutedColor={t.muted}
-          inkColor={t.ink}
-        />
-        <SelectCell
-          label="How often"
-          value={freq}
-          options={freqOptions}
-          onCycle={setFreq}
-          surface={t.surface}
-          hairline={t.hairline}
-          mutedColor={t.muted}
-          inkColor={t.ink}
-        />
-      </View>
-
-      {/* Numeric keypad — fixed 12-key 3-col grid. The pad IS the design. */}
-      <View style={styles.keypad}>
-        {KEYS.map((k) => (
-          <Pressable
-            accessibilityLabel={k === '←' ? 'Delete last digit' : `Key ${k}`}
-            accessibilityRole="button"
-            key={k}
-            onPress={() => onKey(k)}
-            style={({ pressed: isPressed }) => [
-              styles.keyButton,
-              { backgroundColor: t.surface, borderColor: t.hairline },
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.keyLabel, { color: t.ink }]}>{k}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* Melo reassurance line — the inline reassurance line. The web MeloLine used mood="soft"; the RN
-          MeloMood union has no 'soft', and MELO_MOODS.md maps the Add-entry reassurance/fallback surface
-          to `calm`, so 'soft' resolves to the in-system `calm` mood (breathe + blink, gentle). Offline
-          swaps the copy, not the mood. */}
-      <View style={styles.meloLine}>
-        <MeloLine mood="calm" text={meloText} />
-      </View>
-
-      {/* Primary CTA — full-width terracotta, white label. The stamp scales it once on save. */}
-      <Animated.View style={stampStyle}>
-        <Pressable
-          accessibilityHint="Saves this entry to your plans"
-          accessibilityRole="button"
-          onPress={onSave}
-          style={({ pressed: isPressed }) => [
-            styles.primaryCta,
-            { backgroundColor: t.calm },
-            isPressed ? styles.pressed : undefined,
-          ]}
-        >
-          <Text style={[styles.primaryLabel, { color: t.inverse }]}>Add it to plans</Text>
-        </Pressable>
-      </Animated.View>
-
-      {/* Secondary / dismiss CTA — quiet, muted, backs out. */}
-      <Pressable
-        accessibilityRole="button"
-        onPress={nav.back}
-        style={({ pressed: isPressed }) => [
-          styles.secondaryCta,
-          isPressed ? styles.pressed : undefined,
-        ]}
+      <KeyboardAvoidingView
+        style={styles.formLayout}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Text style={[styles.secondaryLabel, { color: t.muted }]}>Not yet</Text>
-      </Pressable>
+        <ScrollView
+          style={styles.formLayout}
+          contentContainerStyle={styles.formBody}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator
+        >
+          {/* Top bar — back glyph · eyebrow · balancing spacer. */}
+          <View style={styles.topBar}>
+            <Pressable
+              accessibilityLabel="Back"
+              accessibilityRole="button"
+              hitSlop={16}
+              onPress={nav.back}
+              style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
+            >
+              <Text style={[styles.backGlyph, { color: t.muted }]}>←</Text>
+            </Pressable>
+            <Text style={[styles.eyebrow, { color: t.muted }]}>{eyebrow}</Text>
+            <View style={styles.topBarSpacer} />
+          </View>
+
+          {/* Heading block — italic kicker + Fraunces headline with ONE upright terracotta accent word. */}
+          <View style={styles.headingBlock}>
+            <Text style={[styles.kicker, { color: t.muted }]}>One thing at a time</Text>
+            <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
+              {kind === 'bill' ? 'What goes ' : "What's the "}
+              <Text style={[styles.headlineAccent, { color: t.calm }]}>
+                {kind === 'bill' ? 'out' : 'payment'}
+              </Text>
+              {kind === 'bill' ? ', and when?' : ', and how often?'}
+            </Text>
+          </View>
+
+          {/* Name input — surface well, hairline, focus border in terracotta (the web focus:ring). */}
+          <TextInput
+            ref={nameRef}
+            accessibilityLabel="Regular payment name"
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              nameRef.current?.blur();
+              Keyboard.dismiss();
+            }}
+            value={name}
+            onChangeText={setName}
+            onFocus={() => setNameFocused(true)}
+            onBlur={() => setNameFocused(false)}
+            placeholder={placeholder}
+            placeholderTextColor={t.muted}
+            style={[
+              styles.nameInput,
+              {
+                backgroundColor: t.surface,
+                color: t.ink,
+                borderColor: nameFocused ? t.calm : t.hairline,
+              },
+            ]}
+          />
+
+          {/* When / How often — two inline select cells (label on top, value below). A tap cycles to the
+          next option (an on-brand inline picker, not a stock dropdown). */}
+          <View style={styles.selectRow}>
+            <SelectCell
+              label="When"
+              value={when}
+              options={WHEN_OPTIONS}
+              onCycle={setWhen}
+              surface={t.surface}
+              hairline={t.hairline}
+              mutedColor={t.muted}
+              inkColor={t.ink}
+            />
+            <SelectCell
+              label="How often"
+              value={freq}
+              options={freqOptions}
+              onCycle={setFreq}
+              surface={t.surface}
+              hairline={t.hairline}
+              mutedColor={t.muted}
+              inkColor={t.ink}
+            />
+          </View>
+
+          <Text style={[styles.contextHelp, { color: t.muted }]}>
+            This adds a scheduled commitment. It does not make a payment.
+          </Text>
+        </ScrollView>
+        <View style={styles.fixedControls}>
+          {/* Amount display card — label + the £ amount, tabular figures, terracotta, em-dash when empty. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit regular payment amount"
+            onPress={() => {
+              nameRef.current?.blur();
+              Keyboard.dismiss();
+            }}
+            style={[styles.amountCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+          >
+            <Text style={[styles.fieldLabel, { color: t.muted }]}>Amount</Text>
+            <Text
+              accessibilityLabel={amount ? `${POUND}${amount}` : 'No amount yet'}
+              style={[styles.amountValue, { color: t.calm }]}
+            >
+              {amount ? `${POUND}${amount}` : `${POUND}—`}
+            </Text>
+          </Pressable>
+
+          {!nameFocused ? (
+            <>
+              {/* Numeric keypad — fixed 12-key 3-col grid. The pad IS the design. */}
+              <View style={styles.keypad}>
+                {KEYS.map((k) => (
+                  <Pressable
+                    accessibilityLabel={k === '←' ? 'Delete last digit' : `Key ${k}`}
+                    accessibilityRole="button"
+                    key={k}
+                    onPress={() => onKey(k)}
+                    style={({ pressed: isPressed }) => [
+                      styles.keyButton,
+                      { backgroundColor: t.surface, borderColor: t.hairline },
+                      isPressed ? styles.pressed : undefined,
+                    ]}
+                  >
+                    <Text style={[styles.keyLabel, { color: t.ink }]}>{k}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          ) : null}
+          {/* Primary CTA — full-width terracotta, white label. The stamp scales it once on save. */}
+          <Animated.View style={stampStyle}>
+            <Pressable
+              accessibilityHint="Saves this entry to your plans"
+              accessibilityState={{ disabled: !name.trim() || !(parseAmount(amount) > 0) }}
+              disabled={!name.trim() || !(parseAmount(amount) > 0)}
+              accessibilityRole="button"
+              onPress={onSave}
+              style={({ pressed: isPressed }) => [
+                styles.primaryCta,
+                {
+                  backgroundColor: t.calm,
+                  opacity: !name.trim() || !(parseAmount(amount) > 0) ? 0.45 : 1,
+                },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.primaryLabel, { color: t.inverse }]}>Add it to plans</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </KeyboardAvoidingView>
     </Animated.View>
   );
 }
@@ -589,6 +603,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: gap.xl,
   },
+  formLayout: { flex: 1 },
+  formBody: { paddingBottom: gap.sm },
+  fixedControls: { flexShrink: 0 },
+  contextHelp: { fontSize: 12, lineHeight: 17, marginTop: gap.sm },
   loading: {
     flex: 1,
     paddingHorizontal: gap.xl,
@@ -616,7 +634,7 @@ const styles = StyleSheet.create({
 
   // mt-5 (20px) = gap.lg (16) + gap.xs (4).
   headingBlock: {
-    marginTop: gap.lg + gap.xs,
+    marginTop: gap.sm,
   },
   // Fraunces italic kicker, 13px (web font-display italic text-[13px]).
   kicker: {
@@ -656,7 +674,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: gap.md,
     paddingHorizontal: gap.xl - gap.xs,
-    paddingVertical: gap.lg,
+    paddingVertical: gap.xs,
   },
   // 11px uppercase tracked label (web text-[11px] tracking-[0.12em] uppercase).
   fieldLabel: {
@@ -704,7 +722,8 @@ const styles = StyleSheet.create({
     columnGap: gap.sm,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: gap.lg,
+    marginTop: gap.sm,
+    marginBottom: gap.sm,
     rowGap: gap.sm,
   },
   // h-11 (44px), rounded-xl, surface, hairline, Fraunces 18px. Width is computed to leave two 8px gaps
@@ -713,7 +732,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.md,
     borderWidth: 1,
-    height: 44,
+    minHeight: 48,
     justifyContent: 'center',
     width: '31.6%',
   },

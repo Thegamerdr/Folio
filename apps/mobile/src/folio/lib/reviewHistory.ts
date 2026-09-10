@@ -7,7 +7,60 @@
 
 import type { ReviewItem, StoredTxnEdit, TimelineEvent, Transaction } from '../store';
 
-export type DecisionHistoryKind = 'added' | 'edited' | 'ignored' | 'paused' | 'resumed';
+export const HISTORY_SCOPE = {
+  activity: {
+    title: 'What you added and corrected.',
+    description: 'Confirmed money records, newest first. Corrections also appear in Decisions.',
+    empty: 'No money records yet. Add a transaction or review a statement to start your activity.',
+  },
+  decisions: {
+    title: 'Choices you confirmed.',
+    description:
+      'Corrections, bills paused or resumed, debt tracking changes, and items put aside. Open a record to review the current details.',
+    empty: 'No corrections or other choices yet. New transactions appear in Activity.',
+  },
+  transactions: {
+    title: 'Your confirmed transactions.',
+    description:
+      'Money in and out, using the latest corrected amount. Open details to see the history or make a correction.',
+    empty: 'No confirmed transactions yet. Items waiting for review stay in Review.',
+  },
+  saw: {
+    title: 'The figures Melo uses.',
+    description:
+      'These are the same confirmed transactions shown in Transactions. This view is not a separate record of Melo making changes.',
+    empty:
+      'No confirmed transaction figures yet. Melo will use only the numbers you add or confirm.',
+  },
+} as const;
+
+/** Only offer a correction for a transaction that still exists. Other choices use their real home. */
+export function historyDestination(
+  row: DecisionHistoryRow,
+  transactions: readonly Pick<Transaction, 'id'>[],
+) {
+  if (row.transactionId && transactions.some((item) => item.id === row.transactionId))
+    return {
+      kind: 'transaction' as const,
+      id: row.transactionId,
+      label: 'View details and correct',
+    };
+  if (row.kind === 'paused' || row.kind === 'resumed')
+    return { kind: 'bills' as const, label: 'Review this bill' };
+  if (row.kind === 'ignored') return { kind: 'hidden' as const, label: 'Review hidden items' };
+  if (row.kind === 'debt-removed' || row.kind === 'debt-restored')
+    return { kind: 'debts' as const, label: 'View debt tracking and history' };
+  return null;
+}
+
+export type DecisionHistoryKind =
+  | 'added'
+  | 'edited'
+  | 'ignored'
+  | 'paused'
+  | 'resumed'
+  | 'debt-removed'
+  | 'debt-restored';
 
 export type DecisionHistoryRow = {
   id: string;
@@ -62,6 +115,17 @@ export function buildDecisionHistoryRows(args: {
   }));
 
   const eventRows: DecisionHistoryRow[] = events.flatMap((event): DecisionHistoryRow[] => {
+    if (event.kind === 'debt-removed' || event.kind === 'debt-restored') {
+      return [
+        {
+          id: event.id,
+          at: event.at,
+          kind: event.kind,
+          title: event.subject,
+          ...(event.note !== undefined ? { note: event.note } : {}),
+        },
+      ];
+    }
     if (event.kind === 'review-ignored') {
       return [
         {

@@ -10,8 +10,8 @@ describe('production and QA profile separation', () => {
     expect(config.android?.package).toBe('com.folio.v2.greenfield');
     expect(config.ios?.bundleIdentifier).toBe('com.folio.v2.greenfield');
     expect(config.scheme).toBe('folio');
-    expect(config.version).toBe('0.0.5');
-    expect(config.android?.versionCode).toBe(5);
+    expect(config.version).toBe('0.0.6');
+    expect(config.android?.versionCode).toBe(6);
   });
   it('puts explicit fixture builds in another OS canonical storage and update namespace', () => {
     vi.stubEnv('EXPO_PUBLIC_MELO_PARITY_CAPTURE', 'true');

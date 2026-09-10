@@ -21,6 +21,7 @@ import { StyleSheet, Text } from 'react-native';
 
 import type { BalanceSource, CurrentBalance, MoneyMode } from '@/folio/store';
 import { type Palette, useTheme } from '@/folio/theme';
+import { formatMoney } from '@/folio/lib/financialPresentation';
 
 const BALANCE_SOURCE_LABEL: Record<BalanceSource, string> = {
   'user-entered': 'you set this',
@@ -42,13 +43,12 @@ export type StubDisclaimerProps = {
 export function StubDisclaimer({ mode: _mode, balance, shipped = true }: StubDisclaimerProps) {
   const t = useTheme();
   const s = makeStyles(t);
-  const source = BALANCE_SOURCE_LABEL[balance.source] ?? 'sample data';
-  const amount = `£${balance.amount.toLocaleString('en-GB')}`;
+  const amount = formatMoney(balance.amount);
 
   return (
     <Text style={s.line}>
-      starting from {amount} · {source}
-      {!shipped ? ' · this mode borrows the survival maths for now' : null}
+      Tracked cash now {amount} · includes recorded payments and corrections
+      {!shipped ? ' · based on your recorded costs' : null}
     </Text>
   );
 }

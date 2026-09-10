@@ -2,26 +2,49 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { type DebtStrategy } from '@folio/finance-engine';
+import { simulateFinancialAffordability, type DebtStrategy } from '@folio/finance-engine';
 import { useAppStore } from '@/folio/store';
+import {
+  formatFinancialDate,
+  formatMoney,
+  selectFinancialPresentation,
+} from '@/folio/lib/financialPresentation';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
+import { selectDebtTrackingPresentation } from '@/folio/lib/debtTrackingPresentation';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { gap, radius, serif, useTheme, weightFamily } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
 import {
   buildFinancialPlanFromState,
+  toFinancialPlanInput,
   type ExtraDebtPaymentCadence,
   type FinancialPlanAdapterOptions,
 } from '@/folio/lib/financialPlan';
 
-const STRATEGY_OPTIONS: readonly { value: DebtStrategy; label: string }[] = [
-  { value: 'hybrid', label: 'Balanced' },
-  { value: 'avalanche', label: 'Highest APR' },
-  { value: 'snowball', label: 'Smallest first' },
-  { value: 'cash-flow', label: 'Free cash flow' },
-  { value: 'priority', label: 'Arrears first' },
-  { value: 'promo', label: 'Promo expiry' },
-  { value: 'user-selected', label: 'Choose a debt' },
+const STRATEGY_OPTIONS: readonly { value: DebtStrategy; label: string; hint: string }[] = [
+  { value: 'hybrid', label: 'Balanced', hint: 'Balance interest and required payments.' },
+  { value: 'avalanche', label: 'Highest APR', hint: 'Pay the highest interest rate first.' },
+  { value: 'snowball', label: 'Smallest first', hint: 'Clear the smallest balance first.' },
+  {
+    value: 'cash-flow',
+    label: 'Release monthly payments',
+    hint: 'Prioritise debts that release monthly minimum payments.',
+  },
+  {
+    value: 'priority',
+    label: 'Behind on payments first',
+    hint: 'Prioritise debts marked behind on payments.',
+  },
+  {
+    value: 'promo',
+    label: 'Offers ending soon',
+    hint: 'Prioritise temporary rates that end soon.',
+  },
+  {
+    value: 'user-selected',
+    label: 'Choose a debt',
+    hint: 'Choose which recorded debt gets the extra payment.',
+  },
 ];
 
 const EXTRA_PAYMENT_CADENCES: readonly { value: ExtraDebtPaymentCadence; label: string }[] = [
@@ -31,14 +54,10 @@ const EXTRA_PAYMENT_CADENCES: readonly { value: ExtraDebtPaymentCadence; label: 
 ];
 
 function formatMinor(minor: number): string {
-  return `£${(Math.abs(minor) / 100).toLocaleString('en-GB', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return formatMoney(minor / 100);
 }
-
 function formatSignedMinor(minor: number): string {
-  return `${minor < 0 ? '-' : ''}${formatMinor(minor)}`;
+  return formatMoney(minor / 100);
 }
 
 export function DebtsScreen({ nav }: { nav: Nav }) {
@@ -47,6 +66,15 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
   const debts = useAppStore((state) => state.debts) ?? [];
   const appState = useAppStore((state) => state);
   const now = useDayClock();
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showWorking, setShowWorking] = useState(false);
+  const tracking = selectDebtTrackingPresentation({
+    debts,
+    transactions: appState.transactions,
+    timelineEvents: appState.timelineEvents ?? [],
+  });
+  const activeDebts = tracking.active;
+  const clearedDebts = tracking.cleared;
   const [strategy, setStrategy] = useState<DebtStrategy>('hybrid');
   const [selectedDebtId, setSelectedDebtId] = useState<string | undefined>(debts[0]?.id);
   const [extraInput, setExtraInput] = useState('');
@@ -70,6 +98,7 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
     };
   }
   const plan = buildFinancialPlanFromState(appState, planOptions);
+  const presentation = selectFinancialPresentation(appState, plan);
   const targetDebt = debts.find((debt) => debt.id === plan.debtRecommendation.targetDebtId);
   const safeToSpendLabel = `${formatMinor(plan.safeToSpendMinor)}${plan.safeToSpendMinor < 0 ? ' short' : ''}`;
   const appliedExtraMinor =
@@ -77,7 +106,10 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
   const previewOccurrences = extraPayment === undefined ? 0 : plan.extraPaymentCountBeforeIncome;
   const scheduledPreviewMinor =
     extraPayment === undefined ? 0 : plan.extraPaymentTotalBeforeIncomeMinor;
-  const safeAfterExtraMinor = plan.safeToSpendMinor - scheduledPreviewMinor;
+  const safeAfterExtraMinor = simulateFinancialAffordability(
+    toFinancialPlanInput(appState, planOptions),
+    scheduledPreviewMinor,
+  ).safeToSpendAfterMinor;
   const cadencePaymentLabel =
     extraPaymentCadence === 'once' ? 'one-off payment' : `${extraPaymentCadence} payment`;
   const previewCadenceCopy =
@@ -121,200 +153,335 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
         <Text style={[styles.subhead, { color: t.muted }]}>
           Balances and repayments you have chosen to keep in view.
         </Text>
-        <View style={[styles.planCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          <Text style={[styles.planLabel, { color: t.muted }]}>Your debt plan</Text>
-          <Text style={[styles.planHeadline, { color: t.ink }]}>Keep essentials covered.</Text>
-          <Text style={[styles.planCopy, { color: t.muted }]}>
-            {targetDebt
-              ? `${targetDebt.name} is the next focus. ${plan.debtRecommendation.reason}`
-              : plan.debtRecommendation.reason}
-          </Text>
-          {plan.debtProjection ? (
-            <Text style={[styles.planCopy, { color: t.muted }]}>
-              {plan.debtProjection.payoffDate
-                ? `${projectionLead}, projected debt-free date is ${String(plan.debtProjection.payoffDate)}.`
-                : !plan.debtProjection.interestKnown
-                  ? 'Add the missing APR or rate after promo to estimate a payoff date.'
-                  : plan.debtProjection.stalled
-                    ? 'No payoff date yet — add a minimum payment or a safe extra amount.'
-                    : 'Payoff is being projected from the payments you entered.'}
-              {plan.debtProjection.cascade.length > 0
-                ? ` ${plan.debtProjection.cascade.length} payment release${plan.debtProjection.cascade.length === 1 ? '' : 's'} will cascade.`
-                : ''}
-            </Text>
-          ) : null}
-          <View style={styles.planStats}>
-            <View>
-              <Text style={[styles.planStatLabel, { color: t.muted }]}>Safe to spend</Text>
-              <Text
-                style={[
-                  styles.planStatValue,
-                  { color: plan.safeToSpendMinor < 0 ? t.repair : t.ink },
-                ]}
-              >
-                {safeToSpendLabel}
-              </Text>
-            </View>
-            <View>
-              <Text style={[styles.planStatLabel, { color: t.muted }]}>Extra to debt</Text>
-              <Text style={[styles.planStatValue, { color: t.ink }]}>
-                {formatMinor(plan.debtRecommendation.extraPaymentMinor)}
-              </Text>
-            </View>
-          </View>
-          <Text style={[styles.choiceLabel, { color: t.muted }]}>
-            How should extra money focus?
-          </Text>
-          <View style={styles.choiceGrid}>
-            {STRATEGY_OPTIONS.map((option) => {
-              const selected = strategy === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected }}
-                  onPress={() => setStrategy(option.value)}
-                  style={({ pressed }) => [
-                    styles.choice,
-                    {
-                      borderColor: selected ? t.calm : t.hairline,
-                      backgroundColor: selected ? t.inset : t.surface,
-                    },
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={[styles.choiceText, { color: selected ? t.ink : t.muted }]}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {strategy === 'user-selected' && debts.length > 0 ? (
-            <View style={styles.choiceGrid}>
-              {debts.map((debt) => (
-                <Pressable
-                  key={debt.id}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: selectedDebtId === debt.id }}
-                  onPress={() => setSelectedDebtId(debt.id)}
-                  style={({ pressed }) => [
-                    styles.debtChoice,
-                    { borderColor: selectedDebtId === debt.id ? t.calm : t.hairline },
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={[styles.choiceText, { color: t.ink }]}>{debt.name}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-          <TextInput
-            value={extraInput}
-            onChangeText={setExtraInput}
-            keyboardType="decimal-pad"
-            placeholder="Optional extra, e.g. £50"
-            placeholderTextColor={t.muted}
-            style={[styles.extraInput, { borderColor: t.hairline, color: t.ink }]}
-            accessibilityLabel="Optional extra debt payment amount"
-          />
-          <Text style={[styles.choiceLabel, { color: t.muted }]}>Payment pattern</Text>
-          <View style={styles.choiceGrid}>
-            {EXTRA_PAYMENT_CADENCES.map((option) => {
-              const selected = extraPaymentCadence === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  accessibilityRole="radio"
-                  accessibilityLabel={`${option.label} extra debt payment`}
-                  accessibilityState={{ selected }}
-                  onPress={() => setExtraPaymentCadence(option.value)}
-                  style={({ pressed }) => [
-                    styles.choice,
-                    {
-                      borderColor: selected ? t.calm : t.hairline,
-                      backgroundColor: selected ? t.inset : t.surface,
-                    },
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={[styles.choiceText, { color: selected ? t.ink : t.muted }]}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {extraInputInvalid ? (
-            <Text style={[styles.inputError, { color: t.repair }]}>
-              Enter a valid GBP amount, such as £50 or £50.25.
-            </Text>
-          ) : null}
-          {extraPayment !== undefined && !extraInputInvalid ? (
-            <Text style={[styles.scenarioNote, { color: t.muted }]}>
-              This preview applies {previewCadenceCopy}; {formatSignedMinor(safeAfterExtraMinor)}{' '}
-              remains safe to spend {previewConsequenceLabel}.
-              {extraPaymentCadence === 'once'
-                ? ''
-                : ' The forecast assumes this payment remains affordable.'}
-            </Text>
-          ) : null}
-          {requestedExtraCapped && extraPayment !== undefined ? (
-            <Text style={[styles.scenarioNote, { color: t.muted }]}>
-              Only {formatMinor(appliedExtraMinor)} is available for this {cadencePaymentLabel}; the
-              requested amount was capped by protected money.
-            </Text>
-          ) : null}
-          <Text style={[styles.scenarioNote, { color: t.muted }]}>
-            This changes the projection only. It does not record a payment.
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => nav.go('whatif')}
-            style={({ pressed }) => [styles.tryChange, pressed && styles.pressed]}
-          >
-            <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
-              Try a different extra payment
-            </Text>
-          </Pressable>
-        </View>
         <View style={styles.list}>
-          {debts.length === 0 ? (
-            <Text style={[styles.empty, { color: t.muted }]}>No debts declared yet.</Text>
+          {activeDebts.length === 0 ? (
+            <View>
+              <Text style={[styles.planHeadline, { color: t.ink }]}>{tracking.title}</Text>
+              <Text style={[styles.planCopy, { color: t.muted }]}>{tracking.detail}</Text>
+            </View>
           ) : (
-            debts.map((debt) => (
-              <Pressable
-                key={debt.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Edit ${debt.name}`}
-                onPress={() => nav.openSheet('declare-debt', { debtId: debt.id })}
-                style={({ pressed }) => [
-                  styles.row,
-                  { borderBottomColor: t.hairline },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={styles.rowCopy}>
-                  <Text style={[styles.name, { color: t.ink }]}>{debt.name}</Text>
-                  <Text
-                    style={[styles.meta, { color: t.muted }]}
-                  >{`£${debt.balance.toLocaleString('en-GB')} outstanding · ${debt.aprKnown === false ? 'APR not entered' : `${debt.apr}% APR`}`}</Text>
-                </View>
-              </Pressable>
-            ))
+            <Text style={[styles.planHeadline, { color: t.ink }]}>Outstanding debts</Text>
           )}
+          {activeDebts.map((debt) => {
+            const obligation = plan.pendingObligations.find((item) =>
+              item.id.startsWith(`debt-minimum:${debt.id}:`),
+            );
+            return (
+              <View key={debt.id} style={[styles.row, { borderBottomColor: t.hairline }]}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`View or edit ${debt.name}`}
+                  onPress={() => nav.openSheet('declare-debt', { debtId: debt.id })}
+                  style={styles.debtDetails}
+                >
+                  <Text style={[styles.name, { color: t.ink }]}>
+                    {debt.name} <Text style={{ color: t.muted }}>›</Text>
+                  </Text>
+                  <Text style={[styles.planStatValue, { color: t.ink }]}>
+                    {formatMoney(debt.balance)} outstanding
+                  </Text>
+                  <Text
+                    style={[
+                      styles.meta,
+                      { color: obligation && obligation.date < plan.asOf ? t.repair : t.muted },
+                    ]}
+                  >
+                    {formatMoney(debt.minPayment)} minimum ·{' '}
+                    {obligation
+                      ? `${obligation.date < plan.asOf ? 'Overdue' : 'Due'} ${formatFinancialDate(obligation.date)}`
+                      : `Due day ${debt.dueDom} each month`}
+                  </Text>
+                  <Text style={[styles.meta, { color: t.muted }]}>
+                    {debt.aprKnown === false
+                      ? 'Interest rate not entered'
+                      : `${debt.apr}% annual interest`}{' '}
+                    · View / edit
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Log payment to ${debt.name}`}
+                  onPress={() => nav.openSheet('log-payment', { debtId: debt.id })}
+                  style={styles.tryChange}
+                >
+                  <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
+                    Log a payment
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          })}
         </View>
         <Pressable
           accessibilityRole="button"
           onPress={() => nav.openSheet('declare-debt')}
-          style={({ pressed }) => [
-            styles.add,
-            { backgroundColor: t.calm },
-            pressed && styles.pressed,
-          ]}
+          style={[styles.add, { backgroundColor: t.calm }]}
         >
           <Text style={[styles.addLabel, { color: t.inverse }]}>+ Add a debt</Text>
         </Pressable>
+        {clearedDebts.length > 0 ? (
+          <View style={styles.list}>
+            <Text style={[styles.planHeadline, { color: t.ink }]}>Cleared debts</Text>
+            {clearedDebts.map(({ debt, lastPaymentAt }) => {
+              return (
+                <Pressable
+                  key={debt.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View or edit cleared ${debt.name}`}
+                  onPress={() => nav.openSheet('declare-debt', { debtId: debt.id })}
+                  style={[styles.row, { borderBottomColor: t.hairline }]}
+                >
+                  <Text style={[styles.name, { color: t.ink }]}>{debt.name} · Cleared</Text>
+                  <Text style={[styles.meta, { color: t.muted }]}>
+                    £0 outstanding
+                    {lastPaymentAt
+                      ? ` · Last recorded payment ${formatFinancialDate(lastPaymentAt)}`
+                      : ` · Balance recorded as £0; added ${formatFinancialDate(debt.addedAt)}`}{' '}
+                    · View / edit
+                  </Text>
+                </Pressable>
+              );
+            })}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => nav.go('timeline')}
+              style={styles.tryChange}
+            >
+              <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
+                View payment history
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {tracking.removed.length > 0 ? (
+          <View style={styles.list}>
+            <Text style={[styles.planHeadline, { color: t.ink }]}>Removed from tracking</Text>
+            {tracking.removed.map((debt) => (
+              <View key={debt.id} style={[styles.row, { borderBottomColor: t.hairline }]}>
+                <Text style={[styles.name, { color: t.ink }]}>{debt.name}</Text>
+                <Text style={[styles.meta, { color: t.muted }]}>
+                  {debt.removedAt
+                    ? `Tracking removed ${formatFinancialDate(debt.removedAt)}`
+                    : 'No longer tracked · payment history kept'}
+                </Text>
+              </View>
+            ))}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => nav.go('timeline')}
+              style={styles.tryChange}
+            >
+              <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
+                View tracking and payment history
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {activeDebts.length > 0 ? (
+          <>
+            <View
+              style={[styles.planCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+            >
+              <Text style={[styles.planLabel, { color: t.muted }]}>Your debt plan</Text>
+              <Text style={[styles.planHeadline, { color: t.ink }]}>Explore an extra payment</Text>
+              <Text style={[styles.planCopy, { color: t.muted }]}>
+                {targetDebt
+                  ? `${targetDebt.name} is the next focus for this preview.`
+                  : 'Choose an amount and see how the projected payoff changes.'}
+              </Text>
+              {plan.debtProjection ? (
+                <Text style={[styles.planCopy, { color: t.muted }]}>
+                  {plan.debtProjection.payoffDate
+                    ? `${projectionLead}, projected debt-free date is ${formatFinancialDate(String(plan.debtProjection.payoffDate))}.`
+                    : !plan.debtProjection.interestKnown
+                      ? 'Add the missing APR or rate after promo to estimate a payoff date.'
+                      : plan.debtProjection.stalled
+                        ? 'No payoff date yet — add a minimum payment or a safe extra amount.'
+                        : 'Payoff is being projected from the payments you entered.'}
+                  {plan.debtProjection.cascade.length > 0
+                    ? ` ${plan.debtProjection.cascade.length} monthly payment${plan.debtProjection.cascade.length === 1 ? '' : 's'} could become available as debts clear.`
+                    : ''}
+                </Text>
+              ) : null}
+              <View style={styles.planStats}>
+                <View>
+                  <Text style={[styles.planStatLabel, { color: t.muted }]}>
+                    {presentation.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.planStatValue,
+                      { color: plan.safeToSpendMinor < 0 ? t.repair : t.ink },
+                    ]}
+                  >
+                    {presentation.complete ? safeToSpendLabel : 'Not confirmed'}
+                  </Text>
+                </View>
+                <View>
+                  <Text style={[styles.planStatLabel, { color: t.muted }]}>
+                    Extra you could choose · preview
+                  </Text>
+                  <Text style={[styles.planStatValue, { color: t.ink }]}>
+                    {presentation.complete
+                      ? formatMinor(plan.debtRecommendation.extraPaymentMinor)
+                      : 'Not confirmed'}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showWorking }}
+                onPress={() => setShowWorking((value) => !value)}
+                style={styles.tryChange}
+              >
+                <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
+                  How this estimate works
+                </Text>
+              </Pressable>
+              {showWorking ? (
+                <Text style={[styles.planCopy, { color: t.muted }]}>
+                  Based on the balances, annual interest rates, due dates and minimum payments
+                  entered. This assumes no new borrowing or changes to those terms. Unknown rates
+                  can prevent a payoff estimate. Extra payments here are hypothetical; no payment is
+                  recorded.
+                </Text>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showAdvanced }}
+                onPress={() => setShowAdvanced((value) => !value)}
+                style={styles.tryChange}
+              >
+                <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
+                  {showAdvanced ? 'Hide payment options' : 'Choose extra payment and strategy'}
+                </Text>
+              </Pressable>
+              {showAdvanced ? (
+                <View>
+                  <Text style={[styles.choiceLabel, { color: t.muted }]}>
+                    How should extra money focus?
+                  </Text>
+                  <View style={styles.strategyList}>
+                    {STRATEGY_OPTIONS.map((option) => {
+                      const selected = strategy === option.value;
+                      return (
+                        <Pressable
+                          key={option.value}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected }}
+                          onPress={() => setStrategy(option.value)}
+                          style={({ pressed }) => [
+                            styles.strategyChoice,
+                            {
+                              borderColor: selected ? t.calm : t.hairline,
+                              backgroundColor: selected ? t.inset : t.surface,
+                            },
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <Text style={[styles.choiceText, { color: selected ? t.ink : t.muted }]}>
+                            {option.label}
+                          </Text>
+                          <Text style={[styles.meta, { color: t.muted }]}>{option.hint}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {strategy === 'user-selected' && activeDebts.length > 0 ? (
+                    <View style={styles.choiceGrid}>
+                      {activeDebts.map((debt) => (
+                        <Pressable
+                          key={debt.id}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: selectedDebtId === debt.id }}
+                          onPress={() => setSelectedDebtId(debt.id)}
+                          style={({ pressed }) => [
+                            styles.debtChoice,
+                            { borderColor: selectedDebtId === debt.id ? t.calm : t.hairline },
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <Text style={[styles.choiceText, { color: t.ink }]}>{debt.name}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
+                  <TextInput
+                    value={extraInput}
+                    onChangeText={setExtraInput}
+                    keyboardType="decimal-pad"
+                    placeholder="Optional extra, e.g. £50"
+                    placeholderTextColor={t.muted}
+                    style={[styles.extraInput, { borderColor: t.hairline, color: t.ink }]}
+                    accessibilityLabel="Optional extra debt payment amount"
+                  />
+                  <Text style={[styles.choiceLabel, { color: t.muted }]}>Payment pattern</Text>
+                  <View style={styles.choiceGrid}>
+                    {EXTRA_PAYMENT_CADENCES.map((option) => {
+                      const selected = extraPaymentCadence === option.value;
+                      return (
+                        <Pressable
+                          key={option.value}
+                          accessibilityRole="radio"
+                          accessibilityLabel={`${option.label} extra debt payment`}
+                          accessibilityState={{ selected }}
+                          onPress={() => setExtraPaymentCadence(option.value)}
+                          style={({ pressed }) => [
+                            styles.choice,
+                            {
+                              borderColor: selected ? t.calm : t.hairline,
+                              backgroundColor: selected ? t.inset : t.surface,
+                            },
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <Text style={[styles.choiceText, { color: selected ? t.ink : t.muted }]}>
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {extraInputInvalid ? (
+                    <Text style={[styles.inputError, { color: t.repair }]}>
+                      Enter a valid GBP amount, such as £50 or £50.25.
+                    </Text>
+                  ) : null}
+                  {extraPayment !== undefined && !extraInputInvalid ? (
+                    <Text style={[styles.scenarioNote, { color: t.muted }]}>
+                      This preview applies {previewCadenceCopy};{' '}
+                      {formatSignedMinor(safeAfterExtraMinor)} would remain after recorded costs{' '}
+                      {previewConsequenceLabel}.
+                      {!presentation.canReassure
+                        ? ` ${presentation.message}`
+                        : extraPaymentCadence === 'once'
+                          ? ''
+                          : ' Future payments are estimates and need checking each cycle.'}
+                    </Text>
+                  ) : null}
+                  {requestedExtraCapped && extraPayment !== undefined ? (
+                    <Text style={[styles.scenarioNote, { color: t.muted }]}>
+                      Only {formatMinor(appliedExtraMinor)} is available for this{' '}
+                      {cadencePaymentLabel}; the requested amount was capped by protected money.
+                    </Text>
+                  ) : null}
+                  <Text style={[styles.scenarioNote, { color: t.muted }]}>
+                    This changes the projection only. It does not record a payment.
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => nav.go('whatif')}
+                    style={({ pressed }) => [styles.tryChange, pressed && styles.pressed]}
+                  >
+                    <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
+                      Try a different extra payment
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -323,7 +490,7 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { paddingHorizontal: gap.xl },
-  back: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  back: { alignSelf: 'flex-start', minHeight: 48, justifyContent: 'center' },
   backLabel: { fontFamily: weightFamily(500), fontSize: 14 },
   eyebrow: {
     fontFamily: weightFamily(400),
@@ -349,7 +516,10 @@ const styles = StyleSheet.create({
   },
   planHeadline: { fontFamily: serif.display, fontSize: 20, lineHeight: 26, marginTop: gap.xs },
   planCopy: { fontFamily: weightFamily(400), fontSize: 12.5, lineHeight: 19, marginTop: gap.sm },
-  planStats: { flexDirection: 'row', gap: gap.xl, marginTop: gap.lg },
+  planStats: { gap: gap.md, marginTop: gap.lg },
+  strategyList: { gap: gap.sm, marginTop: gap.sm },
+  strategyChoice: { minHeight: 48, borderRadius: radius.md, borderWidth: 1, padding: gap.md },
+  debtDetails: { minHeight: 48, paddingVertical: gap.sm },
   planStatLabel: { fontFamily: weightFamily(400), fontSize: 11, lineHeight: 16 },
   planStatValue: { fontFamily: serif.display, fontSize: 19, lineHeight: 24, marginTop: 2 },
   choiceLabel: { fontFamily: weightFamily(500), fontSize: 12.5, marginTop: gap.lg },
@@ -357,14 +527,14 @@ const styles = StyleSheet.create({
   choice: {
     borderRadius: radius.pill,
     borderWidth: 1,
-    minHeight: 36,
+    minHeight: 48,
     justifyContent: 'center',
     paddingHorizontal: gap.md,
   },
   debtChoice: {
     borderRadius: radius.pill,
     borderWidth: 1,
-    minHeight: 36,
+    minHeight: 48,
     justifyContent: 'center',
     paddingHorizontal: gap.md,
   },
@@ -384,7 +554,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginTop: gap.xs,
   },
-  tryChange: { minHeight: 44, justifyContent: 'center', marginTop: gap.sm },
+  tryChange: { minHeight: 48, justifyContent: 'center', marginTop: gap.sm },
   tryChangeLabel: { fontFamily: weightFamily(500), fontSize: 13 },
   list: { marginTop: gap.xl },
   row: {

@@ -84,7 +84,10 @@ import { TrialCountdownChip } from '@/folio/ui/TrialCountdownChip';
 import { TrialEndedRow } from '@/folio/ui/TrialEndedRow';
 import { WhatChangedRow } from '@/folio/ui/WhatChangedRow';
 import type { Nav, Pressure } from '@/folio/types';
-import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { simulateFinancialAffordability } from '@folio/finance-engine';
+import { buildFinancialPlanFromState, toFinancialPlanInput } from '@/folio/lib/financialPlan';
+import { selectFinancialPresentation, formatMoney } from '@/folio/lib/financialPresentation';
+import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
 
 import { derivePressure, pressureLine } from './today/pressure';
 import { selectPaydayTightPoint, tightPointDayLabel } from '@/folio/lib/moneyPath';
@@ -92,11 +95,7 @@ import { formatDayProse, formatGBP, groupedPounds } from './today/format';
 import { TodayNudges } from './today/TodayNudges';
 import { TodayRecentTxns } from './today/TodayRecentTxns';
 import { useTodayTheme } from './today/todayTheme';
-import {
-  buildTodayJourneyEvents,
-  buildTodayJourneyGeometry,
-  summarizeTodayCycleFlows,
-} from './today/todayPathGeometry';
+import { buildTodayJourneyEvents, buildTodayJourneyGeometry } from './today/todayPathGeometry';
 
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 
@@ -189,6 +188,7 @@ export function TodayScreen({
     () => (now ? buildFinancialPlanFromState(appState, { now }) : null),
     [appState, now],
   );
+  const financePresentation = selectFinancialPresentation(appState, financialPlan);
   const [prevOpenIso, setPrevOpenIso] = useState<string | null>(null);
   useEffect(() => {
     sweepSubOverrides();
@@ -334,36 +334,14 @@ export function TodayScreen({
   // route, so labels, curve, and summary cannot drift into three different stories.
   const projectedEvents = useMemo(
     () =>
-      now
-        ? deriveCalendarEvents({
-            subs,
-            subPaused,
-            subOverrides,
-            onboarding,
-            manualEvents: calendarEvents,
-            pots,
-            incomeSources,
-            spendHold,
-            whatIfHolds,
-            windowDays: 35,
-            now: engineNow!,
-            includeSampleBills: false,
-          })
-        : [],
-    [
-      now,
-      engineNow,
-      subs,
-      subPaused,
-      subOverrides,
-      onboarding,
-      calendarEvents,
-      pots,
-      incomeSources,
-      spendHold,
-      whatIfHolds,
-      currentBalance.source,
-    ],
+      (financialPlan?.events ?? [])
+        .filter((event) => event.source !== 'living')
+        .map((event) => ({
+          date: event.date,
+          title: event.label,
+          amount: event.amountMinor / 100,
+        })),
+    [financialPlan],
   );
   const paydayIso = route?.points[Math.min(daysToPayday, route.points.length - 1)]?.date ?? '';
   const points = useMemo(
@@ -390,13 +368,6 @@ export function TodayScreen({
         : [],
     [now, paydayIso, points, projectedEvents],
   );
-  const cycleFlows = useMemo(
-    () =>
-      paydayIso
-        ? summarizeTodayCycleFlows(projectedEvents, paydayIso)
-        : { incoming: 0, outgoing: 0 },
-    [paydayIso, projectedEvents],
-  );
   const pathLowAmount = routeTightestAmount;
 
   // Scrub — a 0..1 fraction across the plotted range, dragged with a PanResponder (the web used a
@@ -415,11 +386,12 @@ export function TodayScreen({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.25,
         // Stop the parent ScrollView from stealing the vertical pan while scrubbing (the web used
         // touch-none on the svg).
-        onPanResponderTerminationRequest: () => false,
+        onPanResponderTerminationRequest: () => true,
         onPanResponderGrant: (e) => applyScrubFromX(e.nativeEvent.locationX),
         onPanResponderMove: (e) => applyScrubFromX(e.nativeEvent.locationX),
       }),
@@ -439,7 +411,7 @@ export function TodayScreen({
           : 'currency';
   const heroUnitLabel =
     financialPlan !== null
-      ? 'safe to spend until payday'
+      ? financePresentation.label
       : heroUnit === 'currency' && routeTightestAmount < 0
         ? `spare · £${groupedPounds(Math.abs(routeTightestAmount) + Math.round(scrub * 120))} short`
         : heroUnit === 'days'
@@ -464,10 +436,7 @@ export function TodayScreen({
   const lowDisplay = useCountUp(heroBase, 400, reduceMotion);
   const heroFigure =
     financialPlan !== null
-      ? `£${Math.abs(financialPlan.safeToSpendMinor / 100).toLocaleString('en-GB', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}${financialPlan.safeToSpendMinor < 0 ? ' short' : ''}`
+      ? `${formatMoney(Math.abs(financialPlan.safeToSpendMinor / 100))}${financialPlan.safeToSpendMinor < 0 ? ' short' : ''}`
       : heroUnit === 'currency'
         ? `£${groupedPounds(lowDisplay)}`
         : groupedPounds(lowDisplay);
@@ -509,11 +478,22 @@ export function TodayScreen({
   }));
 
   const scrubSpend = Math.round(scrub * 120);
-  const scrubLowAmount = pathLowAmount - scrubSpend;
+  const scrubPreview = useMemo(
+    () =>
+      financialPlan && now && scrubSpend > 0
+        ? simulateFinancialAffordability(toFinancialPlanInput(appState, { now }), scrubSpend * 100)
+        : null,
+    [financialPlan, now, appState, scrubSpend],
+  );
+  const scrubLowAmount = scrubPreview
+    ? scrubPreview.safeToSpendAfterMinor / 100
+    : financialPlan
+      ? financialPlan.safeToSpendMinor / 100
+      : 0;
   const scrubLowCopy =
     scrubLowAmount < 0
       ? `£${groupedPounds(Math.abs(scrubLowAmount))} short`
-      : `£${groupedPounds(scrubLowAmount)} spare`;
+      : `£${groupedPounds(scrubLowAmount)} after recorded costs`;
 
   // Loading branch (STATES.md / spec): never a spinner. When the shell explicitly hands a loading
   // state, Folio holds the screen on Melo (curious) + one quoted line — the same calm "working it
@@ -532,6 +512,20 @@ export function TodayScreen({
 
   if (isFirstRun) {
     return <TodayFirstRun nav={nav} />;
+  }
+  if (!financePresentation.complete || !financialPlan?.nextIncomeDate) {
+    return (
+      <View style={[styles.root, { padding: gap.lg, paddingTop: insets.top + gap.lg }]}>
+        <ScrollView>
+          <FinancialSetupNotice
+            state={appState}
+            plan={financialPlan}
+            onSetup={() => nav.openSheet('onboarding')}
+          />
+          <TodayRecentTxns nav={nav} />
+        </ScrollView>
+      </View>
+    );
   }
 
   return (
@@ -636,20 +630,21 @@ export function TodayScreen({
             style={[
               styles.verdict,
               {
-                color:
-                  pressure === 'overspent'
-                    ? t.repair
-                    : pressure === 'pressured'
-                      ? t.calm
-                      : t.positive,
+                color: !financePresentation.canReassure
+                  ? t.repair
+                  : pressure === 'pressured'
+                    ? t.calm
+                    : t.positive,
               },
             ]}
           >
-            {modeState.verdict === 'The middle of next week is the squeeze.' &&
-            tight.tightestDate &&
-            now
-              ? `The squeeze is ${tightPointDayLabel(tight.tightestDate, now)}.`
-              : modeState.verdict}
+            {!financePresentation.canReassure
+              ? financePresentation.label
+              : modeState.verdict === 'The middle of next week is the squeeze.' &&
+                  tight.tightestDate &&
+                  now
+                ? `The squeeze is ${tightPointDayLabel(tight.tightestDate, now)}.`
+                : modeState.verdict}
           </Text>
           <View style={styles.heroRow}>
             {heroProvisional ? (
@@ -689,7 +684,7 @@ export function TodayScreen({
                 : 'at its lowest point'}
             </Text>
             <Text style={[styles.balanceAttribution, { color: t.muted }]}>
-              From {formatGBP(currentBalance.amount)} · {balanceSourceLabel}
+              Tracked cash now {formatGBP(currentBalance.amount)}
             </Text>
           </Pressable>
           <Text style={[styles.heroSource, { color: t.muted }]}>
@@ -751,40 +746,28 @@ export function TodayScreen({
               ) : null}
             </View>
           ) : null}
-          {pressure === 'pressured' || pressure === 'overspent' ? (
-            <View style={styles.heroOffer}>
-              <Text style={[styles.heroOfferReason, { color: t.muted }]}>
-                {routeTightestAmount < 0
-                  ? 'This doesn’t reach payday on its own.'
-                  : 'There is little room before payday.'}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => nav.go('recovery')}
-                style={({ pressed: p }) => [styles.heroOfferActionTarget, p ? pressed : undefined]}
-              >
-                <Text style={[styles.heroOfferAction, { color: t.calmStrong }]}>
-                  See what could move →
-                </Text>
-              </Pressable>
-            </View>
-          ) : (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => nav.go('whatif')}
-              style={({ pressed: p }) => [styles.heroOfferAside, p ? pressed : undefined]}
-            >
-              <Text style={[styles.heroOfferReason, { color: t.muted }]}>
-                Thinking of spending?{' '}
-                <Text style={{ color: t.ink }}>Try it against this figure first.</Text>
-              </Text>
-            </Pressable>
-          )}
+          {!financePresentation.canReassure ? (
+            <Text style={[styles.heroOfferReason, { color: t.repairInk, marginTop: 12 }]}>
+              {financePresentation.message}
+            </Text>
+          ) : null}
           <View style={styles.heroActions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Can I spend something?"
-              onPress={() => nav.openSheet('afford-check')}
+              accessibilityLabel={
+                financePresentation.overdueCount > 0
+                  ? 'Review overdue commitments'
+                  : financialPlan.safeToSpendMinor < 0
+                    ? 'Review the gap'
+                    : 'Can I spend something?'
+              }
+              onPress={() =>
+                financePresentation.overdueCount > 0
+                  ? nav.go('subs')
+                  : financialPlan.safeToSpendMinor < 0
+                    ? nav.go('recovery')
+                    : nav.openSheet('afford-check')
+              }
               style={({ pressed: p }) => [
                 styles.primaryDecision,
                 { backgroundColor: t.calmSoft, borderColor: 'rgba(158, 60, 24, 0.22)' },
@@ -792,7 +775,11 @@ export function TodayScreen({
               ]}
             >
               <Text style={[styles.primaryDecisionText, { color: t.calmStrong }]}>
-                Can I spend something?
+                {financePresentation.overdueCount > 0
+                  ? 'Review overdue commitments'
+                  : financialPlan.safeToSpendMinor < 0
+                    ? 'Review the gap'
+                    : 'Can I spend something?'}
               </Text>
             </Pressable>
           </View>
@@ -825,7 +812,7 @@ export function TodayScreen({
           <View style={styles.pathHead}>
             <Text style={[styles.pathEyebrow, { color: t.muted }]}>
               {paydayIso
-                ? `Today → payday · ${new Date(`${paydayIso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+                ? `Projected cash → payday · ${new Date(`${paydayIso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
                 : 'Today → payday'}
             </Text>
             <Pressable
@@ -844,7 +831,9 @@ export function TodayScreen({
             {...panResponder.panHandlers}
           >
             <MoneyPathChart
-              points={points}
+              points={points.map((point) =>
+                point.label === 'today' ? { ...point, label: 'today close' } : point,
+              )}
               events={pathEvents}
               style={chartStyle}
               pressure={pressure}
@@ -864,18 +853,27 @@ export function TodayScreen({
             <Text style={{ fontSize: 12, color: t.calmStrong }}>See the working →</Text>
           </Pressable>
           <Text style={[styles.pathDisclaimer, { color: t.muted }]}>
-            Worked out from what you’ve added — treat it as a close guess.
+            Projected cash after dated movements. Safe to spend also protects essentials, debt
+            minimums and your buffer.
           </Text>
           {/* scrub hint */}
           <Text style={[styles.scrubHint, { color: t.muted }]}>
             {scrub > 0.02
-              ? `spend £${scrubSpend} today · lowest ${scrubLowCopy}`
-              : 'drag the line to try a spend'}
+              ? `If you spent £${scrubSpend} today: ${scrubLowCopy}. Preview only; no money moved.`
+              : 'Drag sideways to preview a spend. Your recorded figures stay unchanged.'}
           </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit preview amount"
+            onPress={() => nav.openSheet('afford-check', { amount: scrubSpend })}
+            style={[styles.workingLink, { minHeight: 48, justifyContent: 'center' }]}
+          >
+            <Text style={{ fontSize: 13, color: t.calmStrong }}>Edit preview amount →</Text>
+          </Pressable>
           {scrub > 0.04 ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Log a spend of £${Math.round(scrub * 120)}`}
+              accessibilityLabel={`Record an actual spend of £${Math.round(scrub * 120)}`}
               onPress={() =>
                 nav.openSheet('log-spend', { amount: Math.max(1, Math.round(scrub * 120)) })
               }
@@ -886,15 +884,20 @@ export function TodayScreen({
               ]}
             >
               <Text style={[styles.scrubCommitLabel, { color: t.calm }]}>
-                Log £{Math.round(scrub * 120)} →
+                Already spent it? Record £{Math.round(scrub * 120)} →
               </Text>
             </Pressable>
           ) : null}
           <Text style={[styles.pathSummary, { color: t.muted }]}>
-            <Text style={{ color: t.ink }}>{formatGBP(Math.round(cycleFlows.incoming))}</Text>{' '}
-            coming in before payday,{' '}
-            <Text style={{ color: t.ink }}>{formatGBP(Math.round(cycleFlows.outgoing))}</Text> going
-            out.
+            Tracked cash now {formatGBP(financialPlan.currentBalanceMinor / 100)}. Lowest forecast
+            cash {formatGBP(pathLowAmount)} on{' '}
+            {formatDayProse(tight.tightestDate ?? financialPlan.asOf)}. Payday forecast{' '}
+            {formatGBP(route?.spare ?? 0)} on {formatDayProse(paydayIso)}.
+          </Text>
+          <Text style={[styles.pathSummary, { color: t.muted }]}>
+            {formatGBP(financialPlan.protectedBeforeIncomeMinor / 100)} protected for commitments
+            and essentials before the next income, plus {formatGBP(appState.bufferAmount ?? 0)}{' '}
+            buffer.
           </Text>
         </View>
 
@@ -1121,7 +1124,7 @@ function TodayFirstRun({ nav }: { nav: Nav }) {
         </Text>
         <Text style={[styles.firstRunBody, { color: t.muted }]}>
           Add a balance, payday and regular costs. Melo will turn them into one route to payday —
-          without pretending sample numbers are yours.
+          using only the numbers you add. You can correct them anytime.
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -1456,7 +1459,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   dismissChoice: {
-    minHeight: 30,
+    minHeight: 48,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: gap.sm,
@@ -1582,7 +1585,7 @@ const styles = StyleSheet.create({
   streakChip: {
     alignSelf: 'flex-start',
     marginTop: gap.sm,
-    minHeight: 30,
+    minHeight: 48,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: gap.md,
@@ -1648,7 +1651,7 @@ const styles = StyleSheet.create({
   scrubCommit: {
     alignSelf: 'center',
     marginTop: gap.sm,
-    minHeight: 32,
+    minHeight: 48,
     borderRadius: 999,
     paddingHorizontal: gap.md,
     justifyContent: 'center',

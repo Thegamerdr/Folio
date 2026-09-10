@@ -5,6 +5,7 @@ import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
 import { getState, setPartial } from '../store';
 import { buildMeloLocalCalculation } from './meloCalculations';
 import { buildLocalMeloTurn } from '../../local/localMeloTurn';
+import { buildRecoveryRoutePreview } from './recoveryPreview';
 
 const NOW = new Date('2026-07-15T12:00:00');
 const snapshot: MeloLocalFinancialSnapshot = {
@@ -614,7 +615,10 @@ describe('buildMeloLocalCalculation', () => {
       options: expect.arrayContaining([
         expect.objectContaining({ kind: 'move-bill' }),
         expect.objectContaining({ kind: 'pause-recurring' }),
-        expect.objectContaining({ kind: 'hold-discretionary', liftMinor: 1_500 }),
+        expect.objectContaining({
+          kind: 'hold-discretionary',
+          liftMinor: Math.round(buildRecoveryRoutePreview(getState(), NOW).holdLift * 100),
+        }),
       ]),
     });
     expect(JSON.stringify(calculation)).not.toMatch(/private|merchant|recurring name/i);

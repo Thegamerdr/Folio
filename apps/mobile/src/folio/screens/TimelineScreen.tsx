@@ -86,6 +86,13 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { useAppStore, type Transaction } from '@/folio/store';
 import { buildTimelineRows, type TimelineRow, type TimelineVerb } from '@/folio/lib/timelineEvents';
+import {
+  buildDecisionHistoryRows,
+  HISTORY_SCOPE,
+  historyDestination,
+  type DecisionHistoryRow,
+} from '@/folio/lib/reviewHistory';
+import { formatMoney } from '@/folio/lib/financialPresentation';
 import { copy } from '@/folio/copy/copy';
 import type { Nav } from '@/folio/types';
 
@@ -307,12 +314,31 @@ export function TimelineScreen({
       }),
     );
   }, [transactions, edits, events]);
-  const visibleRows = useMemo(() => rows.slice(0, visibleCount), [rows, visibleCount]);
+  const transactionRows = useMemo(
+    () => (isBusiness ? rows : rows.filter((row) => row.editable)),
+    [rows, isBusiness],
+  );
+  const visibleRows = useMemo(
+    () => transactionRows.slice(0, visibleCount),
+    [transactionRows, visibleCount],
+  );
+  const decisions = useMemo(
+    () =>
+      buildDecisionHistoryRows({ transactions, edits, events }).filter(
+        (row) => row.kind !== 'added',
+      ),
+    [transactions, edits, events],
+  );
   const visibleTransactions = useMemo(
     () => transactions.slice(0, visibleCount),
     [transactions, visibleCount],
   );
-  const totalForTab = tab === 'transactions' || isBusiness ? rows.length : transactions.length;
+  const totalForTab =
+    isBusiness || tab === 'transactions'
+      ? transactionRows.length
+      : tab === 'actions'
+        ? decisions.length
+        : transactions.length;
   const hasOlderRows = visibleCount < totalForTab;
 
   // error → "falls back": this screen invents no error UI; on failure it routes back to More.
@@ -361,7 +387,7 @@ export function TimelineScreen({
   }
 
   // ----- EMPTY (no transactions, or the explicit empty state) ------------------------------------
-  if (state === 'empty' || rows.length === 0) {
+  if (state === 'empty') {
     return (
       <Animated.View style={[s.root, enterStyle]}>
         <View style={[s.screen, { paddingTop: insets.top + gap.md }]}>
@@ -432,20 +458,33 @@ export function TimelineScreen({
         {/* Title block — Fraunces 28px, the single upright terracotta accent word. */}
         <View style={s.titleBlock}>
           <Text accessibilityRole="header" style={s.headline}>
-            {isBusiness ? 'Every business ' : "Everything you've "}
-            <Text style={s.headlineAccent}>{isBusiness ? 'record' : 'added'}</Text>
-            {isBusiness ? ', in order.' : ' or logged.'}
+            {isBusiness
+              ? 'Every business record, in order.'
+              : HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].title}
           </Text>
           <Text style={s.subhead}>
             {isBusiness
               ? 'Confirmed and corrected records in this workspace only.'
-              : 'Newest first. Nothing is hidden.'}
+              : HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].description}
           </Text>
         </View>
 
         {!isBusiness ? <TimelineTabs value={tab} onChange={setTab} styles={s} palette={t} /> : null}
 
-        {tab === 'transactions' || isBusiness ? (
+        {totalForTab === 0 ? (
+          <View style={s.emptyBlock}>
+            <Text style={s.subhead}>
+              {HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].empty}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => nav.go('review')}
+              style={s.paginationButton}
+            >
+              <Text style={[s.paginationLabel, { color: t.calm }]}>Open Review ›</Text>
+            </Pressable>
+          </View>
+        ) : tab === 'transactions' || isBusiness ? (
           /* Timeline list — a vertical rail behind the nodes, newest first. */
           <View style={s.list}>
             <View style={[s.rail, { backgroundColor: t.hairline }]} pointerEvents="none" />
@@ -455,13 +494,31 @@ export function TimelineScreen({
                 row={row}
                 styles={s}
                 palette={t}
-                isLast={i === rows.length - 1}
+                isLast={i === visibleRows.length - 1}
                 nav={nav}
               />
             ))}
           </View>
+        ) : tab === 'actions' ? (
+          <View style={s.actionGroups}>
+            {decisions.slice(0, visibleCount).map((row) => (
+              <TimelineDecision
+                key={row.id}
+                row={row}
+                transactions={transactions}
+                nav={nav}
+                styles={s}
+                palette={t}
+              />
+            ))}
+          </View>
         ) : (
-          <TimelineActionCards transactions={visibleTransactions} styles={s} palette={t} />
+          <TimelineActionCards
+            transactions={visibleTransactions}
+            styles={s}
+            palette={t}
+            nav={nav}
+          />
         )}
 
         {totalForTab > TIMELINE_PAGE_SIZE ? (
@@ -470,7 +527,9 @@ export function TimelineScreen({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Load older timeline entries"
-                onPress={() => setVisibleCount((count) => Math.min(totalForTab, count + TIMELINE_PAGE_SIZE))}
+                onPress={() =>
+                  setVisibleCount((count) => Math.min(totalForTab, count + TIMELINE_PAGE_SIZE))
+                }
                 style={({ pressed }) => [s.paginationButton, pressed ? s.pressed : undefined]}
               >
                 <Text style={[s.paginationLabel, { color: t.calm }]}>Load 50 more</Text>
@@ -505,7 +564,7 @@ export function TimelineScreen({
             text={
               isBusiness
                 ? 'Tap a confirmed transaction to inspect or correct it; the original value stays in history.'
-                : 'You can undo any of these. Nothing is locked.'
+                : 'Open a transaction to inspect or correct it. Undo is available just after supported changes; saved corrections stay in history.'
             }
           />
         </View>
@@ -574,10 +633,12 @@ function TimelineActionCards({
   transactions,
   styles,
   palette,
+  nav,
 }: {
   transactions: readonly Transaction[];
   styles: Styles;
   palette: Palette;
+  nav: Nav;
 }) {
   const groups = useMemo(() => {
     const grouped = new Map<string, Transaction[]>();
@@ -608,8 +669,11 @@ function TimelineActionCards({
                 maximumFractionDigits: 2,
               });
               return (
-                <View
+                <Pressable
                   key={transaction.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${transaction.merchant}, ${formatMoney(transaction.amount, true)}. View details and correct`}
+                  onPress={() => nav.openSheet('edit-txn', { id: transaction.id })}
                   style={[
                     styles.actionRow,
                     index > 0 ? { borderTopColor: palette.hairline, borderTopWidth: 1 } : undefined,
@@ -618,14 +682,14 @@ function TimelineActionCards({
                   <View style={styles.actionCopy}>
                     <View style={[styles.actionChip, { backgroundColor: palette.inset }]}>
                       <Text style={[styles.actionChipText, { color: palette.muted }]}>
-                        {incoming ? 'in' : 'spent'}
+                        Confirmed figure
                       </Text>
                     </View>
                     <Text style={[styles.actionMerchant, { color: palette.ink }]}>
                       {transaction.merchant}
                     </Text>
                     <Text style={[styles.actionCategory, { color: palette.muted }]}>
-                      {transaction.category}
+                      {CATEGORY_LABEL[transaction.category]} · View details and correct ›
                     </Text>
                   </View>
                   <Text
@@ -636,13 +700,78 @@ function TimelineActionCards({
                   >
                     {incoming ? '+' : '\u2212'}£{amount}
                   </Text>
-                </View>
+                </Pressable>
               );
             })}
           </View>
         </View>
       ))}
     </View>
+  );
+}
+
+function TimelineDecision({
+  row,
+  transactions,
+  nav,
+  styles,
+  palette,
+}: {
+  row: DecisionHistoryRow;
+  transactions: readonly Transaction[];
+  nav: Nav;
+  styles: Styles;
+  palette: Palette;
+}) {
+  const destination = historyDestination(row, transactions);
+  const value = (value: string | number | undefined) =>
+    typeof value === 'number' ? formatMoney(value, true) : value || 'blank';
+  const detail =
+    row.kind === 'edited'
+      ? `${row.field === 'when' ? 'Date' : row.field === 'merchant' ? 'Name' : row.field === 'amount' ? 'Amount' : 'Category'} · ${value(row.before)} → ${value(row.after)}`
+      : row.note;
+  const verb = {
+    edited: 'Corrected',
+    paused: 'Paused',
+    resumed: 'Resumed',
+    ignored: 'Put aside',
+    added: 'Added',
+    'debt-removed': 'Removed from tracking',
+    'debt-restored': 'Tracking restored',
+  }[row.kind];
+  return (
+    <Pressable
+      accessibilityRole={destination ? 'button' : undefined}
+      disabled={!destination}
+      onPress={() => {
+        if (destination?.kind === 'transaction') nav.openSheet('edit-txn', { id: destination.id });
+        else if (destination?.kind === 'hidden') nav.openSheet('hidden-review');
+        else if (destination?.kind === 'bills') nav.go('subs');
+        else if (destination?.kind === 'debts') nav.go('debts');
+      }}
+      style={[
+        styles.actionCard,
+        { backgroundColor: palette.surface, borderColor: palette.hairline, padding: gap.lg },
+      ]}
+    >
+      <Text style={[styles.actionDay, { color: palette.muted }]}>
+        {verb} · {actionDayLabel(row.at)}
+      </Text>
+      <Text style={[styles.actionMerchant, { color: palette.ink }]}>{row.title}</Text>
+      {detail ? (
+        <Text style={[styles.actionCategory, { color: palette.muted }]}>{detail}</Text>
+      ) : null}
+      <Text
+        style={[
+          styles.actionCategory,
+          { color: destination ? palette.calm : palette.muted, marginTop: gap.sm },
+        ]}
+      >
+        {destination
+          ? `${destination.label} ›`
+          : 'Saved history · original transaction no longer available'}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -765,6 +894,9 @@ function RowBody({
       </Text>
       {row.note !== undefined ? (
         <Text style={[styles.note, { color: palette.muted }]}>{row.note}</Text>
+      ) : null}
+      {row.editable ? (
+        <Text style={[styles.note, { color: palette.calm }]}>View details and correct ›</Text>
       ) : null}
 
       {/* Category chip — a read-only label reflecting the persisted category (the web cycler was a

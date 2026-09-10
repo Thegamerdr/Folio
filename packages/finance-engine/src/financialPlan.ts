@@ -179,6 +179,13 @@ export type FinancialPlanResult = Readonly<{
   shortfallDate: LocalDate | null;
   shortfallCauses: readonly ShortfallCause[];
   lowestProjectedMinor: number;
+  /** Exact dated movements used by the timeline, exposed read-only for consistent UI detail. */
+  events: readonly Readonly<
+    Pick<
+      PlanEvent,
+      'id' | 'date' | 'originalDate' | 'label' | 'amountMinor' | 'source' | 'protectedOutflowMinor'
+    >
+  >[];
   timeline: readonly FinancialTimelinePoint[];
   debtRecommendation: DebtRecommendation;
   debtProjection: DebtProjection | null;
@@ -1202,6 +1209,17 @@ function calculatePlan(
     shortfallDate: shortfallMinor > 0 ? firstShortfallDate : null,
     shortfallCauses: causes,
     lowestProjectedMinor: lowest,
+    events: events.map(
+      ({ id, date, originalDate, label, amountMinor, source, protectedOutflowMinor }) => ({
+        id,
+        date,
+        ...(originalDate === undefined ? {} : { originalDate }),
+        label,
+        amountMinor,
+        source,
+        protectedOutflowMinor,
+      }),
+    ),
     timeline,
     debtRecommendation: {
       strategy,

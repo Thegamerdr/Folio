@@ -41,6 +41,7 @@ import {
 // captureException helper, so componentDidCatch below imports the SDK directly.
 import * as Sentry from '@sentry/react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useBillingLifecycle } from '@/folio/lib/billing/billingLifecycle';
 
@@ -136,7 +137,7 @@ import { WorkspaceSheet } from '@/folio/sheets/WorkspaceSheet';
 import { BillCaughtSheet } from '@/folio/sheets/BillCaughtSheet';
 import { DriftCaughtSheet } from '@/folio/sheets/DriftCaughtSheet';
 import { AnnualCaughtSheet } from '@/folio/sheets/AnnualCaughtSheet';
-import { UndoProvider } from '@/folio/ui/useUndo';
+import { UndoProvider, useUndo } from '@/folio/ui/useUndo';
 import { ToastHost } from '@/folio/ui/Toast';
 import { UndoToast } from '@/folio/ui/UndoToast';
 import { AppLockGate } from '@/folio/ui/AppLockGate';
@@ -432,6 +433,10 @@ function CloudSyncLifecycle() {
 export function FolioShell() {
   useBillingLifecycle();
   const t = useTheme();
+  const systemInsets = useSafeAreaInsets();
+  const screenInsets = useMemo(() => ({ ...systemInsets, top: 0, bottom: 0 }), [systemInsets]);
+  const [bottomChromeHeight, setBottomChromeHeight] = useState(60 + systemInsets.bottom);
+  const [toastHeight, setToastHeight] = useState(0);
   const parity = useMemo(() => getParityHarnessConfig(), []);
   const parityRuntime = useSyncExternalStore(
     subscribeParityRuntimeControl,
@@ -444,6 +449,7 @@ export function FolioShell() {
   const [screen, setScreen] = useState<ScreenId>(parity?.screen ?? 'today');
   const [sheet, setSheet] = useState<SheetId>(parity?.sheet ?? null);
   const [workspaceSheetVisible, setWorkspaceSheetVisible] = useState(false);
+  const [portalSheetOpen, setPortalSheetOpen] = useState(false);
   // Carried into the melo-chat sheet when a flow opens Melo with a prefill/seed (web intent.*).
   const [meloIntent, setMeloIntent] = useState<MeloIntent | undefined>(undefined);
   // Carried into the edit-txn sheet when a flow opens it with a real subject — the posted
@@ -452,6 +458,7 @@ export function FolioShell() {
   // supersedes it. `undefined` = no target (cold open) → the sheet keeps its safe inert fallback.
   const [editTxnTarget, setEditTxnTarget] = useState<string | undefined>(undefined);
   const [debtEditTarget, setDebtEditTarget] = useState<string | undefined>(undefined);
+  const [onboardingField, setOnboardingField] = useState<string | undefined>(undefined);
   // Carried into the day-detail sheet when a Month cell / "+N" chip / Week day header opens it with
   // a real subject — the ISO day the tap resolved. Mirrors the editTxnTarget slot exactly: set when
   // openSheet('day-detail', { date }) is called, cleared whenever a sheet closes or a navigation
@@ -464,6 +471,7 @@ export function FolioShell() {
   const [addEventIntent, setAddEventIntent] = useState<SheetPayload | undefined>(undefined);
   // Carried into quick spend entry only after the user explicitly chooses to turn a preview into a
   // real log. A scrub or What-if experiment never writes by itself.
+  const [affordAmount, setAffordAmount] = useState<number | undefined>(undefined);
   const [logSpendAmount, setLogSpendAmount] = useState<number | undefined>(undefined);
   const [navigationPaintEpoch, setNavigationPaintEpoch] = useState(0);
   const surfaceRepaintEpoch = useSyncExternalStore(
@@ -488,9 +496,11 @@ export function FolioShell() {
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
     setDebtEditTarget(undefined);
+    setOnboardingField(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
+    setAffordAmount(undefined);
     setScreen(parityRuntime.screen);
     setSheet(parityRuntime.sheet);
   }, [parity, parityRuntime]);
@@ -594,9 +604,11 @@ export function FolioShell() {
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
     setDebtEditTarget(undefined);
+    setOnboardingField(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
+    setAffordAmount(undefined);
     setScreen(next);
   }, []);
 
@@ -614,9 +626,11 @@ export function FolioShell() {
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
     setDebtEditTarget(undefined);
+    setOnboardingField(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
+    setAffordAmount(undefined);
     setScreen(prev);
   }, []);
 
@@ -627,12 +641,16 @@ export function FolioShell() {
   // dayDetailDate slot and threaded into <SheetDayDetail date={...}>. Any other sheet ignores the
   // payload and both slots are cleared, so opening a different sheet never carries a stale target.
   const openSheet = useCallback((next: SheetId, payload?: SheetPayload) => {
+    setOnboardingField(next === 'onboarding' ? payload?.id : undefined);
     setWorkspaceSheetVisible(false);
     setEditTxnTarget(next === 'edit-txn' ? payload?.id : undefined);
-    setDebtEditTarget(next === 'declare-debt' ? payload?.debtId : undefined);
+    setDebtEditTarget(
+      next === 'declare-debt' || next === 'log-payment' ? payload?.debtId : undefined,
+    );
     setDayDetailDate(next === 'day-detail' ? payload?.date : undefined);
     setAddEventIntent(next === 'add-event' ? payload : undefined);
     setLogSpendAmount(next === 'log-spend' ? payload?.amount : undefined);
+    setAffordAmount(next === 'afford-check' ? payload?.amount : undefined);
     setSheet(next);
   }, []);
 
@@ -641,9 +659,11 @@ export function FolioShell() {
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
     setDebtEditTarget(undefined);
+    setOnboardingField(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
+    setAffordAmount(undefined);
   }, []);
 
   // Open the Melo companion CHAT sheet, carrying any prefill/seed the flow provided (web intent).
@@ -679,9 +699,11 @@ export function FolioShell() {
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);
     setDebtEditTarget(undefined);
+    setOnboardingField(undefined);
     setDayDetailDate(undefined);
     setAddEventIntent(undefined);
     setLogSpendAmount(undefined);
+    setAffordAmount(undefined);
     setPressureOverride(null);
     setScreen('today');
   }, []);
@@ -765,9 +787,15 @@ export function FolioShell() {
   return (
     // The undo provider wraps the whole shell so every screen can raise a Tier-1 undo window
     // (ENGINES §6) via useUndo(); its snackbar host renders above the screen + bottom nav.
-    <UndoProvider>
-      <SheetPortalProvider>
-        <View collapsable={false} style={[shellStyles.root, { backgroundColor: t.canvas }]}>
+    <UndoProvider
+      bottomOffset={bottomChromeHeight}
+      paused={sheet !== null || workspaceSheetVisible || portalSheetOpen}
+    >
+      <SheetPortalProvider onOverlayChange={setPortalSheetOpen}>
+        <View
+          collapsable={false}
+          style={[shellStyles.root, { backgroundColor: t.canvas, paddingTop: systemInsets.top }]}
+        >
           {isClerkConfigured() ? <CloudSyncLifecycle /> : null}
           {/* Data-loss visibility — when hydration recovered from the backup or found the saved blob
           unreadable, say so ONCE, visibly, instead of booting an empty app that reads as a fresh
@@ -799,22 +827,31 @@ export function FolioShell() {
                 onReset={() => go('today')}
                 forceError={captureGlobalSurface === 'global.screen-error-boundary'}
               >
-                <ScreenView screen={screen} nav={nav} pressure={activePressure} />
+                <SafeAreaInsetsContext.Provider value={screenInsets}>
+                  <ScreenView screen={screen} nav={nav} pressure={activePressure} />
+                </SafeAreaInsetsContext.Provider>
               </ScreenErrorBoundary>
             </View>
-            {screen !== 'review' && screen !== 'plan' ? (
+            {screen !== 'review' &&
+            screen !== 'plan' &&
+            sheet === null &&
+            !portalSheetOpen &&
+            !workspaceSheetVisible ? (
               <ShellMeloCompanion screen={screen} nav={nav} />
             ) : null}
+            <FeedbackClearance toastHeight={toastHeight} />
             {businessWorkspaceActive ? (
               <BusinessWorkspaceBar label="Business" onPress={() => nav.openWorkspace?.()} />
             ) : null}
-            <BottomNav
-              key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
-              active={activeTab}
-              onChange={onTabChange}
-              reviewCount={pendingReviewCount}
-              variant={businessWorkspaceActive ? 'business' : 'personal'}
-            />
+            <View onLayout={(event) => setBottomChromeHeight(event.nativeEvent.layout.height)}>
+              <BottomNav
+                key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
+                active={activeTab}
+                onChange={onTabChange}
+                reviewCount={pendingReviewCount}
+                variant={businessWorkspaceActive ? 'business' : 'personal'}
+              />
+            </View>
           </View>
           {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
           sheets (onboarding, appearance, edit-txn, log-spend, sub-caught, add-event, calendar-export,
@@ -829,7 +866,9 @@ export function FolioShell() {
           )}
           {/* Self-hosting sheet hosts — each renders the kit Sheet internally, so it is its own host
           (never nested inside the generic one) and is visible only while it is the active sheet. */}
-          {sheet === 'onboarding' && <OnboardingSheet visible onClose={closeSheet} />}
+          {sheet === 'onboarding' && (
+            <OnboardingSheet visible onClose={closeSheet} initialField={onboardingField} />
+          )}
           {sheet === 'appearance' && <AppearanceSheet visible onClose={closeSheet} />}
           {/* Edit-txn — the posted-transaction correction sheet. The shell threads the parked target id
           (the row the opener chose) so Save corrects THAT transaction via the store; with no target
@@ -853,7 +892,9 @@ export function FolioShell() {
           {sheet === 'calendar-export' && <CalendarExportSheet visible onClose={closeSheet} />}
           {sheet === 'calendar-connect' && <CalendarConnectSheet visible onClose={closeSheet} />}
           {sheet === 'log-invoice' && <LogInvoiceSheet visible onClose={closeSheet} />}
-          {sheet === 'afford-check' && <AffordCheckSheet visible onClose={closeSheet} />}
+          {sheet === 'afford-check' && (
+            <AffordCheckSheet visible onClose={closeSheet} initialAmount={affordAmount} />
+          )}
           {sheet === 'shelf' && <ShelfSheet visible onClose={closeSheet} />}
           {sheet === 'chart-style' && <ChartStyleSheet visible onClose={closeSheet} />}
           {sheet === 'hidden-review' && <HiddenReviewSheet visible onClose={closeSheet} />}
@@ -861,8 +902,12 @@ export function FolioShell() {
           {/* Declare-debt — the real Debt-lens record (kind/APR/min-payment/due-day), faithful port of the
           web's SheetAddDebt. Distinct from the ScreenId 'add-debt' (AddEntryScreen's unrelated
           recurring bill/debt-payment quick-add) — see the SheetId union's doc-comment in types.ts. */}
-          {sheet === 'declare-debt' && <AddDebtSheet visible onClose={closeSheet} targetId={debtEditTarget} />}
-          {sheet === 'log-payment' && <LogPaymentSheet visible onClose={closeSheet} />}
+          {sheet === 'declare-debt' && (
+            <AddDebtSheet visible onClose={closeSheet} targetId={debtEditTarget} />
+          )}
+          {sheet === 'log-payment' && (
+            <LogPaymentSheet visible onClose={closeSheet} targetId={debtEditTarget} />
+          )}
           {sheet === 'household-setup' && <HouseholdSetupSheet visible onClose={closeSheet} />}
           {/* Lens-picker and Safe-Zone need the shell's nav (paywall/Melo bridges), so they mount as
           sibling hosts like RouteDetailSheet/MeloChatSheet rather than through the generic host. */}
@@ -911,6 +956,9 @@ export function FolioShell() {
           ported). Mounted once at the top-level overlay, alongside the undo snackbar it never
           disturbs. */}
           <ToastHost
+            bottomOffset={bottomChromeHeight}
+            paused={sheet !== null || workspaceSheetVisible}
+            onHeightChange={setToastHeight}
             capture={
               captureGlobalSurface === 'global.toast'
                 ? {
@@ -926,6 +974,7 @@ export function FolioShell() {
               onUndo={() => undefined}
               onDismiss={() => undefined}
               durationMs={30_000}
+              bottomOffset={bottomChromeHeight}
               reduceMotion
             />
           ) : null}
@@ -933,6 +982,11 @@ export function FolioShell() {
       </SheetPortalProvider>
     </UndoProvider>
   );
+}
+
+function FeedbackClearance({ toastHeight }: { toastHeight: number }) {
+  const { undoVisible, undoHeight } = useUndo();
+  return <View style={{ height: undoVisible ? undoHeight : toastHeight }} />;
 }
 
 function BusinessWorkspaceBar({ label, onPress }: { label: string; onPress: () => void }) {
@@ -967,7 +1021,7 @@ function BusinessWorkspaceBar({ label, onPress }: { label: string; onPress: () =
 const shellStyles = StyleSheet.create({
   root: { flex: 1 },
   routeFrame: { flex: 1 },
-  screenHost: { flex: 1 },
+  screenHost: { flex: 1, overflow: 'hidden' },
 });
 
 const businessWorkspaceStyles = StyleSheet.create({

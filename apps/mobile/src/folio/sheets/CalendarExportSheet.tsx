@@ -308,15 +308,6 @@ function CalendarExportBody({
       {/* Eyebrow row — "Subscribe" + close glyph (×). */}
       <View style={s.headerRow}>
         <Text style={s.eyebrow}>{COPY.eyebrow}</Text>
-        <PressCta
-          label="×"
-          onPress={onClose}
-          reduceMotion={reduceMotion}
-          style={s.close}
-          labelStyle={s.closeGlyph}
-          accessibilityLabel="Close"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        />
       </View>
 
       {/* Headline — Fraunces display, ONE terracotta accent word ("calendar."). */}

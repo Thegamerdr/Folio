@@ -1,3 +1,5 @@
+import { previewDebtPaymentChange } from '@/folio/lib/paymentPresentation';
+import { isDebtPayment } from '@/folio/lib/debtPaymentLedger';
 // TodayRecentTxns — faithful 1:1 RN port of the web design source
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/today/TodayRecentTxns.tsx).
 //
@@ -21,14 +23,14 @@ import { useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, pressed, radius, serif, type Palette } from '@/folio/theme';
-import { addTransaction, removeTransaction, useAppStore, type Transaction } from '@/folio/store';
+import { removeTransactionWithUndo, getState, useAppStore, type Transaction } from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
 import { triggerFeedback } from '@/folio/lib/feedback';
 import type { Nav } from '@/folio/types';
 import { formatGBP } from './format';
 import { useTodayTheme } from './todayTheme';
 
-const MIN_TAP = 44;
+const MIN_TAP = 48;
 
 function palette(t: Palette, category: Transaction['category']): string {
   switch (category) {
@@ -49,7 +51,8 @@ function palette(t: Palette, category: Transaction['category']): string {
 
 export function TodayRecentTxns({ nav }: { nav: Nav }) {
   const t = useTodayTheme();
-  const { showUndo } = useUndo();
+  const { showUndo, setConfirmationOpen } = useUndo();
+  const state = useAppStore((st) => st);
   const transactions = useAppStore((st) => st.transactions);
   const recent = useMemo(
     () => transactions.filter((tx) => tx.amount < 0).slice(0, 5),
@@ -152,72 +155,118 @@ export function TodayRecentTxns({ nav }: { nav: Nav }) {
                     : undefined,
                 ]}
               >
-                <View style={styles.rowMain}>
-                  <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
-                    {tx.merchant}
-                  </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${tx.merchant}`}
+                  onPress={() => nav.openSheet('edit-txn', { id: tx.id })}
+                  style={styles.rowMain}
+                >
+                  <Text style={[styles.merchant, { color: t.ink }]}>{tx.merchant}</Text>
                   <Text style={[styles.meta, { color: t.muted }]}>
-                    {tx.category} · {when}
+                    {isDebtPayment(tx) ? 'Payment recorded' : tx.category} · {when}
                   </Text>
-                </View>
+                </Pressable>
                 <Text style={[styles.amount, { color: t.ink }]}>{formatGBP(abs)}</Text>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Edit ${tx.merchant}`}
-                  hitSlop={12}
                   onPress={() => nav.openSheet('edit-txn', { id: tx.id })}
                   style={({ pressed: isPressed }) => [styles.edit, isPressed ? pressed : undefined]}
                 >
-                  <Text style={[styles.editGlyph, { color: t.muted }]}>✎</Text>
+                  <Text style={[styles.editGlyph, { color: t.muted }]}>Edit</Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Remove ${tx.merchant}`}
-                  hitSlop={12}
-                  onPress={() =>
-                    Alert.alert(`Remove ${tx.merchant} ${formatGBP(abs)}?`, undefined, [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: () => {
-                          // Snapshot the exact row BEFORE removing so the Tier-1 undo (30s) can
-                          // restore it identically — same id/when/merchant/amount/category/source.
-                          const snapshot = tx;
-                          try {
-                            removeTransaction(tx.id);
-                          } catch (error) {
-                            Alert.alert(
-                              'Transaction kept',
-                              error instanceof Error
-                                ? error.message
-                                : 'The linked balances changed. Nothing was removed.',
-                            );
-                            return;
-                          }
-                          void triggerFeedback('delete-confirm');
-                          showUndo(`Removed ${tx.merchant}`, () => {
+                  onPress={() => {
+                    let consequence =
+                      'This removes the record from Melo. It does not cancel or refund a bank payment.';
+                    if (isDebtPayment(tx)) {
+                      try {
+                        consequence =
+                          previewDebtPaymentChange(state, tx, undefined, new Date().toISOString())
+                            .text +
+                          '\n\n' +
+                          consequence;
+                      } catch (error) {
+                        Alert.alert(
+                          'Record kept',
+                          error instanceof Error ? error.message : 'Review the linked debt first.',
+                        );
+                        return;
+                      }
+                    }
+                    setConfirmationOpen(true);
+                    Alert.alert(
+                      `Remove this ${isDebtPayment(tx) ? 'payment record' : 'transaction record'}?`,
+                      consequence,
+                      [
+                        {
+                          text: 'Cancel',
+                          style: 'cancel',
+                          onPress: () => setConfirmationOpen(false),
+                        },
+                        {
+                          text: 'Remove record',
+                          style: 'destructive',
+                          onPress: () => {
+                            setConfirmationOpen(false);
+                            // Snapshot the exact row BEFORE removing so the Tier-1 undo (30s) can
+                            // restore it identically — same id/when/merchant/amount/category/source.
+                            let undoRemoval: (() => boolean) | null;
                             try {
-                              addTransaction(snapshot);
+                              if (
+                                getState().activeWorkspaceId !== state.activeWorkspaceId ||
+                                JSON.stringify(
+                                  getState().transactions.find((row) => row.id === tx.id),
+                                ) !== JSON.stringify(tx)
+                              ) {
+                                Alert.alert(
+                                  'Record changed',
+                                  'Review this transaction again before removing it.',
+                                );
+                                return;
+                              }
+                              undoRemoval = removeTransactionWithUndo(tx.id);
+                              if (!undoRemoval) return;
                             } catch (error) {
                               Alert.alert(
-                                'Could not undo removal',
+                                'Transaction kept',
                                 error instanceof Error
                                   ? error.message
-                                  : 'The linked balances changed. Nothing was restored.',
+                                  : 'The linked balances changed. Nothing was removed.',
                               );
+                              return;
                             }
-                          });
+                            void triggerFeedback('delete-confirm');
+                            showUndo(`Record removed · ${tx.merchant}`, () => {
+                              try {
+                                if (!undoRemoval?.())
+                                  Alert.alert(
+                                    'Could not undo removal',
+                                    'The record or balances changed. Review the latest figures before restoring this record.',
+                                  );
+                              } catch (error) {
+                                Alert.alert(
+                                  'Could not undo removal',
+                                  error instanceof Error
+                                    ? error.message
+                                    : 'The linked balances changed. Nothing was restored.',
+                                );
+                              }
+                            });
+                          },
                         },
-                      },
-                    ])
-                  }
+                      ],
+                      { cancelable: true, onDismiss: () => setConfirmationOpen(false) },
+                    );
+                  }}
                   style={({ pressed: isPressed }) => [
                     styles.remove,
                     isPressed ? pressed : undefined,
                   ]}
                 >
-                  <Text style={[styles.removeGlyph, { color: t.muted }]}>×</Text>
+                  <Text style={[styles.removeGlyph, { color: t.muted }]}>Remove</Text>
                 </Pressable>
               </View>
             );
@@ -246,7 +295,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   logBtn: {
-    minHeight: 0,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   logBtnText: {
     fontSize: 11,
@@ -316,11 +366,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: gap.lg,
     paddingVertical: 10,
     flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: gap.md,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   rowMain: {
-    flex: 1,
+    width: '68%',
+    minHeight: 48,
+    justifyContent: 'center',
     minWidth: 0,
   },
   merchant: {
@@ -336,13 +389,19 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   edit: {
-    paddingHorizontal: 4,
+    minHeight: 48,
+    minWidth: 64,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   editGlyph: {
     fontSize: 13,
   },
   remove: {
-    paddingHorizontal: 4,
+    minHeight: 48,
+    minWidth: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   removeGlyph: {
     fontSize: 14,

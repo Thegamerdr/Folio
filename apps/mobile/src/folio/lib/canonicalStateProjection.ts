@@ -836,6 +836,7 @@ function projectTransactionIntelligenceState(
         at: requireIsoInstant(event.at, `Timeline event ${event.id} time`),
         kind: event.kind,
         subject: requireString(event.subject, `Timeline event ${event.id} subject`),
+        ...(event.entityId === undefined ? {} : { entityId: event.entityId }),
         ...(event.note === undefined ? {} : { note: event.note }),
       };
     }),
@@ -1257,7 +1258,11 @@ function projectTimelineEvent(
         ? 'subscription_paused'
         : event.kind === 'sub-resumed'
           ? 'subscription_resumed'
-          : 'import_dismissed',
+          : event.kind === 'debt-removed'
+            ? 'debt_tracking_removed'
+            : event.kind === 'debt-restored'
+              ? 'debt_tracking_restored'
+              : 'import_dismissed',
   };
 }
 

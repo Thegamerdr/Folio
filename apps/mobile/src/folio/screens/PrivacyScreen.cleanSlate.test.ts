@@ -29,7 +29,11 @@ import { canStartFresh, type StartFreshState } from '../lib/undoPolicy';
 import type { CandidateMoneyItem } from '../lib/importSheet';
 
 // The exact gate the handler builds once all three confirm steps have cleared.
-const CLEARED_GATE: StartFreshState = { typedConfirm: true, exportedAck: true, finalConfirm: true };
+const CLEARED_GATE: StartFreshState = {
+  scopeReviewed: true,
+  exportChoice: 'requested' as const,
+  finalConfirm: true,
+};
 
 // The cleanSlate handler's pure store sequence (PrivacyScreen.performReset(resetToEmpty, ...)):
 // vet the gate, then wipe to empty. A blocked gate is a no-op,
@@ -53,10 +57,10 @@ describe('Privacy "Clear to empty" — gated tier-3 clean slate', () => {
     // Each single-missing-gate combination must refuse: the engine returns false, so the handler
     // returns early and the demo data is untouched.
     const partials: StartFreshState[] = [
-      { typedConfirm: false, exportedAck: true, finalConfirm: true },
-      { typedConfirm: true, exportedAck: false, finalConfirm: true },
-      { typedConfirm: true, exportedAck: true, finalConfirm: false },
-      { typedConfirm: false, exportedAck: false, finalConfirm: false },
+      { scopeReviewed: false, exportChoice: 'requested' as const, finalConfirm: true },
+      { scopeReviewed: true, exportChoice: null, finalConfirm: true },
+      { scopeReviewed: true, exportChoice: 'requested' as const, finalConfirm: false },
+      { scopeReviewed: false, exportChoice: null, finalConfirm: false },
     ];
     for (const gate of partials) {
       const cleared = clearToEmpty(gate);

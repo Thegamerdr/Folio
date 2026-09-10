@@ -14,7 +14,7 @@
 // inline confirmation line is shown instead of fabricating a toast system.
 
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, radius, Sheet, serif, useTheme, type Palette } from '@/folio/theme';
 import { setMoneyMode } from '@/folio/store';
@@ -84,7 +84,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
           Reshapes Today's verdict and Melo's voice. Switch back any time.
         </Text>
 
-        <ScrollView style={s.list} contentContainerStyle={s.listContent}>
+        <View style={s.list}>
           {ORDER.map((m, idx) => {
             const isActive = m === active;
             const tier = tierFor(m);
@@ -98,6 +98,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
               <Pressable
                 key={m}
                 accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
                 accessibilityLabel={
                   locked
                     ? `${MODE_LABEL[m]} — Full lens, ${
@@ -140,15 +141,13 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
                       </Text>
                     </View>
                   </View>
-                  <Text style={s.rowLine} numberOfLines={1}>
-                    "{ONE_LINE[m]}"
-                  </Text>
+                  <Text style={s.rowLine}>"{ONE_LINE[m]}"</Text>
                 </View>
                 {isActive ? <View style={s.activeDot} /> : <Text style={s.chevron}>→</Text>}
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
 
         {justStartedTrial ? (
           <View style={[s.footer, { backgroundColor: t.calmSoft }]}>
@@ -220,7 +219,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
 function makeStyles(t: Palette) {
   return StyleSheet.create({
     body: { paddingBottom: gap.md },
-    headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+    headRow: { gap: gap.xs },
     headline: {
       fontFamily: serif.display,
       fontSize: 22,
@@ -233,7 +232,6 @@ function makeStyles(t: Palette) {
     subline: { marginTop: 4, fontSize: 12, color: t.muted },
     list: {
       marginTop: gap.md,
-      maxHeight: 380,
       borderRadius: radius.lg,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: t.hairline,
@@ -248,7 +246,7 @@ function makeStyles(t: Palette) {
       gap: gap.sm,
     },
     rowBody: { flex: 1, minWidth: 0 },
-    rowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: gap.xs },
+    rowTitleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: gap.xs },
     rowTitle: { fontSize: 14.5, fontWeight: '500', color: t.ink },
     badge: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
     badgeText: { fontSize: 9, letterSpacing: 0.6, textTransform: 'uppercase' },
@@ -272,7 +270,7 @@ function makeStyles(t: Palette) {
     },
     footerBody: { marginTop: 2, fontSize: 11, color: t.muted },
     footerCta: {
-      height: 32,
+      minHeight: 48,
       paddingHorizontal: gap.md,
       borderRadius: 999,
       alignItems: 'center',

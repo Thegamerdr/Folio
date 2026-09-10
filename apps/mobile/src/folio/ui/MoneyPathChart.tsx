@@ -101,7 +101,7 @@ export function MoneyPathChart({
       width="100%"
       height={events.length <= 3 && focusX == null ? 164 : 184}
       accessibilityRole="image"
-      accessibilityLabel={`Money path: ${first.value} today, tight point ${tight.value} on ${tight.label}, ${last.value} by ${last.label}.`}
+      accessibilityLabel={`Projected cash: ${first.value} at ${first.label}, tight point ${tight.value} on ${tight.label}, ${last.value} by ${last.label}.`}
     >
       <Defs>
         <LinearGradient id="mpcStroke" x1="0" x2="1" y1="0" y2="0">

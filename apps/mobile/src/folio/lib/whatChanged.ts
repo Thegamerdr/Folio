@@ -19,13 +19,17 @@
 // happened after the user first had it).
 
 import type { TimelineRow } from './timelineEvents';
-import type { StatementImportRecord } from '../store';
+import type { StatementImportRecord, Transaction, StoredTxnEdit, Debt } from '../store';
+import { isDebtPayment } from './debtPaymentLedger';
+import { formatMoney } from './financialPresentation';
 
 export type WhatChangedSummary = {
   /** Total change moments since the baseline (rows + imports). Always >= 1 when non-null. */
   count: number;
   /** Calm one-liner for the row — the NEWEST change, plus a "· N more" tail when count > 1. */
   headline: string;
+  /** Only live payment records expose their own detail target. */
+  transactionId?: string;
 };
 
 /** The row's verb, lowercased for mid-sentence use ('Tesco added'). */
@@ -37,19 +41,41 @@ export function summarizeWhatChanged(args: {
   rows: readonly TimelineRow[];
   imports: readonly StatementImportRecord[];
   seenISO: string | null;
+  transactions?: readonly Transaction[];
+  edits?: readonly StoredTxnEdit[];
+  debts?: readonly Debt[];
 }): WhatChangedSummary | null {
   const { rows, imports, seenISO } = args;
   if (seenISO === null) return null;
   const seenTime = new Date(seenISO).getTime();
   if (Number.isNaN(seenTime)) return null; // corrupt baseline — stay quiet, never crash.
 
-  type Moment = { at: number; label: string };
+  type Moment = { at: number; label: string; transactionId?: string };
   const moments: Moment[] = [];
 
   for (const row of rows) {
-    const at = new Date(row.at).getTime();
+    const payment = args.transactions?.find(
+      (transaction) => transaction.id === row.id && isDebtPayment(transaction),
+    );
+    const paymentEdits = payment
+      ? (args.edits ?? []).filter((edit) => edit.txnId === payment.id)
+      : [];
+    const editTimes = paymentEdits
+      .map((edit) => new Date(edit.at).getTime())
+      .filter(Number.isFinite);
+    const at = Math.max(new Date(row.at).getTime(), ...editTimes);
     if (!Number.isNaN(at) && at > seenTime) {
-      moments.push({ at, label: `${row.what} ${lowerVerb(row.verb)}` });
+      if (payment && isDebtPayment(payment)) {
+        const debtName =
+          args.debts?.find((debt) => debt.id === payment.financialAction.debtId)?.name ??
+          payment.merchant.replace(/^Debt payment:\s*/u, '');
+        const action = paymentEdits.length > 0 || row.verb === 'Edited' ? 'corrected' : 'recorded';
+        moments.push({
+          at,
+          label: `Payment ${action} ${formatMoney(Math.abs(payment.amount))} · ${debtName}`,
+          transactionId: payment.id,
+        });
+      } else moments.push({ at, label: `${row.what} ${lowerVerb(row.verb)}` });
     }
   }
   for (const imported of imports) {
@@ -66,5 +92,9 @@ export function summarizeWhatChanged(args: {
   const newest = moments[0]!;
   const rest = moments.length - 1;
   const headline = rest === 0 ? newest.label : `${newest.label} · ${rest} more`;
-  return { count: moments.length, headline };
+  return {
+    count: moments.length,
+    headline,
+    ...(newest.transactionId ? { transactionId: newest.transactionId } : {}),
+  };
 }

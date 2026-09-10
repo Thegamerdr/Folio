@@ -89,8 +89,16 @@ import { useRoute } from '@/folio/lib/storeRoute';
 import { deriveShortfallBudget } from '@/folio/lib/shortfallBudget';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { isDiscretionarySubscription } from '@/folio/lib/recoveryPreview';
-import { deriveCalendarEvents, type DerivedEvent } from '@/folio/lib/calendarEvents';
+import { type DerivedEvent } from '@/folio/lib/calendarEvents';
 import { getShortfallCopy } from '@/folio/lib/modes/action';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import {
+  selectFinancialPresentation,
+  formatMoney as formatGBP,
+} from '@/folio/lib/financialPresentation';
+import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
+import { buildRecoveryRoutePreview } from '@/folio/lib/recoveryPreview';
+import { buildCalendarPresentation } from '@/folio/lib/calendarPresentation';
 import { triggerFeedback } from '@/folio/lib/feedback';
 import type { Nav } from '@/folio/types';
 
@@ -125,14 +133,6 @@ const EPOCH = new Date(0);
 // The body line's web max-w-[28ch]. RN has no 'ch' unit; ~260 holds the editorial line-length at the
 // 14px body face without dropping the constraint (the rhythm breaks if the line runs full width).
 const BODY_MAX_WIDTH = 260;
-
-/** Whole-pound display with a Unicode minus on negatives, e.g. "£1,240" / "−£86". Byte-faithful to the
- *  web kit's formatGBP (U+2212 minus, en-GB grouping, maximumFractionDigits 0). Ported inline so the
- *  Shortfall figures never drift and this screen stays uncoupled from the Today wave's copy of it. */
-function formatGBP(n: number): string {
-  const sign = n < 0 ? '−' : '';
-  return `${sign}£${Math.abs(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })}`;
-}
 
 function formatShortfallDate(iso: string): string {
   const date = new Date(`${iso}T12:00:00.000Z`);
@@ -187,6 +187,11 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   // pause or a borrow that lifts the route narrows the gap live toward 0 on the next render.
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
+  const plan = useMemo(
+    () => buildFinancialPlanFromState(appState, { now: now ?? EPOCH }),
+    [appState, now],
+  );
+  const presentation = selectFinancialPresentation(appState, plan);
 
   // The same protected budget as Today; never count the future salary visible at the chart's payday.
   const { gap: gapNow, daysLeft, dailyCap } = deriveShortfallBudget(route);
@@ -198,10 +203,12 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
 
   // Only optional subscriptions may be offered as a pause move. Names that describe rent, bills,
   // utilities, care, insurance, or other essentials are protected by the shared classifier.
-  const pausableSub = useMemo(
-    () => subs.find((s) => !subPaused[s.name] && isDiscretionarySubscription(s)),
-    [subs, subPaused],
+  const recoveryPreview = useMemo(
+    () => buildRecoveryRoutePreview(appState, now ?? EPOCH),
+    [appState, now],
   );
+  const pausableSub =
+    recoveryPreview.subscriptionLift > 0 ? recoveryPreview.pausableSubscription : null;
   // The highest-saved pot — the lender. The Borrow card renders only when it can cover the live gap.
   const lendingPot = useMemo(() => pots.slice().sort((a, b) => b.saved - a.saved)[0], [pots]);
 
@@ -212,21 +219,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     if (!route || !now) return null;
     // routeFromStore normalises its local day to UTC midnight before asking Calendar for events. Use
     // that same anchor here so the cause lookup cannot drift around a local/UTC midnight boundary.
-    const calendarNow = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    const events = deriveCalendarEvents({
-      subs: appState.subs,
-      subPaused: appState.subPaused,
-      subOverrides: appState.subOverrides,
-      onboarding: appState.onboarding,
-      manualEvents: appState.calendarEvents,
-      pots: appState.pots,
-      incomeSources: appState.incomeSources ?? [],
-      spendHold: appState.spendHold ?? null,
-      whatIfHolds: appState.whatIfHolds ?? [],
-      windowDays: 35,
-      now: calendarNow,
-      includeSampleBills: false,
-    });
+    const events = buildCalendarPresentation(appState, now).events;
     return (
       events
         .filter(
@@ -334,6 +327,15 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   // ── EMPTY ──────────────────────────────────────────────────────────────────────────────────────
   // STATES: n/a ("only shown when short"); the screen is gated upstream by the money-path verdict and
   // is never reached with no data. Kept defensive only — a calm doorway, never an error.
+  if (!presentation.complete)
+    return (
+      <FinancialSetupNotice
+        state={appState}
+        plan={plan}
+        onSetup={() => nav.openSheet('onboarding')}
+      />
+    );
+
   if (resolvedState === 'empty') {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
@@ -349,8 +351,8 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
           <View style={styles.flexFill}>
             <EmptyState
               mood="calm"
-              headline="You're on track."
-              body="Nothing to close right now — your money reaches payday."
+              headline="No gap in the current plan"
+              body={presentation.message}
             />
           </View>
         </View>
@@ -448,7 +450,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         {/* Body — "{daysLeft} days until payday. Here's what would close the gap — pick one, or none." */}
         <Text style={[styles.body, { color: t.muted, maxWidth: BODY_MAX_WIDTH }]}>
           <Text style={styles.tabular}>{`${daysLeft}`}</Text>
-          {` ${dayLabel} until payday. Here's what would close the gap — pick one, or none.`}
+          {` ${dayLabel} until payday. Review what is creating the gap and any available changes below.`}
         </Text>
 
         {/* A calm severity read: when the low lands, the native event that contributes to it, and the
@@ -470,12 +472,12 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
               accessibilityLabel={copy.short.move.pause(pausableSub.name)}
               onPress={() => nav.go('subs')}
               eyebrow={modeCopy.pauseLabel}
-              value={`+${formatGBP(pausableSub.cost)}`}
+              value={`+${formatGBP(recoveryPreview.subscriptionLift)} in the forecast`}
             >
               <Text style={[styles.cardBody, { color: t.ink }]}>
                 {'Pause '}
                 <Text style={styles.cardEmphasis}>{pausableSub.name}</Text>
-                {' this cycle'}
+                {' in the forecast · confirm with the provider first'}
               </Text>
             </MoveCard>
           ) : null}
@@ -537,12 +539,30 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
             </View>
           ) : null}
 
+          {!pausableSub && !(lendingPot && lendingPot.saved >= gapNow) ? (
+            <View style={[styles.card, { backgroundColor: t.inset, borderColor: t.hairline }]}>
+              <Text style={[styles.cardBody, { color: t.ink }]}>
+                No available change in these records would close the gap. Start by checking the
+                bills and income dates.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.go('plan')}
+                style={styles.refusal}
+              >
+                <Text style={[styles.refusalLabel, { color: t.calm }]}>
+                  Review bills and income →
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           {/* Spend a little less — ALWAYS renders. Routes to the WhatIf surface (nav.go('whatif')). */}
           <MoveCard
             t={t}
             accessibilityLabel={`Hold extra spending at ${formatGBP(dailyCap)}/day`}
             onPress={() => nav.go('whatif')}
-            eyebrow={modeCopy.holdLabel}
+            eyebrow="Extra-spending limit · not a solution"
             value={`${formatGBP(dailyCap)}/day`}
           >
             <Text style={[styles.cardBody, { color: t.ink }]}>
@@ -559,7 +579,11 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         <View style={styles.meloLine}>
           <MeloLine
             mood={meloMood}
-            text={relief ? "Gap closed. I'll keep watching the path." : modeCopy.meloDefault}
+            text={
+              relief
+                ? 'The current gap is closed. Review any unconfirmed payments.'
+                : 'The gap remains until the money or dates change. We can review the source figures together.'
+            }
           />
         </View>
 

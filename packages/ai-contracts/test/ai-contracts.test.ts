@@ -715,9 +715,9 @@ describe('local Melo AI functions', () => {
     });
 
     expect(draft.answer).toContain('£142 available now');
-    expect(draft.answer).toContain('current balance setting, forecast engine');
+    expect(draft.answer).toContain('the balance you recorded, your dated money plan');
     expect(draft.answer).toContain('2 unconfirmed review items are excluded');
-    expect(draft.answer).toContain('Open the relevant surface for names and row-level evidence');
+    expect(draft.answer).toContain('Show source figures to check the amounts and dates');
   });
 
   it('describes import matches and conflicts as review-only proposals', () => {

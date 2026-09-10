@@ -58,6 +58,7 @@ import { copy } from '@/folio/copy/copy';
 import { Melo } from '@/folio/melo/Melo';
 import {
   applyMeloTool,
+  getState,
   purgeSeedIfReal,
   setMelo,
   useAppStore,
@@ -66,8 +67,10 @@ import {
   type Transaction,
 } from '@/folio/store';
 import { UNDO_WINDOW_MS } from '@/folio/lib/undoPolicy';
+import { formatMoney } from '@/folio/lib/financialPresentation';
 import { buildMeloSnapshot } from '@/folio/lib/meloSnapshot';
 import { buildMeloLocalCalculation } from '@/folio/lib/meloCalculations';
+import { buildMeloSourceFigures, meloChatStarters } from '@/folio/lib/meloSourceFigures';
 import { resolveMeloAccountSelection } from '@/folio/lib/meloAccountSelection';
 import { resolveMeloSubscriptionRequest } from '@/folio/lib/meloSubscriptionRequest';
 import { DEFAULT_MELO_TONE, describeMeloTone } from '@/folio/lib/meloToneGuidance';
@@ -78,10 +81,13 @@ import {
   MELO_TOOL_APPROVAL_REQUESTED,
   decideMeloToolSuggestion,
   describeMeloToolSuggestion,
+  prepareMeloDebtPaymentReview,
+  isMeloDebtPaymentReviewCurrent,
   getMeloToolSuggestionPhase,
   settleMeloToolApplication,
   settleMeloToolUndo,
   type MeloToolSuggestionSettlement,
+  type MeloDebtPaymentReview,
 } from '@/folio/sheets/meloToolSuggestion';
 import { filterMeloFollowUpChips, resolveMeloLocalAction } from '@/folio/sheets/meloLocalAction';
 import {
@@ -117,20 +123,6 @@ const TONES: readonly { id: Tone; label: string }[] = [
   { id: 'coachy', label: 'Coachy' },
 ];
 
-// The four empty-state starter chips (web STARTERS — verbatim).
-const STARTERS: readonly string[] = [
-  'Why is my tight point so low?',
-  'Can I afford £40 on Friday?',
-  'Talk me out of this Spotify charge',
-  "How's the month going?",
-];
-const BUSINESS_STARTERS: readonly string[] = [
-  'Explain my business cash position',
-  'What needs my review?',
-  'Show my business accounts',
-  'How has the last 30 days gone?',
-];
-
 // pressureLow (the web's tightPoint-by-pressure table) now lives in lib/meloSnapshot.ts, next to the
 // rest of the pure snapshot-building logic it only ever fed.
 
@@ -152,6 +144,7 @@ type ToolPart = {
   toolCallId?: string;
   input?: Record<string, unknown>;
   output?: { ok?: boolean; message?: string };
+  paymentReview?: MeloDebtPaymentReview;
 };
 type ChatPart = TextPart | ToolPart;
 type ChatMessage = {
@@ -161,6 +154,7 @@ type ChatMessage = {
   intent?: MeloLocalIntent;
   actions?: readonly MeloLocalAiAction[];
   followUpChips?: readonly string[];
+  sourceRows?: ReturnType<typeof buildMeloSourceFigures>['rows'];
 };
 
 // status mirrors the web useChat status union the UI branches on.
@@ -264,6 +258,9 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
     if (soon && soon.nextRenewalDaysAway <= 7) {
       return `${name}heads up — ${soon.name} (£${soon.cost.toFixed(2)}) renews in ${soon.nextRenewalDaysAway} day${soon.nextRenewalDaysAway === 1 ? '' : 's'}. want a look before it goes out?`;
     }
+    if (snapshot.setupComplete === false) {
+      return `${name}your money picture still needs ${snapshot.setupNeeds?.join(', ') || 'your numbers'}. You can add or confirm them in setup.`;
+    }
     if (snapshot.hasMoneyPicture) {
       return `${name}your latest money picture is ready here. what do you want to check?`;
     }
@@ -302,6 +299,7 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
         calculate={calculate}
         selectAccount={selectAccount}
         subscriptionState={subscriptionState}
+        sourceRows={buildMeloSourceFigures(state).rows}
         voiceActive={visible}
       />
     </Sheet>
@@ -321,6 +319,7 @@ function MeloChat({
   calculate,
   selectAccount,
   subscriptionState,
+  sourceRows,
   voiceActive,
 }: {
   snapshot: MeloLocalFinancialSnapshot;
@@ -331,6 +330,7 @@ function MeloChat({
   calculate: LocalMeloCalculationBuilder;
   selectAccount: LocalMeloAccountSelector;
   subscriptionState: Parameters<LocalMeloSubscriptionActionResolver>[1];
+  sourceRows: ReturnType<typeof buildMeloSourceFigures>['rows'];
   voiceActive: boolean;
 }) {
   const t = useTheme();
@@ -341,6 +341,8 @@ function MeloChat({
   const savedTone = useAppStore((s) => s.melo?.tone ?? DEFAULT_MELO_TONE);
   const [showSettings, setShowSettings] = useState(false);
   const [input, setInput] = useState(prefill ?? '');
+  const inputRef = useRef<TextInput>(null);
+  const [expandedSources, setExpandedSources] = useState<ReadonlySet<string>>(new Set());
   useEffect(() => {
     if (prefill) setInput(prefill);
   }, [prefill]);
@@ -361,7 +363,11 @@ function MeloChat({
   >({ kind: 'checking' });
   const isLoading = status === 'submitted' || status === 'streaming';
   const toneLabel = TONES.find((tn) => tn.id === savedTone)?.label ?? 'Calm';
-  const starters = snapshot.workspaceKind === 'business' ? BUSINESS_STARTERS : STARTERS;
+  const starters = meloChatStarters(snapshot.workspaceKind ?? 'personal');
+  function replaceDraft(text: string) {
+    setInput(text);
+    inputRef.current?.focus();
+  }
 
   async function startVoiceInput() {
     if (isLoading || voice.phase !== 'idle') return;
@@ -472,17 +478,42 @@ function MeloChat({
     decidedRef.current.add(callId);
 
     const name = suggestion.type.replace(/^tool-/, '');
-    let result: ReturnType<typeof applyMeloTool>;
-    try {
-      result = applyMeloTool(name, suggestion.input ?? {});
-    } catch {
+    const paymentReview = suggestion.paymentReview;
+    if (
+      name === 'log_debt_payment' &&
+      (!paymentReview ||
+        !isMeloDebtPaymentReviewCurrent(getState(), paymentReview, new Date().toISOString()))
+    ) {
       recordToolSettlement(
         callId,
-        settleMeloToolApplication(false, 'This change could not be saved. Check the current account and details, then try again.'),
+        settleMeloToolApplication(
+          false,
+          'The payment details or figures changed. Nothing was recorded. Ask Melo again or open Log a payment to review the current figures.',
+        ),
       );
       return;
     }
-    const outputMessage = result.applied ? result.summary : result.reason;
+    let result: ReturnType<typeof applyMeloTool>;
+    try {
+      result = applyMeloTool(
+        name,
+        paymentReview?.kind === 'ready' ? paymentReview.input : (suggestion.input ?? {}),
+      );
+    } catch {
+      recordToolSettlement(
+        callId,
+        settleMeloToolApplication(
+          false,
+          'This change could not be saved. Check the current account and details, then try again.',
+        ),
+      );
+      return;
+    }
+    const outputMessage = result.applied
+      ? paymentReview?.kind === 'ready'
+        ? `Payment recorded: ${formatMoney(paymentReview.paymentAmount, true)} to ${paymentReview.debtName}.\n${paymentReview.rows.map((row) => `${row.label}: ${formatMoney(row.before, true)} → ${formatMoney(row.after, true)}`).join('\n')}`
+        : result.summary
+      : result.reason;
     recordToolSettlement(callId, settleMeloToolApplication(result.applied, outputMessage));
 
     if (!result.applied) return;
@@ -597,7 +628,17 @@ function MeloChat({
       );
     }
     setConversationContext(result.context);
-    setMessages((prev) => [...prev, assistantMessageFromResult(result)]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        ...assistantMessageFromResult(result),
+        ...(result.intent === 'explain_position' &&
+        snapshot.workspaceKind !== 'business' &&
+        snapshot.setupComplete !== false
+          ? { sourceRows }
+          : {}),
+      },
+    ]);
     setStatus('ready');
   }
 
@@ -770,7 +811,7 @@ function MeloChat({
                   <StarterChip
                     key={starter}
                     label={starter}
-                    onPress={() => send(starter)}
+                    onPress={() => replaceDraft(starter)}
                     styles={s}
                     reduceMotion={reduceMotion}
                   />
@@ -796,12 +837,61 @@ function MeloChat({
             return (
               <FadeIn key={m.id} reduceMotion={reduceMotion} style={s.assistant}>
                 {text ? <Text style={s.assistantText}>{text}</Text> : null}
+                {m.sourceRows && m.sourceRows.length > 0 ? (
+                  <View style={s.sourceFigures}>
+                    <PressText
+                      label={
+                        expandedSources.has(m.id)
+                          ? 'Hide named costs'
+                          : `See named costs · ${m.sourceRows.length}`
+                      }
+                      onPress={() =>
+                        setExpandedSources((previous) => {
+                          const next = new Set(previous);
+                          if (next.has(m.id)) next.delete(m.id);
+                          else next.add(m.id);
+                          return next;
+                        })
+                      }
+                      style={s.sourceToggle}
+                      labelStyle={s.sourceToggleLabel}
+                      reduceMotion={reduceMotion}
+                      accessibilityLabel={
+                        expandedSources.has(m.id)
+                          ? 'Hide named costs'
+                          : 'Show named costs and due dates'
+                      }
+                    />
+                    {expandedSources.has(m.id)
+                      ? m.sourceRows.map((row) => (
+                          <Pressable
+                            key={row.id}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${row.label}, ${row.amount}, ${row.detail}. Open details`}
+                            onPress={() => nav.go(row.destination)}
+                            style={s.sourceFigureRow}
+                          >
+                            <View style={s.sourceFigureCopy}>
+                              <Text style={s.sourceFigureName}>{row.label}</Text>
+                              <Text style={s.sourceFigureDetail}>
+                                {row.detail} · Open details ›
+                              </Text>
+                            </View>
+                            <Text style={s.sourceFigureAmount}>{row.amount}</Text>
+                          </Pressable>
+                        ))
+                      : null}
+                  </View>
+                ) : null}
                 {toolParts.map((tp, i) => {
                   const toolName = tp.type.replace(/^tool-/, '');
                   const name = toolName.replace(/_/g, ' ');
                   const callId = tp.toolCallId ?? `${m.id}-${tp.type}`;
                   const phase = getMeloToolSuggestionPhase(tp);
                   const isPending = phase === 'pending';
+                  const paymentReview = tp.paymentReview;
+                  const paymentUnavailable =
+                    toolName === 'log_debt_payment' && paymentReview?.kind !== 'ready';
                   const canUndo = phase === 'applied' && !!undoMap[callId];
                   const glyph =
                     phase === 'applied'
@@ -814,7 +904,11 @@ function MeloChat({
                             ? '–'
                             : '→';
                   const resultText = isPending
-                    ? describeMeloToolSuggestion(toolName, tp.input ?? {})
+                    ? paymentReview?.kind === 'ready'
+                      ? 'Review this completed payment'
+                      : paymentReview?.kind === 'unavailable'
+                        ? paymentReview.message
+                        : describeMeloToolSuggestion(toolName, tp.input ?? {})
                     : phase === 'dismissed'
                       ? 'Dismissed. Nothing changed.'
                       : phase === 'unavailable'
@@ -830,6 +924,29 @@ function MeloChat({
                         </Text>
                         {isPending ? (
                           <>
+                            {paymentReview?.kind === 'ready' ? (
+                              <View style={s.paymentReview}>
+                                <Text style={s.paymentDetail}>
+                                  Payment amount: {formatMoney(paymentReview.paymentAmount, true)}
+                                </Text>
+                                <Text style={s.paymentDetail}>
+                                  Linked debt: {paymentReview.debtName}
+                                </Text>
+                                <Text style={s.paymentDetail}>
+                                  Paid from: {paymentReview.cashAccountName}
+                                </Text>
+                                {paymentReview.rows.map((row) => (
+                                  <View key={row.label} style={s.paymentRow}>
+                                    <Text style={s.paymentRowLabel}>{row.label}</Text>
+                                    <Text style={s.paymentRowAmount}>
+                                      {formatMoney(row.before, true)} →{' '}
+                                      {formatMoney(row.after, true)}
+                                    </Text>
+                                  </View>
+                                ))}
+                                <Text style={s.paymentDetail}>{paymentReview.explanation}</Text>
+                              </View>
+                            ) : null}
                             <Text style={s.toolHint}>Nothing changes until you confirm.</Text>
                             <View style={s.toolActions}>
                               <PressText
@@ -842,12 +959,32 @@ function MeloChat({
                                 accessibilityHint="Leaves your money records unchanged"
                               />
                               <PressText
-                                label="Confirm"
-                                onPress={() => confirmToolSuggestion(callId, tp)}
+                                label={
+                                  paymentUnavailable
+                                    ? 'Log a payment'
+                                    : paymentReview?.kind === 'ready'
+                                      ? paymentReview.excess > 0
+                                        ? 'Record overpayment'
+                                        : 'Record payment'
+                                      : 'Confirm'
+                                }
+                                onPress={() =>
+                                  paymentUnavailable
+                                    ? nav.openSheet('log-payment')
+                                    : confirmToolSuggestion(callId, tp)
+                                }
                                 style={s.toolConfirm}
                                 labelStyle={s.toolConfirmLabel}
                                 reduceMotion={reduceMotion}
-                                accessibilityLabel={`Confirm ${name} suggestion`}
+                                accessibilityLabel={
+                                  paymentUnavailable
+                                    ? 'Open Log a payment to review details'
+                                    : paymentReview?.kind === 'ready'
+                                      ? paymentReview.excess > 0
+                                        ? 'Confirm and record this overpayment'
+                                        : 'Confirm and record this payment'
+                                      : `Confirm ${name} suggestion`
+                                }
                                 accessibilityHint="Records this change in Melo"
                               />
                             </View>
@@ -1027,6 +1164,19 @@ function MeloChat({
       ) : null}
 
       {/* Composer */}
+      {input.length > 0 ? (
+        <View style={s.draftActions}>
+          <Text style={s.draftHint}>Draft · edit or clear before sending</Text>
+          <PressText
+            label="Clear"
+            onPress={() => replaceDraft('')}
+            style={s.sourceToggle}
+            labelStyle={s.sourceToggleLabel}
+            reduceMotion={reduceMotion}
+            accessibilityLabel="Clear the message draft"
+          />
+        </View>
+      ) : null}
       <View style={s.composer}>
         <Pressable
           accessibilityRole="button"
@@ -1046,12 +1196,14 @@ function MeloChat({
         </Pressable>
         <View style={s.inputWrap}>
           <TextInput
+            ref={inputRef}
             value={input}
             onChangeText={setInput}
             placeholder="Say anything to Melo…"
             placeholderTextColor={t.muted}
             editable={!isLoading && voice.phase === 'idle'}
             multiline
+            selectTextOnFocus={Boolean(prefill && input === prefill)}
             autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
             style={s.input}
             accessibilityLabel="Say anything to Melo"
@@ -1102,11 +1254,23 @@ function assistantMessageFromResult(result: LocalMeloTurn): ChatMessage {
   const prose = result.reply.trim();
   if (prose.length > 0) parts.push({ type: 'text', text: prose });
   result.suggestions.forEach((suggestion) => {
+    const callId = `${baseId}-${suggestion.id}`;
+    const input = suggestion.args as Record<string, unknown>;
     parts.push({
       type: `tool-${suggestion.name}`,
       state: MELO_TOOL_APPROVAL_REQUESTED,
-      toolCallId: suggestion.id,
-      input: suggestion.args as Record<string, unknown>,
+      toolCallId: callId,
+      input,
+      ...(suggestion.name === 'log_debt_payment'
+        ? {
+            paymentReview: prepareMeloDebtPaymentReview(
+              getState(),
+              input,
+              new Date().toISOString(),
+              `chat-payment-${callId}`,
+            ),
+          }
+        : {}),
     });
   });
   return {
@@ -1451,6 +1615,35 @@ function FadeIn({
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
+    sourceFigures: {
+      marginTop: gap.md,
+      borderColor: t.hairline,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderRadius: radius.md,
+      overflow: 'hidden',
+    },
+    sourceToggle: { minHeight: 48, justifyContent: 'center', paddingHorizontal: gap.md },
+    sourceToggleLabel: { color: t.calm, fontSize: 14, fontWeight: '500' },
+    sourceFigureRow: {
+      minHeight: 56,
+      padding: gap.md,
+      flexDirection: 'row',
+      gap: gap.sm,
+      alignItems: 'flex-start',
+      borderTopColor: t.hairline,
+      borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    sourceFigureCopy: { flex: 1, minWidth: 0 },
+    sourceFigureName: { color: t.ink, fontSize: 14, lineHeight: 20 },
+    sourceFigureDetail: { color: t.muted, fontSize: 12, lineHeight: 18 },
+    sourceFigureAmount: { color: t.ink, fontSize: 14, fontVariant: ['tabular-nums'] },
+    draftActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: gap.sm,
+    },
+    draftHint: { flex: 1, color: t.muted, fontSize: 12, lineHeight: 17 },
     assistant: {
       gap: gap.sm,
       marginVertical: gap.sm,
@@ -1719,6 +1912,7 @@ function makeStyles(t: Palette) {
     toolActions: {
       alignItems: 'center',
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: gap.sm,
       marginTop: gap.md,
     },
@@ -1727,7 +1921,7 @@ function makeStyles(t: Palette) {
       backgroundColor: t.ink,
       borderRadius: radius.sm,
       justifyContent: 'center',
-      minHeight: 36,
+      minHeight: 48,
       paddingHorizontal: gap.md,
     },
     toolConfirmLabel: {
@@ -1743,7 +1937,7 @@ function makeStyles(t: Palette) {
       borderRadius: radius.sm,
       borderWidth: StyleSheet.hairlineWidth,
       justifyContent: 'center',
-      minHeight: 36,
+      minHeight: 48,
       paddingHorizontal: gap.md,
     },
     toolDismissLabel: {
@@ -1758,6 +1952,31 @@ function makeStyles(t: Palette) {
       fontSize: 11.5,
       lineHeight: 16,
       marginTop: gap.xs,
+    },
+    paymentReview: {
+      gap: gap.sm,
+      marginTop: gap.sm,
+    },
+    paymentDetail: {
+      color: t.ink,
+      fontSize: 13,
+      lineHeight: 19,
+    },
+    paymentRow: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.hairlineStrong,
+      paddingTop: gap.xs,
+      gap: gap.xxs,
+    },
+    paymentRowLabel: {
+      color: t.muted,
+      fontSize: 12,
+    },
+    paymentRowAmount: {
+      color: t.ink,
+      fontSize: 14,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
     },
     toolPill: {
       alignItems: 'flex-start',

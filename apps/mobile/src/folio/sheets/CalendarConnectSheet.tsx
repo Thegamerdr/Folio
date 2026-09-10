@@ -348,15 +348,6 @@ function Header({
   return (
     <View style={s.headerRow}>
       <Text style={s.eyebrow}>Connect</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-        hitSlop={12}
-        onPress={onClose}
-        style={({ pressed }) => [s.close, pressed && !reduceMotion ? s.pressed : undefined]}
-      >
-        <Text style={s.closeGlyph}>×</Text>
-      </Pressable>
     </View>
   );
 }

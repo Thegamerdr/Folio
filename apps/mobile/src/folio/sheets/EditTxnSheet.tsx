@@ -1,3 +1,5 @@
+import { previewDebtPaymentChange } from '@/folio/lib/paymentPresentation';
+import { isDebtPayment } from '@/folio/lib/debtPaymentLedger';
 // @rn-engine edit-txn — REAL. The web source's "Save changes" is a pure visual demo: it calls
 //   `onClose` and mutates nothing (SheetEditTxn.tsx), and its fields are a FROZEN, hardcoded subject
 //   ("Tesco · 26 June" · £42.00 · Groceries · …) bound to no real transaction. We intentionally make
@@ -71,6 +73,8 @@ import {
   detachEvidenceDocumentFromTransaction,
   editTransaction,
   getState,
+  getFinancialResetGeneration,
+  undoTransactionCorrection,
   pairRefund,
   undoRefundPair,
   rememberMerchantCategory,
@@ -232,13 +236,23 @@ export function EditTxnSheet({ visible, onClose, target }: EditTxnSheetProps) {
   ) as EditableTransaction | undefined;
 
   return (
-    <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
+    <>
       {txn ? (
-        <EditTxnForm styles={s} palette={t} onClose={onClose} txn={txn} />
+        <EditTxnForm
+          key={txn.id}
+          visible={visible}
+          reduceMotion={reduceMotion}
+          styles={s}
+          palette={t}
+          onClose={onClose}
+          txn={txn}
+        />
       ) : (
-        <InertFallback styles={s} palette={t} onClose={onClose} />
+        <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
+          <InertFallback styles={s} palette={t} onClose={onClose} />
+        </Sheet>
       )}
-    </Sheet>
+    </>
   );
 }
 
@@ -248,6 +262,8 @@ export function EditTxnSheet({ visible, onClose, target }: EditTxnSheetProps) {
 // ---------------------------------------------------------------------------
 
 function EditTxnForm({
+  visible,
+  reduceMotion,
   styles: s,
   palette: t,
   onClose,
@@ -257,7 +273,10 @@ function EditTxnForm({
   palette: Palette;
   onClose: () => void;
   txn: EditableTransaction;
+  visible: boolean;
+  reduceMotion: boolean;
 }) {
+  const state = useAppStore((st) => st);
   // Real correction fields (ENGINES §6 D4 — "meaningful money-field edits", not note-only). Amount,
   // Category and Note are editable; each change routes through the store's editTransaction, which
   // records one immutable correction per changed field and replaces the row in place. Amount is held
@@ -346,6 +365,39 @@ function EditTxnForm({
     when,
   ]);
   const pendingChanges = useMemo(() => previewTxnEdit(txn, patch), [patch, txn]);
+  const amountValid =
+    isLinkedTransfer || (/^\d+(?:\.\d{0,2})?$/.test(amountText) && Number(amountText) > 0);
+  const paymentPreview = useMemo(() => {
+    if (!isDebtPayment(txn) || !amountValid) return null;
+    try {
+      return {
+        value: previewDebtPaymentChange(
+          state,
+          txn,
+          {
+            ...txn,
+            amount: patch.amount ?? txn.amount,
+            when: patch.when ?? txn.when,
+            financialAction: {
+              ...txn.financialAction,
+              debtId: debtId ?? txn.financialAction.debtId,
+            },
+          },
+          new Date().toISOString(),
+        ),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        value: null,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Review the linked debt before correcting this payment.',
+      };
+    }
+  }, [state, txn, patch, debtId, amountValid]);
+  const canReview = amountValid && !paymentPreview?.error && pendingChanges.length > 0;
 
   // Save — apply the correction to THIS transaction via the store. editTransaction runs the pure
   // applyTxnEdit engine, which records ONE immutable TxnEdit per ACTUALLY-changed field and no-ops any
@@ -359,6 +411,7 @@ function EditTxnForm({
   // them together. A no-op save (nothing changed) raises no undo window, matching editTransaction's
   // own no-op contract (an unchanged patch writes nothing, so there is nothing to undo).
   function handleSave() {
+    if (!canReview) return;
     const changesAtCommit = previewTxnEdit(txn, patch);
     if (changesAtCommit.length === 0) {
       setReviewing(false);
@@ -375,6 +428,8 @@ function EditTxnForm({
         ? { debtId: txn.financialAction.debtId }
         : {}),
     };
+    const workspaceAtSave = getState().activeWorkspaceId;
+    const resetAtSave = getFinancialResetGeneration();
     try {
       editTransaction(txn.id, patch, 'user');
     } catch (reason) {
@@ -386,6 +441,11 @@ function EditTxnForm({
       );
       return;
     }
+    const saved = getState().transactions.find((row) => row.id === txn.id);
+    if (!saved) {
+      Alert.alert('Correction not saved', 'This transaction is no longer available.');
+      return;
+    }
     void triggerFeedback('transaction-corrected');
     // LEARN (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): a category correction on a real,
     // already-posted transaction is an explicit override — remember it so a future import for this
@@ -395,7 +455,11 @@ function EditTxnForm({
     onClose();
     showUndo(`Updated ${txn.merchant}`, () => {
       try {
-        editTransaction(txn.id, snapshot, 'user');
+        if (!undoTransactionCorrection(saved, snapshot, workspaceAtSave, resetAtSave))
+          Alert.alert(
+            'Correction kept',
+            'A newer correction is recorded. Review it before undoing this change.',
+          );
       } catch (reason) {
         Alert.alert(
           'Correction kept',
@@ -498,30 +562,84 @@ function EditTxnForm({
     );
   }
 
+  const footer = (
+    <View style={s.footerRow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={reviewing ? 'Back to editing' : 'Cancel'}
+        onPress={reviewing ? () => setReviewing(false) : onClose}
+        style={({ pressed }) => [
+          s.footerButton,
+          { backgroundColor: t.inset },
+          pressed ? s.pressed : undefined,
+        ]}
+      >
+        <Text style={[s.footerButtonLabel, { color: t.ink }]}>{reviewing ? 'Back' : 'Cancel'}</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={reviewing ? 'Confirm changes' : 'Review changes'}
+        accessibilityState={{ disabled: !canReview }}
+        disabled={!canReview}
+        onPress={reviewing ? handleSave : () => setReviewing(true)}
+        style={({ pressed }) => [
+          s.footerButton,
+          { backgroundColor: t.calm },
+          !canReview ? s.disabled : undefined,
+          pressed ? s.pressed : undefined,
+        ]}
+      >
+        <Text style={[s.footerButtonLabel, { color: t.inverse }]}>
+          {reviewing
+            ? 'Confirm changes'
+            : pendingChanges.length === 0
+              ? 'No changes'
+              : 'Review changes'}
+        </Text>
+      </Pressable>
+    </View>
+  );
+
   return (
-    <ScrollView showsVerticalScrollIndicator={false}>
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      reduceMotion={reduceMotion}
+      scrollKey={reviewing ? 'review' : 'edit'}
+      footer={footer}
+    >
       {/* Header — eyebrow + close glyph. */}
       <View style={s.headerRow}>
         <Text style={s.eyebrow}>{reviewing ? 'Review correction' : 'Edit transaction'}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          hitSlop={12}
-          onPress={onClose}
-          style={({ pressed }) => [pressed ? s.pressed : undefined]}
-        >
-          <CloseGlyph color={t.muted} />
-        </Pressable>
       </View>
       <Text accessibilityRole="header" style={s.headline}>
         {title}
       </Text>
 
+      {isDebtPayment(txn) ? (
+        <Text style={[s.reviewIntro, { marginTop: 12 }]}>
+          Payment linked to {debts?.find((d) => d.id === debtId)?.name ?? 'a removed debt'}. This
+          corrects Melo’s record; it does not send or reverse a bank payment.
+        </Text>
+      ) : null}
+      {!amountValid ? (
+        <Text style={[s.reviewIntro, { color: t.repair }]}>
+          Enter an amount greater than zero with no more than two decimal places.
+        </Text>
+      ) : null}
+      {paymentPreview?.error ? (
+        <Text style={[s.reviewIntro, { color: t.repair }]}>{paymentPreview.error}</Text>
+      ) : null}
       {reviewing ? (
         <View style={s.reviewBlock}>
           <Text style={s.reviewIntro}>
             Check the exact fields below. Nothing changes until you confirm.
           </Text>
+          {paymentPreview?.value ? (
+            <Text style={[s.reviewIntro, { fontStyle: 'normal', lineHeight: 24 }]}>
+              {paymentPreview.value.text}
+            </Text>
+          ) : null}
           {pendingChanges.map((change) => (
             <View key={change.field} style={s.previewRow}>
               <Text style={s.previewLabel}>{previewFieldLabel(change.field)}</Text>
@@ -552,7 +670,7 @@ function EditTxnForm({
             {/* Merchant — free-text correction (web SheetEditTxn.tsx's separate editable Merchant field,
             restored here; previously this name only appeared in the read-only header title). */}
             <View style={s.fieldRow}>
-              <Text style={s.fieldLabel}>Merchant</Text>
+              <Text style={s.fieldLabel}>{isDebtPayment(txn) ? 'Description' : 'Merchant'}</Text>
               <TextInput
                 accessibilityLabel="Merchant"
                 onChangeText={setMerchant}
@@ -854,46 +972,7 @@ function EditTxnForm({
           ) : null}
         </>
       )}
-
-      {/* Footer — edit mode offers Cancel + Review; review mode offers Back + Confirm. */}
-      <View style={s.footerRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={reviewing ? 'Back to editing' : 'Cancel'}
-          onPress={reviewing ? () => setReviewing(false) : onClose}
-          style={({ pressed }) => [
-            s.footerButton,
-            { backgroundColor: t.inset },
-            pressed ? s.pressed : undefined,
-          ]}
-        >
-          <Text style={[s.footerButtonLabel, { color: t.ink }]}>
-            {reviewing ? 'Back' : 'Cancel'}
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={reviewing ? 'Confirm changes' : 'Review changes'}
-          accessibilityState={{ disabled: !reviewing && pendingChanges.length === 0 }}
-          disabled={!reviewing && pendingChanges.length === 0}
-          onPress={reviewing ? handleSave : () => setReviewing(true)}
-          style={({ pressed }) => [
-            s.footerButton,
-            { backgroundColor: t.calm },
-            !reviewing && pendingChanges.length === 0 ? s.disabled : undefined,
-            pressed ? s.pressed : undefined,
-          ]}
-        >
-          <Text style={[s.footerButtonLabel, { color: t.inverse }]}>
-            {reviewing
-              ? 'Confirm changes'
-              : pendingChanges.length === 0
-                ? 'No changes'
-                : 'Review changes'}
-          </Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+    </Sheet>
   );
 }
 
@@ -911,18 +990,9 @@ function InertFallback({
   onClose: () => void;
 }) {
   return (
-    <ScrollView showsVerticalScrollIndicator={false}>
+    <View>
       <View style={s.headerRow}>
         <Text style={s.eyebrow}>Edit transaction</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          hitSlop={12}
-          onPress={onClose}
-          style={({ pressed }) => [pressed ? s.pressed : undefined]}
-        >
-          <CloseGlyph color={t.muted} />
-        </Pressable>
       </View>
       <Text accessibilityRole="header" style={s.headline}>
         Nothing to edit here
@@ -934,29 +1004,7 @@ function InertFallback({
           correct it here. Nothing&apos;s selected right now.
         </Text>
       </View>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-        onPress={onClose}
-        style={({ pressed }) => [
-          s.primary,
-          { backgroundColor: t.calm },
-          pressed ? s.pressed : undefined,
-        ]}
-      >
-        <Text style={[s.primaryLabel, { color: t.inverse }]}>Close</Text>
-      </Pressable>
-    </ScrollView>
-  );
-}
-
-// Close glyph — the web '×', drawn inline. 18×18 user space.
-function CloseGlyph({ color }: { color: string }) {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 18 18">
-      <Path d="M4 4 L14 14 M14 4 L4 14" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
-    </Svg>
+    </View>
   );
 }
 

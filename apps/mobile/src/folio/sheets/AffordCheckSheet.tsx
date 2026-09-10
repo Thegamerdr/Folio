@@ -37,6 +37,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  Keyboard,
   Animated,
   Pressable,
   StyleSheet,
@@ -51,7 +52,9 @@ import { useAppStore } from '@/folio/store';
 import { type AffordVerdict } from '@/folio/lib/affordCheck';
 import { buildFinancialPlanFromState, toFinancialPlanInput } from '@/folio/lib/financialPlan';
 import { simulateFinancialAffordability } from '@folio/finance-engine';
+import { selectFinancialPresentation, formatMoney } from '@/folio/lib/financialPresentation';
 import { addShelfItem } from '@/folio/lib/shelf';
+import { initialAffordAmount } from '@/folio/lib/financialActionInputs';
 import { formatGBP } from '@/folio/screens/today/format';
 
 // ---------------------------------------------------------------------------
@@ -59,6 +62,7 @@ import { formatGBP } from '@/folio/screens/today/format';
 // ---------------------------------------------------------------------------
 
 export type AffordCheckSheetProps = {
+  initialAmount?: number | undefined;
   visible: boolean;
   onClose: () => void;
 };
@@ -81,15 +85,20 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
-export function AffordCheckSheet({ visible, onClose }: AffordCheckSheetProps) {
+export function AffordCheckSheet({ visible, onClose, initialAmount }: AffordCheckSheetProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const reduceMotion = useReduceMotion();
 
   return (
-    <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion}>
-      <AffordCheckForm styles={s} palette={t} reduceMotion={reduceMotion} onClose={onClose} />
-    </Sheet>
+    <AffordCheckForm
+      visible={visible}
+      styles={s}
+      palette={t}
+      reduceMotion={reduceMotion}
+      initialAmount={initialAmount}
+      onClose={onClose}
+    />
   );
 }
 
@@ -134,19 +143,24 @@ function meloLineFor(state: AffordVerdict['state']): string {
 // ---------------------------------------------------------------------------
 
 function AffordCheckForm({
+  visible,
   styles: s,
   palette: t,
   reduceMotion,
   onClose,
+  initialAmount,
 }: {
+  initialAmount?: number | undefined;
+  visible: boolean;
   styles: ReturnType<typeof makeStyles>;
   palette: Palette;
   reduceMotion: boolean;
   onClose: () => void;
 }) {
   const [label, setLabel] = useState('');
-  const [amountRaw, setAmountRaw] = useState('');
-  const amount = Math.max(0, parseFloat(amountRaw) || 0);
+  const [amountRaw, setAmountRaw] = useState(() => initialAffordAmount(initialAmount));
+  const amount = /^(?:\d+)(?:\.\d{0,2})?$/.test(amountRaw) ? Number(amountRaw) : 0;
+  const [checkedAmount, setCheckedAmount] = useState<number | null>(null);
   const [now] = useState(() => new Date());
 
   const appState = useAppStore((st) => st);
@@ -154,9 +168,11 @@ function AffordCheckForm({
     () => buildFinancialPlanFromState(appState, { now }),
     [appState, now],
   );
+  const presentation = selectFinancialPresentation(appState, financialPlan);
   const verdict = useMemo(() => {
+    if (checkedAmount === null) return null;
     const input = toFinancialPlanInput(appState, { now });
-    const affordable = simulateFinancialAffordability(input, Math.round(amount * 100));
+    const affordable = simulateFinancialAffordability(input, Math.round(checkedAmount * 100));
     const after = affordable.safeToSpendAfterMinor / 100;
     const safeNow = affordable.safeToSpendBeforeMinor / 100;
     const daysLeft = Math.max(
@@ -170,12 +186,12 @@ function AffordCheckForm({
         : 1,
     );
     const perDayAfter = Math.max(0, Math.floor(after / daysLeft));
-    if (after < 0) {
+    if (!presentation.canReassure || after < 0) {
       // A receipt alone does not prove that this spend becomes safe: later bills and essentials
       // may consume it. Keep the verdict conservative until a dated post-receipt simulation exists.
       return {
         state: 'not-now' as const,
-        headline: 'Not now — but the check still counts',
+        headline: !presentation.canReassure ? presentation.label : 'This would leave a gap',
         after,
         perDayAfter,
         safeOn: null,
@@ -192,101 +208,152 @@ function AffordCheckForm({
     }
     return {
       state: 'safe' as const,
-      headline: 'Safe — plenty of room',
+      headline: 'This fits the recorded plan',
       after,
       perDayAfter,
       safeOn: null,
     };
-  }, [amount, appState, financialPlan, now]);
+  }, [checkedAmount, appState, financialPlan, now, presentation.canReassure, presentation.label]);
 
-  const canShelf = verdict.state === 'not-now' || verdict.state === 'tight';
+  const canShelf = verdict?.state === 'not-now' || verdict?.state === 'tight';
 
   function shelfIt() {
-    addShelfItem(label || 'Something', amount, verdict.state);
+    if (!verdict) return;
+    addShelfItem(label || 'Something', checkedAmount ?? amount, verdict.state);
     onClose();
   }
 
   return (
-    <View style={s.body}>
-      <Text style={s.eyebrow}>Before you spend</Text>
-      <Text style={s.headline} accessibilityRole="header">
-        Can I afford this?
-      </Text>
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      reduceMotion={reduceMotion}
+      footer={
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: amount <= 0 }}
+          disabled={amount <= 0}
+          onPress={() => {
+            setCheckedAmount(amount);
+            Keyboard.dismiss();
+          }}
+          style={[s.shelfCta, { opacity: amount > 0 ? 1 : 0.5 }]}
+        >
+          <Text style={s.shelfCtaLabel}>Check this amount</Text>
+        </Pressable>
+      }
+    >
+      <View style={s.body}>
+        <Text style={s.eyebrow}>Before you spend</Text>
+        <Text style={s.headline} accessibilityRole="header">
+          Can I afford this?
+        </Text>
 
-      <TextInput
-        value={label}
-        onChangeText={setLabel}
-        placeholder="What is it? (optional)"
-        placeholderTextColor={t.muted}
-        style={s.labelInput}
-        accessibilityLabel="What is it"
-        returnKeyType="next"
-      />
+        <TextInput
+          value={label}
+          onChangeText={setLabel}
+          placeholder="What is it? (optional)"
+          placeholderTextColor={t.muted}
+          style={s.labelInput}
+          accessibilityLabel="What is it"
+          returnKeyType="next"
+        />
 
-      <View style={s.amountCard}>
-        <Text style={s.amountLabel}>Amount</Text>
-        <View style={s.amountValueRow}>
-          <Text style={s.currency}>£</Text>
-          <TextInput
-            value={amountRaw}
-            onChangeText={(text) => setAmountRaw(text.replace(/[^0-9.]/g, ''))}
-            autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
-            keyboardType="decimal-pad"
-            placeholder="0"
-            placeholderTextColor={t.muted}
-            style={s.amountInput}
-            accessibilityLabel="Amount"
-          />
-        </View>
-      </View>
-
-      {amount > 0 && (
-        <View style={s.verdictCard}>
-          <Text style={[s.verdictHeadline, { color: toneColor(t, verdict.state) }]}>
-            {verdict.headline}
-          </Text>
-          <View style={s.verdictRow}>
-            <View style={s.verdictCol}>
-              <Text style={s.verdictLabel}>Safe Zone now</Text>
-              <Text style={s.verdictValue}>{formatGBP(financialPlan.safeToSpendMinor / 100)}</Text>
-            </View>
-            <View style={s.verdictCol}>
-              <Text style={s.verdictLabel}>After this</Text>
-              <Text style={[s.verdictValue, verdict.after < 0 ? { color: t.repairInk } : null]}>
-                {formatGBP(verdict.after)}
-              </Text>
-            </View>
+        <View style={s.amountCard}>
+          <Text style={s.amountLabel}>Amount</Text>
+          <View style={s.amountValueRow}>
+            <Text style={s.currency}>£</Text>
+            <TextInput
+              value={amountRaw}
+              onChangeText={(text) => {
+                setCheckedAmount(null);
+                setAmountRaw(text.replace(/[^0-9.]/g, ''));
+              }}
+              onFocus={() => setCheckedAmount(null)}
+              onSubmitEditing={() => {
+                if (amount > 0) {
+                  setCheckedAmount(amount);
+                  Keyboard.dismiss();
+                }
+              }}
+              returnKeyType="done"
+              autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              placeholderTextColor={t.muted}
+              style={s.amountInput}
+              accessibilityLabel="Amount"
+            />
           </View>
         </View>
-      )}
 
-      {amount > 0 && (
-        <View style={s.meloLine}>
-          <MeloLine text={meloLineFor(verdict.state)} mood={meloMoodFor(verdict.state)} size={28} />
-        </View>
-      )}
-
-      <View style={s.ctaRow}>
-        {canShelf && amount > 0 && (
-          <PressCta
-            label="Shelf it for a day"
-            onPress={shelfIt}
-            reduceMotion={reduceMotion}
-            style={s.shelfCta}
-            labelStyle={s.shelfCtaLabel}
-            accessibilityLabel="Shelf it for a day"
-          />
+        {verdict !== null && (
+          <View style={s.verdictCard}>
+            <Text style={[s.verdictHeadline, { color: toneColor(t, verdict.state) }]}>
+              {verdict.headline}
+            </Text>
+            <Text style={s.verdictNote}>
+              Checked {formatMoney(checkedAmount ?? 0, true)} · no money has moved
+            </Text>
+            {!presentation.canReassure && <Text style={s.verdictNote}>{presentation.message}</Text>}
+            <View style={s.verdictRow}>
+              <View style={s.verdictCol}>
+                <Text style={s.verdictLabel}>
+                  {presentation.canReassure ? 'Safe to spend now' : 'After recorded costs'}
+                </Text>
+                <Text style={s.verdictValue}>
+                  {formatGBP(financialPlan.safeToSpendMinor / 100)}
+                </Text>
+              </View>
+              <View style={s.verdictCol}>
+                <Text style={s.verdictLabel}>After this preview</Text>
+                <Text style={[s.verdictValue, verdict.after < 0 ? { color: t.repairInk } : null]}>
+                  {formatGBP(verdict.after)}
+                </Text>
+              </View>
+            </View>
+          </View>
         )}
-        <PressCta
-          label="Done"
-          onPress={onClose}
-          reduceMotion={reduceMotion}
-          style={[s.doneCta, canShelf && amount > 0 ? s.doneCtaSecondary : s.doneCtaPrimary]}
-          labelStyle={canShelf && amount > 0 ? s.doneCtaLabelSecondary : s.doneCtaLabelPrimary}
-          accessibilityLabel="Done"
-        />
+
+        {verdict !== null && (
+          <View style={s.meloLine}>
+            <MeloLine
+              text={meloLineFor(verdict.state)}
+              mood={meloMoodFor(verdict.state)}
+              size={28}
+            />
+          </View>
+        )}
+
+        {verdict === null && (
+          <Text style={s.verdictNote}>
+            {amountRaw && amount <= 0
+              ? 'Enter a positive amount with up to two decimal places.'
+              : 'Enter an amount, then check the current plan.'}
+          </Text>
+        )}
+        <View style={s.ctaRow}>
+          {canShelf && amount > 0 && (
+            <PressCta
+              label="Shelf it for a day"
+              onPress={shelfIt}
+              reduceMotion={reduceMotion}
+              style={s.shelfCta}
+              labelStyle={s.shelfCtaLabel}
+              accessibilityLabel="Shelf it for a day"
+            />
+          )}
+          <PressCta
+            label="Done"
+            onPress={onClose}
+            reduceMotion={reduceMotion}
+            style={[s.doneCta, canShelf && amount > 0 ? s.doneCtaSecondary : s.doneCtaPrimary]}
+            labelStyle={canShelf && amount > 0 ? s.doneCtaLabelSecondary : s.doneCtaLabelPrimary}
+            accessibilityLabel="Done"
+          />
+        </View>
       </View>
-    </View>
+    </Sheet>
   );
 }
 
@@ -382,7 +449,7 @@ function makeStyles(t: Palette) {
     doneCta: {
       alignItems: 'center',
       borderRadius: radius.md,
-      height: 44,
+      minHeight: 48,
       justifyContent: 'center',
     },
     doneCtaLabelPrimary: { color: t.inverse, fontSize: 13, fontWeight: '500' },
@@ -423,7 +490,7 @@ function makeStyles(t: Palette) {
       alignItems: 'center',
       backgroundColor: t.calm,
       borderRadius: radius.md,
-      height: 44,
+      minHeight: 48,
       justifyContent: 'center',
     },
     shelfCtaLabel: { color: t.inverse, fontSize: 13, fontWeight: '500' },
@@ -435,7 +502,7 @@ function makeStyles(t: Palette) {
       marginTop: gap.lg,
       padding: gap.lg,
     },
-    verdictCol: {},
+    verdictCol: { flex: 1, minWidth: 0 },
     verdictHeadline: {
       fontFamily: serif.displayItalic,
       fontSize: 16,

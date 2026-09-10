@@ -1,78 +1,8 @@
-// PrivacyScreen — the faithful 1:1 React Native port of the web "Your data" surface
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPrivacy.tsx).
-//
-// @rn-screen    PrivacyScreen
-// @rn-stack     More > Data & privacy
-// @purpose      Plain statement of what Folio does (and doesn't do) with the user's data, plus export
-//               and reset.
-// @reads        — (no store reads for render)
-// @writes       clearLocalMeloData() spans encrypted state, SQLCipher rows, reminders, widgets and
-//               app-owned exports. NO post-clear Undo (D3). Demo reseeding stays development-only.
-// @writes-export runExport() — "Export my data" runs the real export engine (full JSON + CSVs +
-//               OS share sheet, ENGINES §6 D6). It opens the OS share sheet itself, not a Folio sheet.
-// @writes-restore pickRestoreFile()/applyRestore() (plan 113) — "Restore from an export" loads a
-//               folio-export.json back in through the store's own cold-boot hydration path, behind
-//               a two-gate confirm that shows the file's contents first. Replaces current state.
-// @copy         FROZEN — must match what the app actually does. No false claims. Checked by the RN
-//               copy-lint tests (copyLint.test.ts): no banned words, no false privacy/security claims.
-// @tokens       calm (accent) · positive (check) · repair (negative reset rows) · surface · hairline
-//               · muted · canvas · ink — all from the kit via '@/folio/theme'
-// @motion       press 0.97 on every tappable (kit `pressed`) · Melo breathe/blink at the footer
-//               (calm). The page root stays static for reliable native navigation repainting.
-// @notes        Claims here are checked by RN copy-lint tests. Edit copy with care.
-//
-// FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store source):
-//   • COPY IS FROZEN except the two honest-claims corrections below. Every other visible string is
-//     the web literal, byte-for-byte. The deck (COPY_DECK.md) has NO keys for this screen, so the
-//     strings are inline literals here (exactly as the web keeps them) — none of them are keyed in
-//     '@/folio/copy/copy', so nothing is imported from the deck. The second and third honest claims
-//     were rewritten (see below) because the original web wording overstated what the shipped app
-//     does; every claim here must remain literally true of the shipped app, or the honest-claims
-//     copy-lint fails.
-//   • HONEST_CLAIMS[1] (was "Nothing shared without you tapping export"): the statement reader sends
-//     the picked PDF/photo to Folio's reader service, and Melo chat sends the conversation (plus an
-//     optional snapshot) to the gateway — both leave the device before any export tap. The rewritten
-//     claim names those two real egress paths instead of promising nothing leaves.
-//   • HONEST_CLAIMS[2] (was "Delete everything in one tap"): the reset below runs a
-//     three-gate confirm chain (exportedAck → typedConfirm → finalConfirm) — never a single tap. The
-//     rewritten claim describes the actual deliberate, multi-step gate instead of a one-tap wipe.
-//   • The accent word "your call." is rendered UPRIGHT (not italic) in terracotta — the web uses
-//     <em class="not-italic text-[accent]">. The headline is two Text runs so the accent run is a
-//     nested, upright, calm-coloured span inside the Fraunces hero line (same pattern as StartScreen).
-//   • The three honest claims each carry a positive-tinted check badge: a 15% alpha tint of the
-//     `positive` token (web bg-[var(--positive)]/15), computed in RN — never a hard-coded hex — with
-//     the kit's CheckGlyph in `positive` ink. Marked aria-hidden (importantForAccessibility="no") so
-//     the claim text carries the meaning, matching the web's aria-hidden tick.
-//   • The primary CTA is a Pressable carrying the terracotta fill + the warm raised glow (the kit's
-//     `elevation.cta` — the in-system realisation of the web's literal terracotta drop shadow
-//     rgba(224,99,58,0.55), which is NOT a token and must not be reintroduced). It opens the share
-//     sheet via nav.openSheet('share'). Note this is a plain centred label (no arrow), faithful to the
-//     web button, so it is NOT the kit's <PrimaryAction> (which pins a chevron).
-//   • The action list is one `surface` card with the kit hairline border. It holds "See what's saved",
-//     restore, and the single release-safe destructive action, each split by one inter-row hairline.
-//   • "Clear local money & history" → clearLocalMeloData() removes every app-owned local surface,
-//     then persists a genuinely empty encrypted state. It runs the tier-3 confirm chain
-//     (exportedAck → typedConfirm → finalConfirm); only the final branch clears. There is no
-//     customer-facing sample-data reset.
-//     Per D3 there is NO post-wipe Undo (no fake undo after a confirmed wipe): the toast is a plain
-//     confirmation, and the export acknowledged in gate 1 is the real recovery path. The honest claim
-//     above ("a few deliberate confirmations, never one accidental tap") describes the user's OWN
-//     data being wiped; the gate is deliberately multi-step, and what's LEFT after differs by which
-//     reset was chosen. See @rn-engine.
-//   • The page root stays static. Android can retain full-screen transformed layers after navigation;
-//     motion remains local to press feedback and Melo instead of wrapping the entire surface.
-//   • STATES: per the spec, Privacy is populated-only and offline ≡ populated (local-first, no network
-//     dependency, no offline banner). All five branches are rendered for completeness: populated /
-//     offline = the real surface; loading = Melo curious + a line (never a spinner, per the hard rule
-//     + STATES.md); empty / error = the calm EmptyState doorway (n/a in practice — this screen never
-//     fetches and has no async path — but rendered so every branch is exercised).
-//
-// Tokens only — no new colour, font, spacing, radius, or shadow. Tap targets are >=44px (the rows and
-// CTA have generous padding; the back glyph carries hitSlop). Named export (the route file is separate).
-
+// Privacy controls keep local clearing separate from remote account services.
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Sheet } from '@/surfaces/pressureMap/Sheet';
 
 import {
   CheckGlyph,
@@ -92,6 +22,7 @@ import { runExport } from '@/folio/lib/exportNative';
 import { applyRestore, pickRestoreFile } from '@/folio/lib/restoreNative';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
 import { clearLocalMeloData } from '@/folio/lib/localDataDeletion';
+import { useUndo } from '@/folio/ui/useUndo';
 import { useAppStore } from '@/folio/store';
 import {
   changeAppLockEnabled,
@@ -127,6 +58,7 @@ const HONEST_CLAIMS = [
 const POSITIVE_TINT_ALPHA = '26'; // 0x26 / 0xFF ≈ 0.15
 
 export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) {
+  const { dismissUndo } = useUndo();
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const activeWorkspaceId = useAppStore((current) => current.activeWorkspaceId);
@@ -142,6 +74,21 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   const [appLockSettings, setAppLockSettings] = useState(getCachedAppLockSettings());
   const [appLockCapability, setAppLockCapability] = useState<AppLockCapability | null>(null);
   const [changingAppLock, setChangingAppLock] = useState(false);
+  const [resetStep, setResetStep] = useState<'review' | 'confirm' | null>(null);
+  const [resetGate, setResetGate] = useState<StartFreshState>({
+    scopeReviewed: false,
+    exportChoice: null,
+    finalConfirm: false,
+  });
+  const [clearing, setClearing] = useState(false);
+  const savedBillCount = useAppStore((current) => current.subs.length);
+  const savedDebtCount = useAppStore((current) => current.debts?.length ?? 0);
+  const workspaceNames = useAppStore((current) =>
+    current.workspaces.map((workspace) => workspace.name).join(', '),
+  );
+  const closeReset = () => {
+    if (!clearing) setResetStep(null);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -175,35 +122,18 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       .finally(() => setChangingAppLock(false));
   };
 
-  // "Clear local money & history" spans all app-owned device surfaces, then persists a genuinely
-  // empty encrypted state with no demo content and no forced re-onboarding.
-  //
-  // This is a Tier-3 "nuke" action per undoPolicy.ts (ENGINES.md §6), so it is never one-tap
-  // reachable. It fires only once `canStartFresh` clears all three
-  // gates — an explicit "I've exported my data" acknowledgement (exportedAck), a deliberate
-  // typed-style confirm of the destructive intent (typedConfirm), and a final confirm (finalConfirm).
-  // The engine (canStartFresh) and this UI agree; no bare one-tap reset bypasses the gate.
-  //
-  // Realised with the codebase's established RN confirmation convention — Alert.alert button chains
-  // (SubscriptionsScreen / MeloChatSheet / TodayRecentTxns). RN's Alert.prompt is iOS-only and is used
-  // nowhere here, so the typed confirmation is honoured as a deliberate, separately-worded destructive
-  // step rather than a free-text box. Each step is independently cancellable, and the wipe only runs
-  // inside the final branch after the gate returns true.
-  //
-  // Once the gate clears: run the wipe and jump to Start. There is NO post-wipe Undo — D3
-  // forbids a fake undo after a confirmed wipe, and the final gate already says "there is no going
-  // back" (the web's 6s sonner-with-Undo is deliberately dropped). Export is now REAL:
-  // "Export my data" calls runExport() (the export engine), which builds the complete JSON + CSVs and
-  // opens the OS share sheet on them — it no longer opens the cycle-share card (D6, never paywalled).
-  // Remote account data stays separate so neither deletion direction silently destroys the other.
+  // Scope review and a real export choice precede the explicit final destructive action.
+  // Export is optional; requesting a share sheet does not assert that a copy was saved.
   const performReset = async () => {
-    // The gate is cleared — build the StartFreshState the engine vets and confirm all three are set
-    // before the destructive call. This keeps the engine as the single source of truth for the policy.
-    const gate: StartFreshState = { typedConfirm: true, exportedAck: true, finalConfirm: true };
+    if (clearing || resetStep !== 'confirm') return;
+    const gate: StartFreshState = { ...resetGate, finalConfirm: true };
     if (!canStartFresh(gate)) return;
-
+    // A pre-clear reversal must never remain available after the clean profile is persisted.
+    dismissUndo();
+    setClearing(true);
     try {
       const result = await clearLocalMeloData(activeWorkspaceId);
+      setResetStep(null);
       nav.go('start');
       Alert.alert(
         result.complete ? 'Local data cleared' : 'Local data cleared with one warning',
@@ -219,60 +149,30 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           ? reason.message
           : 'Melo could not verify that local data was fully cleared.';
       showStatusDialog('dialog.privacy-clear-failed', { message });
+    } finally {
+      setClearing(false);
     }
   };
 
-  // The shared tier-3 confirm chain. Both destructive resets run the SAME three independently
-  // cancellable gates (exportedAck → typedConfirm → finalConfirm); only the final branch wipes, and
-  // only with the wipe + wording the caller passes. Reusing one chain keeps the gate identical across
-  // both actions, so neither path can drift into being weaker than the other.
-  const confirmReset = (finalActionLabel: string, perform: () => void) => {
-    // Gate 1 — exportedAck: confirm the user has exported before anything is destroyed.
-    Alert.alert(
-      'Clear local money and history?',
-      'This clears money, setup details, imports, history, widgets and app-owned export files from this device. It does not delete your sign-in, cloud backup or bank connections. Export first if you want to keep a copy.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: "I've exported — continue",
-          onPress: () => {
-            // Gate 2 — typedConfirm: a deliberate, separately-worded confirmation of the destructive
-            // intent (the cross-platform stand-in for the typed phrase the policy requires).
-            Alert.alert(
-              'Are you sure?',
-              'This local data cannot be recovered unless you already exported it or kept a separate encrypted cloud backup.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Yes, clear local data',
-                  onPress: () => {
-                    // Gate 3 — finalConfirm: the last destructive confirm; only this branch wipes.
-                    Alert.alert(
-                      'Clear this device now?',
-                      'Local money, setup details and history will be removed. Remote account data stays until you delete it separately.',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: finalActionLabel, style: 'destructive', onPress: perform },
-                      ],
-                      { cancelable: true },
-                    );
-                  },
-                },
-              ],
-              { cancelable: true },
-            );
-          },
-        },
-      ],
-      { cancelable: true },
-    );
+  const handleClearToEmpty = () => {
+    setResetGate({ scopeReviewed: false, exportChoice: null, finalConfirm: false });
+    setResetStep('review');
   };
-
-  // Comprehensive local clear: auxiliary native/filesystem surfaces plus an empty encrypted store.
-  const handleClearToEmpty = () =>
-    confirmReset('Clear local data', () => {
-      void performReset();
-    });
+  const continueClear = (exportChoice: 'requested' | 'declined') => {
+    setResetGate({ scopeReviewed: true, exportChoice, finalConfirm: false });
+    setResetStep('confirm');
+  };
+  const exportBeforeClear = async () => {
+    try {
+      await runExport(activeWorkspaceId);
+      continueClear('requested');
+    } catch (reason: unknown) {
+      showStatusDialog('dialog.privacy-export-failed', {
+        message:
+          reason instanceof Error ? reason.message : 'Export could not finish on this device.',
+      });
+    }
+  };
 
   // Restore from an export (plan 113) — the recovery path the wipe chain's first gate points at.
   // pickRestoreFile opens the system picker and validates the file BEFORE anything is touched;
@@ -627,6 +527,87 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           />
         </View>
       </ScrollView>
+      <Sheet
+        visible={resetStep !== null}
+        onClose={closeReset}
+        scrollKey={resetStep ?? 'closed'}
+        footer={
+          <View style={styles.resetActions}>
+            {resetStep === 'review' ? (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void exportBeforeClear()}
+                  style={[styles.resetButton, { backgroundColor: t.calmStrong }]}
+                >
+                  <Text style={[styles.primaryLabel, { color: t.inverse }]}>Export first</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => continueClear('declined')}
+                  style={styles.resetButton}
+                >
+                  <Text style={[styles.primaryLabel, { color: t.ink }]}>
+                    Continue without export
+                  </Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: clearing, busy: clearing }}
+                disabled={clearing}
+                onPress={() => void performReset()}
+                style={[
+                  styles.resetButton,
+                  { backgroundColor: t.repair, opacity: clearing ? 0.6 : 1 },
+                ]}
+              >
+                <Text style={[styles.primaryLabel, { color: t.inverse }]}>
+                  {clearing ? 'Clearing local data…' : 'Clear local data'}
+                </Text>
+              </Pressable>
+            )}
+            <Pressable
+              accessibilityRole="button"
+              disabled={clearing}
+              onPress={closeReset}
+              style={styles.resetButton}
+            >
+              <Text style={[styles.primaryLabel, { color: t.ink }]}>Cancel</Text>
+            </Pressable>
+          </View>
+        }
+      >
+        <Text accessibilityRole="header" style={[styles.resetTitle, { color: t.ink }]}>
+          {resetStep === 'review' ? 'Review what will clear' : 'Clear this device now?'}
+        </Text>
+        {resetStep === 'review' ? (
+          <>
+            <Text style={[styles.body, { color: t.ink }]}>
+              All local workspaces: {workspaceNames}.
+            </Text>
+            <Text style={[styles.body, { color: t.ink }]}>
+              In {activeWorkspace.name}: {savedRecordCount} transactions, {savedBillCount} bills,{' '}
+              {savedDebtCount} debts, {savedSourceCount} original files and {savedCycleCount} closed
+              cycles.
+            </Text>
+            <Text style={[styles.body, { color: t.muted }]}>
+              Money, setup details, imports, history, widgets and app-owned export files will be
+              cleared. Sign-in, cloud backup and bank connections stay separate and unchanged.
+            </Text>
+            <Text style={[styles.body, { color: t.muted }]}>
+              Export first if you want a copy. Save it outside Melo before continuing; exports
+              stored only inside Melo will also clear. Export covers the active workspace.
+            </Text>
+          </>
+        ) : (
+          <Text style={[styles.body, { color: t.muted }]}>
+            This removes the local data you reviewed. There is no Undo after clearing. Only a copy
+            you kept outside Melo or a separate cloud backup can restore it.
+          </Text>
+        )}
+      </Sheet>
     </View>
   );
 }
@@ -651,6 +632,16 @@ function FootprintValue({
 }
 
 const styles = StyleSheet.create({
+  resetActions: { gap: gap.xs },
+  resetButton: {
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+  },
+  resetTitle: { fontFamily: serif.display, fontSize: 28, lineHeight: 32 },
   // px-7 ≈ screen inset (gap.xl = 24); pt-4 ≈ safe-area top + gap.md (12).
   screen: {
     flex: 1,

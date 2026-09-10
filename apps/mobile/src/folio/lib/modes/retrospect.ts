@@ -87,13 +87,15 @@ type Builder = (c: Ctx) => Retrospect;
 const survival: Builder = (c) => ({
   eyebrow: `${c.cycles.length} ${c.monthsWord} done`,
   title: { lead: 'The ', accent: 'shape', tail: ' of your months.' },
-  primary: { label: 'Saved across all months', value: pounds(c.totalSpare), tone: 'positive' },
+  primary: { label: 'Total left at cycle close', value: pounds(c.totalSpare), tone: 'positive' },
   secondary: { label: 'Average low balance', value: pounds(c.avgTight), tone: 'accent' },
   trendCaption: `Lowest balance, last ${Math.min(6, c.cycles.length)}`,
   meloNote:
-    c.spareDelta >= 0
-      ? "You landed a little higher than last month. That's the shape holding."
-      : "A quieter month. The floor's still the honest number to watch.",
+    c.spareDelta === 0
+      ? 'The recorded closing amount is unchanged from the previous cycle.'
+      : c.spareDelta > 0
+        ? "You landed a little higher than last month. That's the shape holding."
+        : "A quieter month. The floor's still the honest number to watch.",
   shareTitle: 'Shape of my months',
 });
 
@@ -108,9 +110,11 @@ const stability: Builder = (c) => ({
   secondary: { label: 'Average low balance', value: pounds(c.avgTight), tone: 'accent' },
   trendCaption: `Buffer floor, last ${Math.min(6, c.cycles.length)}`,
   meloNote:
-    c.spareDelta >= 0
-      ? "Nothing dramatic — and that's the point. Steady shape."
-      : 'A softer floor than last month. Still inside the buffer.',
+    c.spareDelta === 0
+      ? 'The recorded closing amount is unchanged from the previous cycle.'
+      : c.spareDelta > 0
+        ? "Nothing dramatic — and that's the point. Steady shape."
+        : 'A softer floor than last month. Still inside the buffer.',
   shareTitle: 'Steady months',
 });
 
@@ -244,7 +248,18 @@ export function getRetrospect(
   potsTotal: number,
 ): Retrospect {
   const ctx = makeCtx(cycles, potsTotal);
-  return (BUILDERS[mode] ?? survival)(ctx);
+  const result = (BUILDERS[mode] ?? survival)(ctx);
+  const comparable = cycles.filter((cycle) => !cycle.reconstructed);
+  return {
+    ...result,
+    trendCaption: `Lowest balance · ${Math.min(6, cycles.length)} completed ${cycles.length === 1 ? 'cycle' : 'cycles'}`,
+    meloNote:
+      comparable.length < 2
+        ? comparable.length === 1
+          ? 'Your first cycle is recorded. Another completed cycle will show what changes.'
+          : 'These earlier months are estimates. Complete a cycle to begin comparing your own records.'
+        : result.meloNote,
+  };
 }
 
 /** Format a signed £ delta for the "vs last month" pill. */

@@ -75,5 +75,5 @@ export function buildPlanTightPoint(
 /** Pinned-source date label: "Tue 1". */
 export function shortPlanDay(iso: string): string {
   const date = new Date(`${iso}T00:00:00`);
-  return `${date.toLocaleDateString('en-GB', { weekday: 'short' })} ${date.getDate()}`;
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }

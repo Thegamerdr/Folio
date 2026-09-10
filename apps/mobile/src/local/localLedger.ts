@@ -181,6 +181,8 @@ export const LOCAL_HISTORY_KINDS = [
   'calendar_event_added',
   'calendar_event_removed',
   'calendar_event_updated',
+  'debt_tracking_removed',
+  'debt_tracking_restored',
 ] as const;
 
 export type LocalHistoryKind = (typeof LOCAL_HISTORY_KINDS)[number];

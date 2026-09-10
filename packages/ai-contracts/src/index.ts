@@ -454,6 +454,10 @@ export type MeloLocalFinancialSnapshot = Readonly<{
   nextPaydayLabel: string;
   /** Aggregate-only local context. No names, merchants, account identifiers or transaction rows. */
   hasMoneyPicture?: boolean | undefined;
+  /** Presentation prerequisites, independent of whether some confirmed records exist. */
+  setupComplete?: boolean | undefined;
+  balanceKnown?: boolean | undefined;
+  setupNeeds?: readonly string[] | undefined;
   subscriptionCount?: number | undefined;
   activeSubscriptionMonthlyMinor?: number | undefined;
   monthlyIncomeMinor?: number | undefined;
@@ -602,6 +606,19 @@ export type MeloLocalCalculation =
       )[];
       confirmedRecordCount: number;
       excludedReviewCount: number;
+      /** Optional aggregate breakdown for the personal spending period. No record names. */
+      position?: Readonly<{
+        cashMinor: number;
+        reservedCostsMinor: number;
+        essentialsMinor: number;
+        debtMinimumMinor: number;
+        bufferMinor: number;
+        safeToSpendMinor: number;
+        tightPointMinor: number;
+        tightPointDate: string;
+        untilDate: string;
+        overdueCount: number;
+      }>;
     }>
   | Readonly<{
       kind: 'import-review-summary';
@@ -647,6 +664,7 @@ export type MeloLocalAiRequest = Readonly<{
 
 export type MeloLocalAiActionKind =
   | 'open_what_if'
+  | 'open_manual_setup'
   | 'open_business_invoices'
   | 'open_business_vat'
   | 'open_business_tax'
@@ -727,13 +745,19 @@ export function draftMeloLocalAiResponse(input: MeloLocalAiRequest): MeloLocalAi
     intent,
     snapshot: input.snapshot,
   });
-  const uncertainty = uncertaintyForIntent(
-    intent,
-    detectedAmountMinor,
-    injectionConcern,
-    input.calculation ?? null,
-    amountCandidatesMinor.length > 1,
-  );
+  const uncertainty =
+    input.snapshot.setupComplete === false
+      ? {
+          state: 'needs-context' as const,
+          reason: 'Some financial setup details still need confirmation.',
+        }
+      : uncertaintyForIntent(
+          intent,
+          detectedAmountMinor,
+          injectionConcern,
+          input.calculation ?? null,
+          amountCandidatesMinor.length > 1,
+        );
   const requiresUserReview =
     intent === 'review_import' ||
     intent === 'plan_recovery' ||
@@ -1899,22 +1923,48 @@ function buildMeloLocalAnswer(input: {
   amountText: string | null;
   amountCandidatesMinor: readonly number[];
 }): string {
-  if (input.snapshot.hasMoneyPicture === false) {
+  if (input.snapshot.hasMoneyPicture === false || input.snapshot.setupComplete === false) {
     return input.snapshot.workspaceKind === 'business'
       ? 'I do not have a confirmed Business picture to work from yet. Add a Business account or dated record, then I can answer from this workspace without inventing income or commitments.'
-      : 'I do not have a real money picture to work from yet. Add your balance or connect an account, then I can answer from your own numbers.';
+      : `Your money picture is not complete yet. Add or confirm your ${input.snapshot.setupNeeds?.join(', ') || 'balance, payday, regular costs, everyday essentials and buffer'}. Then I can explain the money left from your own numbers.`;
   }
 
   if (input.calculation?.kind === 'source-explanation') {
+    const position = input.calculation.position;
+    if (position) {
+      const money = (amount: number) => formatMinorAmount(amount).replace(/^-/, '−');
+      const gap =
+        position.safeToSpendMinor < 0
+          ? `That leaves a ${money(-position.safeToSpendMinor)} gap after your protected buffer.`
+          : `${money(position.safeToSpendMinor)} is left after your protected buffer.`;
+      const overdue =
+        position.overdueCount > 0
+          ? ` ${position.overdueCount} overdue ${position.overdueCount === 1 ? 'commitment is' : 'commitments are'} still reserved until you confirm what was paid.`
+          : '';
+      const pending =
+        input.calculation.excludedReviewCount > 0
+          ? ` ${input.calculation.excludedReviewCount} ${input.calculation.excludedReviewCount === 1 ? 'figure needs' : 'figures need'} your review before you rely on this estimate.`
+          : '';
+      return `You have ${money(position.cashMinor)} cash now. ${money(position.reservedCostsMinor)} is reserved before ${position.untilDate}: ${money(position.reservedCostsMinor - position.essentialsMinor - position.debtMinimumMinor)} for bills and commitments, ${money(position.essentialsMinor)} for everyday essentials, and ${money(position.debtMinimumMinor)} for debt minimums. Your protected buffer is ${money(position.bufferMinor)}. ${gap} The lowest projected cash balance is ${money(position.tightPointMinor)} on ${position.tightPointDate}.${overdue}${pending} Open the named costs below or Show source figures to check the amounts and dates.`;
+    }
     const values = input.calculation.values
       .map((value) => `${formatMinorAmount(value.amountMinor)} ${value.label}`)
       .join('; ');
-    const sourceKinds = input.calculation.sourceKinds.join(', ');
+    const sourceLabels = {
+      'current balance setting': 'the balance you recorded',
+      'forecast engine': 'your dated money plan',
+      'income sources and posted income': 'income dates and money received',
+      'recurring rules and posted outgoings': 'regular costs and spending you recorded',
+      'recorded debt details': 'your debt details',
+      'recorded goal details': 'your savings goals',
+      'confirmed calendar events': 'dates you confirmed',
+    } as const;
+    const sourceKinds = input.calculation.sourceKinds.map((kind) => sourceLabels[kind]).join(', ');
     const excluded =
       input.calculation.excludedReviewCount > 0
         ? ` ${input.calculation.excludedReviewCount} unconfirmed review item${input.calculation.excludedReviewCount === 1 ? ' is' : 's are'} excluded until you decide.`
         : '';
-    return `${values}. The local sources are ${sourceKinds}, across ${input.calculation.confirmedRecordCount} confirmed record${input.calculation.confirmedRecordCount === 1 ? '' : 's'}.${excluded} Open the relevant surface for names and row-level evidence.`;
+    return `${values}. This uses ${sourceKinds}.${excluded} Show source figures to check the amounts and dates.`;
   }
 
   if (input.snapshot.workspaceKind === 'business') {
@@ -2240,6 +2290,9 @@ function buildFinancialConclusion(input: {
   snapshot: MeloLocalFinancialSnapshot;
   detectedAmountMinor: number | null;
 }): string {
+  if (input.snapshot.setupComplete === false && input.snapshot.hasMoneyPicture !== false) {
+    return 'Some financial setup details still need confirmation.';
+  }
   if (input.snapshot.hasMoneyPicture === false) {
     return input.snapshot.workspaceKind === 'business'
       ? 'No confirmed Business picture is available yet.'
@@ -2690,6 +2743,17 @@ function actionsForDraft(input: {
 }): readonly MeloLocalAiAction[] {
   if (input.snapshot.workspaceKind === 'business') {
     return actionsForBusinessDraft(input);
+  }
+
+  if (input.snapshot.hasMoneyPicture === false || input.snapshot.setupComplete === false) {
+    return [
+      action(
+        'open_manual_setup',
+        input.snapshot.balanceKnown ? 'Resume setup' : 'Add my numbers',
+        'Add or confirm your balance, payday, regular costs, everyday essentials and buffer.',
+        false,
+      ),
+    ];
   }
 
   if (input.intent === 'check_purchase' && input.detectedAmountMinor !== null) {

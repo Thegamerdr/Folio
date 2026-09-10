@@ -203,19 +203,10 @@ function EditItemForm({
   }
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false}>
+    <View>
       {/* Header — eyebrow + close glyph. */}
       <View style={s.headerRow}>
         <Text style={s.eyebrow}>Check this item</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          hitSlop={12}
-          onPress={onClose}
-          style={({ pressed }) => [pressed ? s.pressed : undefined]}
-        >
-          <CloseGlyph color={t.muted} />
-        </Pressable>
       </View>
       <Text accessibilityRole="header" style={s.headline}>
         Correct anything before it counts.
@@ -334,7 +325,7 @@ function EditItemForm({
           <Text style={[s.secondaryLabel, { color: t.ink }]}>Cancel</Text>
         </Pressable>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 

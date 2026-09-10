@@ -982,8 +982,9 @@ export type EvidenceDocumentState = Readonly<{
 export type TimelineEventState = Readonly<{
   id: string;
   at: string;
-  kind: 'sub-paused' | 'sub-resumed' | 'review-ignored';
+  kind: 'sub-paused' | 'sub-resumed' | 'review-ignored' | 'debt-removed' | 'debt-restored';
   subject: string;
+  entityId?: string;
   note?: string;
 }>;
 

@@ -81,7 +81,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
+import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
@@ -90,6 +90,12 @@ import { buildRecoveryRoutePreview, RECOVERY_BILL_NUDGE_DAYS } from '@/folio/lib
 import { EmptyState } from '@/folio/ui/EmptyState';
 import type { Nav } from '@/folio/types';
 import type { MoneyMode } from '@/folio/lib/modes/types';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import {
+  selectFinancialPresentation,
+  formatMoney,
+  formatFinancialDate,
+} from '@/folio/lib/financialPresentation';
 import { triggerFeedback } from '@/folio/lib/feedback';
 
 // ---------------------------------------------------------------------------
@@ -358,8 +364,11 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     () => buildRecoveryRoutePreview(appState, routeNow),
     [appState, routeNow],
   );
-  const baseTight = recoveryPreview.baseTight;
-  const hasMoneyPicture = recoveryPreview.hasMoneyPicture || monthlyIncome > 0;
+  const plan = useMemo(
+    () => buildFinancialPlanFromState(appState, { now: routeNow }),
+    [appState, routeNow],
+  );
+  const presentation = selectFinancialPresentation(appState, plan);
   const hasShortfall = routeReady && recoveryPreview.hasShortfall;
   const shortfall = hasShortfall ? recoveryPreview.shortfall : FALLBACK_SHORTFALL;
 
@@ -371,6 +380,12 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     const pausable = recoveryPreview.pausableSubscription;
     const bill = recoveryPreview.flexibleBill;
     const billLift = recoveryPreview.billLift;
+    const billNudgeDays = bill
+      ? Math.max(
+          -7,
+          Math.min(7, (appState.subOverrides[bill.name] ?? 0) + RECOVERY_BILL_NUDGE_DAYS),
+        ) - (appState.subOverrides[bill.name] ?? 0)
+      : 0;
     const subLift = recoveryPreview.subscriptionLift;
     const holdDailyCap = recoveryPreview.holdDailyCap;
     const holdLift = recoveryPreview.holdLift;
@@ -385,11 +400,11 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         ? {
             id: 'move-bill',
             kind: 'Move a bill',
-            title: `Move ${bill.name} ${RECOVERY_BILL_NUDGE_DAYS} days later`,
-            delta: `+£${billLift} this week`,
+            title: `Move ${bill.name} ${billNudgeDays} days later`,
+            delta: `+${formatMoney(billLift)} in the forecast`,
             deltaValue: billLift,
-            body: `Pushes ${bill.name}'s next charge ${RECOVERY_BILL_NUDGE_DAYS} days later in the cycle — past the tight point instead of before it.`,
-            cost: 'no fee — check the supplier is flexible',
+            body: `Moves ${bill.name} ${billNudgeDays} days later in your forecast. Melo does not reschedule the payment with the provider. Confirm the date with them first.`,
+            cost: 'Check the provider’s date and any fees before changing the forecast',
             melo: 'Quietest move. Same money, kinder timing.',
             // Slide the flexible bill later in the cycle — the real "what if I move this?" write.
             commit: () => {
@@ -401,11 +416,11 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         ? {
             id: 'pause-sub',
             kind: 'Pause a sub',
-            title: `Pause ${pausable.name} for a month`,
-            delta: `+£${subLift} this month`,
+            title: `Pause the next ${pausable.name} charge in the forecast`,
+            delta: `+${formatMoney(subLift)} in the forecast`,
             deltaValue: subLift,
-            body: 'Nothing comes out of your account for one month. Resumes automatically unless you cancel.',
-            cost: `£${pausable.cost.toFixed(2)}/mo back · resumes automatically`,
+            body: 'Leaves the next scheduled charge out of the forecast. This does not pause the provider’s payments. Confirm the pause with them first; overdue charges stay reserved.',
+            cost: `${formatMoney(pausable.cost, true)} scheduled charge excluded from the forecast`,
             melo: 'Small experiment. You can resume any time.',
             subName: pausable.name,
             // Pause the chosen sub (nearest renewal) — the real store write.
@@ -419,7 +434,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             id: 'hold-spend',
             kind: 'Set a hold',
             title: 'Hold spending for 3 days',
-            delta: `+£${holdLift} estimated`,
+            delta: `+${formatMoney(holdLift)} estimated`,
             deltaValue: holdLift,
             body: `Bills and recurring still pay. Discretionary spending is softly capped at £${holdDailyCap}/day — you'll see a gentle nudge if you go over.`,
             cost: 'based on your actual 30-day discretionary average',
@@ -431,9 +446,9 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     // Recovery is a ranked decision surface: the first option is the one that creates the most
     // room at the route's actual low. Stable sort keeps the source order for honest ties.
     return built
-      .filter((m): m is Move => m !== null)
+      .filter((m): m is Move => m !== null && m.deltaValue > 0)
       .sort((left, right) => right.deltaValue - left.deltaValue);
-  }, [recoveryPreview]);
+  }, [recoveryPreview, appState.subOverrides]);
 
   const pickedMove = moves.find((m) => m.id === picked);
 
@@ -444,7 +459,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   const reachesRoom = after >= 0;
 
   // Count up the magnitude between selections (MOTION.md: money values count up, never slide).
-  const afterMagnitude = useCountUp(Math.abs(after), COUNT_MS, reduceMotion);
+  const afterMagnitude = Math.abs(after);
 
   // Guard a stray commit after unmount (defensive — no timers here, but keep the contract explicit).
   const committedRef = useRef(false);
@@ -468,16 +483,24 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // empty — no overspent verdict to recover from. Per the spec, Recovery is only reached from an
   // overspent verdict; with no shortfall it should not render a blank Recovery, so it offers a calm
   // doorway back to Today rather than dead-ending.
-  if (state === 'empty' || (routeReady && !hasShortfall)) {
-    const needsSetup = !hasMoneyPicture;
+  if (state === 'empty' || (routeReady && (!hasShortfall || !presentation.complete))) {
+    const needsSetup = !presentation.complete;
     return (
       <EmptyState
         mood="calm"
-        headline={needsSetup ? 'Add your first money picture' : 'Nothing to repair'}
+        headline={
+          needsSetup
+            ? 'We need your numbers'
+            : presentation.overdueCount
+              ? 'Check overdue payments'
+              : 'No gap in the current plan'
+        }
         body={
           needsSetup
-            ? 'Set your balance and payday first. Recovery will appear only when a real route needs room.'
-            : "You're on track to payday. Recovery shows up only when something needs a move."
+            ? presentation.message
+            : presentation.canReassure
+              ? 'Your entered costs and buffer fit before payday. You can review the numbers at any time.'
+              : 'Review the unpaid or unconfirmed items before relying on this plan.'
         }
         cta={
           needsSetup
@@ -506,10 +529,10 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   const caption = pickedMove
     ? reachesRoom
       ? 'you reach payday with room'
-      : `still £${Math.round(afterMagnitude)} short — try another move`
+      : `still ${formatMoney(afterMagnitude)} short — review the remaining gap`
     : 'to reach payday with room';
   const sign = reachesRoom ? '+' : '−'; // U+2212 MINUS SIGN
-  const afterValue = `${sign}£${Math.round(afterMagnitude)}`;
+  const afterValue = `${sign}${formatMoney(afterMagnitude)}`;
 
   return (
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
@@ -571,11 +594,13 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         {/* Title block — italic reassurance + the headline with the mode-tinted accent word
             (BREAKS-PARITY fix — was fixed to survival's "Something has to move."). */}
         <View style={styles.titleBlock}>
-          <Text style={[styles.kicker, { color: t.muted }]}>{modeCopy.intro}</Text>
+          <Text style={[styles.kicker, { color: t.muted }]}>
+            {moves.length ? modeCopy.intro : 'Your recorded plan needs a closer look.'}
+          </Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {`${modeCopy.headlineLead} `}
+            {moves.length ? `${modeCopy.headlineLead} ` : 'No available '}
             <Text style={[styles.headlineAccent, { color: t.calm }]}>
-              {modeCopy.headlineAccent}
+              {moves.length ? modeCopy.headlineAccent : 'forecast change.'}
             </Text>
           </Text>
         </View>
@@ -614,10 +639,36 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           t={t}
         />
 
+        <Text style={[styles.cardCaption, { color: t.muted }]}>
+          After recorded costs {formatMoney(recoveryPreview.baseTight)}. The line shows projected
+          balance. Payday {formatFinancialDate(plan.nextIncomeDate)}.
+        </Text>
+
         {/* "Pick one thing" — the single-select move group. */}
         <Text style={[styles.sectionLabel, { color: t.muted }]}>
-          Pick one thing · most lift first
+          {moves.length
+            ? 'Choose a forecast change · most room first'
+            : 'No available forecast change'}
         </Text>
+        {moves.length === 0 ? (
+          <View
+            style={[styles.signpostCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+          >
+            <Text style={[styles.signpostBody, { color: t.ink }]}>
+              None of the changes supported by your current records would create room. Your bills,
+              income and essentials still need to be reviewed.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => nav.go('plan')}
+              style={styles.secondary}
+            >
+              <Text style={[styles.secondaryLabel, { color: t.calmStrong }]}>
+                Review bills and income →
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
         <View accessibilityRole="radiogroup" style={styles.moveList}>
           {moves.map((m, index) => (
             <MoveCard
@@ -633,6 +684,29 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             />
           ))}
         </View>
+
+        {recoveryPreview.holdDailyCap > 0 && recoveryPreview.holdLift === 0 ? (
+          <View
+            style={[styles.signpostCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+          >
+            <Text style={[styles.signpostBody, { color: t.ink }]}>
+              A spending limit can help you track the next three days. It does not close the
+              existing gap.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setSpendHold(recoveryPreview.holdDailyCap, 3);
+                nav.go('today');
+              }}
+              style={styles.secondary}
+            >
+              <Text style={[styles.secondaryLabel, { color: t.calmStrong }]}>
+                Set {formatMoney(recoveryPreview.holdDailyCap)} daily limit
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* Talk-through escape hatch — opens Melo seeded with the frozen prefill. */}
         <Pressable
@@ -653,27 +727,41 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         {/* Melo aside — the picked move's frozen line, or the mode-tinted default (BREAKS-PARITY fix).
             MeloLine adds the quotes. */}
         <View style={styles.meloAside}>
-          <MeloLine mood="calm" size={28} text={pickedMove?.melo ?? modeCopy.meloDefault} />
+          <MeloLine
+            mood="calm"
+            size={28}
+            text={
+              pickedMove
+                ? reachesRoom
+                  ? 'This preview covers the current gap. Check the change before saving it.'
+                  : 'This preview creates some room, but a gap remains.'
+                : moves.length
+                  ? 'Choose a change to see its effect before saving.'
+                  : 'We can look at what is due and what income is confirmed, one figure at a time.'
+            }
+          />
         </View>
 
         {/* Primary CTA — disabled until a move is picked; commits the move, routes to today-after.
             Label is mode-tinted (BREAKS-PARITY fix). */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={modeCopy.cta}
-          accessibilityState={{ disabled: !pickedMove }}
-          disabled={!pickedMove}
-          onPress={onRebuild}
-          style={({ pressed: isPressed }) => [
-            styles.primary,
-            { backgroundColor: pickedMove ? t.calmStrong : t.sunken },
-            isPressed && pickedMove ? styles.pressed : undefined,
-          ]}
-        >
-          <Text style={[styles.primaryLabel, { color: pickedMove ? t.inverse : t.muted }]}>
-            {modeCopy.cta}
-          </Text>
-        </Pressable>
+        {moves.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={modeCopy.cta}
+            accessibilityState={{ disabled: !pickedMove }}
+            disabled={!pickedMove}
+            onPress={onRebuild}
+            style={({ pressed: isPressed }) => [
+              styles.primary,
+              { backgroundColor: pickedMove ? t.calmStrong : t.sunken },
+              isPressed && pickedMove ? styles.pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.primaryLabel, { color: pickedMove ? t.inverse : t.muted }]}>
+              {modeCopy.cta}
+            </Text>
+          </Pressable>
+        ) : null}
 
         {/* Secondary — back out, no move made. */}
         <Pressable
@@ -740,8 +828,8 @@ function RecoveryPathPreview({
   const estimateOnly = selectedMove !== null && !candidate;
   const caption = selectedMove
     ? estimateOnly
-      ? `+£${selectedLift} estimated from recent spending`
-      : `+£${selectedLift} at the route's low`
+      ? `+${formatMoney(selectedLift)} estimated from recent spending`
+      : `+${formatMoney(selectedLift)} after recorded costs`
     : shortfall > 0
       ? 'Projected path to payday'
       : 'Projected path to payday · no gap';
@@ -787,7 +875,7 @@ function RecoveryPathPreview({
         </Svg>
       ) : null}
       <View style={styles.pathLegend}>
-        <Text style={[styles.pathLegendText, { color: t.muted }]}>dashed current</Text>
+        <Text style={[styles.pathLegendText, { color: t.muted }]}>Dashed: current forecast</Text>
         {candidateD ? (
           <Text style={[styles.pathLegendText, { color: t.calmStrong }]}>solid after move</Text>
         ) : estimateOnly ? (

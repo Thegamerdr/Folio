@@ -72,11 +72,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
+import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { setCurrentBalance, useAppStore } from '@/folio/store';
+import { applyMoneyKey } from '@/folio/lib/formDrafts';
 import { guidedBalanceDraft } from '@/folio/lib/guidedBalance';
 import type { Nav } from '@/folio/types';
 
@@ -103,10 +104,6 @@ const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
 const SLIDE_FROM_X = 28;
 const SLIDE_MS = 360;
 
-// A short, calm per-keystroke count-up — long enough to read as a settle, short enough that rapid
-// typing never feels busy (the spec's jank warning). Money never slides; this is a tick/fade.
-const COUNT_UP_MS = 220;
-
 // The caret's blink half-cycle. A gentle opacity breath, not an attention-grab.
 const CARET_BLINK_MS = 720;
 
@@ -131,11 +128,6 @@ function useReduceMotion(): boolean {
 // Apply the web `press(k)` edit rule to the current raw value. Pure — same three branches, same
 // fallbacks, byte-for-byte with the web source so every edge case (single dot, leading-zero replace,
 // backspace-to-"0") matches exactly.
-function applyKey(value: string, key: (typeof KEYS)[number]): string {
-  if (key === '←') return value.slice(0, -1) || '0';
-  if (key === '.') return value.includes('.') ? value : value + '.';
-  return value === '0' ? key : value + key;
-}
 
 export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInScreenProps) {
   const t = useTheme();
@@ -154,8 +146,9 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
 
   // Per-keystroke count-up: the figure re-ticks to the new number on every change (money never slides
   // — this is a calm settle, gated to a snap under reduce-motion by the hook itself).
-  const counted = useCountUp(shownNumber, COUNT_UP_MS, reduceMotion);
-  const countedLabel = useMemo(() => Math.round(counted).toLocaleString('en-GB'), [counted]);
+  const countedLabel = value.includes('.')
+    ? `${Math.trunc(shownNumber).toLocaleString('en-GB')}.${value.split('.')[1] ?? ''}`
+    : grouped;
 
   // slide-in-r — drives the whole screen. 0 = resting (translateX 0, opacity 1); under reduce-motion
   // we resolve straight to the final state instead of animating.
@@ -194,14 +187,14 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
   }));
 
   function handleKey(key: (typeof KEYS)[number]) {
-    setValue((v) => applyKey(v, key));
+    setValue((v) => applyMoneyKey(v, key));
   }
 
   // Persist the rough figure honestly before advancing. The web omitted this; the spec requires it.
   // 'user-entered' source + 'rough' confidence is exactly what this screen captures.
   function commitAndGo() {
     setCurrentBalance({
-      amount: Math.max(0, Math.round(shownNumber)),
+      amount: Math.max(0, Math.round(shownNumber * 100) / 100),
       source: 'user-entered',
       confidence: 'rough',
     });
@@ -297,9 +290,12 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
             <Text style={[styles.headlineAccent, { color: t.calm }]}>see</Text>
             {' today?'}
           </Text>
-          <Text style={[styles.subhead, { color: t.muted }]}>A rough number is fine.</Text>
+          <Text style={[styles.subhead, { color: t.muted }]}>
+            Your current available balance, including payments and income already reflected.
+          </Text>
         </View>
-
+      </ScrollView>
+      <View style={styles.controls}>
         {/* Balance card — the In-your-account label, the big £ + figure with the blinking caret, and the
           three source chips. The figure count-ups per keystroke; money never slides. */}
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
@@ -322,15 +318,6 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
             ))}
           </View>
         </View>
-
-        {/* Melo reassurance — calm mood (step 1-3 of onboarding map to calm per MELO_MOODS.md). The
-          quote is a @copy FROZEN inline literal; MeloLine adds the straight quotes. */}
-        <View style={styles.meloRow}>
-          <MeloLine mood="calm" text="An estimate is fine — we'll get clearer together." />
-        </View>
-
-        {/* Spacer pins the keypad + Continue to the bottom, mirroring the web flex-1 spacer. */}
-        <View style={styles.spacer} />
 
         {/* Keypad — the 3-col grid of Pressables (1-9 · . · 0 · ←). Custom, not the OS keyboard. */}
         <View style={styles.keypad}>
@@ -366,7 +353,7 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
         >
           <Text style={[styles.continueLabel, { color: t.inverse }]}>Continue</Text>
         </Pressable>
-      </ScrollView>
+      </View>
     </Animated.View>
   );
 }
@@ -383,8 +370,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollBody: {
-    flexGrow: 1,
+    paddingBottom: gap.sm,
   },
+  controls: { flexShrink: 0 },
   loading: {
     flex: 1,
     paddingHorizontal: gap.xl,
@@ -415,7 +403,7 @@ const styles = StyleSheet.create({
   },
   // mt-8 (32px) = gap.xxl.
   heading: {
-    marginTop: gap.xxl,
+    marginTop: gap.md,
   },
   // "Step two" — Fraunces italic, 14px, muted (web font-display italic text-[14px]).
   eyebrow: {
@@ -446,8 +434,9 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,
-    marginTop: gap.xl,
-    padding: gap.xl,
+    marginTop: gap.sm,
+    marginBottom: gap.sm,
+    padding: gap.md,
   },
   // "In your account" — 11px, uppercase, tracked, muted (web text-[11px] uppercase tracking-[0.14em];
   // RN letterSpacing is absolute px, so 11 * 0.14 ≈ 1.54).
@@ -491,7 +480,7 @@ const styles = StyleSheet.create({
   chipsRow: {
     columnGap: gap.sm,
     flexDirection: 'row',
-    marginTop: gap.lg,
+    marginTop: gap.xs,
   },
   // Each chip — --inset fill, rounded-full, px-2 py-1 (web text-[11px] px-2 py-1 rounded-full).
   chip: {

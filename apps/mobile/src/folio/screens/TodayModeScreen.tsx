@@ -24,12 +24,14 @@
 import { useMemo, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
+import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { useAppStore, type Debt } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { selectFinancialPresentation, formatMoney } from '@/folio/lib/financialPresentation';
+import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
 import { useChartStyle, type ChartStyle } from '@/folio/lib/chartStyle';
@@ -85,14 +87,18 @@ type HeroCtx = {
   optimizerLeaks?: OptimizerLeak[] | undefined;
   chartStyle: ChartStyle;
   confidence: 'low' | 'estimating' | 'high';
+  financePresentation: ReturnType<typeof selectFinancialPresentation>;
   openLogInvoice: () => void;
   openOnboarding: () => void;
   openAddEvent: () => void;
   openAddBill: () => void;
   openAddDebt: () => void;
   openLogPayment: () => void;
+  openDebts: () => void;
   openHouseholdSetup: () => void;
   debts: readonly Debt[];
+  debtTrackingHistory: NonNullable<Parameters<typeof DebtCommitmentSurface>[0]['timelineEvents']>;
+  debtPaymentHistory: NonNullable<Parameters<typeof DebtCommitmentSurface>[0]['transactions']>;
   canonicalPlan?: ReturnType<typeof buildFinancialPlanFromState> | null;
   today: Date;
   householdSplits?: BillSplit[] | undefined;
@@ -131,7 +137,7 @@ const HERO: Record<
   growth: {
     label: 'Growth Mode',
     toneKey: 'positive',
-    headline: 'Free to save',
+    headline: 'Safe to spend until payday',
     render: (c, t) => {
       const pots = c.growthPots ?? [];
       const goal = c.potsTarget || Math.max(500, c.monthlyIn);
@@ -160,11 +166,13 @@ const HERO: Record<
             />
           </View>
           <Text style={[heroStyles.hint, { color: t.muted }]}>
-            {monthsToGoal
-              ? `At this pace you're there in ${monthsToGoal} ${monthsToGoal === 1 ? 'month' : 'months'}. (${pct}%)`
-              : c.potsTarget > 0
-                ? 'Feed a pot this cycle to start the pace.'
-                : 'Pick a pot to start the pace.'}
+            {!c.financePresentation.canReassure
+              ? 'This is your chosen saving pace. Review the current financial position before setting more aside.'
+              : monthsToGoal
+                ? `At this pace you're there in ${monthsToGoal} ${monthsToGoal === 1 ? 'month' : 'months'}. (${pct}%)`
+                : c.potsTarget > 0
+                  ? 'Feed a pot this cycle to start the pace.'
+                  : 'Pick a pot to start the pace.'}
           </Text>
           {pots.length > 0 ? (
             <View style={heroStyles.tileRow}>
@@ -176,7 +184,7 @@ const HERO: Record<
                       {p.name}
                     </Text>
                     <Text style={[heroStyles.tileValue, { color: t.ink }]}>
-                      {p.perWeek > 0 ? `£${p.perWeek}` : '—'}
+                      {p.perWeek > 0 ? formatGBP(p.perWeek) : '—'}
                       <Text style={[heroStyles.tileValueUnit, { color: t.muted }]}> /wk</Text>
                     </Text>
                     <View style={[heroStyles.tileBarTrack, { backgroundColor: t.surface }]}>
@@ -220,16 +228,19 @@ const HERO: Record<
   debt: {
     label: 'Debt Mode',
     toneKey: 'calm',
-    headline: 'Payoff',
+    headline: 'Safe to spend until payday',
     render: (c, t) => (
       <DebtCommitmentSurface
         debts={c.debts}
+        transactions={c.debtPaymentHistory}
+        timelineEvents={c.debtTrackingHistory}
         today={c.today}
         tightestSpare={c.tightestSpare}
         canonicalPlan={c.canonicalPlan}
         t={t}
         onAddDebt={c.openAddDebt}
         onLogPayment={c.openLogPayment}
+        onViewDebts={c.openDebts}
       />
     ),
   },
@@ -270,12 +281,12 @@ const HERO: Record<
         { label: 'this week', min: 0, max: 2, tone: t.repair },
         { label: 'next month', min: 2, max: 4, tone: t.caution },
         { label: 'buffer', min: 4, max: 8, tone: t.muted },
-        { label: 'calm', min: 8, max: 12, tone: t.positive },
+        { label: '8–12 weeks', min: 8, max: 12, tone: t.muted },
       ];
 
       return (
         <View style={heroStyles.block}>
-          <RowLabel left="Weeks of bills covered" right={`${runway} wk`} t={t} />
+          <RowLabel left="Estimated bill runway" right={`${runway} wk`} t={t} />
           <View style={heroStyles.bandRow}>
             {bands.map((b) => {
               const filled = Math.max(0, Math.min(1, (runway - b.min) / (b.max - b.min)));
@@ -295,9 +306,13 @@ const HERO: Record<
             })}
           </View>
           <Text style={[heroStyles.hint, { color: t.muted }]}>
+            Runway is an estimate of bill coverage, separate from safe to spend after all
+            commitments.
+          </Text>
+          <Text style={[heroStyles.hint, { color: t.muted }]}>
             {extendsBy > 0
-              ? `Next typical invoice extends runway by ~${extendsBy} ${extendsBy === 1 ? 'wk' : 'wks'}.`
-              : 'Next invoice extends the runway.'}
+              ? `An invoice of ${formatGBP(typicalInvoice)} could add about ${extendsBy} ${extendsBy === 1 ? 'week' : 'weeks'} if received. It is not confirmed income.`
+              : 'Add actual invoice amounts and expected dates to update the estimate.'}
           </Text>
           <View style={[heroStyles.ctaRow, heroStyles.ctaRowCenter]}>
             <HeroCta
@@ -328,8 +343,8 @@ const HERO: Record<
           <View style={heroStyles.block}>
             <View style={[heroStyles.noticeBox, { backgroundColor: t.inset }]}>
               <Text style={[heroStyles.noticeText, { color: t.muted }]}>
-                No shared bills in the next 30 days. Add bills as regular subs — Melo will show the
-                split here.
+                No shared bills recorded for the next 30 days. Add a regular payment — Melo will
+                show the split here.
               </Text>
             </View>
             <View style={heroStyles.noticeCtaEnd}>
@@ -362,10 +377,10 @@ const HERO: Record<
           </View>
           <View style={heroStyles.splitLegend}>
             <Text style={[heroStyles.splitLegendText, { color: t.ink }]}>
-              You <Text style={{ color: t.muted }}>{formatGBP(Math.round(totalYours))}</Text>
+              You <Text style={{ color: t.muted }}>{formatGBP(totalYours)}</Text>
             </Text>
             <Text style={[heroStyles.splitLegendText, { color: t.muted }]}>
-              {partner} <Text style={{ color: t.ink }}>{formatGBP(Math.round(totalPartner))}</Text>
+              {partner} <Text style={{ color: t.ink }}>{formatGBP(totalPartner)}</Text>
             </Text>
           </View>
           <View style={[heroStyles.divider, { borderColor: t.hairline }]}>
@@ -505,16 +520,16 @@ const HERO: Record<
   optimizer: {
     label: 'Optimizer Mode',
     toneKey: 'calm',
-    headline: 'Recovered this month',
+    headline: 'Potential monthly savings',
     render: (c, t) => {
       const leaks = c.optimizerLeaks ?? [];
-      const total = Math.round(leaks.reduce((s, l) => s + l.cost, 0));
+      const total = leaks.reduce((s, l) => s + l.cost, 0);
       if (leaks.length === 0) {
         return (
           <View style={heroStyles.block}>
             <Text style={[heroStyles.leanText, { color: t.muted }]}>
-              Nothing obvious leaking right now. Melo watches for subs you stop using and bills that
-              outgrow their value.
+              No regular payments are flagged by the current checks. Review your recorded bills to
+              decide which are still useful.
             </Text>
           </View>
         );
@@ -555,7 +570,7 @@ const HERO: Record<
             />
           </View>
           <Text style={[heroStyles.hint, { color: t.muted }]}>
-            One per surface. Cut, keep, or defer — never moralised.
+            These are possible future savings. No payment or provider contract has changed.
           </Text>
         </View>
       );
@@ -565,7 +580,7 @@ const HERO: Record<
   reset: {
     label: 'Reset Mode',
     toneKey: 'repair',
-    headline: 'Essentials covered',
+    headline: 'Estimated essentials runway',
     render: (c, t) => {
       const days = Math.max(0, Math.round(c.amount));
       const target = 14;
@@ -574,22 +589,20 @@ const HERO: Record<
       // make "N days" and "~£X/day" not multiply back to anything real (plan 107 Step 2).
       const dailyEssentials = resetEssentialsPerDay(c.onboardingMonthlyIncome);
       const tone = days < 3 ? t.repair : days < 7 ? t.caution : t.positive;
-      const move =
-        days < 3
-          ? 'Move the smallest possible thing today — a £5 sub, a paused order.'
-          : days < 7
-            ? "Cancel one sub you don't use. Nothing bigger this week."
-            : 'Hold. Nothing new to add — rest the plan.';
+      const move = !c.financePresentation.canReassure
+        ? c.financePresentation.message
+        : 'Review your recorded costs before choosing a small change. Forecast changes do not cancel provider payments.';
       return (
         <View style={heroStyles.block}>
           <View style={heroStyles.baselineRow}>
             <Text style={[heroStyles.bigNumber, { color: t.ink }]}>{days}</Text>
             <Text style={[heroStyles.bigNumberLabel, { color: t.muted }]}>
-              days of essentials held
+              estimated days of essentials
             </Text>
           </View>
           <Text style={[heroStyles.tabularCaption, { color: t.muted }]}>
-            ~{formatGBP(dailyEssentials)}/day · goal {target} days
+            About {formatGBP(dailyEssentials)}/day, estimated from income · goal {target} days. This
+            estimate excludes bills and debt payments; check safe to spend before deciding.
           </Text>
           <View style={heroStyles.progressGap}>
             <LensProgress value={days} target={target} style={c.chartStyle} tone={tone} />
@@ -640,7 +653,7 @@ const HERO: Record<
         {
           key: 'balance',
           label: 'Balance',
-          ok: c.currentBalance > 0,
+          ok: c.financePresentation.balanceKnown,
           cta: '+ Add your balance',
           why: 'Anchors every number on Today — biggest single lift.',
           onTap: c.openOnboarding,
@@ -648,7 +661,7 @@ const HERO: Record<
         {
           key: 'bills',
           label: 'Bills',
-          ok: c.subsCount > 0,
+          ok: c.financePresentation.costsKnown,
           cta: '+ Add a bill',
           why: 'Known outgoings shape the path to payday.',
           onTap: c.openAddBill,
@@ -664,7 +677,7 @@ const HERO: Record<
         {
           key: 'income',
           label: 'Income',
-          ok: c.monthlyIn > 0,
+          ok: c.financePresentation.incomeKnown,
           cta: '+ Set your income',
           why: 'Rough monthly figure is enough to calibrate the rhythm.',
           onTap: c.openOnboarding,
@@ -771,12 +784,10 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
   const canonicalPlan = useMemo(
-    () =>
-      now && (moneyMode === 'growth' || moneyMode === 'debt')
-        ? buildFinancialPlanFromState(appState, { now })
-        : null,
+    () => (now ? buildFinancialPlanFromState(appState, { now }) : null),
     [appState, moneyMode, now],
   );
+  const financePresentation = selectFinancialPresentation(appState, canonicalPlan);
   const tight = useMemo(
     () => ({
       tightestSpare: route ? route.tightPoint.amount : 0,
@@ -849,26 +860,27 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   const amount =
     canonicalSafeToSpendMinor === null
       ? modeState.safeZone.amount
-      : Math.max(0, canonicalSafeToSpendMinor) / 100;
-  const outerVerdict =
-    canonicalSafeToSpendMinor === null
+      : canonicalSafeToSpendMinor / 100;
+  const outerVerdict = !financePresentation.canReassure
+    ? financePresentation.label
+    : canonicalSafeToSpendMinor === null
       ? modeState.verdict
       : canonicalShortfallMinor > 0
         ? `£${formatCanonicalPounds(canonicalShortfallMinor / 100)} projected shortfall before payday.${canonicalDebtUnknown ? ' APR unknown; payoff not modelled.' : ''}`
         : moneyMode === 'debt'
           ? `Known commitments covered until payday.${canonicalDebtUnknown ? ' APR unknown; payoff not modelled.' : ''}`
           : modeState.verdict;
-  const outerSpareLabel =
-    moneyMode === 'debt' && canonicalSafeToSpendMinor !== null
-      ? 'safe to spend until payday'
-      : modeState.spareLabel;
+  const outerSpareLabel = canonicalSafeToSpendMinor !== null ? '' : modeState.spareLabel;
   const outerFormula =
-    canonicalSafeToSpendMinor === null
-      ? modeState.safeZone.formula
-      : canonicalShortfallMinor > 0
-        ? `safe to spend until payday · £${formatCanonicalPounds(canonicalShortfallMinor / 100)} projected shortfall before payday`
-        : `safe to spend until payday · buffer £${bufferAmount} protected`;
-  const animated = useCountUp(amount, 700);
+    canonicalSafeToSpendMinor !== null
+      ? financePresentation.message
+      : moneyMode === 'household'
+        ? 'Total recorded shared bills. The split below shows each person’s planned share.'
+        : moneyMode === 'reset'
+          ? 'Estimated days using cash after pots, before bills and debt payments.'
+          : modeState.safeZone.formula;
+  // Decision amounts publish with the same snapshot as debt and cash, never count through old values.
+  const animated = amount;
   const [accentWord, ...restVerdict] = outerVerdict.split(' ');
   const verdictTail = restVerdict.join(' ');
 
@@ -944,18 +956,22 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
     optimizerLeaks,
     chartStyle,
     confidence: modeState.safeZone.confidence,
+    financePresentation,
     openLogInvoice: () => nav.openSheet('log-invoice'),
     openOnboarding: () => nav.openSheet('onboarding'),
     openAddEvent: () => nav.openSheet('add-event'),
     openAddBill: () => nav.openSheet('add-event', { addEventKind: 'out', addEventTitle: '' }),
     openAddDebt: () => nav.openSheet('declare-debt'),
     openLogPayment: () => nav.openSheet('log-payment'),
+    openDebts: () => nav.go('debts'),
     openHouseholdSetup: () => nav.openSheet('household-setup'),
     openPots: () => nav.go('pots'),
     openAddPlan: () => nav.openSheet('add-plan'),
     openSubs: () => nav.go('subs'),
     openRecovery: () => nav.go('recovery'),
     debts,
+    debtTrackingHistory: appState.timelineEvents ?? [],
+    debtPaymentHistory: appState.transactions,
     canonicalPlan,
     today: now ?? EPOCH,
     growthPots,
@@ -965,6 +981,26 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   };
 
   const heroTone = t[cfg.toneKey] as string;
+
+  if (!financePresentation.complete || !canonicalPlan?.nextIncomeDate) {
+    return (
+      <ScrollView style={s.root} contentContainerStyle={s.scrollContent}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.openSheet('lens-picker')}
+          style={{ minHeight: 48, justifyContent: 'center' }}
+        >
+          <Text style={{ color: t.ink }}>Today · change {moneyMode} lens</Text>
+        </Pressable>
+        <FinancialSetupNotice
+          state={appState}
+          plan={canonicalPlan}
+          onSetup={() => nav.openSheet('onboarding')}
+        />
+        <TodayRecentTxns nav={nav} />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
@@ -1035,21 +1071,25 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
             <View style={[s.modeDot, { backgroundColor: heroTone }]} />
             <Text style={[s.modeLabel, { color: t.muted }]}>{cfg.label}</Text>
           </View>
-          <Text style={[s.headline, { color: t.muted }]}>{cfg.headline}</Text>
+          <Text style={[s.headline, { color: t.muted }]}>
+            {canonicalMoneyMode ? financePresentation.label : cfg.headline}
+          </Text>
           <View style={s.numberRow}>
             <Text style={[s.number, { color: t.ink }]}>
-              {moneyMode === 'irregular' || moneyMode === 'lowVis'
+              {moneyMode === 'irregular' || moneyMode === 'lowVis' || moneyMode === 'reset'
                 ? Math.round(animated).toLocaleString('en-GB')
-                : canonicalSafeToSpendMinor !== null
-                  ? `£${formatCanonicalPounds(animated)}`
-                  : `£${Math.round(animated).toLocaleString('en-GB')}`}
+                : moneyMode === 'household'
+                  ? formatMoney(summariseHousehold(householdSplits ?? []).totalShared)
+                  : formatMoney(animated)}
             </Text>
-            <Text style={[s.spareLabel, { color: t.muted }]}>{outerSpareLabel}</Text>
+            {!canonicalMoneyMode && moneyMode !== 'household' && (
+              <Text style={[s.spareLabel, { color: t.muted }]}>{outerSpareLabel}</Text>
+            )}
           </View>
           <Text style={[s.verdict, { color: t.ink }]}>
             <Text
               style={{
-                color: canonicalShortfallMinor > 0 ? t.repair : heroTone,
+                color: !financePresentation.canReassure ? t.caution : heroTone,
                 fontWeight: '600',
               }}
             >
@@ -1058,6 +1098,9 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
             {verdictTail}
           </Text>
           <Text style={[s.formula, { color: t.muted }]}>{outerFormula}</Text>
+          {!financePresentation.canReassure && (
+            <Text style={[s.formula, { color: t.muted }]}>{financePresentation.message}</Text>
+          )}
 
           {cfg.render(ctx, t)}
 
@@ -1104,7 +1147,13 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
         <Melo size={28} mood="curious" />
         <View style={s.meloPromptBody}>
           <Text style={[s.meloPromptLine, { color: t.ink }]}>
-            &ldquo;{capFirst(meloOpener)}&rdquo;
+            &ldquo;
+            {moneyMode === 'debt' && !debts.some((debt) => debt.balance > 0)
+              ? 'Review your recorded debts and payment history.'
+              : !financePresentation.canReassure
+                ? 'Help me review the figures and commitments that need attention.'
+                : capFirst(meloOpener)}
+            &rdquo;
           </Text>
           <View style={s.meloPromptMeta}>
             <Text style={[s.meloPromptMetaText, { color: t.muted }]}>{cfg.label} · Melo</Text>

@@ -1,3 +1,4 @@
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 // TodayNudges — faithful 1:1 RN port of the web design source
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/today/TodayNudges.tsx).
 //
@@ -46,7 +47,7 @@ const EMPTY_REVIEW_QUEUE: ReviewItem[] = [];
 // Same stability contract for the optional `incomeSources` slot.
 const EMPTY_INCOME_SOURCES: IncomeSource[] = [];
 
-const MIN_TAP = 44;
+const MIN_TAP = 48;
 
 const RECENT_CLOSE_WINDOW_MS = 3 * 86_400_000;
 
@@ -121,6 +122,7 @@ export function TodayNudges({
   const t = useTodayTheme();
   const s = useMemo(() => makeStyles(t), [t]);
 
+  const appState = useAppStore((st) => st);
   const subs = useAppStore((st) => st.subs);
   const subPaused = useAppStore((st) => st.subPaused);
   const onboarding = useAppStore((st) => st.onboarding);
@@ -174,12 +176,12 @@ export function TodayNudges({
       moneyMode === 'stability'
         ? 'The plan does not hold to payday as things stand.'
         : moneyMode === 'survival' || moneyMode === 'debt' || moneyMode === 'reset'
-          ? "You won't make it to payday as things stand."
+          ? 'The recorded plan leaves a gap before payday.'
           : 'The next stretch does not hold as things stand.';
     nudges.push({
       key: 'shortfall',
       tone: 'accent',
-      label: `${shortfallDiagnosis} Let's look at three calm moves.`,
+      label: `${shortfallDiagnosis} Review the gap and the options available.`,
       cta: 'Open →',
       onPress: () => nav.go('shortfall'),
     });
@@ -189,7 +191,7 @@ export function TodayNudges({
     nudges.push({
       key: 'onboard',
       tone: 'accent',
-      label: 'Tell Melo your rhythm — 30 seconds, then numbers feel like yours.',
+      label: 'Add your balance, income and regular costs.',
       cta: 'Begin',
       onPress: () => nav.openSheet('onboarding'),
     });
@@ -279,20 +281,11 @@ export function TodayNudges({
   // lens.ts already use, so this nudge never disagrees with the Route/Today headline.
   const daysToPayday = useMemo(() => {
     if (!onboarding.done) return null;
-    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    if (incomeSources.length > 0) return daysToNextIncome(incomeSources, todayIso);
-    const thisMonthIso = resolvePayday({ dayOfMonth: onboarding.payday }, todayIso.slice(0, 7));
-    const nextYearMonth =
-      now.getMonth() === 11
-        ? `${now.getFullYear() + 1}-01`
-        : `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, '0')}`;
-    const nextIso =
-      thisMonthIso >= todayIso
-        ? thisMonthIso
-        : resolvePayday({ dayOfMonth: onboarding.payday }, nextYearMonth);
-    const nextDate = new Date(`${nextIso}T00:00:00`);
-    return Math.round((nextDate.getTime() - now.getTime()) / 86_400_000);
-  }, [now, onboarding.done, onboarding.payday, incomeSources]);
+    const plan = buildFinancialPlanFromState(appState, { now });
+    return plan.nextIncomeDate
+      ? Math.round((Date.parse(plan.nextIncomeDate) - Date.parse(plan.asOf)) / 86_400_000)
+      : null;
+  }, [appState, now, onboarding.done]);
   // The ritual-offer gate must key off the last LIVED (ritual-sealed) cycle only — a reconstructed
   // cycle synthesized from bulk-imported statement history (lib/historyCycles.ts, DATA_INTELLIGENCE.md
   // phase ④) is a best-effort estimate, never something the user actually walked through, so it must
@@ -311,7 +304,7 @@ export function TodayNudges({
       tone: 'melo',
       label:
         daysToPayday === 0
-          ? "Payday's here. Ready to wrap the month up?"
+          ? 'Payday is here. Review your recorded cycle when you are ready.'
           : `Payday in ${daysToPayday} ${daysToPayday === 1 ? 'day' : 'days'} — the review takes four steps.`,
       cta: 'Start →',
       onPress: () => nav.go('ritual'),

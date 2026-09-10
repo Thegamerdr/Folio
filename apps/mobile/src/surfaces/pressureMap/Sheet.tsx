@@ -22,6 +22,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import {
   Animated,
@@ -56,7 +57,7 @@ const HANDLE_HEIGHT = 3;
 
 // The pinned sheet rises through no more than 82% of the window so the children never push the
 // scrim entirely off the top; anything beyond that scrolls inside the panel.
-const MAX_HEIGHT_FRACTION = 0.82;
+const MAX_HEIGHT_FRACTION = 0.92;
 
 // sheet-in: ~450ms on the web's editorial ease. The scrim fades a touch faster so the
 // panel arrives onto an already-dimmed ground rather than racing it.
@@ -79,14 +80,22 @@ type SheetProps = {
   reduceMotion?: boolean | undefined;
   /** Let a self-hosting surface keep fixed chrome visible while its own child scrolls. */
   scrollable?: boolean;
+  /** Workflow actions stay above the keyboard while only the form body scrolls. */
+  footer?: ReactNode;
+  /** A new step starts at its heading without discarding the caller's draft. */
+  scrollKey?: string | number;
+  scrollRef?: RefObject<ScrollView | null>;
 };
 
 type SheetPortalApi = {
   upsert: (id: string, layer: ReactNode) => void;
   remove: (id: string) => void;
+  insets: { top: number; right: number; bottom: number; left: number };
 };
 
 const SheetPortalContext = createContext<SheetPortalApi | null>(null);
+const SheetOverlayContext = createContext(false);
+export const useSheetOverlayActive = () => useContext(SheetOverlayContext);
 
 /**
  * Keeps Android sheets in the app's primary native window while still letting screen-owned sheets
@@ -95,7 +104,14 @@ const SheetPortalContext = createContext<SheetPortalApi | null>(null);
  * boundary can present as missing or black tiles on affected GPUs. A tiny in-tree portal avoids
  * that boundary without changing any sheet's content, state, layout, or iOS presentation.
  */
-export function SheetPortalProvider({ children }: { children: ReactNode }) {
+export function SheetPortalProvider({
+  children,
+  onOverlayChange,
+}: {
+  children: ReactNode;
+  onOverlayChange?: (open: boolean) => void;
+}) {
+  const insets = useSafeAreaInsets();
   const [layers, setLayers] = useState<ReadonlyMap<string, ReactNode>>(() => new Map());
 
   const upsert = useCallback((id: string, layer: ReactNode) => {
@@ -115,42 +131,62 @@ export function SheetPortalProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const api = useMemo(() => ({ upsert, remove }), [remove, upsert]);
+  const api = useMemo(() => ({ upsert, remove, insets }), [remove, upsert, insets]);
   const hasLayer = layers.size > 0;
+  useEffect(() => {
+    onOverlayChange?.(hasLayer);
+  }, [hasLayer, onOverlayChange]);
 
   return (
     <SheetPortalContext.Provider value={api}>
-      <View style={layout.portalProvider}>
-        <View
-          accessibilityElementsHidden={hasLayer}
-          importantForAccessibility={hasLayer ? 'no-hide-descendants' : 'auto'}
-          style={layout.portalBase}
-        >
-          {children}
-        </View>
-        {hasLayer ? (
-          <View pointerEvents="box-none" style={layout.portalHost}>
-            {Array.from(layers.entries()).map(([id, layer]) => (
-              <Fragment key={id}>{layer}</Fragment>
-            ))}
+      <SheetOverlayContext.Provider value={hasLayer}>
+        <View style={layout.portalProvider}>
+          <View
+            accessibilityElementsHidden={hasLayer}
+            importantForAccessibility={hasLayer ? 'no-hide-descendants' : 'auto'}
+            style={layout.portalBase}
+          >
+            {children}
           </View>
-        ) : null}
-      </View>
+          {hasLayer ? (
+            <View pointerEvents="box-none" style={layout.portalHost}>
+              {Array.from(layers.entries()).map(([id, layer]) => (
+                <Fragment key={id}>{layer}</Fragment>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      </SheetOverlayContext.Provider>
     </SheetPortalContext.Provider>
   );
 }
 
-export function Sheet({ visible, onClose, children, reduceMotion, scrollable = true }: SheetProps) {
+export function Sheet({
+  visible,
+  onClose,
+  children,
+  reduceMotion,
+  scrollable = true,
+  footer,
+  scrollKey,
+  scrollRef,
+}: SheetProps) {
   const { height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const localInsets = useSafeAreaInsets();
+  const portal = useContext(SheetPortalContext);
+  // Screen content receives a zero-inset viewport from FolioShell. Portalled sheets still own
+  // the whole app window, so retain the provider's original system insets.
+  const insets = portal?.insets ?? localInsets;
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
-  const maxHeight = Math.round(height * MAX_HEIGHT_FRACTION);
+  const maxHeight = Math.max(
+    0,
+    Math.min(Math.round(height * MAX_HEIGHT_FRACTION), height - insets.top - insets.bottom),
+  );
   // Android portal sheets already live inside the shell's safe product viewport. Applying the
   // full-window navigation inset again made the panel materially taller than the pinned sheet.
   // iOS Modal sheets still own the full window and retain their native safe-area contribution.
   const panelBottomPadding = Platform.OS === 'ios' ? insets.bottom + gap.xl : gap.xl + gap.sm;
-  const portal = useContext(SheetPortalContext);
   const portalId = useId();
   const usesAndroidPortal = Platform.OS === 'android' && portal !== null;
   const panelBottomOffset = resolveSheetBottomOffset({
@@ -173,6 +209,12 @@ export function Sheet({ visible, onClose, children, reduceMotion, scrollable = t
   // translateY animates the panel up from below; scrimOpacity fades the ink ground in.
   // Both are refs so they survive re-renders and we can drive them imperatively.
   const translateY = useRef(new Animated.Value(height)).current;
+  const entryHeight = useRef(height);
+  const internalScrollRef = useRef<ScrollView>(null);
+  const bodyScrollRef = scrollRef ?? internalScrollRef;
+  useEffect(() => {
+    if (visible) bodyScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [visible, scrollKey, bodyScrollRef]);
   const scrimOpacity = useRef(new Animated.Value(0)).current;
   const wasVisible = useRef(visible);
   const repaintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -203,7 +245,7 @@ export function Sheet({ visible, onClose, children, reduceMotion, scrollable = t
       return;
     }
     // Start below the fold and fully transparent, then rise + dim together.
-    translateY.setValue(height);
+    translateY.setValue(entryHeight.current);
     scrimOpacity.setValue(0);
     const animation = Animated.parallel([
       Animated.timing(translateY, {
@@ -225,7 +267,7 @@ export function Sheet({ visible, onClose, children, reduceMotion, scrollable = t
     ]);
     animation.start();
     return () => animation.stop();
-  }, [visible, shouldReduceMotion, height, translateY, scrimOpacity, usesAndroidPortal]);
+  }, [visible, shouldReduceMotion, translateY, scrimOpacity, usesAndroidPortal]);
 
   // Animate the panel back down, then tell the parent to unmount. With reduced motion we
   // close instantly. The Modal stays mounted (visible) for the duration of the slide-out
@@ -267,8 +309,8 @@ export function Sheet({ visible, onClose, children, reduceMotion, scrollable = t
       visible ? (
         <View style={[layout.root, usesAndroidPortal ? layout.portalLayer : undefined]}>
           <AnimatedPressable
-            accessibilityLabel="Close"
-            accessibilityRole="button"
+            accessible={false}
+            importantForAccessibility="no"
             onPress={handleClose}
             style={[s.scrim, { opacity: scrimOpacity }]}
           />
@@ -292,37 +334,46 @@ export function Sheet({ visible, onClose, children, reduceMotion, scrollable = t
                 { transform: [{ translateY }] },
               ]}
             >
-              <Pressable
-                accessibilityLabel="Close"
-                accessibilityRole="button"
-                onPress={handleClose}
-                style={({ pressed }) => [s.close, { opacity: pressed ? 0.6 : 1 }]}
-              >
-                <Text style={s.closeLabel}>×</Text>
-              </Pressable>
-              <View
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                style={s.handle}
-              />
+              <View style={layout.chrome}>
+                <View
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={s.handle}
+                />
+                <Pressable
+                  accessibilityLabel="Close"
+                  accessibilityRole="button"
+                  onPress={handleClose}
+                  style={({ pressed }) => [s.close, { opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <Text style={s.closeLabel}>×</Text>
+                </Pressable>
+              </View>
               {scrollable ? (
                 <ScrollView
+                  ref={bodyScrollRef}
                   bounces={false}
+                  style={layout.scrollBody}
                   contentContainerStyle={layout.scrollContent}
                   keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
+                  keyboardDismissMode="on-drag"
+                  automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                  showsVerticalScrollIndicator
                 >
                   {children}
                 </ScrollView>
               ) : (
                 <View style={layout.sheetContent}>{children}</View>
               )}
+              {footer ? <View style={s.footer}>{footer}</View> : null}
             </Animated.View>
           </KeyboardAvoidingView>
         </View>
       ) : null,
     [
       children,
+      footer,
+      bodyScrollRef,
       handleClose,
       insets.bottom,
       insets.top,
@@ -408,9 +459,13 @@ const layout = StyleSheet.create({
     // The panel already owns the platform-safe bottom rhythm; the scroll content only needs
     // a little breathing room under the last child.
     paddingBottom: gap.sm,
+    width: '100%',
   },
+  chrome: { height: 48, flexShrink: 0, justifyContent: 'flex-start' },
+  scrollBody: { flexShrink: 1, minHeight: 0, width: '100%', overflow: 'hidden' },
   sheetContent: {
     flex: 1,
+    minHeight: 0,
   },
 });
 
@@ -429,6 +484,8 @@ function makeStyles(t: Palette) {
       // The IME can make the avoider's available height smaller than maxHeight. Let both
       // scrollable forms and fixed-chrome sheets shrink inside the top safe-area boundary.
       flexShrink: 1,
+      width: '100%',
+      overflow: 'hidden',
       backgroundColor: t.surface,
       borderTopLeftRadius: SHEET_RADIUS,
       borderTopRightRadius: SHEET_RADIUS,
@@ -436,6 +493,12 @@ function makeStyles(t: Palette) {
       paddingTop: gap.md,
       // The soft UPWARD shadow — the sheet reads as lifting off the paper from below.
       ...elevation.sheet,
+    },
+    footer: {
+      flexShrink: 0,
+      paddingTop: gap.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.hairline,
     },
     handle: {
       alignSelf: 'center',
@@ -447,12 +510,12 @@ function makeStyles(t: Palette) {
     },
     close: {
       alignItems: 'center',
-      height: 44,
+      height: 48,
       justifyContent: 'center',
       position: 'absolute',
       right: gap.xs,
       top: 0,
-      width: 44,
+      width: 48,
       zIndex: 1,
     },
     closeLabel: { color: t.muted, fontSize: 28, fontWeight: '300', lineHeight: 30 },

@@ -348,9 +348,42 @@ export function toFinancialPlanInput(
   };
 }
 
+const presentationPlans = new WeakMap<
+  AppState,
+  { day: string; signature: string; plan: FinancialPlanResult }
+>();
+
 export function buildFinancialPlanFromState(
   state: AppState,
   options: FinancialPlanAdapterOptions = {},
 ): FinancialPlanResult {
-  return calculateFinancialPlan(toFinancialPlanInput(state, options));
+  // All mounted surfaces can share one immutable result for this saved state and local day.
+  // Scenario/strategy calls retain their explicit inputs and never reuse the ordinary plan.
+  const ordinary = Object.keys(options).every((key) => key === 'now');
+  const day = isoDayLocal(options.now ?? new Date());
+  const signature = ordinary
+    ? JSON.stringify([
+        state.currentBalance,
+        state.accounts,
+        state.onboarding,
+        state.subs,
+        state.subOverrides,
+        state.subPaused,
+        state.pots,
+        state.incomeSources,
+        state.spendHold,
+        state.whatIfHolds,
+        state.calendarEvents,
+        state.debts,
+        state.bufferAmount,
+        state.modeExtras,
+      ])
+    : '';
+  if (ordinary) {
+    const cached = presentationPlans.get(state);
+    if (cached?.day === day && cached.signature === signature) return cached.plan;
+  }
+  const plan = calculateFinancialPlan(toFinancialPlanInput(state, options));
+  if (ordinary) presentationPlans.set(state, { day, signature, plan });
+  return plan;
 }

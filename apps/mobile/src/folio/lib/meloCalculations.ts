@@ -347,6 +347,7 @@ function buildSourceExplanation(
   snapshot: MeloLocalFinancialSnapshot,
   intent: MeloLocalIntent,
   selectedAccountId?: string,
+  now = new Date(),
 ): MeloLocalCalculation {
   const selectedAccount =
     intent === 'review_accounts' && selectedAccountId
@@ -414,6 +415,27 @@ function buildSourceExplanation(
     sourceKinds,
     confirmedRecordCount,
     excludedReviewCount: snapshot.pendingReviewCount,
+    ...(intent === 'explain_position' && snapshot.workspaceKind !== 'business'
+      ? (() => {
+          const plan = buildFinancialPlanFromState(state, { now });
+          return {
+            position: {
+              cashMinor: plan.currentBalanceMinor,
+              reservedCostsMinor: plan.protectedBeforeIncomeMinor,
+              essentialsMinor: plan.livingCostMinor,
+              debtMinimumMinor: plan.debtMinimumMinor,
+              bufferMinor: toMinor(state.bufferAmount ?? 100),
+              safeToSpendMinor: plan.safeToSpendMinor,
+              tightPointMinor: snapshot.tightestBalanceMinor,
+              tightPointDate: snapshot.tightestDay,
+              untilDate:
+                formatDay(plan.nextIncomeDate) ??
+                `${formatDay(plan.horizonEndDate)} (no next income is recorded)`,
+              overdueCount: plan.pendingObligations.filter((item) => item.date < plan.asOf).length,
+            },
+          };
+        })()
+      : {}),
   };
 }
 
@@ -605,7 +627,7 @@ export function buildMeloLocalCalculation(
   const now = input.now ?? new Date();
   switch (input.request.intent) {
     case 'explain_position':
-      return buildSourceExplanation(state, input.snapshot, input.request.intent);
+      return buildSourceExplanation(state, input.snapshot, input.request.intent, undefined, now);
     case 'summarise_month':
       return wantsSourceExplanation(input.request.prompt)
         ? buildSourceExplanation(state, input.snapshot, input.request.intent)

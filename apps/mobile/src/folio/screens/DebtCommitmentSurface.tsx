@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { Debt } from '@/folio/store';
+import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentation';
+import type { Debt, TimelineEvent, Transaction } from '@/folio/store';
+import { selectDebtTrackingPresentation } from '@/folio/lib/debtTrackingPresentation';
 import type { FinancialPlanResult } from '@folio/finance-engine';
 import * as debtEngine from '@/folio/lib/modes/debtEngine';
 import { gap, radius, serif, type Palette } from '@/folio/theme';
@@ -16,22 +19,30 @@ import { gap, radius, serif, type Palette } from '@/folio/theme';
  */
 export function DebtCommitmentSurface({
   debts,
+  transactions = [],
+  timelineEvents = [],
   today,
   tightestSpare,
   canonicalPlan,
   t,
   onAddDebt,
   onLogPayment,
+  onViewDebts,
 }: {
   debts: readonly Debt[];
+  transactions?: readonly Transaction[];
+  timelineEvents?: readonly TimelineEvent[];
   today: Date;
   tightestSpare: number;
   canonicalPlan?: FinancialPlanResult | null | undefined;
   t: Palette;
   onAddDebt: () => void;
   onLogPayment: () => void;
+  onViewDebts?: (() => void) | undefined;
 }) {
-  const list = debts.filter((debt) => debt.balance > 0);
+  const [showWorking, setShowWorking] = useState(false);
+  const tracking = selectDebtTrackingPresentation({ debts, transactions, timelineEvents });
+  const list = tracking.active;
   const summary = debtEngine.summarise(list, 0, today);
 
   if (list.length === 0) {
@@ -39,9 +50,17 @@ export function DebtCommitmentSurface({
       <View style={styles.block}>
         <View style={[styles.noticeBox, { borderColor: t.hairline }]}>
           <Text style={[styles.noticeText, { color: t.muted }]}>
-            No debts declared yet. Add one and Melo will hold the payoff, minimums, and next due
-            date together.
+            {tracking.title}. {tracking.detail}
           </Text>
+          {tracking.status !== 'never' && onViewDebts ? (
+            <Pressable accessibilityRole="button" onPress={onViewDebts} style={styles.secondaryCta}>
+              <Text style={[styles.secondaryCtaLabel, { color: t.calmStrong }]}>
+                {tracking.status === 'cleared'
+                  ? 'View cleared debts and history'
+                  : 'View tracking and payment history'}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             onPress={onAddDebt}
@@ -62,7 +81,9 @@ export function DebtCommitmentSurface({
   const unknownApr = list.some((debt) => debt.aprKnown === false);
   const projection = canonicalPlan?.debtProjection;
   const interestAtMinimums = projection
-    ? projection.interestKnown && projection.payoffMonths !== null && projection.totalInterestMinor !== null
+    ? projection.interestKnown &&
+      projection.payoffMonths !== null &&
+      projection.totalInterestMinor !== null
       ? projection.totalInterestMinor / 100
       : null
     : unknownApr
@@ -71,12 +92,12 @@ export function DebtCommitmentSurface({
   const interestUnknown = projection ? !projection.interestKnown : unknownApr;
   const monthsAtMin = projection
     ? !projection.interestKnown
-      ? 'APR unknown · payoff not modelled'
+      ? 'Interest rate needed'
       : projection.payoffMonths !== null
         ? `${projection.payoffMonths} mo`
-        : 'not cleared within forecast horizon'
+        : 'Beyond this forecast'
     : unknownApr
-      ? 'APR unknown · payoff not modelled'
+      ? 'Interest rate needed'
       : Number.isFinite(summary.monthsAtMin)
         ? `${summary.monthsAtMin} mo`
         : 'minimums do not clear interest';
@@ -92,7 +113,7 @@ export function DebtCommitmentSurface({
   return (
     <View style={styles.block}>
       <View style={styles.rowLabel}>
-        <Text style={[styles.rowLabelLeft, { color: t.muted }]}>Outstanding</Text>
+        <Text style={[styles.rowLabelLeft, { color: t.muted }]}>Outstanding debt</Text>
         <Text style={[styles.rowLabelRight, { color: t.muted }]}>{formatGBP(summary.total)}</Text>
       </View>
       <View style={[styles.tripleRow, { borderColor: t.hairline }]}>
@@ -100,22 +121,40 @@ export function DebtCommitmentSurface({
         <Stat label="Payoff at minimums" value={monthsAtMin} t={t} divided />
         <Stat label="Next payment" value={nextDueLabel} t={t} divided />
       </View>
-      <View style={[styles.detailBox, { borderColor: t.hairline }]}>
-        <Text style={[styles.detailText, { color: t.muted }]}>At the current pace</Text>
-        <Text style={[styles.detailValue, { color: t.ink }]}>
-          {interestAtMinimums !== null && Number.isFinite(interestAtMinimums)
-            ? `About ${formatGBP(interestAtMinimums)} interest before the balance clears.`
-            : interestUnknown
-              ? 'APR unknown · payoff is not modelled.'
-              : 'No payoff within the forecast horizon at the current minimums.'}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: showWorking }}
+        onPress={() => setShowWorking((value) => !value)}
+        style={styles.secondaryCta}
+      >
+        <Text style={[styles.secondaryCtaLabel, { color: t.calmStrong }]}>
+          How this estimate works
         </Text>
-        <Text style={[styles.detailText, styles.pathDetail, { color: t.muted }]}>
-          After every commitment
-        </Text>
-        <Text style={[styles.detailValue, { color: tightestSpare < 0 ? t.repair : t.ink }]}>
-          {`${formatGBP(tightestSpare)} is the lowest point on your money path.`}
-        </Text>
-      </View>
+      </Pressable>
+      {showWorking ? (
+        <View style={[styles.detailBox, { borderColor: t.hairline }]}>
+          <Text style={[styles.detailText, { color: t.muted }]}>
+            Assumes the recorded balances, minimums and interest rates stay the same, with no new
+            borrowing. It is an estimate, not a payment.{' '}
+            {projection?.payoffDate
+              ? `Projected payoff: ${formatFinancialDate(String(projection.payoffDate))}.`
+              : ''}
+          </Text>
+          <Text style={[styles.detailValue, { color: t.ink }]}>
+            {interestAtMinimums !== null && Number.isFinite(interestAtMinimums)
+              ? `About ${formatGBP(interestAtMinimums)} interest before the balance clears.`
+              : interestUnknown
+                ? 'Enter missing interest rates to estimate the payoff.'
+                : 'No payoff within the forecast horizon at the current minimums.'}
+          </Text>
+          <Text style={[styles.detailText, styles.pathDetail, { color: t.muted }]}>
+            After every commitment
+          </Text>
+          <Text style={[styles.detailValue, { color: tightestSpare < 0 ? t.repair : t.ink }]}>
+            {`${formatGBP(tightestSpare)} is the lowest point on your money path.`}
+          </Text>
+        </View>
+      ) : null}
       {summary.nextDue ? (
         <Text style={[styles.nextLine, { color: t.muted }]}>
           {`${summary.nextDue.name} · ${formatGBP(summary.nextDue.minPayment)} on the ${ordinal(summary.nextDue.dueDom)}`}
@@ -155,17 +194,13 @@ function Stat({
   return (
     <View style={[styles.stat, divided && styles.statDivided, { borderColor: t.hairline }]}>
       <Text style={[styles.statLabel, { color: t.muted }]}>{label}</Text>
-      <Text style={[styles.statValue, { color: t.ink }]} numberOfLines={2}>
-        {value}
-      </Text>
+      <Text style={[styles.statValue, { color: t.ink }]}>{value}</Text>
     </View>
   );
 }
 
 function formatGBP(amount: number): string {
-  if (!Number.isFinite(amount)) return 'not available';
-  const rounded = Math.round(amount);
-  return `${rounded < 0 ? '−' : ''}£${Math.abs(rounded).toLocaleString('en-GB')}`;
+  return formatMoney(amount);
 }
 
 function ordinal(day: number): string {
@@ -179,17 +214,17 @@ const styles = StyleSheet.create({
   block: { marginTop: gap.lg },
   rowLabel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   rowLabelLeft: { fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase' },
-  rowLabelRight: { fontSize: 10, fontVariant: ['tabular-nums'] },
+  rowLabelRight: { fontFamily: serif.display, fontSize: 22, fontVariant: ['tabular-nums'] },
   tripleRow: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderTopWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
+    gap: gap.sm,
     marginTop: gap.md,
     paddingVertical: gap.md,
   },
-  stat: { flex: 1, minHeight: 58, paddingHorizontal: gap.sm },
-  statDivided: { borderLeftWidth: StyleSheet.hairlineWidth },
-  statLabel: { fontSize: 9.5, letterSpacing: 0.7, textTransform: 'uppercase' },
+  stat: { minHeight: 48, paddingVertical: gap.xs },
+  statDivided: { borderTopWidth: StyleSheet.hairlineWidth },
+  statLabel: { fontSize: 12, lineHeight: 17 },
   statValue: {
     fontFamily: serif.display,
     fontSize: 14,
@@ -201,7 +236,7 @@ const styles = StyleSheet.create({
     marginTop: gap.lg,
     paddingBottom: gap.md,
   },
-  detailText: { fontSize: 10.5, marginTop: 2 },
+  detailText: { fontSize: 12, lineHeight: 17, marginTop: 2 },
   detailValue: {
     fontFamily: serif.display,
     fontSize: 14,
@@ -212,12 +247,12 @@ const styles = StyleSheet.create({
   nextLine: { fontFamily: serif.displayItalic, fontSize: 12.5, marginTop: gap.sm },
   noticeBox: { borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: gap.lg },
   noticeText: { fontSize: 11.5, lineHeight: 16 },
-  ctaRow: { flexDirection: 'row', justifyContent: 'center', gap: gap.sm, marginTop: gap.md },
+  ctaRow: { justifyContent: 'center', gap: gap.sm, marginTop: gap.md },
   primaryCta: {
     alignItems: 'center',
     borderRadius: radius.pill,
     justifyContent: 'center',
-    minHeight: 36,
+    minHeight: 48,
     paddingHorizontal: gap.md,
   },
   primaryCtaLabel: { fontSize: 12, fontWeight: '500' },
@@ -226,7 +261,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     justifyContent: 'center',
-    minHeight: 36,
+    minHeight: 48,
     paddingHorizontal: gap.md,
   },
   secondaryCtaSpaced: { marginTop: gap.md },

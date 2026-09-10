@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 
 import { summarizeWhatChanged } from './whatChanged';
 import type { TimelineRow } from './timelineEvents';
-import type { StatementImportRecord } from '../store';
+import type { StatementImportRecord, Transaction } from '../store';
+import { buildTimelineRows } from './timelineEvents';
 
 const SEEN = '2026-07-10T12:00:00.000Z';
 
@@ -107,5 +108,81 @@ describe('summarizeWhatChanged', () => {
       seenISO: SEEN,
     });
     expect(summary).toEqual({ count: 1, headline: 'Boots added' });
+  });
+});
+
+const payment: Transaction = {
+  id: 'payment',
+  merchant: 'Debt payment: Evidence card',
+  when: '2026-07-11T09:00:00.000Z',
+  amount: -100.25,
+  category: 'bills',
+  source: 'manual',
+  financialAction: { kind: 'debt-payment', debtId: 'card', principalAppliedMinor: 10025 },
+};
+describe('precise payment change summaries', () => {
+  it('names a recorded payment amount and live record target without changing the transaction', () => {
+    const before = JSON.stringify(payment);
+    const summary = summarizeWhatChanged({
+      rows: buildTimelineRows({ transactions: [payment], edits: [], events: [] }),
+      transactions: [payment],
+      imports: [],
+      seenISO: SEEN,
+    });
+    expect(summary).toEqual({
+      count: 1,
+      headline: 'Payment recorded £100.25 · Evidence card',
+      transactionId: 'payment',
+    });
+    expect(JSON.stringify(payment)).toBe(before);
+  });
+  it('uses the correction time so edits to an older payment remain visible', () => {
+    const old = { ...payment, when: '2026-07-01T09:00:00.000Z', amount: -120.75 };
+    const edits = [
+      {
+        txnId: 'payment',
+        field: 'amount' as const,
+        before: -100.25,
+        after: -120.75,
+        at: '2026-07-11T10:00:00.000Z',
+        by: 'user' as const,
+      },
+    ];
+    expect(
+      summarizeWhatChanged({
+        rows: buildTimelineRows({ transactions: [old], edits, events: [] }),
+        transactions: [old],
+        edits,
+        imports: [],
+        seenISO: SEEN,
+      }),
+    ).toEqual({
+      count: 1,
+      headline: 'Payment corrected £120.75 · Evidence card',
+      transactionId: 'payment',
+    });
+  });
+  it('keeps nonpayment text and Timeline destination when the newest change is generic', () => {
+    expect(
+      summarizeWhatChanged({
+        rows: [
+          { id: 'payment', what: payment.merchant, at: payment.when, verb: 'Added' },
+          row('2026-07-11T10:00:00.000Z', 'Phone', 'Paused'),
+        ],
+        transactions: [payment],
+        imports: [],
+        seenISO: SEEN,
+      }),
+    ).toEqual({ count: 2, headline: 'Phone paused · 1 more' });
+  });
+  it('does not create a live detail target for a removed transaction', () => {
+    expect(
+      summarizeWhatChanged({
+        rows: [{ id: 'payment', what: payment.merchant, at: payment.when, verb: 'Added' }],
+        transactions: [],
+        imports: [],
+        seenISO: SEEN,
+      })?.transactionId,
+    ).toBeUndefined();
   });
 });

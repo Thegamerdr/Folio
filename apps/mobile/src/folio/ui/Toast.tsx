@@ -22,6 +22,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 import { elevation, gap, type Palette, radius, useTheme } from '@/folio/theme';
+import { useUndo } from './useUndo';
+import { useSheetOverlayActive } from '@/surfaces/pressureMap/Sheet';
 
 // How long a toast rests on screen before auto-dismissing — matches the web's typical sonner
 // `duration` (3500-4500ms across the ported call sites) at a single representative value.
@@ -70,12 +72,21 @@ function useReducedMotion(): boolean {
 // single-toast policy.
 export function ToastHost({
   capture,
+  bottomOffset = 96,
+  paused = false,
+  onHeightChange,
 }: {
   capture?: Readonly<{ title: string; description?: string | undefined }> | undefined;
+  bottomOffset?: number;
+  paused?: boolean;
+  onHeightChange?: (height: number) => void;
 } = {}) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const reduceMotion = useReducedMotion();
+  const { undoVisible } = useUndo();
+  const sheetOpen = useSheetOverlayActive();
+  const hidden = paused || sheetOpen || undoVisible;
 
   const [active, setActive] = useState<ToastPayload | null>(null);
   const visible =
@@ -121,25 +132,23 @@ export function ToastHost({
     return () => animation.stop();
   }, [visible, progress, reduceMotion]);
 
-  if (visible === null) return null;
+  useEffect(() => {
+    if (visible === null || hidden) onHeightChange?.(0);
+  }, [visible, hidden, onHeightChange]);
+  if (visible === null || hidden) return null;
 
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
   return (
-    <View pointerEvents="none" style={layout.host}>
+    <View pointerEvents="none" style={[layout.host, { bottom: bottomOffset + gap.sm }]}>
       <Animated.View
+        onLayout={(event) => onHeightChange?.(event.nativeEvent.layout.height + 16)}
         accessibilityRole="alert"
         accessibilityLiveRegion="polite"
         style={[s.toast, { opacity: progress, transform: [{ translateY }] }]}
       >
-        <Text numberOfLines={2} style={s.title}>
-          {visible.title}
-        </Text>
-        {visible.description ? (
-          <Text numberOfLines={3} style={s.description}>
-            {visible.description}
-          </Text>
-        ) : null}
+        <Text style={s.title}>{visible.title}</Text>
+        {visible.description ? <Text style={s.description}>{visible.description}</Text> : null}
       </Animated.View>
     </View>
   );
@@ -155,7 +164,7 @@ const layout = StyleSheet.create({
     paddingHorizontal: gap.xl,
     // Sit above the bottom nav, clear of UndoToast's own reserved band, so the two never overlap
     // when both happen to be live (last-write-wins per-host; each renders in its own overlay).
-    paddingBottom: gap.xxxl + gap.xxl,
+    zIndex: 89,
     alignItems: 'stretch',
   },
 });

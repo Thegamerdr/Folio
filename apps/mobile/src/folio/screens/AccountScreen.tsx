@@ -97,6 +97,7 @@ import { loadActiveEntitlement } from '@/folio/lib/billing/entitlements';
 import { subscribeToBillingEntitlements } from '@/folio/lib/billing/billingLifecycle';
 import { hasStatementSourceData } from '@/folio/lib/accountSources';
 import { unsettledBankImportBatches } from '@/folio/lib/bankImportInbox';
+import { formatMoney } from '@/folio/lib/financialPresentation';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
 import { isClerkConfigured } from '@/folio/lib/clerkAuth';
@@ -511,7 +512,11 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
               : bankSummary?.providerConfigured === false
                 ? 'provider setup pending'
                 : 'optional · read-only',
-      state: bankSummary?.active ? ('connected' as const) : ('optional' as const),
+      state: bankSummary?.active
+        ? ('connected' as const)
+        : !openBankingEnabled || !clerkConfigured || bankSummary?.providerConfigured === false
+          ? ('unavailable' as const)
+          : ('optional' as const),
       action: () =>
         hasPendingBankInbox || (openBankingEnabled && clerkConfigured)
           ? setBankConnectionVisible(true)
@@ -560,7 +565,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
         label: 'Payday & income',
         hint:
           monthlyIncome > 0
-            ? `${incomeLabel} · £${Math.round(monthlyIncome).toLocaleString()} ${incomeCadenceLabel}`
+            ? `${incomeLabel} · ${formatMoney(monthlyIncome)} ${incomeCadenceLabel}`
             : 'not set yet — tap to add',
         state: monthlyIncome > 0 ? ('manual' as const) : ('empty' as const),
         action: () => nav.openSheet('onboarding'),
@@ -590,7 +595,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   // above. It gives a partner or adviser a useful plain-language snapshot without creating a
   // second export format or persisting a copy in Melo.
   const handleShareSnapshot = () => {
-    const balance = `£${Math.round(currentBalance.amount).toLocaleString('en-GB')}`;
+    const balance = formatMoney(currentBalance.amount);
     const message = `${workspace.name}: ${balance} current balance · ${transactionsCount} ${transactionsCount === 1 ? 'transaction' : 'transactions'} recorded.`;
     void Share.share({ message, title: 'Melo money snapshot' }).catch(() => {
       showStatusDialog('dialog.account-share-failed');
@@ -737,7 +742,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           </Text>
           <Surface style={[styles.card, styles.balanceCard, { borderColor: t.hairline }]}>
             <Text style={[styles.balanceValue, { color: t.ink }]}>
-              £{Math.round(currentBalance.amount).toLocaleString('en-GB')}
+              {formatMoney(currentBalance.amount)}
             </Text>
             <Text style={[styles.balanceHint, { color: t.muted }]}>{balanceSourceLabel}</Text>
           </Surface>
@@ -981,9 +986,11 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                         ? 'added by you'
                         : s.state === 'connected'
                           ? 'connected'
-                          : s.state === 'optional'
-                            ? 'optional'
-                            : 'not yet'}
+                          : s.state === 'unavailable'
+                            ? 'unavailable'
+                            : s.state === 'optional'
+                              ? 'optional'
+                              : 'not yet'}
                     </Text>
                   </View>
                   <Text style={[styles.chevron, { color: t.muted }]}>→</Text>
@@ -1059,9 +1066,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             <Stat n={transactionsCount} label="transactions" />
             {/* Honest label — imports can be pdf/photo/paste/csv, not only "statements" in the
                 narrow sense (task: coherence-fix stopgap ahead of the full accounts model). */}
-            <Stat n={statementImportsCount} label="statements" />
+            <Stat n={statementImportsCount} label="Imports" />
             {isBusiness ? <Stat n={accounts.length} label="accounts" /> : null}
-            {!isBusiness ? <Stat n={subsCount} label="subs" /> : null}
+            {!isBusiness ? <Stat n={subsCount} label="Bills" /> : null}
             {!isBusiness ? <Stat n={potsCount} label="pots" /> : null}
             {!isBusiness ? <Stat n={cyclesCount} label="cycles" /> : null}
           </View>
@@ -1183,7 +1190,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
               label="Payday & income"
               hint={
                 monthlyIncome > 0
-                  ? `${incomeLabel} · £${Math.round(monthlyIncome).toLocaleString()} ${incomeCadenceLabel}`
+                  ? `${incomeLabel} · ${formatMoney(monthlyIncome)} ${incomeCadenceLabel}`
                   : 'not set yet'
               }
               onPress={() => nav.openSheet('onboarding')}
@@ -1842,7 +1849,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    width: '31%',
+    flexBasis: 140,
+    minWidth: 140,
+    flexGrow: 1,
     paddingVertical: gap.md,
   },
   statNumber: {
@@ -1851,10 +1860,10 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   statLabel: {
-    fontSize: 10.5,
-    letterSpacing: 1.4,
+    fontSize: 13,
+    lineHeight: 18,
     marginTop: gap.xs + gap.xxs,
-    textTransform: 'uppercase',
+    textAlign: 'center',
   },
   closing: {
     marginTop: gap.xl,

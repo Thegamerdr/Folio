@@ -22,8 +22,8 @@ describe('production sample entry-point boundaries', () => {
 
   it('requires actual money setup before offering a What If calculation', () => {
     const whatIf = source('WhatIfScreen.tsx');
-    expect(whatIf).toContain('useAppStore(hasConfiguredMoneyPicture)');
-    expect(whatIf).toContain("state === 'empty' || !hasMoneyPicture");
+    expect(whatIf).toContain('selectFinancialPresentation(appState, plan)');
+    expect(whatIf).toContain("state === 'empty' || !presentation.complete");
     expect(whatIf).not.toMatch(/const pressureLow/u);
   });
 

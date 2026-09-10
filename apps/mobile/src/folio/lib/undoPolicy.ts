@@ -16,9 +16,8 @@
  *            (`isRecoverable`), and are hard-deleted on the next sweep once past
  *            the window (`sweepExpired`).
  *
- *   Tier 3 — start fresh (nuke). Never one-tap reachable: requires a typed
- *            confirmation, an explicit "I've exported my data" acknowledgement,
- *            and a final confirm (`canStartFresh`) — all three.
+ *   Tier 3 — start fresh (nuke). Never one-tap reachable: requires review of the scope,
+ *            an explicit choice to request or decline export, and a final confirm.
  *
  * Pure and deterministic by design: `now` is always passed in (never read from
  * the clock), every helper is side-effect-free and returns fresh values, and
@@ -60,13 +59,11 @@ export type Removable = {
   removedAt?: string;
 };
 
-/** The three independent gates that must all be cleared to wipe the app. */
+/** Scope and recovery choice are reviewed before the final destructive confirmation. */
 export type StartFreshState = {
-  /** The user typed the required confirmation phrase. */
-  typedConfirm: boolean;
-  /** The user explicitly acknowledged "I've exported my data". */
-  exportedAck: boolean;
-  /** The user tapped the final confirm. */
+  scopeReviewed: boolean;
+  /** Requested means the share flow was opened, never an assertion that a copy was saved. */
+  exportChoice: 'requested' | 'declined' | null;
   finalConfirm: boolean;
 };
 
@@ -127,14 +124,11 @@ export function sweepExpired<T extends object>(items: readonly T[], nowIso: stri
   });
 }
 
-/**
- * Tier 3 — the start-fresh guard.
- *
- * The destructive wipe is permitted only when all three gates are cleared: the
- * typed confirmation, the explicit export acknowledgement, and the final
- * confirm. Any single missing gate blocks it — there is no one-tap or
- * two-of-three shortcut to wiping the app.
- */
+/** A deliberate no-export choice is valid; missing scope or final confirmation never is. */
 export function canStartFresh(state: StartFreshState): boolean {
-  return state.typedConfirm && state.exportedAck && state.finalConfirm;
+  return (
+    state.scopeReviewed &&
+    (state.exportChoice === 'requested' || state.exportChoice === 'declined') &&
+    state.finalConfirm
+  );
 }

@@ -12,6 +12,8 @@ import Svg, { Path } from 'react-native-svg';
 import { useCaughtSubs } from '@/folio/lib/caughtSubs';
 import {
   buildDecisionHistoryRows,
+  HISTORY_SCOPE,
+  historyDestination,
   type DecisionHistoryKind,
   type DecisionHistoryRow,
 } from '@/folio/lib/reviewHistory';
@@ -44,6 +46,10 @@ function kindLabel(kind: DecisionHistoryKind): string {
       return 'Paused';
     case 'resumed':
       return 'Resumed';
+    case 'debt-removed':
+      return 'Removed from tracking';
+    case 'debt-restored':
+      return 'Tracking restored';
   }
 }
 
@@ -106,9 +112,11 @@ function DestinationLine({
 const HistoryRow = memo(function HistoryRow({
   row,
   onPress,
+  actionLabel,
 }: {
   row: DecisionHistoryRow;
   onPress: (() => void) | undefined;
+  actionLabel?: string | undefined;
 }) {
   const t = useTheme();
   const detail =
@@ -123,13 +131,10 @@ const HistoryRow = memo(function HistoryRow({
       style={({ pressed }) => [styles.historyRow, pressed ? styles.pressed : undefined]}
     >
       <View style={styles.historyMain}>
-        <Text numberOfLines={1} style={[styles.historyTitle, { color: t.ink }]}>
-          {row.title}
-        </Text>
-        {detail ? (
-          <Text numberOfLines={1} style={[styles.historyDetail, { color: t.muted }]}>
-            {detail}
-          </Text>
+        <Text style={[styles.historyTitle, { color: t.ink }]}>{row.title}</Text>
+        {detail ? <Text style={[styles.historyDetail, { color: t.muted }]}>{detail}</Text> : null}
+        {actionLabel ? (
+          <Text style={[styles.historyDetail, { color: t.calm }]}>{actionLabel} ›</Text>
         ) : null}
       </View>
       <Text style={[styles.historyWhen, { color: t.muted }]}>
@@ -163,17 +168,27 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
     [history, tab],
   );
   const renderHistoryRow = useCallback(
-    ({ item }: { item: DecisionHistoryRow }) => (
-      <HistoryRow
-        row={item}
-        onPress={
-          item.transactionId
-            ? () => nav.openSheet('edit-txn', { id: item.transactionId! })
-            : undefined
-        }
-      />
-    ),
-    [nav],
+    ({ item }: { item: DecisionHistoryRow }) => {
+      const destination = historyDestination(item, transactions);
+      return (
+        <HistoryRow
+          row={item}
+          actionLabel={destination?.label}
+          onPress={
+            destination
+              ? () => {
+                  if (destination.kind === 'transaction')
+                    nav.openSheet('edit-txn', { id: destination.id });
+                  else if (destination.kind === 'hidden') nav.openSheet('hidden-review');
+                  else if (destination.kind === 'debts') nav.go('debts');
+                  else nav.go('subs');
+                }
+              : undefined
+          }
+        />
+      );
+    },
+    [nav, transactions],
   );
 
   return (
@@ -270,7 +285,9 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
             <View style={[styles.rule, { backgroundColor: t.hairline }]} />
           )}
           ListEmptyComponent={
-            <Text style={[styles.emptyHistory, { color: t.muted }]}>Nothing decided yet.</Text>
+            <Text style={[styles.emptyHistory, { color: t.muted }]}>
+              {HISTORY_SCOPE[tab].empty}
+            </Text>
           }
           ListHeaderComponent={
             <>
@@ -278,10 +295,20 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
                 {tab === 'activity' ? (
                   <>
                     <Text style={[styles.listEyebrow, { color: t.muted }]}>
-                      Everything Melo said
+                      Explore your records
                     </Text>
                     <View style={styles.destinationList}>
-                      <DestinationLine label="Inbox" meta="every whisper in one place" />
+                      <DestinationLine
+                        label="Inbox"
+                        meta="open this conversation with Melo"
+                        onPress={() => nav.openMelo({})}
+                      />
+                      <View style={[styles.rule, { backgroundColor: t.hairline }]} />
+                      <DestinationLine
+                        label="Timeline"
+                        meta="confirmed transactions and recorded choices"
+                        onPress={() => nav.go('timeline')}
+                      />
                       <View style={[styles.rule, { backgroundColor: t.hairline }]} />
                       <DestinationLine
                         label="Insights"
@@ -293,7 +320,7 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
                 ) : (
                   <>
                     <Text style={[styles.listEyebrow, { color: t.muted }]}>
-                      Undo and corrections
+                      Review your choices
                     </Text>
                     <View style={styles.destinationList}>
                       <DestinationLine
@@ -308,10 +335,10 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
               <View style={styles.timelineInset}>
                 <Text style={[styles.timelineKicker, { color: t.muted }]}>Your log</Text>
                 <Text style={[styles.timelineHeadline, { color: t.ink }]}>
-                  Everything you've added or logged.
+                  {HISTORY_SCOPE[tab].title}
                 </Text>
                 <Text style={[styles.timelineSubhead, { color: t.muted }]}>
-                  Newest first. Nothing is hidden.
+                  {HISTORY_SCOPE[tab].description}
                 </Text>
               </View>
             </>
@@ -366,8 +393,8 @@ const styles = StyleSheet.create({
   timelineSubhead: { fontSize: 12.5, marginTop: 6 },
   historyContent: { paddingHorizontal: gap.xl },
   historyRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: 'stretch',
+    flexDirection: 'column',
     gap: gap.md,
     minHeight: 58,
     paddingVertical: gap.md,

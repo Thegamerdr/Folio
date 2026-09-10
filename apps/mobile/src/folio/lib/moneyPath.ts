@@ -143,7 +143,12 @@ export function tightPointDayLabel(date: string, now: Date): string {
   const dayIndex = Math.round((target.getTime() - today) / 86_400_000);
   if (dayIndex === 0) return 'today';
   if (dayIndex === 1) return 'tomorrow';
-  return target.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', timeZone: 'UTC' });
+  return target.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
 }
 
 /** Parse an ISO YYYY-MM-DD to a UTC-midnight epoch. Using UTC (not local)

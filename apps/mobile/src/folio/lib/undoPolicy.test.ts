@@ -16,7 +16,7 @@
 //     isRecoverable(removedAtIso, nowIso)-> true within 7 days inclusive
 //     sweepExpired(items, nowIso)        -> drops only items >7 days old
 //   Tier 3 — start fresh guard (double-confirm + export-offered):
-//     canStartFresh(state)               -> needs typedConfirm && exportedAck
+//     canStartFresh(state)               -> needs scopeReviewed && exportChoice
 //                                           && finalConfirm (all three).
 
 import { describe, expect, it } from 'vitest';
@@ -158,18 +158,27 @@ describe('Tier 2 — sweepExpired', () => {
 // Tier 3 — start-fresh guard requires ALL THREE confirmations
 // ---------------------------------------------------------------------------
 describe('Tier 3 — canStartFresh', () => {
-  const allTrue = { typedConfirm: true, exportedAck: true, finalConfirm: true };
+  const allTrue = { scopeReviewed: true, exportChoice: 'requested' as const, finalConfirm: true };
 
   it('allows start-fresh only when all three flags are set', () => {
     expect(canStartFresh(allTrue)).toBe(true);
   });
 
-  it('blocks when the typed confirmation is missing', () => {
-    expect(canStartFresh({ ...allTrue, typedConfirm: false })).toBe(false);
+  it('blocks when the scope has not been reviewed', () => {
+    expect(canStartFresh({ ...allTrue, scopeReviewed: false })).toBe(false);
   });
 
-  it('blocks when the export has not been acknowledged', () => {
-    expect(canStartFresh({ ...allTrue, exportedAck: false })).toBe(false);
+  it('blocks when an export choice has not been made', () => {
+    expect(canStartFresh({ ...allTrue, exportChoice: null })).toBe(false);
+  });
+
+  it('allows a deliberate decision to clear without exporting after scope review and final confirmation', () => {
+    expect(
+      canStartFresh({ scopeReviewed: true, exportChoice: 'declined', finalConfirm: true }),
+    ).toBe(true);
+    expect(
+      canStartFresh({ scopeReviewed: true, exportChoice: 'declined', finalConfirm: false }),
+    ).toBe(false);
   });
 
   it('blocks when the final confirm is missing', () => {
@@ -177,20 +186,28 @@ describe('Tier 3 — canStartFresh', () => {
   });
 
   it('blocks on an all-false (one-tap) attempt', () => {
-    expect(canStartFresh({ typedConfirm: false, exportedAck: false, finalConfirm: false })).toBe(
+    expect(canStartFresh({ scopeReviewed: false, exportChoice: null, finalConfirm: false })).toBe(
       false,
     );
   });
 
   it('blocks every two-of-three combination (no shortcut past any gate)', () => {
-    expect(canStartFresh({ typedConfirm: true, exportedAck: true, finalConfirm: false })).toBe(
+    expect(
+      canStartFresh({
+        scopeReviewed: true,
+        exportChoice: 'requested' as const,
+        finalConfirm: false,
+      }),
+    ).toBe(false);
+    expect(canStartFresh({ scopeReviewed: true, exportChoice: null, finalConfirm: true })).toBe(
       false,
     );
-    expect(canStartFresh({ typedConfirm: true, exportedAck: false, finalConfirm: true })).toBe(
-      false,
-    );
-    expect(canStartFresh({ typedConfirm: false, exportedAck: true, finalConfirm: true })).toBe(
-      false,
-    );
+    expect(
+      canStartFresh({
+        scopeReviewed: false,
+        exportChoice: 'requested' as const,
+        finalConfirm: true,
+      }),
+    ).toBe(false);
   });
 });

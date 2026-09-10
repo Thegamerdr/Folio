@@ -4,7 +4,8 @@
  * @purpose      Subscription pulse — pause / cancel / used-today / ask-Melo per item.
  * @reads        subs, subPaused (+ the money-path route slices via useRoute/routeFromStore:
  *               currentBalance, onboarding, subOverrides, transactions, pots) for the tight-day lift
- * @writes       togglePaused, removeSub, markSubUsed
+ * @writes       togglePaused,
+  subscriptionWithPause, removeSub, markSubUsed
  * @opens-sheet  melo-chat
  * @copy         Honest payment-facts voice — no usage/value/cancel claims (SUBSCRIPTION_SIGNAL_RESEARCH §5).
  * @tokens       --surface --hairline --accent --positive --muted-ink
@@ -47,10 +48,27 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { localDayKey } from '@/folio/lib/dayClock';
+import {
+  buildSubscriptionEditPatch,
+  subscriptionEditBoundary,
+} from '@/folio/lib/subscriptionEditing';
 import type { FinancialCommitment } from '@folio/finance-engine';
+import { formatMoney, formatFinancialDate } from '@/folio/lib/financialPresentation';
 import { toFinancialPlanInput } from '@/folio/lib/financialPlan';
 import { setSubscriptionOccurrenceResolution } from '@/folio/lib/obligationState';
+import { createScopedFinancialUndo } from '@/folio/lib/scopedFinancialUndo';
 
 import {
   type AppState,
@@ -61,13 +79,21 @@ import {
   pauseMany,
   removeSub,
   restoreSub,
-  revokeTinyWin,
   setPartial,
-  setSubs,
   togglePaused,
+  subscriptionWithPause,
   useAppStore,
 } from '@/folio/store';
-import { elevation, gap, type Palette, radius, serif, useCountUp, useTheme } from '@/folio/theme';
+import {
+  elevation,
+  gap,
+  type Palette,
+  radius,
+  serif,
+  useCountUp,
+  useTheme,
+  Sheet,
+} from '@/folio/theme';
 import { routeFromStore, useRoute } from '@/folio/lib/storeRoute';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
@@ -90,7 +116,7 @@ import {
 // identically without coupling Subs to the Today wave's format module.
 function formatDayProse(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
-  return `${d.toLocaleDateString('en-GB', { weekday: 'long' })} ${d.getDate()}`;
+  return formatFinancialDate(iso);
 }
 
 // A stable sentinel "now" for the one render before the mount-gate opens. `useRoute` can't be
@@ -103,7 +129,7 @@ const EPOCH = new Date(0);
 // Math.max(0, Math.round(...))). The money-path engine's `tightPoint.amount` is the same low-point
 // balance; mirror the web's clamp so the figure and the "£a → £b" delta read identically.
 function tightSpare(amount: number): number {
-  return Math.max(0, Math.round(amount));
+  return Math.round(amount);
 }
 
 // The orderings offered. NO "worst value" sort — that ranks by a usage/value judgement banking or seed
@@ -147,11 +173,11 @@ function formatArchiveDate(iso: string): string {
 // never "12.3K"). The web wrote `£${n.toFixed(2)}`; this is the same, kept local so every £ figure
 // on the screen goes through one formatter.
 function pounds(n: number): string {
-  return `£${n.toFixed(2)}`;
+  return formatMoney(n, true);
 }
 
 function poundsWhole(n: number): string {
-  return `£${n.toFixed(0)}`;
+  return formatMoney(n);
 }
 
 export function SubscriptionsScreen({ nav }: { nav: Nav }) {
@@ -161,23 +187,32 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
 
   const subs = useAppStore((st) => st.subs);
   const appState = useAppStore((st) => st);
-  const dueCommitments = toFinancialPlanInput(appState, { horizonDays: 0 }).commitments ?? [];
+  const dueInput = toFinancialPlanInput(appState, { horizonDays: 365 });
+  const dueCommitments = dueInput.commitments ?? [];
   const paused = useAppStore((st) => st.subPaused);
   const cancelledSubs = useAppStore((st) => st.cancelledSubs ?? []);
 
+  const [editing, setEditing] = useState<StoreSub | null>(null);
+  const [editCost, setEditCost] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editPeriod, setEditPeriod] = useState<number | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [showEditDate, setShowEditDate] = useState(false);
+  const [editError, setEditError] = useState('');
   const [sort, setSort] = useState<SortKey>('next');
+  const [optionalOnly, setOptionalOnly] = useState(false);
 
   const sorted = useMemo(() => {
-    const arr = [...subs];
+    const arr = optionalOnly ? subs.filter(isDiscretionarySubscription) : [...subs];
     if (sort === 'cost') arr.sort((a, b) => b.cost - a.cost);
     else arr.sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway);
     return arr;
-  }, [sort, subs]);
+  }, [sort, subs, optionalOnly]);
 
   // Monthly drain (active subscriptions only), and what pauses have already saved.
-  const monthly = subs.reduce((acc, x) => acc + (paused[x.name] ? 0 : x.cost), 0);
-  const monthlyDisplay = useCountUp(monthly, COUNT_UP_MS);
-  const totalIfNoPause = subs.reduce((acc, x) => acc + x.cost, 0);
+  const monthly = subs.reduce((acc, x) => acc + subscriptionAnnualCost(x) / 12, 0);
+  const monthlyDisplay = monthly;
+  const totalIfNoPause = subs.reduce((acc, x) => acc + subscriptionAnnualCost(x) / 12, 0);
   const monthlySaved = totalIfNoPause - monthly;
   const cancelledMonthlySaved = getMonthlyCancelSavings(cancelledSubs);
 
@@ -222,7 +257,6 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     );
   }, [subs, paused, tightWith, now]);
   const dueSave = dueBeforeTight.reduce((acc, x) => acc + x.cost, 0);
-  const showDueMove = dueBeforeTight.length > 0;
 
   // Re-route a HYPOTHETICAL COPY of the state with the given subs paused — never mutating the live
   // store. `routeFromStore` is pure ((state, now) → RouteResult), so an overlaid `subPaused` map
@@ -233,7 +267,13 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     const live = getState();
     const hypotheticalPaused: AppState['subPaused'] = { ...live.subPaused };
     for (const name of names) hypotheticalPaused[name] = true;
-    const hypothetical: AppState = { ...live, subPaused: hypotheticalPaused };
+    const hypothetical: AppState = {
+      ...live,
+      subPaused: hypotheticalPaused,
+      subs: live.subs.map((sub) =>
+        names.includes(sub.name) ? subscriptionWithPause(sub, true, localDayKey(now)) : sub,
+      ),
+    };
     const result = routeFromStore(hypothetical, now);
     return { spare: tightSpare(result.tightPoint.amount), date: result.tightPoint.date };
   };
@@ -247,6 +287,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     [now, dueBeforeTight, subs, paused],
   );
   const dueLift = tightIfDuePaused && tightWith ? tightIfDuePaused.spare - tightWith.spare : 0;
+  const showDueMove = dueBeforeTight.length > 0 && dueLift > 0;
   // -------------------------------------------------------------------------------------------
 
   const pauseDueOnes = () => {
@@ -295,11 +336,11 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     const resume = () => togglePaused(sub.name, false);
     if (typeof before === 'number' && lift && lift.spare > before) {
       showUndo(
-        `${pounds(sub.cost)} back on ${formatDayProse(lift.date)} · low point £${before} → £${lift.spare}`,
+        `Future forecast paused · projected low ${formatMoney(before)} → ${formatMoney(lift.spare)}`,
         resume,
       );
     } else {
-      showUndo(`Paused ${sub.name} · ${pounds(sub.cost)} back this month`, resume);
+      showUndo(`Future forecast paused for ${sub.name} · provider unchanged`, resume);
     }
   };
 
@@ -309,28 +350,33 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     // BEFORE delete so the undo restores both the sub and its paused state — capture order matters
     // (read getState() before removeSub). The Tier-1 snackbar (30s) then carries the verbatim
     // "Cancelled {name}" line and the one-tap restore.
-    const prevSubs = getState().subs;
-    const prevPaused = !!getState().subPaused[sub.name];
-    const prevCancelled = getState().cancelledSubs ?? [];
-    const cancellationWin = removeSub(sub.name);
+    const beforeRemoval = getState();
+    removeSub(sub.name);
+    const undo = createScopedFinancialUndo(beforeRemoval, [
+      'subs',
+      'cancelledSubs',
+      'subPaused',
+      'subOverrides',
+      'tinyWins',
+    ]);
     void triggerFeedback('subscription-cancelled');
-    showUndo(`Cancelled ${sub.name}`, () => {
-      setSubs(prevSubs);
-      setPartial({ cancelledSubs: prevCancelled });
-      if (cancellationWin) revokeTinyWin(cancellationWin.kind);
-      if (prevPaused) togglePaused(sub.name, true);
+    showUndo(`Removed ${sub.name} from Melo`, () => {
+      if (!undo())
+        Alert.alert(
+          'Current bills kept',
+          'Your bills have changed since this removal. Review them before restoring this bill.',
+        );
     });
   };
 
   const onAskMelo = (sub: StoreSub) => {
     nav.openMelo({
-      prefill: `Tell me about ${sub.name} (${pounds(sub.cost)}/mo, renews in ${sub.nextRenewalDaysAway}d).`,
+      prefill: `Explain the recorded amount, next due date and unpaid status for ${sub.name}.`,
     });
   };
 
   const onResolve = (sub: StoreSub, occurrence: FinancialCommitment) => {
     const date = occurrence.id.slice(-10);
-    const previous = sub.obligationOccurrences?.[date] ?? { status: 'unpaid' as const };
     Alert.alert(
       'Confirm this bill is already paid',
       `${sub.name} · due ${formatArchiveDate(occurrence.date)} · ${pounds(occurrence.amountMinor / 100)}. Only confirm after your current cash balance includes this payment. This releases its reserved money without subtracting cash again.`,
@@ -339,10 +385,16 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
         {
           text: 'Already paid',
           onPress: () => {
+            const before = getState();
             setSubscriptionOccurrenceResolution(sub.name, date, { status: 'paid' });
-            showUndo(`${sub.name} · ${formatArchiveDate(occurrence.date)} marked paid`, () =>
-              setSubscriptionOccurrenceResolution(sub.name, date, previous),
-            );
+            const undo = createScopedFinancialUndo(before, ['subs']);
+            showUndo(`${sub.name} · ${formatArchiveDate(occurrence.date)} marked paid`, () => {
+              if (!undo())
+                Alert.alert(
+                  'Bill status kept',
+                  'Your bills have changed since this confirmation. Review the current bill before changing its status.',
+                );
+            });
           },
         },
       ],
@@ -359,7 +411,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
       >
         <ScreenHeader
           onBack={nav.back}
-          eyebrow={copy.subs.title}
+          eyebrow="Bills and commitments"
           arrow="text"
           spacerWidth={44}
           backHitAlign="flex-start"
@@ -376,8 +428,8 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
         <View style={layout.emptyWrap}>
           <EmptyState
             mood="calm"
-            headline={copy.subs.empty.head.replace(/\*\*/g, '')}
-            body="Add a streaming service, gym, or anything that comes out every month. You'll see everything that repeats and what's coming."
+            headline="No bills added yet"
+            body="Add rent, household bills, subscriptions or another regular payment. Melo will show what is due and what you confirm as paid."
             cta={{ label: copy.subs.empty.cta, onPress: () => nav.go('add-bill') }}
           />
         </View>
@@ -387,185 +439,371 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
 
   // POPULATED BRANCH.
   return (
-    <ScrollView
-      style={layout.scrollFlex}
-      contentContainerStyle={layout.screen}
-      showsVerticalScrollIndicator={false}
-    >
-      <ScreenHeader
-        onBack={nav.back}
-        eyebrow={copy.subs.title}
-        arrow="text"
-        spacerWidth={44}
-        backHitAlign="flex-start"
-        eyebrowTracking={1.68}
-      />
+    <>
+      <ScrollView
+        style={layout.scrollFlex}
+        contentContainerStyle={layout.screen}
+        showsVerticalScrollIndicator={false}
+      >
+        <ScreenHeader
+          onBack={nav.back}
+          eyebrow="Bills and commitments"
+          arrow="text"
+          spacerWidth={44}
+          backHitAlign="flex-start"
+          eyebrowTracking={1.68}
+        />
 
-      <View style={layout.head}>
-        <Text style={s.kicker}>Recurring spend</Text>
-        <Text style={s.headline}>
-          Everything that <Text style={s.headlineAccent}>repeats</Text>.
-        </Text>
-      </View>
+        <View style={layout.head}>
+          <Text style={s.kicker}>Recurring spend</Text>
+          <Text style={s.headline}>
+            Everything that <Text style={s.headlineAccent}>repeats</Text>.
+          </Text>
+        </View>
 
-      {/* TOTAL CARD — the monthly drain is the hero; "−£X from pauses" sits beneath in calm green;
+        {/* TOTAL CARD — the monthly drain is the hero; "−£X from pauses" sits beneath in calm green;
           the yearly figure is the quiet right-hand counterweight. */}
-      <View style={s.totals}>
-        <View style={layout.totalsLeft}>
-          <Text style={s.totalsLabel}>Every month</Text>
-          <Text style={s.totalsValue}>{pounds(monthlyDisplay)}</Text>
-          {monthlySaved > 0 ? (
-            <Text style={s.totalsSaved}>−{pounds(monthlySaved)} from pauses</Text>
-          ) : null}
-        </View>
-        <View style={layout.totalsRight}>
-          <Text style={s.totalsLabel}>Per year</Text>
-          <Text style={s.totalsYear}>{poundsWhole(monthly * 12)}</Text>
-        </View>
-      </View>
-
-      {/* QUIET-MOVE CTA — one accent-soft banner with a forward arrow, only when there are quiet,
-          still-active subs. The £/mo + £/yr saving is engine-free and shows now; the "Your low
-          point: £a → £b (day)" lift line is gated behind the tight-day engine. */}
-      {showDueMove ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityHint="Pauses the subscriptions that renew before your low point."
-          onPress={pauseDueOnes}
-          style={({ pressed: isPressed }) => [
-            s.quietBanner,
-            isPressed ? layout.pressed : undefined,
-          ]}
-        >
-          <View style={layout.flex1}>
-            <Text style={s.quietEyebrow}>Before your low point</Text>
-            <Text style={s.quietBody}>
-              Pause the {dueBeforeTight.length} that{' '}
-              {dueBeforeTight.length === 1 ? 'renews' : 'renew'} before then → {pounds(dueSave)}/mo,{' '}
-              {poundsWhole(dueSave * 12)}/yr back
-            </Text>
-            {/* @rn-engine money-path-tight-day — the real route DELTA: "Your low point: £a → £b
-                ({day})", shown once the mount-gate has opened (route !== null) and pausing these
-                actually lifts the low point on a known day. */}
-            {dueLift > 0 && tightWith && tightIfDuePaused?.date ? (
-              <Text style={s.quietLift}>
-                Your low point: £{tightWith.spare} → £{tightIfDuePaused.spare} (
-                {formatDayProse(tightIfDuePaused.date)})
-              </Text>
+        <View style={s.totals}>
+          <View style={layout.totalsLeft}>
+            <Text style={s.totalsLabel}>Monthly equivalent</Text>
+            <Text style={s.totalsValue}>{poundsWhole(monthlyDisplay)}</Text>
+            {monthlySaved > 0 ? (
+              <Text style={s.totalsSaved}>Forecast pauses only exclude the scheduled charge</Text>
             ) : null}
           </View>
-          <Text style={s.quietArrow}>→</Text>
-        </Pressable>
-      ) : null}
+          <View style={layout.totalsRight}>
+            <Text style={s.totalsLabel}>Per year</Text>
+            <Text style={s.totalsYear}>{poundsWhole(monthly * 12)}</Text>
+          </View>
+        </View>
 
-      {/* SORT CHIPS — Next charge (default) · Cost. A pill row matching the web's
-          ink-fill-on-selected / inset-on-rest. */}
-      <View style={layout.sortRow}>
-        {SORTS.map((option) => {
-          const selected = sort === option.key;
-          return (
+        {/* QUIET-MOVE CTA — one accent-soft banner with a forward arrow, only when there are quiet,
+          still-active subs. The £/mo + £/yr saving is engine-free and shows now; the "Your low
+          point: £a → £b (day)" lift line is gated behind the tight-day engine. */}
+        {showDueMove ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityHint="Pauses the subscriptions that renew before your low point."
+            onPress={pauseDueOnes}
+            style={({ pressed: isPressed }) => [
+              s.quietBanner,
+              isPressed ? layout.pressed : undefined,
+            ]}
+          >
+            <View style={layout.flex1}>
+              <Text style={s.quietEyebrow}>Before your low point</Text>
+              <Text style={s.quietBody}>
+                Pause the {dueBeforeTight.length} that{' '}
+                {dueBeforeTight.length === 1 ? 'renews' : 'renew'} before then → {pounds(dueSave)}
+                /mo, future forecast only. Confirm any pause with the provider.
+              </Text>
+              {/* @rn-engine money-path-tight-day — the real route DELTA: "Your low point: £a → £b
+                ({day})", shown once the mount-gate has opened (route !== null) and pausing these
+                actually lifts the low point on a known day. */}
+              {dueLift > 0 && tightWith && tightIfDuePaused?.date ? (
+                <Text style={s.quietLift}>
+                  Projected low: {formatMoney(tightWith.spare)} →{' '}
+                  {formatMoney(tightIfDuePaused.spare)} ({formatDayProse(tightIfDuePaused.date)})
+                </Text>
+              ) : null}
+            </View>
+            <Text style={s.quietArrow}>→</Text>
+          </Pressable>
+        ) : null}
+
+        <View style={layout.sortRow}>
+          {[
+            { label: 'All commitments', value: false },
+            { label: 'Optional subscriptions', value: true },
+          ].map((option) => (
             <Pressable
-              key={option.key}
+              key={option.label}
               accessibilityRole="button"
-              accessibilityState={{ selected }}
-              onPress={() => setSort(option.key)}
-              style={({ pressed: isPressed }) => [
-                s.sortChip,
-                selected ? s.sortChipOn : undefined,
-                isPressed ? layout.pressed : undefined,
-              ]}
+              accessibilityState={{ selected: optionalOnly === option.value }}
+              onPress={() => setOptionalOnly(option.value)}
+              style={[s.sortChip, optionalOnly === option.value ? s.sortChipOn : undefined]}
             >
-              <Text style={[s.sortChipLabel, selected ? s.sortChipLabelOn : undefined]}>
+              <Text
+                style={[
+                  s.sortChipLabel,
+                  optionalOnly === option.value ? s.sortChipLabelOn : undefined,
+                ]}
+              >
                 {option.label}
               </Text>
             </Pressable>
-          );
-        })}
-      </View>
+          ))}
+        </View>
+        {optionalOnly && sorted.length === 0 ? (
+          <Text style={s.rowMeta}>
+            No optional subscriptions are identified. Your bills remain under All commitments.
+          </Text>
+        ) : null}
 
-      {/* LIST — one surface card, hairline-divided rows (first row carries no top rule). */}
-      <View style={s.list}>
-        {sorted.map((sub, index) => (
-          <SubscriptionRow
-            key={sub.name}
-            sub={sub}
-            first={index === 0}
-            paused={!!paused[sub.name]}
-            t={t}
-            s={s}
-            onPauseResume={() => onPauseResume(sub)}
-            onUsedToday={() => markSubUsed(sub.name)}
-            onAskMelo={() => onAskMelo(sub)}
-            onCancel={() => onCancel(sub)}
-            outstanding={dueCommitments.find((item) =>
-              item.id.startsWith(`subscription:${sub.name}:`),
-            )}
-            onResolve={(occurrence) => onResolve(sub, occurrence)}
-          />
-        ))}
-      </View>
-
-      {cancelledSubs.length > 0 ? (
-        <View style={layout.cancelledSection}>
-          <View style={layout.cancelledHeader}>
-            <Text style={s.cancelledEyebrow}>Cancelled</Text>
-            <Text style={s.cancelledSaved}>−{pounds(cancelledMonthlySaved)}/mo saved</Text>
-          </View>
-          <View style={s.cancelledList}>
-            {cancelledSubs.map((subscription, index) => (
-              <View
-                key={subscription.name}
-                style={[
-                  layout.cancelledRow,
-                  index > 0
-                    ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline }
-                    : undefined,
+        {/* SORT CHIPS — Next charge (default) · Cost. A pill row matching the web's
+          ink-fill-on-selected / inset-on-rest. */}
+        <View style={layout.sortRow}>
+          {SORTS.map((option) => {
+            const selected = sort === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                onPress={() => setSort(option.key)}
+                style={({ pressed: isPressed }) => [
+                  s.sortChip,
+                  selected ? s.sortChipOn : undefined,
+                  isPressed ? layout.pressed : undefined,
                 ]}
               >
-                <View style={layout.cancelledCopy}>
-                  <Text style={s.cancelledName} numberOfLines={1}>
-                    {subscription.name}
-                  </Text>
-                  <Text style={s.cancelledMeta}>
-                    {pounds(subscription.monthlyAmount)}/mo · since{' '}
-                    {formatArchiveDate(subscription.cancelledAt)}
-                  </Text>
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Restore ${subscription.name}`}
-                  onPress={() => restoreSub(subscription.name)}
-                  style={({ pressed: isPressed }) => [
-                    s.restoreButton,
-                    isPressed ? layout.pressed : undefined,
+                <Text style={[s.sortChipLabel, selected ? s.sortChipLabelOn : undefined]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* LIST — one surface card, hairline-divided rows (first row carries no top rule). */}
+        <View style={s.list}>
+          {sorted.map((sub, index) => (
+            <SubscriptionRow
+              key={sub.name}
+              sub={sub}
+              first={index === 0}
+              paused={!!paused[sub.name]}
+              t={t}
+              s={s}
+              onPauseResume={() => onPauseResume(sub)}
+              onUsedToday={() => markSubUsed(sub.name)}
+              onAskMelo={() => onAskMelo(sub)}
+              onCancel={() =>
+                Alert.alert(
+                  'Remove this commitment?',
+                  `This removes ${sub.name} from Melo’s forecast. It does not cancel payments with the provider.`,
+                  [
+                    { text: 'Keep', style: 'cancel' },
+                    {
+                      text: 'Remove from Melo',
+                      style: 'destructive',
+                      onPress: () => onCancel(sub),
+                    },
+                  ],
+                )
+              }
+              onEdit={() => {
+                const boundary = subscriptionEditBoundary(getState(), sub.name, new Date());
+                setEditing(sub);
+                setEditName(sub.name);
+                setEditCost(String(sub.cost));
+                setEditPeriod(sub.renewalPeriodDays ?? null);
+                setEditDate(boundary.defaultDate);
+                setEditError('');
+              }}
+              today={dueInput.asOf}
+              nextOccurrence={
+                dueCommitments.find(
+                  (item) =>
+                    item.id.startsWith(`subscription:${sub.name}:`) && item.date > dueInput.asOf,
+                )?.date
+              }
+              outstanding={dueCommitments.find((item) =>
+                item.id.startsWith(`subscription:${sub.name}:`),
+              )}
+              onResolve={(occurrence) => onResolve(sub, occurrence)}
+            />
+          ))}
+        </View>
+
+        {cancelledSubs.length > 0 ? (
+          <View style={layout.cancelledSection}>
+            <View style={layout.cancelledHeader}>
+              <Text style={s.cancelledEyebrow}>Removed from Melo</Text>
+              <Text style={s.cancelledSaved}>{pounds(cancelledMonthlySaved)}/mo excluded</Text>
+            </View>
+            <View style={s.cancelledList}>
+              {cancelledSubs.map((subscription, index) => (
+                <View
+                  key={subscription.name}
+                  style={[
+                    layout.cancelledRow,
+                    index > 0
+                      ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline }
+                      : undefined,
                   ]}
                 >
-                  <Text style={s.restoreButtonLabel}>Restore</Text>
-                </Pressable>
-              </View>
-            ))}
+                  <View style={layout.cancelledCopy}>
+                    <Text style={s.cancelledName} numberOfLines={1}>
+                      {subscription.name}
+                    </Text>
+                    <Text style={s.cancelledMeta}>
+                      {pounds(subscription.monthlyAmount)}/mo · since{' '}
+                      {formatArchiveDate(subscription.cancelledAt)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Restore ${subscription.name}`}
+                    onPress={() => restoreSub(subscription.name)}
+                    style={({ pressed: isPressed }) => [
+                      s.restoreButton,
+                      isPressed ? layout.pressed : undefined,
+                    ]}
+                  >
+                    <Text style={s.restoreButtonLabel}>Restore</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+            <Text style={s.cancelledSummary}>
+              Forecast excludes {pounds(cancelledMonthlySaved)}/mo after you removed{' '}
+              {cancelledSubs.length} {cancelledSubs.length === 1 ? 'subscription' : 'subscriptions'}
+              .
+            </Text>
           </View>
-          <Text style={s.cancelledSummary}>
-            Still saving {pounds(cancelledMonthlySaved)}/mo since you cancelled{' '}
-            {cancelledSubs.length} {cancelledSubs.length === 1 ? 'subscription' : 'subscriptions'}.
-          </Text>
-        </View>
-      ) : null}
+        ) : null}
 
-      {/* Footer line — web mood "soft" is not one of the RN Melo's five canonical moods
+        {/* Footer line — web mood "soft" is not one of the RN Melo's five canonical moods
           (calm|curious|cheer|concern|celebrate); map it to calm (MeloLine's default), the
           quiet rest pose, per the spec's fidelity note. */}
-      <View style={layout.footer}>
-        <MeloLine
-          mood="calm"
-          text={
-            showDueMove
-              ? 'Pausing for a month is a small experiment. You can always resume.'
-              : 'Keep obligations reserved. Pause a charge only when you know it is optional.'
-          }
+        <View style={layout.footer}>
+          <MeloLine
+            mood="calm"
+            text={
+              showDueMove
+                ? 'A forecast pause changes this plan. Confirm the real pause with your provider.'
+                : 'Keep obligations reserved. Pause a charge only when you know it is optional.'
+            }
+          />
+        </View>
+      </ScrollView>
+      <Sheet
+        visible={editing !== null}
+        onClose={() => {
+          setEditing(null);
+          setShowEditDate(false);
+        }}
+      >
+        <Text accessibilityRole="header" style={s.headline}>
+          Edit bill
+        </Text>
+        <Text style={s.rowMeta}>
+          Changes apply to future occurrences. The current occurrence and any overdue amounts keep
+          their recorded dates, amounts and payment status. This does not change an agreement with
+          the provider.
+        </Text>
+        <Text style={s.rowMeta}>Bill name</Text>
+        <TextInput
+          accessibilityLabel="Bill name"
+          value={editName}
+          onChangeText={setEditName}
+          style={s.editInput}
         />
-      </View>
-    </ScrollView>
+        <Text style={s.rowMeta}>Future amount</Text>
+        <TextInput
+          accessibilityLabel="Future bill amount"
+          keyboardType="decimal-pad"
+          value={editCost}
+          onChangeText={setEditCost}
+          style={s.editInput}
+        />
+        <Text style={s.rowMeta}>Repeats</Text>
+        <View style={layout.sortRow}>
+          {(
+            [
+              { label: 'Monthly', value: null },
+              { label: 'Weekly', value: 7 },
+              { label: 'Every two weeks', value: 14 },
+              { label: 'Yearly', value: 365 },
+            ] as const
+          ).map((option) => (
+            <Pressable
+              key={option.label}
+              accessibilityRole="button"
+              accessibilityState={{ selected: editPeriod === option.value }}
+              onPress={() => setEditPeriod(option.value)}
+              style={[s.sortChip, editPeriod === option.value ? s.sortChipOn : undefined]}
+            >
+              <Text
+                style={[
+                  s.sortChipLabel,
+                  editPeriod === option.value ? s.sortChipLabelOn : undefined,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <ActionLink
+          label={`New schedule starts ${formatFinancialDate(editDate)} · change date`}
+          color={t.calm}
+          onPress={() => setShowEditDate(true)}
+        />
+        {showEditDate ? (
+          <DateTimePicker
+            mode="date"
+            value={new Date(`${editDate}T12:00:00`)}
+            onChange={(_event, selected) => {
+              setShowEditDate(false);
+              if (selected) setEditDate(localDayKey(selected));
+            }}
+          />
+        ) : null}
+        {editing ? (
+          <Text style={s.rowMeta}>
+            The occurrence due{' '}
+            {formatFinancialDate(
+              subscriptionEditBoundary(appState, editing.name, new Date()).protectedDate,
+            )}{' '}
+            stays unchanged. Use Calendar to review it.
+          </Text>
+        ) : null}
+        {editError ? (
+          <Text accessibilityRole="alert" style={[s.rowMeta, { color: t.repairInk }]}>
+            {editError}
+          </Text>
+        ) : null}
+        <ActionLink
+          label="Save bill changes"
+          color={t.calm}
+          onPress={() => {
+            if (!editing) return;
+            try {
+              const before = getState();
+              const patch = buildSubscriptionEditPatch(
+                before,
+                editing.name,
+                {
+                  name: editName,
+                  cost: Number(editCost),
+                  periodDays: editPeriod,
+                  futureDate: editDate,
+                },
+                new Date(),
+              );
+              setPartial(patch);
+              const undo = createScopedFinancialUndo(
+                before,
+                Object.keys(patch) as (keyof AppState)[],
+              );
+              showUndo('Bill details updated · current occurrence preserved', () => {
+                if (!undo())
+                  Alert.alert(
+                    'Bill details kept',
+                    'Your bills have changed since this save. Review the current details before editing them.',
+                  );
+              });
+              setEditing(null);
+            } catch (error) {
+              setEditError(error instanceof Error ? error.message : 'Check the bill details.');
+            }
+          }}
+        />
+        <ActionLink label="Cancel editing" color={t.muted} onPress={() => setEditing(null)} />
+      </Sheet>
+    </>
   );
 }
 
@@ -583,6 +821,9 @@ function SubscriptionRow({
   onUsedToday,
   onAskMelo,
   onCancel,
+  onEdit,
+  today,
+  nextOccurrence,
   outstanding,
   onResolve,
 }: {
@@ -595,12 +836,20 @@ function SubscriptionRow({
   onUsedToday: () => void;
   onAskMelo: () => void;
   onCancel: () => void;
+  onEdit: () => void;
+  today: string;
+  nextOccurrence?: string | undefined;
   outstanding?: FinancialCommitment | undefined;
   onResolve: (occurrence: FinancialCommitment) => void;
 }) {
   const hasTrial = typeof sub.trialEndsInDays === 'number';
   const annualCost = subscriptionAnnualCost(sub);
-  const confidence = subscriptionConfidence(sub);
+  const [manageOpen, setManageOpen] = useState(false);
+  const latestPaid = Object.entries(sub.obligationOccurrences ?? {})
+    .filter(([, resolution]) => resolution.status === 'paid')
+    .map(([date]) => date)
+    .sort()
+    .pop();
 
   return (
     <View
@@ -610,9 +859,7 @@ function SubscriptionRow({
         <View style={[layout.pulseDot, { backgroundColor: dotColor(t, sub) }]} />
         <View style={layout.rowText}>
           <View style={layout.nameLine}>
-            <Text style={s.rowName} numberOfLines={1}>
-              {sub.name}
-            </Text>
+            <Text style={s.rowName}>{sub.name}</Text>
             {hasTrial && !paused ? (
               <View
                 style={s.trialBadge}
@@ -624,8 +871,16 @@ function SubscriptionRow({
               </View>
             ) : null}
           </View>
-          <Text style={s.rowMeta} numberOfLines={1}>
-            {subscriptionStatusLine(sub, paused)} · confidence {confidence}
+          <Text style={s.rowMeta}>
+            {paused
+              ? 'Future forecast paused'
+              : sub.renewalPeriodDays === 7
+                ? 'Weekly commitment'
+                : sub.renewalPeriodDays === 14
+                  ? 'Every two weeks'
+                  : sub.renewalPeriodDays === 365
+                    ? 'Yearly commitment'
+                    : 'Monthly commitment'}
           </Text>
           {paused && (sub.pauseReason || sub.pausedUntil) ? (
             <Text style={s.pauseDetail} numberOfLines={2}>
@@ -637,15 +892,24 @@ function SubscriptionRow({
         <View style={layout.rowAmountCol}>
           <Text style={s.rowCost}>{pounds(sub.cost)}</Text>
           <Text style={s.rowAnnual}>{pounds(annualCost)}/yr</Text>
-          <Text style={s.rowNext}>next {formatNext(sub.nextRenewalDaysAway)}</Text>
+          <Text style={s.rowNext}>
+            {nextOccurrence
+              ? `Next scheduled ${formatFinancialDate(nextOccurrence)}`
+              : 'Check next date'}
+          </Text>
         </View>
       </View>
 
       {outstanding ? (
         <View style={layout.obligationRow}>
           <Text style={[s.rowMeta, layout.flex1]}>
-            {pounds(outstanding.amountMinor / 100)} unpaid · due{' '}
-            {formatArchiveDate(outstanding.date)}
+            {outstanding.date < today
+              ? 'Overdue'
+              : outstanding.date === today
+                ? 'Due today'
+                : 'Due'}{' '}
+            · {formatFinancialDate(outstanding.date)} · {pounds(outstanding.amountMinor / 100)}{' '}
+            unpaid
           </Text>
           <ActionLink
             label="Mark already paid"
@@ -654,40 +918,62 @@ function SubscriptionRow({
           />
         </View>
       ) : null}
-      <View style={layout.actions}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onPauseResume}
-          style={({ pressed: isPressed }) => [s.pausePill, isPressed ? layout.pressed : undefined]}
-        >
-          <Text style={s.pausePillLabel}>{paused ? 'Resume' : 'Pause for a month'}</Text>
-        </Pressable>
+      {latestPaid ? (
+        <Text style={[s.rowMeta, { marginTop: 8, color: t.positiveInk }]}>
+          Confirmed paid · due {formatFinancialDate(latestPaid)}
+        </Text>
+      ) : null}
+      <ActionLink
+        label={manageOpen ? 'Hide details and actions' : 'Manage / details'}
+        color={t.calm}
+        onPress={() => setManageOpen((open) => !open)}
+      />
+      {manageOpen ? (
+        <View style={layout.actions}>
+          <Text style={s.rowMeta}>
+            These actions change Melo’s forecast only. Check any pause or cancellation with the
+            provider.
+          </Text>
+          <ActionLink label="Edit amount / dates" color={t.calm} onPress={onEdit} />
+          <Pressable
+            accessibilityRole="button"
+            onPress={onPauseResume}
+            style={({ pressed: isPressed }) => [
+              s.pausePill,
+              isPressed ? layout.pressed : undefined,
+            ]}
+          >
+            <Text style={s.pausePillLabel}>
+              {paused ? 'Resume in forecast' : 'Pause next charge in forecast'}
+            </Text>
+          </Pressable>
 
-        {!paused ? (
+          {!paused ? (
+            <ActionLink
+              label="I used this today"
+              color={t.positiveInk}
+              onPress={onUsedToday}
+              accessibilityHint="Marks this subscription as used today."
+            />
+          ) : null}
+
           <ActionLink
-            label="Used today"
-            color={t.positiveInk}
-            onPress={onUsedToday}
-            accessibilityHint="Marks this subscription as used today."
+            label="Ask Melo"
+            color={t.muted}
+            onPress={onAskMelo}
+            accessibilityHint={`Asks Melo about ${sub.name}.`}
           />
-        ) : null}
 
-        <ActionLink
-          label="Ask Melo"
-          color={t.muted}
-          onPress={onAskMelo}
-          accessibilityHint={`Asks Melo about ${sub.name}.`}
-        />
+          <View style={layout.actionsSpacer} />
 
-        <View style={layout.actionsSpacer} />
-
-        <ActionLink
-          label="Cancel"
-          color={t.repairInk}
-          onPress={onCancel}
-          accessibilityHint={`Cancels ${sub.name}.`}
-        />
-      </View>
+          <ActionLink
+            label="Remove from Melo"
+            color={t.repairInk}
+            onPress={onCancel}
+            accessibilityHint={`Removes ${sub.name} from this forecast only.`}
+          />
+        </View>
+      ) : null}
 
       {/* MELO_EMOTIONAL_ENGINE.md § 3 — inline reaction (RN port of the web ScreenSubscriptions). */}
       <MeloReaction
@@ -751,26 +1037,26 @@ const layout = StyleSheet.create({
   emptyWrap: { marginTop: 8 },
 
   totalsLeft: { flex: 1 },
-  totalsRight: { alignItems: 'flex-end' },
+  totalsRight: { alignItems: 'flex-start' },
 
   flex1: { flex: 1 },
 
   sortRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
 
   rowFirst: { borderTopWidth: 0 },
-  rowPaused: { opacity: 0.55 },
-  rowHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowPaused: {},
+  rowHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
   pulseDot: { width: 8, height: 8, borderRadius: 4 },
   rowText: { flex: 1, minWidth: 0 },
   nameLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  rowAmountCol: { alignItems: 'flex-end' },
+  rowAmountCol: { width: '100%', alignItems: 'flex-start', gap: 4 },
 
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
-  obligationRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  actions: { alignItems: 'stretch', gap: 8, marginTop: 12 },
+  obligationRow: { alignItems: 'stretch', gap: 8, marginTop: 8 },
   actionsSpacer: { flex: 1 },
   // The inline Melo reaction — web mt-2.
   reaction: { marginTop: 8 },
-  actionLink: { paddingVertical: 11, justifyContent: 'center' },
+  actionLink: { minHeight: 48, paddingVertical: 12, justifyContent: 'center' },
   actionLinkText: { fontSize: 12, fontWeight: '600' },
 
   footer: { marginTop: 8, marginBottom: 32 },
@@ -796,6 +1082,17 @@ const layout = StyleSheet.create({
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
+    editInput: {
+      minHeight: 48,
+      padding: 12,
+      marginVertical: 8,
+      borderWidth: 1,
+      borderColor: t.hairline,
+      borderRadius: 12,
+      backgroundColor: t.inset,
+      color: t.ink,
+      fontSize: 16,
+    },
     // Italic serif kicker — web font-display italic, 13px, muted ink.
     kicker: {
       color: t.muted,
@@ -815,9 +1112,9 @@ function makeStyles(t: Palette) {
 
     // Totals card — a raised paper surface, baseline-aligned left vs right.
     totals: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      justifyContent: 'space-between',
+      flexDirection: 'column',
+      gap: 16,
+      alignItems: 'flex-start',
       backgroundColor: t.surface,
       borderRadius: 20,
       padding: 20,
@@ -893,7 +1190,7 @@ function makeStyles(t: Palette) {
 
     // Sort chips — ink fill + paper label when selected; inset fill + muted label at rest.
     sortChip: {
-      height: 28,
+      minHeight: 48,
       paddingHorizontal: 12,
       borderRadius: radius.pill,
       backgroundColor: t.inset,
@@ -968,7 +1265,7 @@ function makeStyles(t: Palette) {
     pausePill: {
       backgroundColor: t.inset,
       borderRadius: radius.pill,
-      height: 32,
+      minHeight: 48,
       paddingHorizontal: 12,
       alignItems: 'center',
       justifyContent: 'center',
@@ -1004,7 +1301,7 @@ function makeStyles(t: Palette) {
       backgroundColor: t.inset,
       borderRadius: radius.pill,
       justifyContent: 'center',
-      minHeight: 38,
+      minHeight: 48,
       paddingHorizontal: gap.md,
     },
     restoreButtonLabel: { color: t.ink, fontSize: 11.5, fontWeight: '600' },

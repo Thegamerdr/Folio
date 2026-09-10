@@ -22,14 +22,45 @@
 // existing undo/toast lib (useUndo/showUndo) as the confirmation surface — Undo here simply removes
 // the just-added debt, which is a faithful (if stronger) analogue of a plain acknowledgment toast.
 
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
-import { gap, radius, serif, Sheet, useTheme, weightFamily, type Palette } from '@/folio/theme';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+import {
+  gap,
+  money,
+  radius,
+  serif,
+  Sheet,
+  useTheme,
+  weightFamily,
+  type Palette,
+} from '@/folio/theme';
+import { debtDraftIssue, parseDayOfMonth } from '@/folio/lib/formDrafts';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
 import { toFinancialPlanInput } from '@/folio/lib/financialPlan';
+import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentation';
 import { setDebtMinimumOccurrenceResolution } from '@/folio/lib/obligationState';
-import { addDebt, removeDebt, updateDebt, useAppStore, type Debt } from '@/folio/store';
+import {
+  addDebt,
+  getFinancialResetGeneration,
+  getState,
+  removeDebt,
+  restoreDebtTracking,
+  updateDebt,
+  useAppStore,
+  type Debt,
+} from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
 
 export type AddDebtSheetProps = {
@@ -80,7 +111,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
     };
     Alert.alert(
       'Confirm this minimum is already paid',
-      `${target.name} · due ${unpaidMinimum.date} · £${(unpaidMinimum.amountMinor / 100).toFixed(2)}. Only confirm when your current cash and debt balances already include this payment. Extra repayments do not automatically settle the monthly minimum.`,
+      `${target.name} · due ${formatFinancialDate(unpaidMinimum.date)} · ${formatMoney(unpaidMinimum.amountMinor / 100)}. Only confirm when your current cash and debt balances already include this payment. Extra repayments do not automatically settle the monthly minimum.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -101,9 +132,39 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
   const [balance, setBalance] = useState('');
   const [apr, setApr] = useState('');
   const [minPayment, setMinPayment] = useState('');
-  const [dueDom, setDueDom] = useState(1);
+  const [dueDayInput, setDueDayInput] = useState('1');
   const [arrears, setArrears] = useState(false);
   const [promoUntil, setPromoUntil] = useState('');
+  const [advanced, setAdvanced] = useState(false);
+  const [showPromoPicker, setShowPromoPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  function confirmRemove() {
+    if (target === null || target.linkedAccountId !== undefined) return;
+    const before = getState();
+    const position = (before.debts ?? []).findIndex((debt) => debt.id === target.id);
+    const generation = getFinancialResetGeneration();
+    Alert.alert(
+      `Stop tracking ${target.name}?`,
+      `This removes the ${money(Math.round(target.balance * 100))} debt record and its future minimums from your plan. It does not pay or cancel the real debt, reverse cash, or delete recorded payments. Payment history stays available. Undo restores this debt record.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Stop tracking debt',
+          style: 'destructive',
+          onPress: () => {
+            removeDebt(target.id);
+            onClose();
+            showUndo(`${target.name} removed from tracking`, () => {
+              restoreDebtTracking(target, position, before.activeWorkspaceId, generation);
+            });
+          },
+        },
+      ],
+    );
+  }
 
   useEffect(() => {
     if (target === null) {
@@ -115,7 +176,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
     setBalance(String(target.balance));
     setApr(target.aprKnown === false ? '' : String(target.apr));
     setMinPayment(String(target.minPayment));
-    setDueDom(target.dueDom);
+    setDueDayInput(String(target.dueDom));
     setArrears(target.arrears === true);
     setPromoUntil(target.promoUntil ?? '');
   }, [target, targetId]);
@@ -123,12 +184,16 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
   const bal = parseNonNegative(balance);
   const rate = parseNonNegative(apr);
   const min = parseNonNegative(minPayment);
-  const canAdd =
-    name.trim().length > 0 &&
-    Number.isFinite(bal) &&
-    Number.isFinite(rate) &&
-    Number.isFinite(min) &&
-    (target !== null ? bal >= 0 && min >= 0 : bal > 0 && min > 0);
+  const draftIssue = debtDraftIssue({
+    name,
+    balance,
+    apr,
+    minimum: minPayment,
+    dueDay: dueDayInput,
+    editing: target !== null,
+  });
+  const dueDom = parseDayOfMonth(dueDayInput) ?? 1;
+  const canAdd = draftIssue === null && !saving;
   const activeKind = KINDS.find((k) => k.id === kind);
 
   function reset() {
@@ -137,185 +202,286 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
     setBalance('');
     setApr('');
     setMinPayment('');
-    setDueDom(1);
+    setDueDayInput('1');
     setArrears(false);
     setPromoUntil('');
+    setAdvanced(false);
+    setSaving(false);
+    savingRef.current = false;
+    setSaveError(null);
   }
 
   function handleAdd() {
-    if (!canAdd) return;
-    if (target !== null) {
-      updateDebt(target.id, {
-        name,
-        kind,
-        balance: bal,
-        apr: rate,
-        aprKnown: apr.trim().length > 0,
-        minPayment: min,
-        dueDom,
-        arrears,
-        ...(validISODate(promoUntil.trim()) ? { promoUntil: promoUntil.trim() } : {}),
-      });
-      onClose();
-      return;
-    }
-    const d = addDebt({
-      name,
-      kind,
-      balance: bal,
-      apr: rate,
-      aprKnown: apr.trim().length > 0,
-      minPayment: min,
-      dueDom,
-      arrears,
-      ...(validISODate(promoUntil.trim()) ? { promoUntil: promoUntil.trim() } : {}),
-    });
-    onClose();
-    reset();
-    showUndo(`Debt added · ${d.name}`, () => {
-      removeDebt(d.id);
+    if (!canAdd || savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    setSaveError(null);
+    Keyboard.dismiss();
+    requestAnimationFrame(() => {
+      try {
+        if (target !== null) {
+          updateDebt(target.id, {
+            name,
+            kind,
+            balance: bal,
+            apr: rate,
+            aprKnown: apr.trim().length > 0,
+            minPayment: min,
+            dueDom,
+            arrears,
+            ...(validISODate(promoUntil.trim()) ? { promoUntil: promoUntil.trim() } : {}),
+          });
+          const saved = getState().debts?.find((debt) => debt.id === target.id);
+          if (
+            !saved ||
+            saved.name !== name.trim() ||
+            saved.balance !== bal ||
+            saved.apr !== rate ||
+            saved.aprKnown !== apr.trim().length > 0 ||
+            saved.minPayment !== min ||
+            saved.dueDom !== dueDom
+          ) {
+            throw new Error('Debt changes were not applied');
+          }
+          onClose();
+          return;
+        }
+        const d = addDebt({
+          name,
+          kind,
+          balance: bal,
+          apr: rate,
+          aprKnown: apr.trim().length > 0,
+          minPayment: min,
+          dueDom,
+          arrears,
+          ...(validISODate(promoUntil.trim()) ? { promoUntil: promoUntil.trim() } : {}),
+        });
+        onClose();
+        reset();
+        showUndo(`Debt added · ${d.name} · ${money(Math.round(d.balance * 100))}`, () => {
+          removeDebt(d.id);
+        });
+      } catch {
+        setSaveError(
+          'This debt could not be saved. Your entries are still here; please try again.',
+        );
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+      }
     });
   }
 
+  const footer = (
+    <View>
+      {saveError || draftIssue ? (
+        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
+          {saveError ?? draftIssue}
+        </Text>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={target === null ? 'Add debt' : 'Save changes'}
+        accessibilityState={{ disabled: !canAdd, busy: saving }}
+        disabled={!canAdd}
+        onPress={handleAdd}
+        style={[s.primary, { backgroundColor: t.calm, opacity: canAdd || saving ? 1 : 0.45 }]}
+      >
+        <Text style={[s.primaryLabel, { color: t.inverse }]}>
+          {saving
+            ? target === null
+              ? 'Adding debt…'
+              : 'Saving changes…'
+            : target === null
+              ? 'Add debt'
+              : 'Save changes'}
+        </Text>
+      </Pressable>
+    </View>
+  );
   return (
-    <Sheet visible={visible} onClose={onClose}>
-      <View style={s.headerRow}>
-        <Text style={s.eyebrow}>{target === null ? 'Add a debt' : 'Edit a debt'}</Text>
-      </View>
+    <Sheet visible={visible} onClose={onClose} footer={footer}>
+      <Text style={s.eyebrow}>{target === null ? 'Add a debt' : 'Edit a debt'}</Text>
       <Text accessibilityRole="header" style={s.headline}>
-        {target === null ? 'One line at a ' : 'Keep one line '}
-        <Text style={[s.headlineAccent, { color: t.calm }]}>time.</Text>
+        {target === null ? 'One debt at a time.' : 'Edit this debt'}
       </Text>
-      <Text style={[s.subline, { color: t.muted }]}>Rough is fine — you can adjust it later.</Text>
-
+      <Text style={[s.subline, { color: t.muted }]}>
+        Required fields are marked *. Nothing moves money at your bank.
+      </Text>
       <View style={s.field}>
-        <Text style={[s.label, { color: t.muted }]}>Kind</Text>
-        <View style={s.kindGrid}>
-          {KINDS.map((k) => {
-            const selected = k.id === kind;
-            return (
-              <Pressable
-                key={k.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={k.label}
-                onPress={() => setKind(k.id)}
-                style={({ pressed }) => [
-                  s.kindChip,
-                  { backgroundColor: selected ? t.calmSoft : t.inset },
-                  pressed ? s.pressed : undefined,
-                ]}
-              >
-                <Text style={[s.kindChipLabel, { color: t.ink }]}>{k.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {activeKind ? (
-          <Text style={[s.kindHint, { color: t.muted }]}>{activeKind.hint}</Text>
-        ) : null}
-      </View>
-
-      <View style={s.field}>
-        <Text style={[s.label, { color: t.muted }]}>What is it</Text>
+        <Text style={[s.label, { color: t.muted }]}>Debt name *</Text>
         <TextInput
           value={name}
           onChangeText={setName}
           placeholder="e.g. Barclaycard"
           placeholderTextColor={t.muted}
           style={[s.input, { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink }]}
-          accessibilityLabel="What is it"
+          accessibilityLabel="Debt name, required"
         />
       </View>
-
-      <View style={s.row}>
-        <View style={s.rowField}>
-          <Text style={[s.label, { color: t.muted }]}>Balance</Text>
-          <View style={[s.moneyRow, { backgroundColor: t.inset, borderColor: t.hairline }]}>
-            <Text style={[s.currency, { color: t.muted }]}>£</Text>
-            <TextInput
-              value={balance}
-              onChangeText={(v) => setBalance(v.replace(/[^0-9.]/g, ''))}
-              keyboardType="decimal-pad"
-              placeholder="0"
-              placeholderTextColor={t.muted}
-              style={[s.moneyInput, { color: t.ink }]}
-              accessibilityLabel="Balance"
-            />
-          </View>
-        </View>
-        <View style={s.rowField}>
-          <Text style={[s.label, { color: t.muted }]}>APR</Text>
-          <View style={[s.moneyRow, { backgroundColor: t.inset, borderColor: t.hairline }]}>
-            <TextInput
-              value={apr}
-              onChangeText={(v) => setApr(v.replace(/[^0-9.]/g, ''))}
-              keyboardType="decimal-pad"
-              placeholder="0"
-              placeholderTextColor={t.muted}
-              style={[s.moneyInput, { color: t.ink }]}
-              accessibilityLabel="APR"
-            />
-            <Text style={[s.currency, { color: t.muted }]}>%</Text>
-          </View>
+      <View style={s.field}>
+        <Text style={[s.label, { color: t.muted }]}>Outstanding balance *</Text>
+        <View style={[s.moneyRow, { backgroundColor: t.inset, borderColor: t.hairline }]}>
+          <Text style={[s.currency, { color: t.muted }]}>£</Text>
+          <TextInput
+            value={balance}
+            onChangeText={setBalance}
+            selectTextOnFocus
+            keyboardType="decimal-pad"
+            placeholder="0"
+            placeholderTextColor={t.muted}
+            style={[s.moneyInput, { color: t.ink }]}
+            accessibilityLabel="Balance, required"
+          />
         </View>
       </View>
-
+      <View style={s.field}>
+        <Text style={[s.label, { color: t.muted }]}>Monthly minimum payment *</Text>
+        <View style={[s.moneyRow, { backgroundColor: t.inset, borderColor: t.hairline }]}>
+          <Text style={[s.currency, { color: t.muted }]}>£</Text>
+          <TextInput
+            value={minPayment}
+            onChangeText={setMinPayment}
+            selectTextOnFocus
+            keyboardType="decimal-pad"
+            placeholder="0"
+            placeholderTextColor={t.muted}
+            style={[s.moneyInput, { color: t.ink }]}
+            accessibilityLabel="Minimum per month, required"
+          />
+        </View>
+        <Text style={s.helper}>
+          {target === null
+            ? 'Enter the minimum required by the lender, above £0.'
+            : 'A £0 minimum is allowed when editing an existing debt.'}
+        </Text>
+      </View>
+      <View style={s.field}>
+        <Text style={[s.label, { color: t.muted }]}>Due day each month *</Text>
+        <TextInput
+          value={dueDayInput}
+          onChangeText={setDueDayInput}
+          selectTextOnFocus
+          keyboardType="number-pad"
+          style={[s.input, { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink }]}
+          accessibilityLabel="Due day of month, required"
+        />
+        <Text
+          style={parseDayOfMonth(dueDayInput) === undefined ? s.error : s.helper}
+          accessibilityLiveRegion="polite"
+        >
+          {parseDayOfMonth(dueDayInput) === undefined
+            ? 'Enter a day from 1 to 31.'
+            : 'Choose 1–31. In a shorter month, the payment falls on its last day.'}
+        </Text>
+      </View>
+      <View style={s.field}>
+        <Text style={[s.label, { color: t.muted }]}>Annual interest rate (APR)</Text>
+        <View style={[s.moneyRow, { backgroundColor: t.inset, borderColor: t.hairline }]}>
+          <TextInput
+            value={apr}
+            onChangeText={setApr}
+            selectTextOnFocus
+            keyboardType="decimal-pad"
+            placeholder="Unknown"
+            placeholderTextColor={t.muted}
+            style={[s.moneyInput, { color: t.ink }]}
+            accessibilityLabel="APR, optional"
+          />
+          <Text style={[s.currency, { color: t.muted }]}>%</Text>
+        </View>
+        <Text style={s.helper}>
+          The yearly interest rate from your lender. Enter 0 for interest-free; leave blank if
+          unknown.
+        </Text>
+      </View>
       <Pressable
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: arrears }}
-        onPress={() => setArrears((value) => !value)}
-        style={[s.priorityRow, { borderColor: t.hairline, backgroundColor: t.inset }]}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: advanced }}
+        onPress={() => setAdvanced((value) => !value)}
+        style={s.cancel}
       >
-        <Text style={[s.priorityLabel, { color: t.ink }]}>I’m behind on this payment</Text>
-        <Text style={[s.priorityValue, { color: arrears ? t.repair : t.muted }]}>
-          {arrears ? 'Yes' : 'No'}
+        <Text style={[s.cancelLabel, { color: t.calmStrong }]}>
+          {advanced ? 'Hide debt details' : 'More debt details'} · {activeKind?.label}
+          {arrears ? ' · Behind on a payment' : ''}
+          {promoUntil ? ' · Promotional rate' : ''}
         </Text>
       </Pressable>
-      <TextInput
-        value={promoUntil}
-        onChangeText={(value) => setPromoUntil(value.replace(/[^0-9-]/g, '').slice(0, 10))}
-        placeholder="0% rate ends (YYYY-MM-DD), optional"
-        placeholderTextColor={t.muted}
-        style={[s.input, { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink }]}
-        accessibilityLabel="Promotional rate expiry date"
-      />
-
-      <View style={s.row}>
-        <View style={s.rowField}>
-          <Text style={[s.label, { color: t.muted }]}>Minimum / mo</Text>
-          <View style={[s.moneyRow, { backgroundColor: t.inset, borderColor: t.hairline }]}>
-            <Text style={[s.currency, { color: t.muted }]}>£</Text>
-            <TextInput
-              value={minPayment}
-              onChangeText={(v) => setMinPayment(v.replace(/[^0-9.]/g, ''))}
-              keyboardType="decimal-pad"
-              placeholder="0"
-              placeholderTextColor={t.muted}
-              style={[s.moneyInput, { color: t.ink }]}
-              accessibilityLabel="Minimum per month"
+      {advanced ? (
+        <View>
+          <Text style={[s.label, { color: t.muted }]}>Kind of debt</Text>
+          <View style={s.kindGrid}>
+            {KINDS.map((entry) => (
+              <Pressable
+                key={entry.id}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: kind === entry.id }}
+                onPress={() => setKind(entry.id)}
+                style={[s.kindChip, { backgroundColor: kind === entry.id ? t.calmSoft : t.inset }]}
+              >
+                <Text style={[s.kindChipLabel, { color: t.ink }]}>{entry.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={s.helper}>{activeKind?.hint}</Text>
+          <View style={[s.priorityRow, { borderColor: t.hairline, backgroundColor: t.inset }]}>
+            <Text style={[s.priorityLabel, { color: t.ink, flex: 1 }]}>Behind on a payment?</Text>
+            <Text style={[s.priorityValue, { color: t.ink }]}>{arrears ? 'Yes' : 'No'}</Text>
+            <Switch
+              accessibilityLabel="Behind on a payment"
+              value={arrears}
+              onValueChange={setArrears}
+              trackColor={{ true: t.calm }}
             />
           </View>
-        </View>
-        <View style={s.rowField}>
-          <Text style={[s.label, { color: t.muted }]}>Due day</Text>
-          <View style={[s.moneyRow, { backgroundColor: t.inset, borderColor: t.hairline }]}>
-            <TextInput
-              value={String(dueDom)}
-              onChangeText={(v) => {
-                const n = Number(v.replace(/[^0-9]/g, '')) || 1;
-                setDueDom(Math.max(1, Math.min(31, n)));
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              Keyboard.dismiss();
+              setShowPromoPicker(true);
+            }}
+            style={s.cancel}
+          >
+            <Text style={[s.cancelLabel, { color: t.calmStrong }]}>
+              Promotional rate end date ·{' '}
+              {validISODate(promoUntil)
+                ? new Date(`${promoUntil}T12:00:00`).toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : 'Not set'}
+            </Text>
+          </Pressable>
+          <Text style={s.helper}>Optional, for a temporary rate such as a 0% offer.</Text>
+          {showPromoPicker ? (
+            <DateTimePicker
+              value={validISODate(promoUntil) ? new Date(`${promoUntil}T12:00:00`) : new Date()}
+              mode="date"
+              onChange={(_event, selected) => {
+                setShowPromoPicker(false);
+                if (selected)
+                  setPromoUntil(
+                    `${selected.getFullYear()}-${String(selected.getMonth() + 1).padStart(2, '0')}-${String(selected.getDate()).padStart(2, '0')}`,
+                  );
               }}
-              keyboardType="number-pad"
-              placeholderTextColor={t.muted}
-              style={[s.moneyInput, { color: t.ink }]}
-              accessibilityLabel="Due day of month"
             />
-            <Text style={[s.currencySmall, { color: t.muted }]}>of month</Text>
-          </View>
+          ) : null}
         </View>
-      </View>
-
+      ) : null}
+      {target !== null ? (
+        target.linkedAccountId === undefined ? (
+          <Pressable accessibilityRole="button" onPress={confirmRemove} style={s.cancel}>
+            <Text style={[s.cancelLabel, { color: t.repair }]}>Stop tracking this debt</Text>
+          </Pressable>
+        ) : (
+          <Text style={s.helper}>
+            This debt is linked to an account. Manage the account from Account; recorded payments
+            stay in history.
+          </Text>
+        )
+      ) : null}
       {unpaidMinimum ? (
         <Pressable
           accessibilityRole="button"
@@ -324,35 +490,15 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           style={s.cancel}
         >
           <Text style={[s.cancelLabel, { color: t.calmStrong }]}>
-            £{(unpaidMinimum.amountMinor / 100).toFixed(2)} minimum due {unpaidMinimum.date} · mark
-            already paid
+            {money(unpaidMinimum.amountMinor)} minimum due{' '}
+            {new Date(`${unpaidMinimum.date}T12:00:00`).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+            })}{' '}
+            · mark already paid
           </Text>
         </Pressable>
       ) : null}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Add debt"
-        accessibilityState={{ disabled: !canAdd }}
-        disabled={!canAdd}
-        onPress={handleAdd}
-        style={({ pressed }) => [
-          s.primary,
-          { backgroundColor: t.calm, opacity: canAdd ? 1 : 0.4 },
-          pressed && canAdd ? s.pressed : undefined,
-        ]}
-      >
-        <Text style={[s.primaryLabel, { color: t.inverse }]}>
-          {target === null ? 'Add debt' : 'Save changes'}
-        </Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Cancel"
-        onPress={onClose}
-        style={({ pressed }) => [s.cancel, pressed ? s.pressed : undefined]}
-      >
-        <Text style={[s.cancelLabel, { color: t.muted }]}>Cancel</Text>
-      </Pressable>
     </Sheet>
   );
 }
@@ -390,9 +536,7 @@ function makeStyles(t: Palette) {
       marginTop: gap.lg,
     },
     label: {
-      fontSize: 10.5,
-      letterSpacing: 1.47,
-      textTransform: 'uppercase',
+      fontSize: 13,
     },
     kindGrid: {
       flexDirection: 'row',
@@ -404,6 +548,8 @@ function makeStyles(t: Palette) {
       borderRadius: radius.md,
       flex: 1,
       paddingVertical: gap.sm,
+      minHeight: 48,
+      justifyContent: 'center',
     },
     kindChipLabel: {
       fontSize: 12,
@@ -418,7 +564,7 @@ function makeStyles(t: Palette) {
       borderRadius: radius.md,
       borderWidth: StyleSheet.hairlineWidth,
       fontSize: 13.5,
-      height: 44,
+      minHeight: 48,
       marginTop: gap.sm,
       paddingHorizontal: gap.md,
     },
@@ -436,7 +582,7 @@ function makeStyles(t: Palette) {
       borderWidth: StyleSheet.hairlineWidth,
       flexDirection: 'row',
       gap: 4,
-      height: 44,
+      minHeight: 48,
       marginTop: gap.sm,
       paddingHorizontal: gap.md,
     },
@@ -457,9 +603,9 @@ function makeStyles(t: Palette) {
     primary: {
       alignItems: 'center',
       borderRadius: radius.xl,
-      height: 54,
+      minHeight: 52,
       justifyContent: 'center',
-      marginTop: gap.xl,
+      marginTop: gap.xs,
     },
     primaryLabel: {
       fontSize: 15,
@@ -467,7 +613,7 @@ function makeStyles(t: Palette) {
     },
     cancel: {
       alignItems: 'center',
-      height: 44,
+      minHeight: 48,
       justifyContent: 'center',
       marginTop: gap.sm,
     },
@@ -488,6 +634,8 @@ function makeStyles(t: Palette) {
       minHeight: 44,
       paddingHorizontal: gap.md,
     },
+    helper: { color: t.muted, fontSize: 12, lineHeight: 17, marginTop: gap.xs },
+    error: { color: t.repair, fontSize: 13, lineHeight: 18, marginVertical: gap.xs },
     priorityLabel: { fontSize: 13 },
     priorityValue: { fontFamily: weightFamily(500), fontSize: 13 },
   });

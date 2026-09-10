@@ -40,13 +40,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { useAppStore, setRouteFocusDate, setCalendarFocusDate } from '@/folio/store';
-import {
-  deriveCalendarEvents,
-  groupByDay,
-  computeSpareAndTightest,
-  formatDayHeader,
-  formatDayProse,
-} from '@/folio/lib/calendarEvents';
+import { formatDayHeader } from '@/folio/lib/calendarEvents';
+import { buildCalendarPresentation } from '@/folio/lib/calendarPresentation';
+import { useDayClock } from '@/folio/lib/useDayClock';
+import { formatGBP } from '@/folio/screens/today/format';
 import { EventRow, makeStyles as makeCalendarStyles } from '@/folio/screens/CalendarScreen';
 import type { Nav } from '@/folio/types';
 
@@ -62,14 +59,6 @@ export type SheetDayDetailProps = {
   date: string;
 };
 
-function todayIso(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
-
 export function SheetDayDetail({ visible, onClose, nav, date }: SheetDayDetailProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
@@ -77,52 +66,15 @@ export function SheetDayDetail({ visible, onClose, nav, date }: SheetDayDetailPr
   // CalendarScreen so the day's rows render pixel-identically to the inline panels.
   const rowStyles = useMemo(() => makeCalendarStyles(t), [t]);
 
-  const subs = useAppStore((st) => st.subs);
-  const subPaused = useAppStore((st) => st.subPaused);
-  const subOverrides = useAppStore((st) => st.subOverrides);
-  const onboarding = useAppStore((st) => st.onboarding);
-  const manual = useAppStore((st) => st.calendarEvents);
-  const pots = useAppStore((st) => st.pots);
-  const currentBalance = useAppStore((st) => st.currentBalance);
-
-  // Same derivation the calendar screen uses — the sheet must never disagree with the cell it
-  // opened from. `now` is stable per-render (no clock ticking inside a sheet), mirroring the web's
-  // useMemo([]) — it only needs to be "today" at open time.
-  const now = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
-  const events = useMemo(
-    () =>
-      deriveCalendarEvents({
-        subs,
-        subPaused,
-        subOverrides,
-        onboarding,
-        manualEvents: manual,
-        includeSampleBills: false,
-        pots,
-        now,
-      }),
-    [subs, subPaused, subOverrides, onboarding, manual, pots, now],
-  );
-
-  const groups = useMemo(() => groupByDay(events), [events]);
-  const { spareByDay, tightestDate } = useMemo(
-    () => computeSpareAndTightest(groups, currentBalance.amount),
-    [groups, currentBalance.amount],
-  );
-
-  const dayEvents = useMemo(
-    () => groups.find((g) => g.date === date)?.events ?? [],
-    [groups, date],
-  );
-
-  const spare = spareByDay[date];
-  const isTightest = date === tightestDate;
-  const today = todayIso();
+  const state = useAppStore((st) => st);
+  const clockNow = useDayClock();
+  const now = clockNow ?? new Date();
+  const calendar = useMemo(() => buildCalendarPresentation(state, now), [state, now]);
+  const dayEvents = calendar.eventsByDay[date] ?? [];
+  const spare = calendar.spareByDay[date];
+  const low = calendar.lowestBeforeIncome;
+  const isTightest = date === low?.date;
+  const today = calendar.today;
   const isFuture = date >= today;
 
   // Net £ movement on this specific day — the fastest read.
@@ -152,13 +104,17 @@ export function SheetDayDetail({ visible, onClose, nav, date }: SheetDayDetailPr
   const headline =
     dayEvents.length === 0 ? (
       <>
-        Nothing moves your <Text style={s.accentWord}>money</Text>.
+        No recorded <Text style={s.accentWord}>events</Text>.
       </>
     ) : isTightest ? (
       <>
         The <Text style={s.accentWord}>tightest</Text> day this window.
       </>
-    ) : net >= 0 ? (
+    ) : net === 0 ? (
+      <>
+        A day to <Text style={s.accentWord}>review</Text>.
+      </>
+    ) : net > 0 ? (
       <>
         A day of <Text style={s.accentWord}>lift</Text>.
       </>
@@ -183,15 +139,11 @@ export function SheetDayDetail({ visible, onClose, nav, date }: SheetDayDetailPr
           <View style={s.summaryRow}>
             <View style={s.summaryCell}>
               <Text style={s.summaryLabel}>In</Text>
-              <Text style={[s.summaryValue, { color: t.positive }]}>
-                +£{moneyIn.toFixed(moneyIn % 1 === 0 ? 0 : 2)}
-              </Text>
+              <Text style={[s.summaryValue, { color: t.positive }]}>+{formatGBP(moneyIn)}</Text>
             </View>
             <View style={s.summaryCell}>
               <Text style={s.summaryLabel}>Out</Text>
-              <Text style={[s.summaryValue, { color: t.ink }]}>
-                −£{moneyOut.toFixed(moneyOut % 1 === 0 ? 0 : 2)}
-              </Text>
+              <Text style={[s.summaryValue, { color: t.ink }]}>−{formatGBP(moneyOut)}</Text>
             </View>
             <View
               style={[
@@ -199,9 +151,9 @@ export function SheetDayDetail({ visible, onClose, nav, date }: SheetDayDetailPr
                 isTightest ? { backgroundColor: t.calmSoft } : { backgroundColor: t.surface },
               ]}
             >
-              <Text style={s.summaryLabel}>Spare after</Text>
+              <Text style={s.summaryLabel}>Projected balance</Text>
               <Text style={[s.summaryValue, { color: isTightest ? t.calm : t.ink }]}>
-                {typeof spare === 'number' ? `£${Math.max(0, Math.round(spare))}` : '—'}
+                {typeof spare === 'number' ? formatGBP(spare) : '—'}
               </Text>
             </View>
           </View>
@@ -209,8 +161,8 @@ export function SheetDayDetail({ visible, onClose, nav, date }: SheetDayDetailPr
 
         {isTightest ? (
           <Text style={s.tightestNote}>
-            This is the tightest day in the current window. Anything you move earlier lifts the
-            whole picture.
+            This is the lowest projected balance before payday. Changing a date here changes your
+            forecast only.
           </Text>
         ) : null}
 
@@ -222,7 +174,10 @@ export function SheetDayDetail({ visible, onClose, nav, date }: SheetDayDetailPr
               : `${dayEvents.length} ${dayEvents.length === 1 ? 'event' : 'events'}`}
           </Text>
           {dayEvents.length === 0 ? (
-            <Text style={s.nothingLine}>Nothing planned. A quiet day for your money.</Text>
+            <Text style={s.nothingLine}>
+              No events are recorded for this date. Check that all expected money movements have
+              been entered.
+            </Text>
           ) : (
             <View style={s.eventList}>
               {dayEvents.map((e) => (

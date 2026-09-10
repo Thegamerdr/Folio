@@ -24,27 +24,17 @@ describe('pinned shell companion perches', () => {
     });
   });
 
-  it('owns the pinned personal header-perch family', () => {
+  it('uses the existing inline owner instead of a second bird over financial titles', () => {
     for (const screen of ['plans', 'whatif', 'privacy', 'timeline', 'visualizer'] as const) {
-      expect(shellCompanionPlacement(screen, 'auto', 'personal')).toEqual({
-        top: 68,
-        bubbleLeft: 44,
-        birdLeft: 260,
-      });
+      expect(shellCompanionPlacement(screen, 'auto', 'personal')).toBeNull();
+      expect(shellCompanionPlacement(screen, 'left', 'personal')).toBeNull();
+      expect(shellCompanionPlacement(screen, 'right', 'personal')).toBeNull();
     }
-    expect(shellCompanionPlacement('today-after', 'auto', 'personal')).toEqual({
-      top: 68,
-      bubbleLeft: 68,
-      birdLeft: 284,
-    });
+    expect(shellCompanionPlacement('today-after', 'auto', 'personal')).toBeNull();
   });
 
   it('keeps personal header perches on their authored safe side without leaking into Business', () => {
-    expect(shellCompanionPlacement('plans', 'left', 'personal')).toEqual({
-      top: 68,
-      bubbleLeft: 44,
-      birdLeft: 260,
-    });
+    expect(shellCompanionPlacement('plans', 'left', 'personal')).toBeNull();
     expect(shellCompanionPlacement('connections', 'left', 'personal')).toBeNull();
     expect(shellCompanionPlacement('timeline', 'auto', 'business')).toBeNull();
     expect(shellCompanionPlacement('plans', 'auto', 'business')).toBeNull();

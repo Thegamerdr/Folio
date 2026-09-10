@@ -53,7 +53,7 @@ describe('pinned Plan Hub model', () => {
   });
 
   it('uses the source short weekday-and-day label', () => {
-    expect(shortPlanDay('2026-09-01')).toBe('Tue 1');
+    expect(shortPlanDay('2026-09-01')).toBe('1 Sept');
   });
 
   it('projects the pinned Plan tight point from displayed balance and calendar events', () => {

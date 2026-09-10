@@ -227,6 +227,6 @@ describe('payday-window presentation helpers', () => {
 
     expect(tightPointDayLabel('2026-08-18', now)).toBe('today');
     expect(tightPointDayLabel('2026-08-19', now)).toBe('tomorrow');
-    expect(tightPointDayLabel('2026-08-21', now)).toBe('Friday 21');
+    expect(tightPointDayLabel('2026-08-21', now)).toBe('Fri 21 Aug');
   });
 });

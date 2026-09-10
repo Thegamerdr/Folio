@@ -24,12 +24,15 @@
 import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
+import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { selectFinancialPresentation, formatMoney } from '@/folio/lib/financialPresentation';
+import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
 import { presentStabilityCanonicalPlan } from '@/folio/lib/stabilityPresentation';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
 import { useChartStyle } from '@/folio/lib/chartStyle';
@@ -76,6 +79,12 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const lens = useLens();
 
   const now = useDayClock();
+  const appState = useAppStore((st) => st);
+  const financialPlan = useMemo(
+    () => (now ? buildFinancialPlanFromState(appState, { now }) : null),
+    [appState, now],
+  );
+  const financePresentation = selectFinancialPresentation(appState, financialPlan);
 
   const routeResult = useRoute(now ?? EPOCH);
   const route = now ? routeResult : null;
@@ -140,9 +149,6 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
           verdict: canonicalPresentation.verdict,
           weather: canonicalPresentation.negative ? 'storm' : modeState.weather,
         };
-  const safeAmount = presentedModeState.safeZone.amount;
-  const safeDisplay = useCountUp(safeAmount, 700);
-
   const weeks = useMemo(() => {
     const buckets = Array.from({ length: WEEKS }, () => ({ total: 0, count: 0 }));
     subs
@@ -158,7 +164,9 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const upcomingCount = weeks.reduce((n, w) => n + w.count, 0);
   const heaviest = weeks.reduce((iMax, w, i, arr) => (w.total > arr[iMax]!.total ? i : iMax), 0);
 
-  const [accentWord, ...restVerdict] = presentedModeState.verdict.split(' ');
+  const [accentWord, ...restVerdict] = (
+    financePresentation.canReassure ? presentedModeState.verdict : financePresentation.label
+  ).split(' ');
   const verdictTail = restVerdict.join(' ');
 
   const balanceSourceLabel = BALANCE_SOURCE_LABEL[currentBalance.source] ?? 'sample data';
@@ -170,6 +178,25 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const daysToPayday = route ? route.daysToPayday : 0;
 
   const meloOpener = useMeloOpener('stability');
+
+  if (!financePresentation.complete || !financialPlan?.nextIncomeDate) {
+    return (
+      <ScrollView style={s.root} contentContainerStyle={s.scrollContent}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.openSheet('lens-picker')}
+          style={{ minHeight: 48, justifyContent: 'center' }}
+        >
+          <Text style={{ color: t.ink }}>Today · change Stability lens</Text>
+        </Pressable>
+        <FinancialSetupNotice
+          state={appState}
+          plan={financialPlan}
+          onSetup={() => nav.openSheet('onboarding')}
+        />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
@@ -240,18 +267,16 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
 
           {/* The hero stays non-interactive and reads the canonical protected plan when available.
               The Safe Zone door below remains the place to inspect the dated commitments. */}
-          <Text style={[s.headline, { color: t.muted }]}>Your safe zone</Text>
+          <Text style={[s.headline, { color: t.muted }]}>{financePresentation.label}</Text>
           <View style={s.numberRow}>
             <Text style={[s.number, { color: t.ink }]}>
-              {canonicalPresentation?.headline ??
-                `£${Math.round(safeDisplay).toLocaleString('en-GB')}`}
+              {formatMoney(financialPlan.safeToSpendMinor / 100)}
             </Text>
-            <Text style={[s.spareLabel, { color: t.muted }]}>{presentedModeState.spareLabel}</Text>
           </View>
           <Text style={[s.verdict, { color: t.ink }]}>
             <Text
               style={{
-                color: canonicalPresentation?.negative ? t.repair : t.positive,
+                color: !financePresentation.canReassure ? t.caution : t.positive,
                 fontWeight: '600',
               }}
             >
@@ -261,7 +286,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
           </Text>
           {/* The strategy owns the whole caption (incl. the buffer claim) so it can never
               contradict its own accounting — see stability.ts `formula`. */}
-          <Text style={[s.formula, { color: t.muted }]}>{presentedModeState.safeZone.formula}</Text>
+          <Text style={[s.formula, { color: t.muted }]}>{financePresentation.message}</Text>
 
           <View style={s.rhythmBlock}>
             <View style={s.rhythmHeaderRow}>

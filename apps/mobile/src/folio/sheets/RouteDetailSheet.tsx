@@ -605,15 +605,6 @@ function PopulatedDetail({
           (BREAKS-PARITY fix); the date suffix stays the real tapped-point label. */}
       <View style={s.headerRow}>
         <Text style={s.eyebrow}>{`${modeCopy.eyebrowLabel} · ${point.dateLabel}`}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          hitSlop={12}
-          onPress={onClose}
-          style={({ pressed }) => [pressed ? s.pressed : undefined]}
-        >
-          <CloseGlyph color={t.muted} />
-        </Pressable>
       </View>
 
       {/* Headline — NO accent word here (unlike most Folio headlines). Mode-tinted title
@@ -712,14 +703,6 @@ function PopulatedDetail({
       </Pressable>
 
       {/* Secondary CTA — Close. The always-available refusal (one CTA per state + refusal). */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-        onPress={onClose}
-        style={({ pressed }) => [s.secondary, pressed ? s.pressed : undefined]}
-      >
-        <Text style={[s.secondaryLabel, { color: t.muted }]}>Close</Text>
-      </Pressable>
     </View>
   );
 }

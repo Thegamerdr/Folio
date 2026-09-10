@@ -17,7 +17,7 @@
 import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { markWhatChangedSeen, useAppStore } from '@/folio/store';
+import { markWhatChangedSeen, useAppStore, getState } from '@/folio/store';
 import { buildTimelineRows } from '@/folio/lib/timelineEvents';
 import { summarizeWhatChanged } from '@/folio/lib/whatChanged';
 import { gap, pressed, radius, useTheme, type Palette } from '@/folio/theme';
@@ -28,6 +28,7 @@ export function WhatChangedRow({ nav }: { nav: Nav }) {
   const s = useMemo(() => makeStyles(t), [t]);
 
   const transactions = useAppStore((st) => st.transactions);
+  const debts = useAppStore((st) => st.debts ?? []);
   const edits = useAppStore((st) => st.edits ?? []);
   const events = useAppStore((st) => st.timelineEvents ?? []);
   const imports = useAppStore((st) => st.statementImports ?? []);
@@ -46,8 +47,11 @@ export function WhatChangedRow({ nav }: { nav: Nav }) {
         rows: buildTimelineRows({ transactions, edits, events }),
         imports,
         seenISO,
+        transactions,
+        edits,
+        debts,
       }),
-    [transactions, edits, events, imports, seenISO],
+    [transactions, edits, events, imports, seenISO, debts],
   );
 
   if (summary === null) return null;
@@ -55,18 +59,23 @@ export function WhatChangedRow({ nav }: { nav: Nav }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`What changed — ${summary.headline}. Opens the timeline.`}
+      accessibilityLabel={`What changed — ${summary.headline}. ${summary.transactionId ? 'Opens payment details.' : 'Opens the timeline.'}`}
       onPress={() => {
         markWhatChangedSeen(new Date().toISOString());
-        nav.go('timeline');
+        if (
+          summary.transactionId &&
+          getState().transactions.some((transaction) => transaction.id === summary.transactionId)
+        )
+          nav.openSheet('edit-txn', { id: summary.transactionId });
+        else nav.go('timeline');
       }}
       style={({ pressed: isPressed }) => [s.row, isPressed ? pressed : undefined]}
     >
       <View style={s.dot} />
-      <Text style={s.label}>What changed</Text>
-      <Text style={s.headline} numberOfLines={1}>
-        {summary.headline}
-      </Text>
+      <View style={s.copy}>
+        <Text style={s.label}>What changed</Text>
+        <Text style={s.headline}>{summary.headline}</Text>
+      </View>
       <Text style={s.chevron}>→</Text>
     </Pressable>
   );
@@ -83,7 +92,7 @@ function makeStyles(t: Palette) {
       columnGap: gap.sm,
       flexDirection: 'row',
       marginTop: gap.md,
-      minHeight: 44,
+      minHeight: 48,
       paddingHorizontal: gap.md,
       paddingVertical: gap.sm,
     },
@@ -98,10 +107,11 @@ function makeStyles(t: Palette) {
       fontSize: 12,
       fontWeight: '500',
     },
+    copy: { flex: 1, gap: 4 },
     headline: {
       color: t.muted,
-      flex: 1,
       fontSize: 12,
+      lineHeight: 18,
     },
     chevron: {
       color: t.calm,

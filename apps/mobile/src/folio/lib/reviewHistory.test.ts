@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDecisionHistoryRows, buildPendingReviewRows } from './reviewHistory';
+import {
+  buildDecisionHistoryRows,
+  buildPendingReviewRows,
+  HISTORY_SCOPE,
+  historyDestination,
+} from './reviewHistory';
 import type { ReviewItem, StoredTxnEdit, TimelineEvent, Transaction } from '../store';
 
 const transaction = (id: string, when: string, merchant: string): Transaction => ({
@@ -13,6 +18,22 @@ const transaction = (id: string, when: string, merchant: string): Transaction =>
 });
 
 describe('review history projections', () => {
+  it('cross-links retained records and real reversal homes without opening a missing transaction', () => {
+    const tx = transaction('txn-1', '2026-08-01T10:00:00Z', 'Rent');
+    const row = buildDecisionHistoryRows({ transactions: [tx], edits: [], events: [] })[0]!;
+    expect(historyDestination(row, [tx])).toMatchObject({ kind: 'transaction', id: tx.id });
+    expect(historyDestination(row, [])).toBeNull();
+    const { transactionId: _transactionId, ...choice } = row;
+    expect(historyDestination({ ...choice, kind: 'paused' }, [])?.kind).toBe('bills');
+    expect(historyDestination({ ...choice, kind: 'ignored' }, [])?.kind).toBe('hidden');
+    expect(new Set(Object.values(HISTORY_SCOPE).map((scope) => scope.title)).size).toBe(4);
+    expect(HISTORY_SCOPE.saw.description).toContain('same confirmed transactions');
+    expect(
+      Object.values(HISTORY_SCOPE)
+        .map((scope) => scope.description)
+        .join(' '),
+    ).not.toContain('undo any');
+  });
   it('keeps posted decisions and each immutable correction visible', () => {
     const tx = transaction('txn-1', '2026-08-01T10:00:00.000Z', 'Cafe');
     const edit: StoredTxnEdit = {

@@ -33,6 +33,7 @@ import { dedupeKey } from '../local/statementReaderDedup';
 import { readCacheEvictions, READ_CACHE_MAX_CANDIDATES } from './lib/billing/readAllowance';
 import { anchorIsoFor, reanchorRenewals } from './lib/renewalMath';
 import { localDayKey } from './lib/dayClock';
+import { retainTimelineEvents } from './lib/timelineRetention';
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
 import {
   isDebtPayment,
@@ -343,6 +344,8 @@ export type CycleRecord = {
 };
 
 export type Onboarding = {
+  /** Explicit review of balance, pay and regular costs, including deliberate zero amounts. */
+  financialSetupConfirmed?: boolean;
   done: boolean;
   name: string;
   payday: number; // day of month
@@ -397,6 +400,8 @@ export type BalanceSource =
 export type BalanceConfidence = 'rough' | 'statement-derived' | 'corrected' | 'sample';
 export type CurrentBalance = {
   amount: number;
+  /** Distinguishes an explicitly supplied zero from the neutral fresh-profile account shell. */
+  provided?: boolean;
   source: BalanceSource;
   confidence: BalanceConfidence;
   /** ISO timestamp this balance was set. */
@@ -552,7 +557,12 @@ export function isInternalTransferTransaction(
  *  a sub pause/resume (a map flip, not a row) and a Review "Ignore" (recorded elsewhere only as an
  *  opaque signature string, not a human-readable subject). Newest first, capped at 200 — mirrors the
  *  `transactions` cap so the timeline never grows unbounded. */
-export type TimelineEventKind = 'sub-paused' | 'sub-resumed' | 'review-ignored';
+export type TimelineEventKind =
+  | 'sub-paused'
+  | 'sub-resumed'
+  | 'review-ignored'
+  | 'debt-removed'
+  | 'debt-restored';
 
 export type TimelineEvent = {
   id: string;
@@ -562,6 +572,8 @@ export type TimelineEvent = {
   kind: TimelineEventKind;
   /** The human-facing subject — a sub name ('Disney+') or a Review candidate's merchant. */
   subject: string;
+  /** Stable tracking identity; names can change and are not an identity key. */
+  entityId?: string;
   /** Optional short note the row builder can show verbatim (e.g. the paused-for-how-long line). */
   note?: string;
 };
@@ -1064,6 +1076,7 @@ const DEFAULT_MELO: MeloState = { quietMode: false, wardrobe: [], tone: 'calm' }
  *  seeded placeholder. `setAt` is stamped at reset time by `resetToEmpty`. */
 const EMPTY_BALANCE: Omit<CurrentBalance, 'setAt'> = {
   amount: 0,
+  provided: false,
   source: 'user-entered',
   confidence: 'rough',
 };
@@ -1844,12 +1857,12 @@ export function sweepAutoResumeNow(
 ): string[] {
   const swept = sweepAutoResume(state.subs, state.subPaused, today);
   if (swept.resumedNames.length === 0) return [];
-  const timelineEvents = [
+  const timelineEvents = retainTimelineEvents([
     ...swept.resumedNames.map((name) =>
       createTimelineEvent('sub-resumed', name, 'One paused renewal has passed.'),
     ),
     ...(state.timelineEvents ?? []),
-  ].slice(0, 200);
+  ]);
   setPartialWithTypedCommand(
     { subs: swept.subs, subPaused: swept.paused, timelineEvents },
     {
@@ -2454,7 +2467,7 @@ function addDaysToIso(iso: string, days: number): string {
   return new Date(safe + days * 86_400_000).toISOString().slice(0, 10);
 }
 
-function subscriptionWithPause(subscription: Sub, paused: boolean, today: string): Sub {
+export function subscriptionWithPause(subscription: Sub, paused: boolean, today: string): Sub {
   if (!paused) {
     const skipped = { ...subscription.obligationOccurrences };
     const pauseDate = subscription.pausedAt;
@@ -2541,7 +2554,7 @@ export function togglePaused(name: string, value?: boolean) {
   const timelineEvents =
     timelineEvent === null
       ? undefined
-      : [timelineEvent, ...(state.timelineEvents ?? [])].slice(0, 200);
+      : retainTimelineEvents([timelineEvent, ...(state.timelineEvents ?? [])]);
   if (current === next && hadStoredValue) {
     setPartial({ subPaused, subs });
   } else {
@@ -2706,7 +2719,7 @@ export function setCurrentBalance(next: Omit<CurrentBalance, 'setAt'>) {
     bankAccounts.length === 0
       ? next.amount
       : bankAccounts.reduce((sum, a) => sum + a.balanceMinor, 0);
-  const nextBalance = { ...next, amount: bankTotal, setAt };
+  const nextBalance = { ...next, provided: true, amount: bankTotal, setAt };
   setPartialWithTypedCommand(
     { currentBalance: nextBalance, accounts: nextAccounts },
     {
@@ -3708,8 +3721,19 @@ export function updateDebt(
 export function removeDebt(id: string) {
   const target = (state.debts ?? []).find((debt) => debt.id === id);
   if (target === undefined) return;
+  const receipt: TimelineEvent = {
+    ...createTimelineEvent(
+      'debt-removed',
+      target.name,
+      'Removed from tracking. Recorded payments and tracked cash were kept; no payment was made or cancelled.',
+    ),
+    entityId: target.id,
+  };
   setPartialWithTypedCommand(
-    { debts: (state.debts ?? []).filter((debt) => debt.id !== id) },
+    {
+      debts: (state.debts ?? []).filter((debt) => debt.id !== id),
+      timelineEvents: retainTimelineEvents([receipt, ...(state.timelineEvents ?? [])]),
+    },
     {
       commandType: 'folio.debt.remove.v1',
       actorKind: 'user',
@@ -3724,6 +3748,48 @@ export function removeDebt(id: string) {
       invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
     },
   );
+}
+
+/** Restore one removed tracking row without changing cash, payments or unrelated debts. */
+let financialResetGeneration = 0;
+export function getFinancialResetGeneration(): number {
+  return financialResetGeneration;
+}
+
+export function restoreDebtTracking(
+  debt: Debt,
+  position: number,
+  workspaceId: AppState['activeWorkspaceId'],
+  resetGeneration: number,
+): boolean {
+  if (
+    resetGeneration !== financialResetGeneration ||
+    state.activeWorkspaceId !== workspaceId ||
+    (state.debts ?? []).some((row) => row.id === debt.id)
+  )
+    return false;
+  const debts = [...(state.debts ?? [])];
+  debts.splice(Math.min(debts.length, Math.max(0, position)), 0, debt);
+  const receipt: TimelineEvent = {
+    ...createTimelineEvent(
+      'debt-restored',
+      debt.name,
+      'Tracking restored with the previous balance and payment details. Recorded payments and tracked cash were kept.',
+    ),
+    entityId: debt.id,
+  };
+  setPartialWithTypedCommand(
+    { debts, timelineEvents: retainTimelineEvents([receipt, ...(state.timelineEvents ?? [])]) },
+    {
+      commandType: 'folio.debt.add.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'debt', id: debt.id }],
+      before: {},
+      after: { debt },
+      invalidatedProjectionKinds: ['debt-summary', 'cashflow'],
+    },
+  );
+  return true;
 }
 
 /** The manual payment sheet shares the same atomic posting and scoped undo as confirmed Melo
@@ -4840,6 +4906,126 @@ export function removeTransaction(id: string) {
   );
 }
 
+type TransactionRecordRestore = {
+  transaction: Transaction;
+  position: number;
+  evidenceIds: string[];
+  workspaceId: AppState['activeWorkspaceId'];
+  resetGeneration: number;
+  expectedEffects: string;
+};
+
+function transactionEffectsSignature(transaction: Transaction): string {
+  // Financial Undo must not silently replace a more recent balance reconciliation.
+  return isDebtPayment(transaction) || isLiveCashPosting(transaction)
+    ? JSON.stringify([state.currentBalance, state.accounts, state.debts])
+    : '';
+}
+
+/** Restore the complete removed record, its receipt links and its recorded cash/principal effects
+ * in one publication. Refuse stale Undo after a reset, workspace switch or balance change. */
+export function restoreTransactionRecord(restore: TransactionRecordRestore): boolean {
+  const { transaction } = restore;
+  if (
+    state.activeWorkspaceId !== restore.workspaceId ||
+    getFinancialResetGeneration() !== restore.resetGeneration ||
+    state.transactions.some((row) => row.id === transaction.id) ||
+    transactionEffectsSignature(transaction) !== restore.expectedEffects ||
+    restore.evidenceIds.some(
+      (id) => !state.evidenceDocuments?.some((document) => document.id === id),
+    )
+  )
+    return false;
+  requireSourceEvidence(transaction.sourceEvidenceId);
+  const debtTransition = isDebtPayment(transaction)
+    ? transitionDebtPayment(state, undefined, transaction, new Date().toISOString(), true)
+    : undefined;
+  const balancePatch =
+    debtTransition?.patch ??
+    (isLiveCashPosting(transaction)
+      ? applyLiveTransactionBalance(transaction, 1, transaction.when)
+      : {});
+  const rows = [...(balancePatch.transactions ?? state.transactions)].filter(
+    (row) => row.id !== transaction.id,
+  );
+  rows.splice(Math.min(Math.max(0, restore.position), rows.length), 0, transaction);
+  setPartialWithTypedCommand(
+    {
+      ...balancePatch,
+      transactions: rows,
+      evidenceDocuments: (state.evidenceDocuments ?? []).map((document) =>
+        restore.evidenceIds.includes(document.id)
+          ? {
+              ...document,
+              linkedTransactionIds: [
+                ...new Set([...(document.linkedTransactionIds ?? []), transaction.id]),
+              ],
+            }
+          : document,
+      ),
+    },
+    {
+      commandType: 'folio.transaction.record.v1',
+      actorKind: 'user',
+      entityRefs: [{ type: 'transaction', id: transaction.id }],
+      before: {},
+      after: { transaction },
+      changedEntityIds: [transaction.id],
+      invalidatedProjectionKinds: ['transactions', 'cashflow', 'account-balances', 'debt-summary'],
+    },
+  );
+  return true;
+}
+
+/** The confirmation surface calls this only after approval; the returned Undo owns exact metadata. */
+export function removeTransactionWithUndo(id: string): (() => boolean) | null {
+  const transaction = state.transactions.find((row) => row.id === id);
+  if (!transaction) return null;
+  const restore: TransactionRecordRestore = {
+    transaction,
+    position: state.transactions.findIndex((row) => row.id === id),
+    evidenceIds: (state.evidenceDocuments ?? [])
+      .filter((document) => document.linkedTransactionIds?.includes(id))
+      .map((document) => document.id),
+    workspaceId: state.activeWorkspaceId,
+    resetGeneration: getFinancialResetGeneration(),
+    expectedEffects: '',
+  };
+  removeTransaction(id);
+  restore.expectedEffects = transactionEffectsSignature(transaction);
+  return () => restoreTransactionRecord(restore);
+}
+
+function editableTransactionSignature(transaction: Transaction): string {
+  return JSON.stringify([
+    transaction.merchant,
+    transaction.amount,
+    transaction.when,
+    transaction.category,
+    'note' in transaction ? transaction.note : undefined,
+    transaction.financialAction,
+  ]);
+}
+
+/** Undo only this correction while the reviewed after-state is still current. */
+export function undoTransactionCorrection(
+  expected: Transaction,
+  before: TxnEditPatch,
+  workspaceId: AppState['activeWorkspaceId'],
+  resetGeneration: number,
+): boolean {
+  const live = state.transactions.find((row) => row.id === expected.id);
+  if (
+    state.activeWorkspaceId !== workspaceId ||
+    getFinancialResetGeneration() !== resetGeneration ||
+    !live ||
+    editableTransactionSignature(live) !== editableTransactionSignature(expected)
+  )
+    return false;
+  editTransaction(expected.id, before, 'user');
+  return true;
+}
+
 /* ---------- Bulk "add all as history" (task: BULK ADD-AS-HISTORY) ---------- */
 
 /** A closing-balance offer surfaced by `addStatementAsHistory` when the reader supplied one — never
@@ -5784,7 +5970,7 @@ export function addIgnoredReviewSig(sig: string, subject?: string) {
   const timelineEvents =
     timelineEvent === null
       ? undefined
-      : [timelineEvent, ...(state.timelineEvents ?? [])].slice(0, 200);
+      : retainTimelineEvents([timelineEvent, ...(state.timelineEvents ?? [])]);
   setPartialWithTypedCommand(
     { ignoredReviewSigs, ...(timelineEvents === undefined ? {} : { timelineEvents }) },
     {
@@ -6642,6 +6828,7 @@ export function createEmptyWorkspacePartition(
  * profile. Non-financial app preferences, purchases and read allowance survive. Confirmation and
  * durable cleanup remain the responsibility of the existing Privacy/localDataDeletion flow. */
 export function resetToEmpty(options?: Readonly<{ onboardingDone?: boolean }>) {
+  financialResetGeneration += 1;
   clearPendingAppStateCommands(state.activeWorkspaceId);
   const workspaceRoot = assertValidWorkspaceRoot({
     workspaces: [...state.workspaces],

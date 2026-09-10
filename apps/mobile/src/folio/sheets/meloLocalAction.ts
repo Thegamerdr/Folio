@@ -44,6 +44,8 @@ export function resolveMeloLocalAction(
   intent: MeloLocalIntent,
 ): MeloLocalActionDestination {
   switch (action) {
+    case 'open_manual_setup':
+      return { kind: 'sheet', sheet: 'onboarding' };
     case 'open_what_if':
       return { kind: 'screen', screen: 'whatif' };
     case 'open_business_invoices':

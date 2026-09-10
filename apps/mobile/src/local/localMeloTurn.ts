@@ -734,17 +734,13 @@ export function buildLocalMeloTurn(
   const parsed = parseLocalMoneySuggestion(input.prompt);
   const financeProposal = parseLocalFinanceProposal(input.prompt);
   if (financeProposal !== null) {
-    const proposedAmount = Number(financeProposal.args.amount);
     const currentDebtMinor = input.snapshot.totalDebtMinor;
     const preview = {
       availableNowMinor: input.snapshot.availableNowMinor,
       tightestBalanceMinor: input.snapshot.tightestBalanceMinor,
-      ...(financeProposal.name === 'log_debt_payment' &&
-      Number.isFinite(proposedAmount) &&
-      currentDebtMinor !== undefined
+      ...(financeProposal.name === 'log_debt_payment' && currentDebtMinor !== undefined
         ? {
             beforeTotalDebtMinor: currentDebtMinor,
-            afterTotalDebtMinor: Math.max(0, currentDebtMinor - Math.round(proposedAmount * 100)),
           }
         : {}),
       ...(financeProposal.name === 'set_debt_balance' && currentDebtMinor !== undefined

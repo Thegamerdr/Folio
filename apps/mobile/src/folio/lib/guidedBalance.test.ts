@@ -10,7 +10,7 @@ describe('guided check-in production balance', () => {
   });
   it('preserves an existing user-entered balance in the rough-number check-in', () => {
     expect(guidedBalanceDraft({ amount: 500, source: 'user-entered' })).toBe('500');
-    expect(guidedBalanceDraft({ amount: 501.2, source: 'corrected' })).toBe('501');
+    expect(guidedBalanceDraft({ amount: 501.2, source: 'corrected' })).toBe('501.2');
   });
   it('does not invent cash from an invalid stored amount', () => {
     expect(guidedBalanceDraft({ amount: Number.NaN, source: 'user-entered' })).toBe('0');

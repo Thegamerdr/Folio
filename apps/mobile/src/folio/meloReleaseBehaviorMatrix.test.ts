@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_ACCOUNT_ID,
@@ -22,6 +22,8 @@ import { buildLocalMeloTurn } from '../local/localMeloTurn';
 const AS_OF = '2026-09-09T12:00:00.000Z';
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(AS_OF));
   resetToEmpty();
   setPartial({
     onboarding: { done: true, name: 'Release fixture', payday: 28, monthlyIncome: 1_800 },
@@ -71,6 +73,8 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => vi.useRealTimers());
+
 const DEBT_REVIEW_SNAPSHOT = {
   currency: 'GBP' as const,
   availableNowMinor: 38_000,
@@ -86,7 +90,9 @@ const DEBT_REVIEW_SNAPSHOT = {
 };
 
 function personalWorkspace() {
-  const workspace = getState().workspaces.find((candidate) => candidate.id === PERSONAL_WORKSPACE_ID);
+  const workspace = getState().workspaces.find(
+    (candidate) => candidate.id === PERSONAL_WORKSPACE_ID,
+  );
   if (workspace === undefined) throw new Error('Personal workspace fixture is missing.');
   return workspace;
 }
@@ -107,20 +113,39 @@ function safeMinor(): number {
 
 describe('Melo release behavior matrix (fixed 2026-09-09 fixture)', () => {
   it('corrects a lower actual receipt and projects the changed confirmed transaction', () => {
-    addTransaction({ id: 'salary', merchant: 'Salary', amount: 1_800, category: 'income', source: 'manual' });
+    addTransaction({
+      id: 'salary',
+      merchant: 'Salary',
+      amount: 1_800,
+      category: 'income',
+      source: 'manual',
+    });
     const result = applyMeloTool('correct_income', { transactionId: 'salary', amount: 1_427 });
     expect(result.applied).toBe(true);
     expect(getState().transactions.find((row) => row.id === 'salary')?.amount).toBe(1_427);
-    expect(projection().transactions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sourceTransactionId: 'salary', amount: { currency: 'GBP', minorUnits: 142_700 } }),
-    ]));
+    expect(projection().transactions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceTransactionId: 'salary',
+          amount: { currency: 'GBP', minorUnits: 142_700 },
+        }),
+      ]),
+    );
     setCurrentBalance({ amount: 1_427, source: 'corrected', confidence: 'corrected' });
     expect(safeMinor()).toBe(700);
   });
 
   it('corrects a higher actual receipt without changing forecast-only income state', () => {
-    addTransaction({ id: 'bonus', merchant: 'Salary', amount: 1_800, category: 'income', source: 'manual' });
-    expect(applyMeloTool('correct_income', { transactionId: 'bonus', amount: 1_950 }).applied).toBe(true);
+    addTransaction({
+      id: 'bonus',
+      merchant: 'Salary',
+      amount: 1_800,
+      category: 'income',
+      source: 'manual',
+    });
+    expect(applyMeloTool('correct_income', { transactionId: 'bonus', amount: 1_950 }).applied).toBe(
+      true,
+    );
     expect(getState().transactions.find((row) => row.id === 'bonus')?.amount).toBe(1_950);
     expect(getState().onboarding.monthlyIncome).toBe(1_800);
     setCurrentBalance({ amount: 1_950, source: 'corrected', confidence: 'corrected' });
@@ -142,14 +167,19 @@ describe('Melo release behavior matrix (fixed 2026-09-09 fixture)', () => {
       dueDate: '2026-09-20',
     });
     expect(result.applied).toBe(true);
-    expect(getState().subs.find((sub) => sub.name === 'Internet')).toMatchObject({ cost: 35, nextRenewalISO: '2026-09-20' });
+    expect(getState().subs.find((sub) => sub.name === 'Internet')).toMatchObject({
+      cost: 35,
+      nextRenewalISO: '2026-09-20',
+    });
     expect(projection().validation).toEqual({ valid: true, issues: [] });
     expect(safeMinor()).toBe(34_500);
   });
 
   it('rejects an undated new bill instead of guessing its due date', () => {
     const before = structuredClone(getState());
-    expect(applyMeloTool('set_commitment', { name: 'Council tax', amount: 150 })).toMatchObject({ applied: false });
+    expect(applyMeloTool('set_commitment', { name: 'Council tax', amount: 150 })).toMatchObject({
+      applied: false,
+    });
     expect(getState().subs).toEqual(before.subs);
   });
 
@@ -161,7 +191,11 @@ describe('Melo release behavior matrix (fixed 2026-09-09 fixture)', () => {
 
   it('preserves unknown APR and promotion expiry as explicit debt metadata', () => {
     updateDebt('klarna', { apr: 0, aprKnown: false, promoUntil: '2026-12-31' });
-    expect(getState().debts?.[0]).toMatchObject({ apr: 0, aprKnown: false, promoUntil: '2026-12-31' });
+    expect(getState().debts?.[0]).toMatchObject({
+      apr: 0,
+      aprKnown: false,
+      promoUntil: '2026-12-31',
+    });
   });
 
   it('persists arrears and minimum-payment corrections', () => {
@@ -187,10 +221,15 @@ describe('Melo release behavior matrix (fixed 2026-09-09 fixture)', () => {
     expect(result.applied).toBe(true);
     expect(getState().debts?.[0]?.balance).toBe(0);
     expect(getState().accounts?.[0]?.balanceMinor).toBe(1_400);
-    expect(getState().transactions[0]).toMatchObject({ amount: -400, accountId: DEFAULT_ACCOUNT_ID });
-    expect(projection().transactions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ amount: { currency: 'GBP', minorUnits: -40_000 } }),
-    ]));
+    expect(getState().transactions[0]).toMatchObject({
+      amount: -400,
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
+    expect(projection().transactions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ amount: { currency: 'GBP', minorUnits: -40_000 } }),
+      ]),
+    );
     expect(safeMinor()).toBe(6_000);
     if (result.applied) expect(result.undo()).toBe(true);
     expect(getState().debts?.[0]?.balance).toBe(320);
@@ -200,12 +239,29 @@ describe('Melo release behavior matrix (fixed 2026-09-09 fixture)', () => {
   });
 
   it('preserves real refund pairing without inventing a second cash event', () => {
-    addTransaction({ id: 'purchase', merchant: 'Shop', amount: -20, category: 'shopping', source: 'manual' });
-    addTransaction({ id: 'refund', merchant: 'Shop', amount: 20, category: 'income', source: 'manual' });
-    const result = applyMeloTool('log_refund', { incomingTransactionId: 'refund', originalTransactionId: 'purchase' });
+    addTransaction({
+      id: 'purchase',
+      merchant: 'Shop',
+      amount: -20,
+      category: 'shopping',
+      source: 'manual',
+    });
+    addTransaction({
+      id: 'refund',
+      merchant: 'Shop',
+      amount: 20,
+      category: 'income',
+      source: 'manual',
+    });
+    const result = applyMeloTool('log_refund', {
+      incomingTransactionId: 'refund',
+      originalTransactionId: 'purchase',
+    });
     expect(result.applied).toBe(true);
     expect(getState().transactions).toHaveLength(2);
-    expect(getState().transactions.find((row) => row.id === 'refund')?.financialAction).toMatchObject({ kind: 'refund', originalTransactionId: 'purchase' });
+    expect(
+      getState().transactions.find((row) => row.id === 'refund')?.financialAction,
+    ).toMatchObject({ kind: 'refund', originalTransactionId: 'purchase' });
     expect(safeMinor()).toBe(38_000);
   });
 
@@ -283,7 +339,8 @@ describe('Melo release behavior matrix (fixed 2026-09-09 fixture)', () => {
     // on the scalar path makes the pence conversion at the finance-engine boundary explicit.
     setPartial({ accounts: [] });
     const now = new Date(AS_OF);
-    const safe = () => buildFinancialPlanFromState(getState(), { now, horizonDays: 35 }).safeToSpendMinor;
+    const safe = () =>
+      buildFinancialPlanFromState(getState(), { now, horizonDays: 35 }).safeToSpendMinor;
     expect(safe()).toBe(38_000);
 
     setCurrentBalance({ amount: 1_600, source: 'corrected', confidence: 'corrected' });
@@ -325,32 +382,44 @@ describe('Melo release behavior matrix (fixed 2026-09-09 fixture)', () => {
     if (debt === undefined) throw new Error('Debt fixture is missing.');
     setPartial({ debts: [debt, { ...debt, id: 'klarna-2', name: 'Klarna card' }] });
     const before = structuredClone(getState().debts);
-    expect(applyMeloTool('set_debt_balance', { debtName: 'Klar', balance: 0 })).toMatchObject({ applied: false });
+    expect(applyMeloTool('set_debt_balance', { debtName: 'Klar', balance: 0 })).toMatchObject({
+      applied: false,
+    });
     expect(getState().debts).toEqual(before);
   });
 
   it('stores total essentials in the weekly engine unit when a monthly amount is supplied', () => {
-    expect(applyMeloTool('set_living_cost', { category: 'food', amount: 100, cadence: 'monthly' }).applied).toBe(true);
+    expect(
+      applyMeloTool('set_living_cost', { category: 'food', amount: 100, cadence: 'monthly' })
+        .applied,
+    ).toBe(true);
     expect(getState().modeExtras?.reset).toBe(23.08);
   });
 
   it('shows deterministic current and after debt figures before confirmation', () => {
     const turn = parseLocalFinanceProposal('I paid £400 off Klarna');
-    expect(turn).toMatchObject({ name: 'log_debt_payment', args: { amount: 400, debtName: 'Klarna' } });
+    expect(turn).toMatchObject({
+      name: 'log_debt_payment',
+      args: { amount: 400, debtName: 'Klarna' },
+    });
     const before = getState().debts?.[0]?.balance;
     expect(before).toBe(320);
-    expect(applyMeloTool('log_debt_payment', {
-      ...(turn?.args ?? {}),
-      preview: { beforeTotalDebtMinor: 32_000, afterTotalDebtMinor: 0 },
-    }).applied).toBe(true);
+    expect(
+      applyMeloTool('log_debt_payment', {
+        ...(turn?.args ?? {}),
+        preview: { beforeTotalDebtMinor: 32_000, afterTotalDebtMinor: 0 },
+      }).applied,
+    ).toBe(true);
   });
 
   it('keeps one-off calendar commitments separate from recurring subscriptions', () => {
     addCalendarEvent({ date: '2026-09-18', kind: 'out', title: 'One-off repair', amount: -80 });
     expect(projection().validation).toEqual({ valid: true, issues: [] });
-    expect(getState().calendarEvents).toEqual(expect.arrayContaining([
-      expect.objectContaining({ title: 'One-off repair', date: '2026-09-18' }),
-    ]));
+    expect(getState().calendarEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'One-off repair', date: '2026-09-18' }),
+      ]),
+    );
     expect(getState().subs.some((sub) => sub.name === 'One-off repair')).toBe(false);
   });
 });

@@ -96,6 +96,7 @@ export function commitOnboarding(input: OnboardingCommitInput): void {
     payday: input.legacyPayday,
     monthlyIncome: monthlyEquivalent(input.monthlyIncome, input.cadence),
     done: true,
+    financialSetupConfirmed: true,
     ...(input.bundledCommitment === undefined
       ? {}
       : { bundledCommitmentName: input.bundledCommitment.name.trim() || 'Rent + bills' }),
@@ -141,17 +142,19 @@ export function commitOnboarding(input: OnboardingCommitInput): void {
             subscription.name !== priorBundledName,
         ),
         ...(bundled.amount > 0
-          ? [{
-              name: bundledName,
-              cost: Math.max(0, Math.round(bundled.amount * 100) / 100),
-              nextRenewalDaysAway: daysUntilDayOfMonth(
-                Math.min(31, Math.max(1, Math.round(bundled.dueDom))),
-                new Date().toISOString().slice(0, 10),
-              ),
-              nextRenewalISO: nextMonthlyCommitmentISO(bundled.dueDom),
-              lastUsedDaysAgo: 0,
-              usesPerMonth: 0,
-            }]
+          ? [
+              {
+                name: bundledName,
+                cost: Math.max(0, Math.round(bundled.amount * 100) / 100),
+                nextRenewalDaysAway: daysUntilDayOfMonth(
+                  Math.min(31, Math.max(1, Math.round(bundled.dueDom))),
+                  new Date().toISOString().slice(0, 10),
+                ),
+                nextRenewalISO: nextMonthlyCommitmentISO(bundled.dueDom),
+                lastUsedDaysAgo: 0,
+                usesPerMonth: 0,
+              },
+            ]
           : []),
       ]);
     }
@@ -161,7 +164,8 @@ export function commitOnboarding(input: OnboardingCommitInput): void {
   setMoneyMode(input.intentMode);
   setModeExtra(input.intentMode, input.modeExtra);
   if (input.desiredBuffer !== undefined) setBufferAmount(input.desiredBuffer);
-  else if (input.intentMode === 'survival' || input.intentMode === 'stability') setBufferAmount(input.modeExtra);
+  else if (input.intentMode === 'survival' || input.intentMode === 'stability')
+    setBufferAmount(input.modeExtra);
   // Reset mode's existing mode-extra is the canonical weekly essentials allowance. Capture it even
   // when the user chose another lens so the safe-to-spend projection has a real denominator.
   setEssentialsWeeklyAmount(input.weeklyEssentials ?? 0);

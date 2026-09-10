@@ -109,9 +109,10 @@ describe('shortfall recovery discretionary budget', () => {
     });
   });
 
-  it('rounds protection upward and spending downward at whole-pound display precision', () => {
+  it('preserves exact pence in the gap and rounds only the approximate daily guide down', () => {
     const route = routeFromStore(septemberPaydayState(), now);
-    expect(deriveShortfallBudget({ ...route, safeToSpend: -0.01 }).gap).toBe(1);
+    expect(deriveShortfallBudget({ ...route, safeToSpend: -0.01 }).gap).toBe(0.01);
+    expect(deriveShortfallBudget({ ...route, safeToSpend: -150.45 }).gap).toBe(150.45);
     expect(deriveShortfallBudget({ ...route, safeToSpend: 29.99, daysToPayday: 3 }).dailyCap).toBe(
       9,
     );

@@ -14,7 +14,7 @@
  * @opens-sheet  — (the web @opens-sheet declared melo-chat as intent, but the body never opens it; the
  *               inline Melo here is non-interactive, so no sheet is opened — faithful to the source).
  * @copy         FROZEN — the WhatIf strings are inline @copy FROZEN in the web source and are NOT keyed
- *               in COPY_DECK; kept VERBATIM here, including the apostrophe in "today's spend" and the
+ *               in COPY_DECK; kept VERBATIM here, including the apostrophe in "hypothetical amount" and the
  *               em-dash in "Close — nothing was added". The £{amount} accent word renders terracotta.
  * @tokens       canvas(paper) · surface · inset · ink · muted · secondary · calm(accent) · positive ·
  *               caution · repair(negative) · hairline · payday · inverse(on-accent white) · Fraunces ·
@@ -70,6 +70,12 @@ import {
   type WhatIfHold,
 } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { buildWhatIfPresentation } from '@/folio/lib/whatIfPresentation';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import {
+  selectFinancialPresentation,
+  formatFinancialDate,
+} from '@/folio/lib/financialPresentation';
 import type { Nav, Pressure } from '@/folio/types';
 import type { MoneyMode } from '@/folio/lib/modes/types';
 
@@ -379,7 +385,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
 
   // Live store reads (read-only — WhatIf writes nothing).
   const tightPointGoal = useAppStore((s) => s.tightPointGoal);
-  const hasMoneyPicture = useAppStore(hasConfiguredMoneyPicture);
+  const appState = useAppStore((s) => s);
   const potsTotal = useAppStore((s) => s.pots.reduce((sum, p) => sum + p.saved, 0));
   const transactions = useAppStore((s) => s.transactions);
   const whatIfHolds = useAppStore((s) => s.whatIfHolds ?? []);
@@ -414,20 +420,29 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
   // The affordability stat is protected headroom, not raw closing cash. Keep the raw route points
   // for the SVG, but subtract the spend from the canonical safe-to-spend figure so a buffer or
   // dated commitment cannot be bypassed by this preview (Fixture B: £380 − £400 = −£20).
-  const baseLow = route ? (route.safeToSpend ?? route.tightPoint.amount) : 0;
+  const plan = useMemo(
+    () => buildFinancialPlanFromState(appState, { now: now ?? EPOCH }),
+    [appState, now],
+  );
+  const presentation = selectFinancialPresentation(appState, plan);
+  const scenario = useMemo(
+    () => buildWhatIfPresentation(appState, now ?? EPOCH, amount, recurrence, paydayShift),
+    [appState, now, amount, recurrence, paydayShift],
+  );
+  const baseLow = plan.safeToSpendMinor / 100;
 
   // Days this would last — newLow ÷ the real daily burn (trailing-28-day average spend from
   // transactions, ENGINES §6). With no recent spend there is no defensible duration, so the screen
   // shows that as unavailable rather than reviving the Lovable £28/day fixture.
   const liveBurn = now ? trailingDailyBurn(transactions, now) : 0;
   const burn = Math.max(0, liveBurn);
-  const shiftCost = Math.round(paydayShift * burn);
-  const newLow = baseLow - amount - shiftCost;
+  const newLow = scenario.preview.safeToSpendMinor / 100;
+  const shiftCost = (scenario.savedHold.safeToSpendMinor - scenario.preview.safeToSpendMinor) / 100;
   const daysCover = burn > 0 ? Math.max(0, Math.round((newLow / burn) * 10) / 10) : null;
 
   // count-up (380ms) drives the two stat-tile figures; reduce-motion snaps to the target. The centre
   // £{amount} uses the raw value (it is the input — instant, never animated).
-  const lowDisplay = useCountUp(newLow, COUNT_UP_MS, reduceMotion);
+  const lowDisplay = newLow;
   const coverDisplay = useCountUp(daysCover ?? 0, COUNT_UP_MS, reduceMotion);
 
   // Honest signal: would this drop you below your Melo-set floor?
@@ -443,8 +458,20 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
   // balances rather than maintaining a second illustrative curve.
   const scenarioGeometry = useMemo(
     () =>
-      route ? buildScenarioGeometry(route.points, route.daysToPayday, amount, shiftCost) : null,
-    [amount, route, shiftCost],
+      route
+        ? buildScenarioGeometry(
+            scenario.preview.timeline.map((point) => ({ y: point.closingMinor / 100 })),
+            Math.max(
+              0,
+              scenario.preview.timeline.findIndex(
+                (point) => point.date === scenario.preview.nextIncomeDate,
+              ),
+            ),
+            0,
+            0,
+          )
+        : null,
+    [route, scenario],
   );
   const fallbackGeometry: ScenarioGeometry = {
     d: 'M 18 80 C 70 90, 110 70, 160 110 S 240 150, 300 160 S 350 60, 372 50',
@@ -461,17 +488,20 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
   const mood: MeloMood =
     breachesGoal || newLow < TIGHT ? 'concern' : newLow < EASY ? 'curious' : 'calm';
 
-  const meloLine = breachesGoal
-    ? `That drops you below your £${tightPointGoal} floor.`
-    : newLow < 0
-      ? wouldEatPots
-        ? `You'd have to dip into pots — about £${Math.abs(newLow)} from somewhere.`
-        : "This one wouldn't fit. Try a smaller hold."
-      : newLow < TIGHT
-        ? 'This one would press you. Try a smaller hold.'
-        : newLow < EASY
-          ? "You'd feel it, but you'd make it."
-          : 'Plenty of room. Spend if it serves you.';
+  const meloLine =
+    !presentation.canReassure && baseLow >= 0
+      ? presentation.message
+      : breachesGoal
+        ? `That drops you below your £${tightPointGoal} floor.`
+        : newLow < 0
+          ? wouldEatPots
+            ? `You'd have to dip into pots — about £${Math.abs(newLow)} from somewhere.`
+            : "This one wouldn't fit. Try a smaller hold."
+          : newLow < TIGHT
+            ? 'This one would press you. Try a smaller hold.'
+            : newLow < EASY
+              ? "You'd feel it, but you'd make it."
+              : 'This hypothetical hold fits the numbers currently entered.';
 
   // The negative tones (web): New lowest negative when breachesGoal || newLow < 50; Days negative when
   // daysCover < 5; the floor caption is negative ONLY on breach.
@@ -514,13 +544,13 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
   // empty — no money to preview yet (STATES.md WhatIf empty = "Add some moves first"). The web body has
   // no empty guard; the port adds the calm doorway (Melo + Fraunces line + one CTA → intake) so the
   // experiment never opens onto an empty path. The CTA routes to intake (add what you have).
-  if (state === 'empty' || !hasMoneyPicture) {
+  if (state === 'empty' || !presentation.complete) {
     return (
       <EmptyState
         mood="curious"
-        headline="Add some moves first."
-        body="Once there's something on your money path, you can try a spend here and see how the lowest point shifts — before any of it counts."
-        cta={{ label: 'Add what you have', onPress: () => nav.go('intake') }}
+        headline="We need your numbers"
+        body={presentation.message}
+        cta={{ label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }}
       />
     );
   }
@@ -594,7 +624,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
 
               <View style={styles.stepperCenter}>
                 <Text style={styles.amountValue}>£{amount}</Text>
-                <Text style={styles.amountCaption}>today's spend</Text>
+                <Text style={styles.amountCaption}>hypothetical amount</Text>
               </View>
 
               <Pressable
@@ -666,11 +696,11 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
               when a floor is set), and Days this would last (count-up, negative under 5d) + pots total. */}
           <View style={styles.tilesRow}>
             <View style={styles.tile}>
-              <Text style={styles.tileLabel}>{modeCopy.lowLabel}</Text>
+              <Text style={styles.tileLabel}>After this · safe to spend</Text>
               <Text
                 style={[styles.tileValue, lowIsNegative ? styles.tileValueNegative : undefined]}
               >
-                {formatGBP(Math.round(lowDisplay))}
+                {formatGBP(lowDisplay)}
               </Text>
               {tightPointGoal !== null ? (
                 <Text
@@ -686,17 +716,20 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
             </View>
 
             <View style={styles.tile}>
-              <Text style={styles.tileLabel}>{modeCopy.coverLabel}</Text>
-              <Text
-                style={[styles.tileValue, daysIsNegative ? styles.tileValueNegative : undefined]}
-              >
-                {daysCover === null ? '—' : `${coverDisplay.toFixed(1)}d`}
-              </Text>
-              <Text style={[styles.tileCaption, styles.tabular]}>
-                {daysCover === null ? 'No recent spend rate' : `£${potsTotal} in pots`}
+              <Text style={styles.tileLabel}>Current safe to spend</Text>
+              <Text style={styles.tileValue}>{formatGBP(baseLow)}</Text>
+              <Text style={styles.tileCaption}>
+                {newLow < 0
+                  ? 'No room remains after recorded costs and buffer.'
+                  : `Until ${formatFinancialDate(scenario.preview.nextIncomeDate)}`}
               </Text>
             </View>
           </View>
+
+          <Text style={styles.tileCaption}>
+            Projected balance: lowest {formatGBP(scenario.preview.lowestProjectedMinor / 100)}.
+            Payday {formatFinancialDate(scenario.preview.nextIncomeDate)}. No money has moved.
+          </Text>
 
           {/* Melo line — the quiet companion verdict, mood derived dynamically from newLow. Melo is
               grounded and non-interactive here (the web never made it tappable / never opened a sheet). */}
@@ -782,9 +815,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
             </View>
             {paydayShift !== 0 ? (
               <Text style={styles.paydayShiftExplain}>
-                {paydayShift < 0
-                  ? `Paid early — the lowest point lifts by about £${Math.abs(shiftCost)}.`
-                  : `Paid late — the lowest point drops by about £${Math.abs(shiftCost)}.`}
+                {`Preview payday ${formatFinancialDate(scenario.preview.nextIncomeDate)}. Saving a hold keeps your original income dates.`}
               </Text>
             ) : null}
           </View>
@@ -821,9 +852,15 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
             </View>
           ) : null}
 
+          <Text style={styles.tileCaption}>
+            Saving adds a hypothetical {recurrence} hold to your plan. With your actual payday
+            dates, safe to spend becomes {formatGBP(scenario.savedHold.safeToSpendMinor / 100)}
+            {scenario.savedHold.safeToSpendMinor < 0 ? ' — the plan still has a gap' : ''}. Your
+            cash balance does not change.
+          </Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Save £${amount} ${recurrence} as a hold`}
+            accessibilityLabel={`Save hypothetical hold £${amount} ${recurrence}`}
             onPress={() => {
               addWhatIfHold({ amount, recurrence });
               nav.go('today');
@@ -834,7 +871,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
             ]}
           >
             <Text style={styles.saveHoldLabel}>
-              Save as hold · £{amount} {recurrence}
+              Save hypothetical hold · £{amount} {recurrence}
             </Text>
           </Pressable>
 
@@ -845,11 +882,11 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
             accessibilityHint="Opens your money path on Today."
             onPress={() => nav.go('today')}
             style={({ pressed: isPressed }) => [
-              styles.primary,
+              styles.close,
               isPressed ? styles.pressed : undefined,
             ]}
           >
-            <Text style={styles.primaryLabel}>{modeCopy.cta}</Text>
+            <Text style={styles.closeLabel}>See current money path →</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -1114,9 +1151,9 @@ function makeStyles(t: Palette) {
       borderColor: t.hairline,
       borderRadius: radius.pill,
       borderWidth: StyleSheet.hairlineWidth,
-      height: 40,
+      minHeight: 48,
       justifyContent: 'center',
-      width: 40,
+      minWidth: 48,
     },
     shiftButtonDisabled: {
       opacity: 0.45,
@@ -1141,7 +1178,7 @@ function makeStyles(t: Palette) {
       borderRadius: radius.pill,
       borderWidth: StyleSheet.hairlineWidth,
       flex: 1,
-      height: 36,
+      minHeight: 48,
       justifyContent: 'center',
     },
     recurrenceButtonSelected: {

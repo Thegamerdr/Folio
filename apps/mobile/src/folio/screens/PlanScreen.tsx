@@ -31,6 +31,11 @@ import { useDayClock } from '@/folio/lib/useDayClock';
 import type { Nav } from '@/folio/types';
 import { buildCanonicalPlanUpcoming, shortPlanDay } from './planModel';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import {
+  selectFinancialPresentation,
+  formatMoney as formatGBP,
+} from '@/folio/lib/financialPresentation';
+import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
 
 // ---------------------------------------------------------------------------
 // formatGBP — the web's exact pure function (folio kit). Signed, Intl en-GB, no
@@ -38,10 +43,6 @@ import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 // the glyph matches the web byte-for-byte. Reproduced locally rather than using
 // the kit's money() (which emits a hyphen-minus).
 // ---------------------------------------------------------------------------
-function formatGBP(n: number): string {
-  const sign = n < 0 ? '−' : '';
-  return `${sign}£${Math.abs(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })}`;
-}
 
 // ---------------------------------------------------------------------------
 // Money — the web <Money> primitive: a tabular Fraunces figure. Only the sizes /
@@ -152,6 +153,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   );
 
   const upcoming = useMemo(() => buildCanonicalPlanUpcoming(financialPlan), [financialPlan]);
+  const financePresentation = selectFinancialPresentation(appState, financialPlan);
   const total = useMemo(() => upcoming.reduce((sum, u) => sum + u.amount, 0), [upcoming]);
   const planTightPoint = useMemo(() => (route ? selectPaydayTightPoint(route) : null), [route]);
   const tightDate = planTightPoint?.date ?? null;
@@ -247,7 +249,11 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
 
   const destinations = [
     { label: 'Calendar', meta: 'the dates that matter', onPress: () => nav.go('calendar') },
-    { label: 'Subscriptions', meta: `${liveSubs.length} active`, onPress: () => nav.go('subs') },
+    {
+      label: 'Bills & commitments',
+      meta: `${liveSubs.length} tracked`,
+      onPress: () => nav.go('subs'),
+    },
     {
       label: 'Debts',
       meta: debts.length ? `${debts.length} tracked` : 'nothing tracked yet',
@@ -275,7 +281,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   const addChoices = [
     {
       label: 'Add a bill',
-      meta: 'something that leaves every month',
+      meta: 'a regular cost at any cadence',
       onPress: () => nav.go('add-bill'),
     },
     {
@@ -284,7 +290,11 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
       onPress: () => nav.openSheet('declare-debt'),
     },
     { label: 'Add a date', meta: 'a one-off in or out', onPress: () => nav.openSheet('add-event') },
-    { label: 'Sub check-in', meta: 'still worth it? three choices', onPress: () => nav.go('subs') },
+    {
+      label: 'Review regular costs',
+      meta: 'still worth it? three choices',
+      onPress: () => nav.go('subs'),
+    },
     {
       label: 'Log a transfer',
       meta: 'between your own accounts',
@@ -322,79 +332,108 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
             </Text>
           </View>
 
-          <View style={[styles.dominant, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-            <Text style={[styles.smallLabel, { color: t.muted }]}>
-              {upcoming.length} thing{upcoming.length === 1 ? '' : 's'} still to leave
-            </Text>
-            <View style={styles.figureAmount}>
-              <Money value={formatGBP(total)} size="lg" t={t} />
-            </View>
-            <Text style={[styles.dominantCaption, { color: t.muted }]}>
-              {daysToPayday === null
-                ? 'within this forecast, including unpaid bills'
-                : `over the ${daysToPayday} day${daysToPayday === 1 ? '' : 's'} to payday, including unpaid bills`}
-            </Text>
-            {financialPlan ? (
-              <View style={[styles.safePlan, { borderTopColor: t.hairline }]}>
-                <View>
-                  <Text style={[styles.smallLabel, { color: t.muted }]}>Safe to spend</Text>
-                  <Text style={[styles.safeCaption, { color: t.muted }]}>
-                    after bills, essentials and buffer
-                  </Text>
-                </View>
-                <Money
-                  value={formatGBP(financialPlan.safeToSpendMinor / 100)}
-                  size="sm"
-                  tone={financialPlan.safeToSpendMinor < 0 ? 'negative' : 'ink'}
-                  t={t}
-                />
+          {!financePresentation.complete || !financialPlan?.nextIncomeDate ? (
+            <FinancialSetupNotice
+              state={appState}
+              plan={financialPlan}
+              onSetup={() => nav.openSheet('onboarding')}
+            />
+          ) : (
+            <View
+              style={[styles.dominant, { backgroundColor: t.surface, borderColor: t.hairline }]}
+            >
+              <Text style={[styles.smallLabel, { color: t.muted }]}>
+                {upcoming.length} thing{upcoming.length === 1 ? '' : 's'} still to leave
+              </Text>
+              <View style={styles.figureAmount}>
+                <Money value={formatGBP(total)} size="lg" t={t} />
               </View>
-            ) : null}
+              {financePresentation.overdueCount > 0 ? (
+                <Text style={[styles.narrative, { color: t.repairInk }]}>
+                  {financePresentation.overdueCount} overdue ·{' '}
+                  {formatGBP(
+                    financePresentation.overdue.reduce((sum, item) => sum + item.amountMinor, 0) /
+                      100,
+                  )}{' '}
+                  still reserved
+                </Text>
+              ) : null}
+              <Text style={[styles.dominantCaption, { color: t.muted }]}>
+                {daysToPayday === null
+                  ? 'within this forecast, including unpaid bills'
+                  : `over the ${daysToPayday} day${daysToPayday === 1 ? '' : 's'} to payday, including unpaid bills`}
+              </Text>
+              {financialPlan ? (
+                <View style={[styles.safePlan, { borderTopColor: t.hairline }]}>
+                  <View>
+                    <Text style={[styles.smallLabel, { color: t.muted }]}>
+                      {financePresentation.canReassure ? 'Safe to spend' : 'After recorded costs'}
+                    </Text>
+                    <Text style={[styles.safeCaption, { color: t.muted }]}>
+                      after bills, essentials and buffer
+                    </Text>
+                  </View>
+                  <Money
+                    value={formatGBP(financialPlan.safeToSpendMinor / 100)}
+                    size="sm"
+                    tone={financialPlan.safeToSpendMinor < 0 ? 'negative' : 'ink'}
+                    t={t}
+                  />
+                </View>
+              ) : null}
+              <View
+                style={[
+                  styles.dominantActions,
+                  stackDominantActions ? styles.dominantActionsStack : undefined,
+                ]}
+              >
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="See what's coming"
+                  onPress={() => nav.go('calendar')}
+                  style={({ pressed: isPressed }) => [
+                    styles.secondaryButton,
+                    { backgroundColor: t.surface, borderColor: t.hairline },
+                    isPressed ? styles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[styles.buttonLabel, { color: t.ink }]} numberOfLines={1}>
+                    See what's coming
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Try a change"
+                  onPress={() => nav.go('whatif')}
+                  style={({ pressed: isPressed }) => [
+                    styles.quietAction,
+                    isPressed ? styles.pressed : undefined,
+                  ]}
+                >
+                  <Text style={[styles.buttonLabel, { color: t.calmStrong }]} numberOfLines={1}>
+                    Try a change
+                  </Text>
+                </Pressable>
+              </View>
+              {!financePresentation.canReassure && (
+                <Text style={[styles.narrative, { color: t.repairInk }]}>
+                  {financePresentation.message}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {financePresentation.complete && financialPlan?.nextIncomeDate && (
             <View
               style={[
-                styles.dominantActions,
-                stackDominantActions ? styles.dominantActionsStack : undefined,
+                styles.pressureNote,
+                { borderLeftColor: tightSpare !== null && tightSpare < 0 ? t.repair : t.caution },
               ]}
             >
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="See what's coming"
-                onPress={() => nav.go('calendar')}
-                style={({ pressed: isPressed }) => [
-                  styles.secondaryButton,
-                  { backgroundColor: t.surface, borderColor: t.hairline },
-                  isPressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.buttonLabel, { color: t.ink }]} numberOfLines={1}>
-                  See what's coming
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Try a change"
-                onPress={() => nav.go('whatif')}
-                style={({ pressed: isPressed }) => [
-                  styles.quietAction,
-                  isPressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.buttonLabel, { color: t.calmStrong }]} numberOfLines={1}>
-                  Try a change
-                </Text>
-              </Pressable>
+              <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Tight point</Text>
+              <Text style={[styles.pressureText, { color: t.ink }]}>{tightMessage}</Text>
             </View>
-          </View>
-
-          <View
-            style={[
-              styles.pressureNote,
-              { borderLeftColor: tightSpare !== null && tightSpare < 0 ? t.repair : t.caution },
-            ]}
-          >
-            <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Tight point</Text>
-            <Text style={[styles.pressureText, { color: t.ink }]}>{tightMessage}</Text>
-          </View>
+          )}
 
           <View style={[styles.chapterDivider, { backgroundColor: t.hairline }]} />
 
@@ -415,7 +454,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                   accessibilityRole="button"
                   accessibilityLabel={`${u.name}, ${formatGBP(u.amount)}, ${shortPlanDay(u.date)}, ${u.note}`}
                   accessibilityHint="Opens Calendar."
-                  onPress={() => nav.go('calendar')}
+                  onPress={() => nav.openSheet('day-detail', { date: u.date })}
                   style={({ pressed: isPressed }) => [
                     styles.timelineRow,
                     i > 0 ? { borderTopWidth: 1, borderTopColor: t.hairline } : undefined,

@@ -16,7 +16,7 @@ const STARTERS: Record<MoneyMode, string[]> = {
   survival: [
     'Why is my Danger Date so close?',
     'Can I afford £40 on Friday?',
-    'Talk me out of this Spotify charge',
+    'Help me review a regular charge',
     "How's the month going?",
     "What's the smallest move that helps today?",
     'Show me what Bills Shield is holding',

@@ -31,7 +31,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, AppState } from 'react-native';
+import { useSheetOverlayActive } from '@/surfaces/pressureMap/Sheet';
 
 import { UNDO_WINDOW_MS } from '@/folio/lib/undoPolicy';
 import { triggerFeedback } from '@/folio/lib/feedback';
@@ -48,6 +49,10 @@ type ActiveUndo = {
 // The one method every screen needs: raise an undo window for a just-completed destructive action.
 type UndoApi = {
   showUndo: (label: string, onUndo: () => void) => void;
+  setConfirmationOpen: (open: boolean) => void;
+  dismissUndo: () => void;
+  undoVisible: boolean;
+  undoHeight: number;
 };
 
 const UndoContext = createContext<UndoApi | null>(null);
@@ -73,8 +78,21 @@ function useReducedMotion(): boolean {
   return reduced;
 }
 
-export function UndoProvider({ children }: { children: ReactNode }) {
+export function UndoProvider({
+  children,
+  bottomOffset = 96,
+  paused = false,
+}: {
+  children: ReactNode;
+  bottomOffset?: number;
+  paused?: boolean;
+}) {
   const reduceMotion = useReducedMotion();
+  const sheetOpen = useSheetOverlayActive();
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [windowBlurred, setWindowBlurred] = useState(false);
+  const [undoHeight, setUndoHeight] = useState(88);
+  const suspended = paused || sheetOpen || confirmationOpen || windowBlurred;
 
   const [active, setActive] = useState<ActiveUndo | null>(null);
 
@@ -82,6 +100,16 @@ export function UndoProvider({ children }: { children: ReactNode }) {
   // they survive re-renders without churning identity.
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keyRef = useRef(0);
+  const remainingMs = useRef(UNDO_WINDOW_MS);
+  const startedAt = useRef(0);
+  useEffect(() => {
+    const blur = AppState.addEventListener('blur', () => setWindowBlurred(true));
+    const focus = AppState.addEventListener('focus', () => setWindowBlurred(false));
+    return () => {
+      blur.remove();
+      focus.remove();
+    };
+  }, []);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -103,14 +131,22 @@ export function UndoProvider({ children }: { children: ReactNode }) {
       // clearing the old timer before arming the new one.
       clearTimer();
       keyRef.current += 1;
+      remainingMs.current = UNDO_WINDOW_MS;
       setActive({ key: keyRef.current, label, onUndo });
-      timerRef.current = setTimeout(() => {
-        timerRef.current = null;
-        setActive(null);
-      }, UNDO_WINDOW_MS);
     },
     [clearTimer],
   );
+  useEffect(() => {
+    if (active === null || suspended) return undefined;
+    startedAt.current = Date.now();
+    timerRef.current = setTimeout(dismiss, remainingMs.current);
+    return () => {
+      clearTimer();
+      if (active.key === keyRef.current) {
+        remainingMs.current = Math.max(0, remainingMs.current - (Date.now() - startedAt.current));
+      }
+    };
+  }, [active, suspended, clearTimer, dismiss]);
 
   // Tapping Undo: dismiss first, then run the caller's restore. Reading `active` at call time keeps
   // the closure honest even if a render is in flight.
@@ -124,18 +160,24 @@ export function UndoProvider({ children }: { children: ReactNode }) {
   // Clear any pending timer on unmount so a backgrounded provider never fires into a dead tree.
   useEffect(() => clearTimer, [clearTimer]);
 
-  const api = useMemo<UndoApi>(() => ({ showUndo }), [showUndo]);
+  const undoVisible = active !== null && !suspended;
+  const api = useMemo<UndoApi>(
+    () => ({ showUndo, setConfirmationOpen, dismissUndo: dismiss, undoVisible, undoHeight }),
+    [showUndo, dismiss, undoVisible, undoHeight],
+  );
 
   return (
     <UndoContext.Provider value={api}>
       {children}
-      {active !== null ? (
+      {active !== null && !suspended ? (
         <UndoToast
           key={active.key}
           label={active.label}
           onUndo={handleUndo}
           onDismiss={dismiss}
-          durationMs={UNDO_WINDOW_MS}
+          durationMs={remainingMs.current}
+          bottomOffset={bottomOffset}
+          onLayout={(event) => setUndoHeight(event.nativeEvent.layout.height + 16)}
           reduceMotion={reduceMotion}
         />
       ) : null}

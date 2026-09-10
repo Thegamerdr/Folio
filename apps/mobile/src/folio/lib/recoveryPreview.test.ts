@@ -1,15 +1,53 @@
 import { resetSampleFixture as resetAll } from '../test/sampleFixture';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getState, setPartial } from '../store';
+import { getState, setPartial, togglePaused } from '../store';
 import { buildRecoveryRoutePreview, isDiscretionarySubscription } from './recoveryPreview';
 import { routeFromStore } from './storeRoute';
+import { deriveShortfallBudget } from './shortfallBudget';
 
 const NOW = new Date('2026-07-15T12:00:00.000Z');
 
 beforeEach(() => resetAll());
 
 describe('buildRecoveryRoutePreview', () => {
+  it('uses the same exact penny gap as Shortfall and the exact canonical lift', () => {
+    const base = getState();
+    setPartial({
+      accounts: [],
+      pots: [],
+      debts: [],
+      calendarEvents: [],
+      transactions: [],
+      modeExtras: {},
+      bufferAmount: 0,
+      subPaused: {},
+      subOverrides: {},
+      onboarding: { ...base.onboarding, payday: 28, monthlyIncome: 1000 },
+      incomeSources: [],
+      currentBalance: {
+        amount: -0.01,
+        source: 'user-entered',
+        confidence: 'corrected',
+        setAt: NOW.toISOString(),
+      },
+      subs: [
+        {
+          name: 'Entertainment streaming',
+          cost: 10.45,
+          nextRenewalISO: '2026-07-18',
+          nextRenewalDaysAway: 3,
+          lastUsedDaysAgo: 0,
+          usesPerMonth: 1,
+        },
+      ],
+    });
+    const state = getState();
+    const preview = buildRecoveryRoutePreview(state, NOW);
+    expect(preview.shortfall).toBe(10.46);
+    expect(preview.shortfall).toBe(deriveShortfallBudget(routeFromStore(state, NOW)).gap);
+    expect(preview.subscriptionLift).toBe(10.45);
+  });
   it('only offers discretionary subscriptions as a pause move', () => {
     expect(
       isDiscretionarySubscription({
@@ -75,7 +113,7 @@ describe('buildRecoveryRoutePreview', () => {
 
     expect(preview.hasMoneyPicture).toBe(true);
     expect(preview.holdDailyCap).toBe(5);
-    expect(preview.holdLift).toBe(15);
+    expect(preview.holdLift).toBe(0); // A cap cannot create money or reduce already protected costs.
     expect(preview.flexibleBill?.name).toBe('Entertainment streaming');
     expect(preview.pausableSubscription?.name).toBe('Entertainment streaming');
     expect(preview.basePoints.length).toBeGreaterThan(1);
@@ -100,4 +138,50 @@ describe('buildRecoveryRoutePreview', () => {
     );
     expect(JSON.stringify(getState())).toBe(before);
   });
+});
+
+it('pause preview matches the actual saved pause while an overdue occurrence stays reserved', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(NOW);
+  try {
+    const base = getState();
+    setPartial({
+      ...base,
+      accounts: [],
+      pots: [],
+      debts: [],
+      calendarEvents: [],
+      transactions: [],
+      subOverrides: {},
+      subPaused: {},
+      currentBalance: {
+        amount: 300,
+        source: 'user-entered',
+        confidence: 'corrected',
+        setAt: NOW.toISOString(),
+      },
+      onboarding: { ...base.onboarding, payday: 31, monthlyIncome: 1000 },
+      subs: [
+        {
+          name: 'Entertainment streaming',
+          cost: 80,
+          nextRenewalISO: '2026-07-17',
+          obligationAnchorISO: '2026-06-17',
+          nextRenewalDaysAway: 2,
+          lastUsedDaysAgo: 0,
+          usesPerMonth: 1,
+        },
+      ],
+    });
+    const preview = buildRecoveryRoutePreview(getState(), NOW);
+    togglePaused('Entertainment streaming', true);
+    const saved = routeFromStore(getState(), NOW);
+    expect(preview.subscriptionLift).toBe(
+      Math.max(0, Math.round((saved.safeToSpend ?? saved.tightPoint.amount) - preview.baseTight)),
+    );
+    expect(preview.candidatePoints['pause-sub']).toEqual(saved.points);
+    expect(preview.subscriptionLift).toBe(80);
+  } finally {
+    vi.useRealTimers();
+  }
 });

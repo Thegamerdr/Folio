@@ -1,3 +1,173 @@
+import type { AppState } from '../store';
+import { previewDebtPaymentChange } from '../lib/paymentPresentation';
+import { formatMoney } from '../lib/financialPresentation';
+
+export type MeloDebtPaymentReview =
+  | Readonly<{ kind: 'unavailable'; message: string }>
+  | Readonly<{
+      kind: 'ready';
+      input: Record<string, unknown>;
+      workspaceId: string;
+      fingerprint: string;
+      paymentAmount: number;
+      debtName: string;
+      cashAccountName: string;
+      principalReduction: number;
+      excess: number;
+      rows: ReturnType<typeof previewDebtPaymentChange>['rows'];
+      explanation: string;
+    }>;
+
+/** Freeze the exact review shown in chat. Only the shared posting transition computes effects. */
+export function prepareMeloDebtPaymentReview(
+  state: AppState,
+  input: Readonly<Record<string, unknown>>,
+  at: string,
+  transactionId: string,
+): MeloDebtPaymentReview {
+  const unavailable = (message: string): MeloDebtPaymentReview => ({
+    kind: 'unavailable',
+    message,
+  });
+  const debts = (state.debts ?? []).filter(
+    (debt) => debt.workspaceId === undefined || debt.workspaceId === state.activeWorkspaceId,
+  );
+  const normalise = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[+&]/g, ' and ')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  const query = normalise(textValue(input.debtName) ?? textValue(input.name) ?? '');
+  const exact = debts.filter((debt) => normalise(debt.name) === query);
+  const matching = input.debtId
+    ? debts.filter((debt) => debt.id === String(input.debtId))
+    : !query
+      ? debts
+      : exact.length > 0
+        ? exact
+        : debts.filter((debt) => {
+            const name = normalise(debt.name);
+            return name.includes(query) || query.includes(name);
+          });
+  if (matching.length !== 1)
+    return unavailable(
+      matching.length > 1
+        ? 'Choose the exact debt in Log a payment before recording this.'
+        : 'This debt is unavailable. Review your debts before recording a payment.',
+    );
+  const debt = matching[0]!;
+  if (debt.balance <= 0)
+    return unavailable(`${debt.name} is already at £0. No payment was recorded.`);
+  const amount = Number(input.amount ?? input.adjustmentAmount ?? NaN);
+  if (
+    !Number.isFinite(amount) ||
+    amount <= 0 ||
+    !Number.isSafeInteger(Math.round(amount * 100)) ||
+    Math.abs(amount - Math.round(amount * 100) / 100) >= 1e-8
+  )
+    return unavailable('Use a positive payment amount with at most two decimal places.');
+  const accounts = (state.accounts ?? []).filter(
+    (account) =>
+      !account.isLiability &&
+      account.closed !== true &&
+      (account.workspaceId === undefined || account.workspaceId === state.activeWorkspaceId),
+  );
+  const requestedAccount = textValue(input.cashAccountId) ?? textValue(input.accountId);
+  const account = requestedAccount
+    ? accounts.find((item) => item.id === requestedAccount)
+    : accounts.length === 1
+      ? accounts[0]
+      : undefined;
+  if (!account)
+    return unavailable('Choose which cash account the payment came from in Log a payment.');
+  if (state.transactions.some((transaction) => transaction.id === transactionId))
+    return unavailable(
+      'This payment record already exists. Review its transaction before making another change.',
+    );
+  try {
+    const preview = previewDebtPaymentChange(
+      state,
+      undefined,
+      {
+        id: transactionId,
+        workspaceId: state.activeWorkspaceId,
+        when: at,
+        merchant: `Debt payment: ${debt.name}`,
+        amount: -amount,
+        category: 'bills',
+        source: input.source === 'manual' ? 'manual' : 'melo',
+        accountId: account.id,
+        financialAction: { kind: 'debt-payment', debtId: debt.id, principalAppliedMinor: 0 },
+      },
+      at,
+    );
+    const principalReduction =
+      (preview.transaction?.financialAction.principalAppliedMinor ?? 0) / 100;
+    const excess = Math.round((amount - principalReduction) * 100) / 100;
+    const pinnedInput = {
+      ...input,
+      amount,
+      debtId: debt.id,
+      debtName: debt.name,
+      cashAccountId: account.id,
+      transactionId,
+      preview: {
+        beforeTotalDebtMinor: (state.debts ?? []).reduce(
+          (sum, item) => sum + Math.round(item.balance * 100),
+          0,
+        ),
+      },
+    };
+    return {
+      kind: 'ready',
+      input: pinnedInput,
+      workspaceId: state.activeWorkspaceId,
+      fingerprint: JSON.stringify({
+        workspaceId: state.activeWorkspaceId,
+        day: preview.afterPlan.asOf,
+        rows: preview.rows,
+        account,
+        currentBalance: state.currentBalance,
+        debt,
+        beforeTotalDebtMinor: pinnedInput.preview.beforeTotalDebtMinor,
+        amount,
+        principalReduction,
+      }),
+      paymentAmount: amount,
+      debtName: debt.name,
+      cashAccountName: account.name,
+      principalReduction,
+      excess,
+      rows: preview.rows,
+      explanation: `Records a payment you have already made. This reduces tracked cash by ${formatMoney(amount, true)} and debt by ${formatMoney(principalReduction, true)}. Melo does not send money.${excess > 0 ? ` The ${formatMoney(excess, true)} above the remaining debt still leaves cash; it is not added as spending or a credit balance.` : ''}`,
+    };
+  } catch (reason) {
+    return unavailable(
+      reason instanceof Error
+        ? reason.message
+        : 'Review the debt and cash account before recording this payment.',
+    );
+  }
+}
+
+/** Reject stale reviews, including account changes hidden by an unchanged aggregate balance. */
+export function isMeloDebtPaymentReviewCurrent(
+  state: AppState,
+  review: MeloDebtPaymentReview,
+  at: string,
+): boolean {
+  if (review.kind !== 'ready' || review.workspaceId !== state.activeWorkspaceId) return false;
+  const current = prepareMeloDebtPaymentReview(
+    state,
+    review.input,
+    at,
+    String(review.input.transactionId),
+  );
+  return current.kind === 'ready' && current.fingerprint === review.fingerprint;
+}
+
 export const MELO_TOOL_APPROVAL_REQUESTED = 'approval-requested' as const;
 export const MELO_TOOL_APPROVAL_DENIED = 'approval-denied' as const;
 export const MELO_TOOL_OUTPUT_AVAILABLE = 'output-available' as const;
@@ -116,8 +286,10 @@ export function describeMeloToolSuggestion(
     }
     case 'log_debt_payment': {
       const debt = textValue(input.debtName) ?? textValue(input.name);
-      if (amount && debt) return `Record the completed ${amount} payment to ${debt}.${preview}`;
-      if (amount) return `Record the completed ${amount} debt payment.${preview}`;
+      if (amount && debt)
+        return `Record the completed ${amount} payment to ${debt}. Review the cash and debt changes before confirming.`;
+      if (amount)
+        return `Record the completed ${amount} debt payment. Review the cash and debt changes before confirming.`;
       break;
     }
     case 'set_debt_balance': {
@@ -171,12 +343,12 @@ export function describeMeloToolSuggestion(
 
 function formatAmount(value: unknown): string | undefined {
   const amount = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(amount) && amount > 0 ? `£${amount.toFixed(2)}` : undefined;
+  return Number.isFinite(amount) && amount > 0 ? formatMoney(amount, true) : undefined;
 }
 
 function formatNonNegativeAmount(value: unknown): string | undefined {
   const amount = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(amount) && amount >= 0 ? `£${amount.toFixed(2)}` : undefined;
+  return Number.isFinite(amount) && amount >= 0 ? formatMoney(amount, true) : undefined;
 }
 
 function ordinal(day: number): string {
@@ -219,7 +391,7 @@ function previewText(value: unknown): string {
 
 function formatMinor(value: unknown): string | undefined {
   const minor = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(minor) ? `£${(minor / 100).toFixed(2)}` : undefined;
+  return Number.isFinite(minor) ? formatMoney(minor / 100, true) : undefined;
 }
 
 function textValue(value: unknown): string | undefined {

@@ -19,7 +19,15 @@
 // no layout-bound property animates.
 
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
 
 import { elevation, gap, type Palette, pressed, radius, useTheme } from '@/folio/theme';
 
@@ -42,9 +50,19 @@ type UndoToastProps = {
   durationMs: number;
   // Skip the bar drain and rest the bar full (the window still elapses on the provider's timer).
   reduceMotion?: boolean | undefined;
+  bottomOffset?: number;
+  onLayout?: (event: LayoutChangeEvent) => void;
 };
 
-export function UndoToast({ label, onUndo, onDismiss, durationMs, reduceMotion }: UndoToastProps) {
+export function UndoToast({
+  label,
+  onUndo,
+  onDismiss,
+  durationMs,
+  reduceMotion,
+  bottomOffset = 96,
+  onLayout,
+}: UndoToastProps) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
 
@@ -73,18 +91,21 @@ export function UndoToast({ label, onUndo, onDismiss, durationMs, reduceMotion }
   }, [progress, durationMs, reduceMotion]);
 
   return (
-    <View pointerEvents="box-none" style={layout.host}>
-      <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.toast}>
+    <View pointerEvents="box-none" style={[layout.host, { bottom: bottomOffset + gap.sm }]}>
+      <View
+        onLayout={onLayout}
+        accessibilityRole="alert"
+        accessibilityLiveRegion="polite"
+        style={s.toast}
+      >
         <View style={layout.body}>
-          <Text numberOfLines={2} style={s.label}>
-            {label}
-          </Text>
+          <Text style={s.label}>{label}</Text>
         </View>
 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${UNDO_LABEL} ${label}`}
-          accessibilityHint="Restores what you just removed."
+          accessibilityHint="Reverses this change and restores the previous figures."
           hitSlop={12}
           onPress={onUndo}
           style={({ pressed: isPressed }) => [s.undoBtn, isPressed ? pressed : undefined]}
@@ -132,7 +153,7 @@ const layout = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: gap.xl,
     // Sit above the bottom nav rather than under it.
-    paddingBottom: gap.xxxl + gap.xxl,
+    zIndex: 90,
     alignItems: 'stretch',
   },
   body: {
@@ -170,13 +191,14 @@ function makeStyles(t: Palette) {
     // The undo action — a calm-toned text affordance on the ink bar; a >=44px tap area via padding
     // + hitSlop. Calm (terracotta) is the one accent moment on the bar.
     undoBtn: {
-      minHeight: 44,
+      minHeight: 48,
+      minWidth: 48,
       paddingHorizontal: gap.sm,
       alignItems: 'center',
       justifyContent: 'center',
     },
     undoLabel: {
-      color: t.calm,
+      color: t.canvas,
       fontSize: 13,
       fontWeight: '700',
       letterSpacing: 0.3,

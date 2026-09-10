@@ -1,4 +1,5 @@
-import type { AppState, Sub } from '../store';
+import { subscriptionWithPause, type AppState, type Sub } from '../store';
+import { localDayKey } from './dayClock';
 import { routeFromStore } from './storeRoute';
 import type { RoutePoint } from './moneyPath';
 import { isDiscretionarySubscription } from './discretionarySubscription';
@@ -10,11 +11,7 @@ export const RECOVERY_HOLD_DAYS = 3;
 
 const HOLD_LOOKBACK_DAYS = 30;
 const DAY_MS = 86_400_000;
-const DISCRETIONARY: ReadonlySet<string> = new Set([
-  'fun',
-  'shopping',
-]);
-
+const DISCRETIONARY: ReadonlySet<string> = new Set(['fun', 'shopping']);
 
 export type RecoveryRoutePreview = Readonly<{
   baseTight: number;
@@ -67,7 +64,7 @@ function averageDailyDiscretionary(state: AppState, nowMs: number): number {
 function liftFromRoute(base: number, candidateState: AppState, now: Date): number {
   const candidateRoute = routeFromStore(candidateState, now);
   const candidate = candidateRoute.safeToSpend ?? candidateRoute.tightPoint.amount;
-  return Math.max(0, Math.round(candidate - base));
+  return Math.max(0, (Math.round(candidate * 100) - Math.round(base * 100)) / 100);
 }
 
 /** Pure preview shared by RecoveryScreen and Melo. It never mutates the supplied state. */
@@ -86,6 +83,17 @@ export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryR
   const hasShortfall = hasMoneyPicture && baseTight < 0;
   const flexibleBill = nearestActiveSubscription(state.subs, state.subPaused);
   const pausableSubscription = nearestActiveSubscription(state.subs, state.subPaused);
+  const pausedState: AppState = pausableSubscription
+    ? {
+        ...state,
+        subPaused: { ...state.subPaused, [pausableSubscription.name]: true },
+        subs: state.subs.map((sub) =>
+          sub.name === pausableSubscription.name
+            ? subscriptionWithPause(sub, true, localDayKey(now))
+            : sub,
+        ),
+      }
+    : state;
   const billLift = flexibleBill
     ? liftFromRoute(
         baseTight,
@@ -93,23 +101,16 @@ export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryR
           ...state,
           subOverrides: {
             ...state.subOverrides,
-            [flexibleBill.name]:
-              (state.subOverrides[flexibleBill.name] ?? 0) + RECOVERY_BILL_NUDGE_DAYS,
+            [flexibleBill.name]: Math.max(
+              -7,
+              Math.min(7, (state.subOverrides[flexibleBill.name] ?? 0) + RECOVERY_BILL_NUDGE_DAYS),
+            ),
           },
         },
         now,
       )
     : 0;
-  const subscriptionLift = pausableSubscription
-    ? liftFromRoute(
-        baseTight,
-        {
-          ...state,
-          subPaused: { ...state.subPaused, [pausableSubscription.name]: true },
-        },
-        now,
-      )
-    : 0;
+  const subscriptionLift = pausableSubscription ? liftFromRoute(baseTight, pausedState, now) : 0;
   const candidatePoints: Record<string, readonly RoutePoint[]> = {};
   if (flexibleBill) {
     candidatePoints['move-bill'] = routeFromStore(
@@ -117,30 +118,35 @@ export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryR
         ...state,
         subOverrides: {
           ...state.subOverrides,
-          [flexibleBill.name]:
-            (state.subOverrides[flexibleBill.name] ?? 0) + RECOVERY_BILL_NUDGE_DAYS,
+          [flexibleBill.name]: Math.max(
+            -7,
+            Math.min(7, (state.subOverrides[flexibleBill.name] ?? 0) + RECOVERY_BILL_NUDGE_DAYS),
+          ),
         },
       },
       now,
     ).points;
   }
   if (pausableSubscription) {
-    candidatePoints['pause-sub'] = routeFromStore(
-      {
-        ...state,
-        subPaused: { ...state.subPaused, [pausableSubscription.name]: true },
-      },
-      now,
-    ).points;
+    candidatePoints['pause-sub'] = routeFromStore(pausedState, now).points;
   }
   const averageDaily = averageDailyDiscretionary(state, now.getTime());
   const holdDailyCap = averageDaily > 0 ? Math.max(1, Math.round(averageDaily * 0.5)) : 0;
-  const holdLift = Math.max(0, Math.round((averageDaily - holdDailyCap) * RECOVERY_HOLD_DAYS));
+  const start = now.toISOString().slice(0, 10);
+  const end = new Date(now.getTime() + (RECOVERY_HOLD_DAYS - 1) * DAY_MS)
+    .toISOString()
+    .slice(0, 10);
+  const holdState: AppState = {
+    ...state,
+    spendHold: { start, end, dailyCap: holdDailyCap, setAt: now.toISOString() },
+  };
+  const holdLift = holdDailyCap > 0 ? liftFromRoute(baseTight, holdState, now) : 0;
+  if (holdDailyCap > 0) candidatePoints['hold-spend'] = routeFromStore(holdState, now).points;
   return {
     baseTight,
     hasMoneyPicture,
     hasShortfall,
-    shortfall: hasShortfall ? Math.round(-baseTight) : 0,
+    shortfall: hasShortfall ? Math.round(-baseTight * 100) / 100 : 0,
     flexibleBill,
     pausableSubscription,
     billLift,

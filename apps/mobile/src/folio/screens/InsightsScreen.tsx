@@ -213,8 +213,8 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
   // Mode-tinted retrospective framing (web `getRetrospect(mode, cycles, potsTotal)`) — the eyebrow,
   // headline, both KPI cards, the trend caption, and the Melo note all vary by moneyMode.
   const retro = useMemo(
-    () => getRetrospect(moneyMode, cycles, potsTotal),
-    [moneyMode, cycles, potsTotal],
+    () => getRetrospect(moneyMode, livedCycles, potsTotal),
+    [moneyMode, livedCycles, potsTotal],
   );
 
   // Weekly digest — trailing 7 days of user-visible spend + quiet days (web `weekly` memo).
@@ -396,6 +396,11 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
             }
           />
         </View>
+
+        <Text style={s.averagesCaption}>
+          Total left at cycle close adds the recorded closing amounts. It is not money transferred
+          to savings; pot contributions are shown separately.
+        </Text>
 
         {/* Honest averages caption — shown once, directly under the stat grid, whenever the
             cycles set contains ANY reconstructed (bulk-import synthesized) month. Mirrors the

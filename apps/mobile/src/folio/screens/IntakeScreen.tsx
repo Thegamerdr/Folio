@@ -174,6 +174,13 @@ export const INTAKE_OPTIONS: readonly IntakeOption[] = [
     badge: 'most complete',
   },
   {
+    title: 'Type it yourself',
+    hint: 'add only the numbers you know',
+    icon: '✎',
+    to: 'review',
+    sheet: 'log-spend',
+  },
+  {
     title: 'Photo or screenshot',
     hint: 'a receipt, transaction list or paper statement',
     icon: '▢',
@@ -187,13 +194,7 @@ export const INTAKE_OPTIONS: readonly IntakeOption[] = [
     to: 'paste-success',
     paste: true,
   },
-  {
-    title: 'Type it yourself',
-    hint: 'add only the numbers you know',
-    icon: '✎',
-    to: 'review',
-    sheet: 'log-spend',
-  },
+
   {
     title: 'Connect an account',
     hint: 'a read-only feed from your bank — not available in this build',
@@ -712,8 +713,8 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           </View>
           <Text style={[styles.explainer, { color: t.muted }]}>
             Pasted text and numbers you type stay on this phone while Melo prepares suggestions.
-            Files and photos use the native picker here; sources you already use are managed in
-            Data &amp; security. Nothing is added until you review it.
+            Files and photos use the native picker here; sources you already use are managed in Data
+            &amp; security. Nothing is added until you review it.
           </Text>
         </View>
 

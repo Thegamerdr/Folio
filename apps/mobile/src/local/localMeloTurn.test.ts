@@ -371,7 +371,7 @@ describe('local Melo turn', () => {
 
     expect(requestIntent).toBe('review_debts');
     expect(result.reply).toContain('£4,800 debt balance');
-    expect(result.reply).toContain('recorded debt details');
+    expect(result.reply).toContain('your debt details');
   });
 
   it('keeps a natural account-source follow-up on the selected account', () => {
@@ -407,7 +407,7 @@ describe('local Melo turn', () => {
     expect(requestPrompt).toBe('Explain the selected account balance');
     expect(requestAccountId).toBe('private-account-id');
     expect(result.reply).toContain('£325.50 selected account balance');
-    expect(result.reply).toContain('current balance setting');
+    expect(result.reply).toContain('the balance you recorded');
     expect(JSON.stringify(result.context)).not.toContain('account name');
   });
 

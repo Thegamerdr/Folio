@@ -34,8 +34,10 @@ describe('no fabricated content on real-user screens', () => {
       expect(recovery, `RecoveryScreen contains "${banned}"`).not.toContain(banned);
     }
     // The moves must stay conditional on their real targets existing.
-    expect(recovery).toContain('bill\n        ? {');
-    expect(recovery).toContain('pausable\n        ? {');
+    expect(recovery).toMatch(/bill\s*\?\s*\{/u);
+    expect(recovery).toMatch(/pausable\s*\?\s*\{/u);
+    expect(recovery).toContain('m !== null && m.deltaValue > 0');
+    expect(recovery).toContain('!presentation.complete');
   });
 
   it('RecoveryScreen shows the honest £0 shortfall, never the web demo £94', () => {

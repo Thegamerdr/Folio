@@ -9,16 +9,18 @@ const source = readFileSync(
   'utf8',
 );
 
-describe('Safe Zone sheet source parity', () => {
-  it('keeps the source heading hierarchy instead of merging the daily figure into the total', () => {
-    expect(source).toContain('<Text style={s.eyebrow}>YOUR SAFE ZONE</Text>');
-    expect(source).toContain('<Text style={s.headline}>About £{zone.perDay}/day</Text>');
-    expect(source).not.toContain('numberCaption');
+describe('Safe to spend working presentation', () => {
+  it('shows the bounded total with a subordinate daily guide and each reserve category', () => {
+    expect(source).toContain('SEE THE WORKING');
+    expect(source).toContain('Daily guide: about');
+    expect(source).toContain('plan.livingCostMinor');
+    expect(source).toContain('plan.debtMinimumMinor');
+    expect(source).toContain('selectFinancialPresentation');
   });
 
   it('keeps source-sized controls and the filled primary Melo action', () => {
-    expect(source).toContain('width: 44');
-    expect(source).toContain('height: 44');
+    expect(source).toContain('width: 48');
+    expect(source).toContain('height: 48');
     expect(source).toContain('{ backgroundColor: t.calm, borderColor: t.calm }');
     expect(source).toContain('{ color: t.inverse }');
   });

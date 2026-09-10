@@ -250,15 +250,6 @@ function AddEventForm({
       {/* Header — eyebrow + close glyph. */}
       <View style={s.headerRow}>
         <Text style={s.eyebrow}>Add to calendar</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          hitSlop={12}
-          onPress={onClose}
-          style={({ pressed }) => [pressed ? s.pressed : undefined]}
-        >
-          <CloseGlyph color={t.muted} />
-        </Pressable>
       </View>
 
       {/* Headline — accent word "day." upright in terracotta. */}

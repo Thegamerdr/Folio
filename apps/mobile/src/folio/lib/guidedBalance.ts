@@ -4,5 +4,5 @@ import type { CurrentBalance } from '../store';
 export function guidedBalanceDraft(balance: Pick<CurrentBalance, 'source' | 'amount'>): string {
   return balance.source === 'sample' || !Number.isFinite(balance.amount)
     ? '0'
-    : String(Math.max(0, Math.round(balance.amount)));
+    : String(Math.max(0, Math.round(balance.amount * 100) / 100));
 }

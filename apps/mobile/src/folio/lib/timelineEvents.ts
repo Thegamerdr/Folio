@@ -22,7 +22,15 @@ import type { Transaction, StoredTxnEdit, TimelineEvent } from '../store';
 // The verbs the web's ScreenTimeline union defines, reproduced verbatim (COPY FROZEN — no new verb
 // strings. The web demo distinguished "Left for later" and "Ignored", but the real native action is
 // the latter: it writes a durable suppression signature and is reversible from Hidden review.
-export type TimelineVerb = 'Added' | 'Left for later' | 'Ignored' | 'Edited' | 'Paused' | 'Resumed';
+export type TimelineVerb =
+  | 'Added'
+  | 'Left for later'
+  | 'Ignored'
+  | 'Edited'
+  | 'Paused'
+  | 'Resumed'
+  | 'Removed from tracking'
+  | 'Tracking restored';
 
 export type TimelineRow = {
   id: string;
@@ -57,6 +65,10 @@ function verbForEvent(kind: TimelineEvent['kind']): {
       return { verb: 'Resumed', note: undefined };
     case 'review-ignored':
       return { verb: 'Ignored', note: 'hidden from future checks' };
+    case 'debt-removed':
+      return { verb: 'Removed from tracking', note: 'Recorded payments and tracked cash kept' };
+    case 'debt-restored':
+      return { verb: 'Tracking restored', note: 'Recorded payments and tracked cash kept' };
     default:
       return { verb: 'Added', note: undefined };
   }

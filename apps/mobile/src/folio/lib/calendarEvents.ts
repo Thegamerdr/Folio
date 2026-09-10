@@ -478,7 +478,12 @@ export function formatDayHeader(iso: string): string {
 /** Format as "Tuesday 8" for inline prose. */
 export function formatDayProse(iso: string): string {
   const d = new Date(iso + 'T00:00:00');
-  return `${d.toLocaleDateString('en-GB', { weekday: 'long' })} ${d.getDate()}`;
+  return d.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 /** Preview: would nudging this sub by `deltaDays` lift the tight-day spare?

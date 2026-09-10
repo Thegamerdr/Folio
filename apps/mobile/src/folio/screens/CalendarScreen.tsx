@@ -86,6 +86,7 @@ import Animated, {
 
 import {
   useAppStore,
+  getState,
   removeCalendarEvent,
   updateCalendarEvent,
   setCalendarFocusDate,
@@ -99,22 +100,20 @@ import { elevation, gap, radius, serif, useTheme, type Palette } from '@/folio/t
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { type MeloMood } from '@/folio/melo/Melo';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
-import {
-  deriveCalendarEvents,
-  deriveHistoricalDayEvents,
-  groupByDay,
-  computeSpareAndTightest,
-  formatDayHeader,
-  formatDayProse,
-  previewSubNudge,
-  type DerivedEvent,
-} from '@/folio/lib/calendarEvents';
+import { formatDayHeader, formatDayProse, type DerivedEvent } from '@/folio/lib/calendarEvents';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { tightPointDayLabel } from '@/folio/lib/moneyPath';
 import { formatGBP } from './today/format';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import {
+  selectFinancialPresentation,
+  formatMoney,
+  formatFinancialDate,
+} from '@/folio/lib/financialPresentation';
+import { useUndo } from '@/folio/ui/useUndo';
+import { buildCalendarPresentation } from '@/folio/lib/calendarPresentation';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { useDayClock } from '@/folio/lib/useDayClock';
-import { utcMidnightForLocalDay } from '@/folio/lib/dayClock';
 import {
   calendarDefaultAnchor,
   calendarAnchorLabel,
@@ -199,7 +198,7 @@ function shiftIso(iso: string, days: number): string {
 function amountStr(e: DerivedEvent): string | null {
   if (typeof e.amount !== 'number') return null;
   const sign = e.amount >= 0 ? '+' : '−';
-  return `${sign}£${Math.abs(e.amount).toFixed(e.amount % 1 === 0 ? 0 : 2)}`;
+  return `${sign}£${Math.abs(e.amount).toLocaleString('en-GB', { maximumFractionDigits: 2 })}`;
 }
 
 // Local-date ISO (avoids UTC drift in toISOString around midnight). Verbatim from the web.
@@ -236,10 +235,10 @@ function describeDay(
       deadline: 'deadline',
       manual: 'you added',
     };
-    const amt = typeof e.amount === 'number' ? ` £${Math.abs(e.amount).toFixed(0)}` : '';
+    const amt = typeof e.amount === 'number' ? ` ${formatMoney(e.amount)}` : '';
     return `${labels[e.kind]}${amt} ${e.title}`;
   });
-  const spareTxt = typeof spare === 'number' ? `, ${formatGBP(spare)} spare after` : '';
+  const spareTxt = typeof spare === 'number' ? `, ${formatGBP(spare)} projected balance after` : '';
   const tightTxt = isTightest ? ', tightest day in the window' : '';
   return `${head}: ${parts.join('; ')}${spareTxt}${tightTxt}`;
 }
@@ -247,10 +246,10 @@ function describeDay(
 /* Melo voice on the Calendar — softens or sharpens with the tightest day. Four bands so an
  * overspent month doesn't get the same line as "tight". Verbatim from the web. */
 function meloCalendarLine(tight: number, empty: boolean, date: string | null, now: Date): string {
-  if (empty) return 'Nothing pulling at your money this week.';
+  if (empty) return 'No events recorded for this week. Check that your regular costs are included.';
   if (tight < 0)
     return `The forecast runs short${date ? ` · ${tightPointDayLabel(date, now)}` : ''}. Let's look at what can move.`;
-  if (tight < 50) return 'There’s a pinch coming. We can soften it together.';
+  if (tight < 50) return 'There’s a pinch coming. Review the dates and recorded costs.';
   if (tight < 200) return 'A little room at your lowest point. Keep an eye on what is coming.';
   return 'Quiet on most days. A few that matter.';
 }
@@ -293,22 +292,17 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const reduceMotion = useReduceMotion();
 
   // Real store reads (spec: data is REAL).
+  const appState = useAppStore((st) => st);
   const subs = useAppStore((st) => st.subs);
-  const subPaused = useAppStore((st) => st.subPaused);
-  const subOverrides = useAppStore((st) => st.subOverrides);
   const onboarding = useAppStore((st) => st.onboarding);
   const monthlyIncome = useAppStore((st) => selectMonthlyIncome(st));
   const incomeSources = useAppStore((st) => st.incomeSources ?? EMPTY_INCOME_SOURCES);
   const incomeSourcesCount = incomeSources.length;
-  const manual = useAppStore((st) => st.calendarEvents);
   const focusDate = useAppStore((st) => st.calendarFocusDate);
   const pots = useAppStore((st) => st.pots);
-  const spendHold = useAppStore((st) => st.spendHold ?? null);
-  const whatIfHolds = useAppStore((st) => st.whatIfHolds ?? []);
   // DATA_INTELLIGENCE.md phase ④ — the real ledger, read ONLY for past-day enrichment
   // (deriveHistoricalDayEvents below). The forward projection (`events`/`groups` above) never reads
   // this; past-month navigation is the sole consumer.
-  const transactions = useAppStore((st) => st.transactions);
   // Mode-aware jump anchor (web calendarDefaultAnchor(mode)) — Survival/Stability/LowVis land on the
   // tightest day, Debt/Optimizer jump to the next money-OUT, Irregular to the next money-IN,
   // Growth/Household/Planning/Reset to the next payday. Falls back to 'survival' when unset.
@@ -330,7 +324,6 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
         : new Date(clockNow.getFullYear(), clockNow.getMonth(), clockNow.getDate()),
     [clockNow],
   );
-  const engineToday = useMemo(() => (today ? utcMidnightForLocalDay(today) : null), [today]);
 
   // @rn-engine money-path — the running-spare ladder + the tightest-day pill anchor to the REAL route,
   // not the old literal £720. `useRoute` (the shared store→money-path bridge) maps the live store onto
@@ -346,75 +339,19 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   // of the start (the "saved amount lowers Today's spare" rule); the pots' FUTURE −perWeek top-up dips
   // are different money and stay in the dated events ("bends the path") — two distinct effects, no
   // double-count. We do NOT re-add those dated dips to the start.
-  const startingSpare = useAppStore(
-    (st) => st.currentBalance.amount - st.pots.reduce((acc, p) => acc + p.saved, 0),
-  );
 
   // Events / groups / spare are memoised ABOVE the view branch so switching views never re-derives
   // the data (STATES: "switching never reloads"). Only the presentational subview swaps.
-  const events = useMemo(
-    () =>
-      today
-        ? deriveCalendarEvents({
-            subs,
-            subPaused,
-            subOverrides,
-            onboarding,
-            incomeSources,
-            manualEvents: manual,
-            pots,
-            spendHold,
-            whatIfHolds,
-            now: engineToday!,
-            includeSampleBills: false,
-          })
-        : [],
-    [
-      subs,
-      subPaused,
-      subOverrides,
-      onboarding,
-      incomeSources,
-      manual,
-      pots,
-      spendHold,
-      whatIfHolds,
-      today,
-      engineToday,
-    ],
+  const calendar = useMemo(
+    () => (today ? buildCalendarPresentation(appState, today) : null),
+    [appState, today],
   );
-
-  const groups = useMemo(() => groupByDay(events), [events]);
-
-  // DATA_INTELLIGENCE.md phase ④ — past-month real-data enrichment. `deriveCalendarEvents` above is
-  // a purely FORWARD projection (payday/bills/subs/pots windowed from `today`); it never reads
-  // `transactions`, so before this a past month's cells only ever showed forward-projected recurring
-  // items, never what actually happened (DATA_INTELLIGENCE.md §5(B)). `deriveHistoricalDayEvents` is
-  // a second, independent, read-only derivation over the real ledger for days strictly before today.
-  const historicalByDay = useMemo(
-    () => (today ? deriveHistoricalDayEvents(transactions, isoDay(today)) : {}),
-    [transactions, today],
-  );
-
-  // `eventsByDay` (Week/Month views) merges the forward projection with the historical enrichment —
-  // a past day gets its REAL transactions alongside anything the forward projection still shows for
-  // it (e.g. a recurring bill/sub definition); a today-or-future day is untouched (historicalByDay
-  // never has an entry for those dates). Agenda's `groups` stays forward-only on purpose — Agenda's
-  // 35-day window is inherently forward-looking, so it is not threaded through this merge.
-  const eventsByDay = useMemo(() => {
-    const map: Record<string, DerivedEvent[]> = {};
-    for (const g of groups) map[g.date] = g.events;
-    for (const [date, historicalEvents] of Object.entries(historicalByDay)) {
-      const forward = map[date];
-      map[date] = forward ? [...forward, ...historicalEvents] : historicalEvents;
-    }
-    return map;
-  }, [groups, historicalByDay]);
-
-  const { spareByDay, tightestDate, tightestSpare } = useMemo(
-    () => computeSpareAndTightest(groups, startingSpare),
-    [groups, startingSpare],
-  );
+  const events = calendar?.events ?? [];
+  const groups = calendar?.groups ?? [];
+  const eventsByDay = calendar?.eventsByDay ?? {};
+  const spareByDay = calendar?.spareByDay ?? {};
+  const tightestDate = calendar?.lowestBeforeIncome.date ?? null;
+  const tightestSpare = (calendar?.lowestBeforeIncome.closingMinor ?? 0) / 100;
 
   const [view, setView] = useState<CalendarView>('agenda');
 
@@ -429,7 +366,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   // exists. `tightestDate` here defers to the Route's tight point once the engine is ready (matching
   // the pre-existing `jumpToTightest` behaviour), so Survival/Stability/LowVis still land on the exact
   // day the Route agrees is lowest.
-  const routeTightestDate = route ? route.tightPoint.date : tightestDate;
+  const routeTightestDate = tightestDate;
   const anchorInfo = useMemo(() => {
     const todayIsoLocal = today ? isoDay(today) : '';
     const future = events
@@ -441,34 +378,34 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
       const hit = future.find((e) => e.kind === 'in');
       if (hit) {
         date = hit.date;
-        caption = `${hit.title}${typeof hit.amount === 'number' ? ` · +£${Math.abs(hit.amount).toFixed(0)}` : ''}`;
+        caption = `${hit.title}${typeof hit.amount === 'number' ? ` · +${formatMoney(Math.abs(hit.amount))}` : ''}`;
       }
     } else if (anchor === 'nextOut') {
       const hit = future.find((e) => e.kind === 'out');
       if (hit) {
         date = hit.date;
-        caption = `${hit.title}${typeof hit.amount === 'number' ? ` · −£${Math.abs(hit.amount).toFixed(0)}` : ''}`;
+        caption = `${hit.title}${typeof hit.amount === 'number' ? ` · ${formatMoney(-Math.abs(hit.amount))}` : ''}`;
       }
     } else if (anchor === 'payday') {
       const hit = future.find((e) => e.kind === 'in' && /pay(day|check)?/i.test(e.title));
       if (hit) {
         date = hit.date;
         caption =
-          `payday · +£${typeof hit.amount === 'number' ? Math.abs(hit.amount).toFixed(0) : ''}`.replace(
+          `payday · ${typeof hit.amount === 'number' ? '+' + formatMoney(Math.abs(hit.amount)) : 'included in balance'}`.replace(
             /\+£$/,
             'lands',
           );
       }
     }
     if (!caption && date && typeof spareByDay[date] === 'number') {
-      caption = `${formatGBP(spareByDay[date] ?? 0)} left`;
+      caption = `${formatGBP(tightestSpare)} projected balance`;
     }
     // Agenda's tightest-day calculation spans its full 35-day projection. Name that window plainly
     // so it is not mistaken for the payday-only low used by the Route and Plan narratives.
     return {
       date,
       caption,
-      label: anchor === 'tightest' ? 'Lowest in next 35 days' : calendarAnchorLabel(anchor),
+      label: anchor === 'tightest' ? 'Lowest before payday' : calendarAnchorLabel(anchor),
     };
   }, [anchor, events, routeTightestDate, spareByDay, today]);
 
@@ -560,19 +497,13 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   // day (agrees with the Route's tight point when the engine is ready), regardless of which day the
   // mode-anchored jump pill points to — mirrors the web (AgendaView/WeekView/MonthView always receive
   // `tightestDate`, only the pill switches to `anchorInfo`).
-  const lowDate = route ? route.tightPoint.date : tightestDate;
-  const lowSpare = route ? route.tightPoint.amount : tightestSpare;
-  const nextPaydayEvent = events.find(
-    (event) => event.source === 'payday' && event.date >= isoDay(today),
+  const lowDate = tightestDate;
+  const lowSpare = tightestSpare;
+  const nextPaydayDate = calendar?.plan.nextIncomeDate;
+  const committedBeforePayday = (calendar?.plan.pendingObligations ?? []).reduce(
+    (sum, event) => sum + event.amountMinor / 100,
+    0,
   );
-  const committedBeforePayday = events
-    .filter(
-      (event) =>
-        event.kind === 'out' &&
-        typeof event.amount === 'number' &&
-        (!nextPaydayEvent || event.date <= nextPaydayEvent.date),
-    )
-    .reduce((sum, event) => sum + Math.abs(event.amount ?? 0), 0);
 
   return (
     <Animated.View
@@ -603,16 +534,36 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
             <View style={layout.storyBlock}>
               <Text style={s.storyLabel}>Next payday</Text>
               <Text style={s.storyValue}>
-                {nextPaydayEvent ? formatDayProse(nextPaydayEvent.date) : 'Not set yet'}
+                {nextPaydayDate ? formatDayProse(nextPaydayDate) : 'Not set yet'}
               </Text>
             </View>
             <View style={layout.storyBlock}>
-              <Text style={s.storyLabel}>Still to leave</Text>
+              <Text style={s.storyLabel}>Bills before payday</Text>
               <Text style={s.storyValue}>
-                £{Math.round(committedBeforePayday).toLocaleString('en-GB')}
+                {nextPaydayDate ? formatGBP(committedBeforePayday) : 'Not set yet'}
               </Text>
             </View>
           </View>
+
+          {missingPayday ? (
+            <View style={s.dayCard}>
+              <Text style={s.storyLabel}>No payday set yet</Text>
+              <Text style={s.nothingLine}>
+                Add your payday to give this calendar a clear money horizon.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.openSheet('onboarding', { id: 'payday' })}
+                style={s.footerCtaAccent}
+              >
+                <Text style={s.footerCtaAccentLabel}>Set payday</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          <Text style={s.eventNote}>
+            Projected balance includes essentials. Bills and debt minimums use the same dates and
+            unpaid amounts as Plan. Income dated today is already in your entered balance.
+          </Text>
 
           {/* View switcher — a tablist over the inset well. The selected tab lifts to the paper surface
             with a soft shadow; the rest are muted text. */}
@@ -678,7 +629,9 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
                 nav={nav}
                 t={t}
                 s={s}
-                groups={groups}
+                groups={groups.filter(
+                  (group) => !calendar || group.date <= shiftIso(calendar.today, 35),
+                )}
                 spareByDay={spareByDay}
                 tightestDate={lowDate}
                 today={today}
@@ -761,7 +714,11 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
             loading is never a spinner; this line + the curious mood IS the calm "working" state. */}
           <View style={layout.meloBlock}>
             <MeloLine
-              text={meloCalendarLine(lowSpare, isEmpty, lowDate, today)}
+              text={
+                !selectFinancialPresentation(appState, calendar?.plan ?? null).canReassure
+                  ? selectFinancialPresentation(appState, calendar?.plan ?? null).message
+                  : meloCalendarLine(lowSpare, isEmpty, lowDate, today)
+              }
               mood={meloCalendarMood(lowSpare, isEmpty)}
             />
           </View>
@@ -1014,7 +971,7 @@ function AgendaView({
                 {isPast ? <Text style={s.pastMarker}>past</Text> : null}
               </View>
               {typeof spare === 'number' ? (
-                <Text style={s.spareRight}>{formatGBP(spare)} left after</Text>
+                <Text style={s.spareRight}>{formatGBP(spare)} projected balance</Text>
               ) : null}
             </View>
             <View style={layout.eventList}>
@@ -1090,7 +1047,7 @@ function WeekView({
   const monthLabel = weekStart.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const todayIso = isoDay(today);
 
-  // Spare trend — spare £ at the end of each day, carried forward when a day has no events.
+  // Projected balance — spare £ at the end of each day, carried forward when a day has no events.
   const trend = useMemo(() => {
     const vals: number[] = [];
     let last: number | null = null;
@@ -1443,7 +1400,7 @@ function MonthView({
       {spareLine.length > 1 ? (
         <View style={layout.sparkBlock}>
           <View style={layout.trendHead}>
-            <Text style={s.trendLabel}>Spare across the month</Text>
+            <Text style={s.trendLabel}>Projected balance</Text>
             <Text style={s.trendRange}>low {formatGBP(minS)}</Text>
           </View>
           <Sparkline values={spareLine} height={20} strokeWidth={1.2} color={t.calm} />
@@ -1466,7 +1423,7 @@ function MonthView({
           ) : null}
         </View>
         {selectedEvents.length === 0 ? (
-          <Text style={s.nothingLine}>Nothing moves your money on this day.</Text>
+          <Text style={s.nothingLine}>No events are recorded for this day.</Text>
         ) : (
           <View style={layout.eventList}>
             {selectedEvents.map((e) => (
@@ -1589,7 +1546,7 @@ export function EventRow({
         <View style={layout.eventTitleRow}>
           <Text
             style={[compact ? s.eventTitleCompact : s.eventTitle, layout.eventTitleFlex]}
-            numberOfLines={1}
+            numberOfLines={undefined}
             // The dot is decorative; the kind label is folded into the title's a11y label so the row
             // reads "Money out: Rent" the way the web sr-only span did.
             accessibilityLabel={`${KIND_LABEL[e.kind]}: ${e.title}${e.manual ? ', you added this' : ''}`}
@@ -1641,7 +1598,7 @@ export function EventRow({
         {summary}
       </Pressable>
       {expanded && e.source === 'sub' && e.subName ? (
-        <SubRenewalActions name={e.subName} s={s} />
+        <SubRenewalActions name={e.subName} date={e.date} s={s} />
       ) : expanded && e.manual ? (
         <View style={layout.eventActions}>
           <ScrollView
@@ -1726,101 +1683,69 @@ const NUDGES: readonly { d: number; label: string }[] = [
   { d: 3, label: '+3d' },
 ];
 
-function SubRenewalActions({ name, s }: { name: string; s: ReturnType<typeof makeStyles> }) {
-  const subs = useAppStore((st) => st.subs);
-  const subPaused = useAppStore((st) => st.subPaused);
-  const subOverrides = useAppStore((st) => st.subOverrides);
-  const onboarding = useAppStore((st) => st.onboarding);
-  const manualEvents = useAppStore((st) => st.calendarEvents);
-  const pots = useAppStore((st) => st.pots);
-
-  // RN has no hover; the "preview" is shown while a nudge button is pressed (onPressIn) and cleared on
-  // release (onPressOut). `hover` keeps the web's variable name so the parity reads 1:1.
-  const [hover, setHover] = useState<number | null>(null);
-  const currentDelta = subOverrides[name] ?? 0;
-
-  // The what-if anchor — the SAME `balance − Σ pots.saved` start the screen's ladder + route use, so
-  // the previewed "lowest day" lift reads against the real curve. The already-saved pot cash is
-  // earmarked out of the start; the pots' future −perWeek top-up dips stay in the dated events — two
-  // distinct effects, no double-count.
-  const currentBalance = useAppStore((st) => st.currentBalance);
-  const previewStart = currentBalance.amount - pots.reduce((acc, p) => acc + p.saved, 0);
-
-  const previewDelta = useMemo(() => {
-    if (hover === null) return null;
-    // Re-route a HYPOTHETICAL scenario, never the live store: `previewSubNudge` builds the timeline
-    // twice (base + a nudged COPY of `subOverrides`) and computes each against `previewStart` without
-    // mutating any store slice — the same pure derivation the screen ladder runs.
-    return previewSubNudge({
-      subName: name,
-      deltaDays: hover,
-      subs,
-      subPaused,
-      subOverrides,
-      onboarding,
-      manualEvents,
-      pots,
-      startingSpare: previewStart,
-    });
-  }, [hover, name, subs, subPaused, subOverrides, onboarding, manualEvents, pots, previewStart]);
-
+function SubRenewalActions({
+  name,
+  date,
+  s,
+}: {
+  name: string;
+  date: string;
+  s: ReturnType<typeof makeStyles>;
+}) {
+  const state = useAppStore((st) => st);
+  const { showUndo } = useUndo();
+  const currentDelta = state.subOverrides[name] ?? 0;
   return (
     <View style={layout.eventActions}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={layout.eventActionsContent}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Pause ${name}`}
-          hitSlop={8}
-          onPress={() => togglePaused(name, true)}
-          style={({ pressed }) => [layout.actionText, pressed ? layout.pressed : undefined]}
-        >
-          <Text style={s.subTextAction}>Pause this</Text>
-        </Pressable>
-        <Text style={s.moveLabel}>Move</Text>
+      <Text style={s.eventNote}>
+        Changes here shift this commitment’s dates in Melo’s forecast. They do not reschedule
+        payments with the provider. Overdue amounts remain reserved until confirmed paid.
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {NUDGES.map((n) => (
           <Pressable
             key={n.d}
             accessibilityRole="button"
-            accessibilityLabel={`Nudge ${name} by ${n.d > 0 ? '+' : ''}${n.d} days`}
-            onPress={() => nudgeSub(name, n.d)}
-            onPressIn={() => setHover(n.d)}
-            onPressOut={() => setHover(null)}
-            style={({ pressed }) => [s.nudgePill, pressed ? layout.pressed : undefined]}
+            accessibilityLabel={`Move forecast date to ${formatFinancialDate(shiftIso(date, Math.max(-7, Math.min(7, currentDelta + n.d)) - currentDelta))}`}
+            onPress={() => {
+              nudgeSub(name, n.d);
+              showUndo(
+                `${name} forecast moved to ${formatFinancialDate(shiftIso(date, Math.max(-7, Math.min(7, currentDelta + n.d)) - currentDelta))}`,
+                () => nudgeSub(name, currentDelta - (getState().subOverrides[name] ?? 0)),
+              );
+            }}
+            style={[s.nudgePill, { height: 'auto', minHeight: 48 }]}
           >
-            <Text style={s.nudgePillLabel}>{n.label}</Text>
+            <Text style={s.nudgePillLabel}>
+              {n.d < 0 ? 'Earlier' : 'Later'} ·{' '}
+              {formatFinancialDate(
+                shiftIso(date, Math.max(-7, Math.min(7, currentDelta + n.d)) - currentDelta),
+              )}
+            </Text>
           </Pressable>
         ))}
-        {currentDelta !== 0 ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Reset nudge on ${name}`}
-            hitSlop={8}
-            onPress={() => resetSubOverrides(name)}
-            style={({ pressed }) => [layout.textAction, pressed ? layout.pressed : undefined]}
-          >
-            <Text style={s.resetLabel}>Reset</Text>
-          </Pressable>
-        ) : null}
-      </ScrollView>
-
-      {hover !== null && previewDelta !== null ? (
-        <Text style={s.previewLine}>
-          {previewDelta > 0
-            ? `would free up £${previewDelta} on your lowest day`
-            : previewDelta < 0
-              ? `would cost £${Math.abs(previewDelta)} on your lowest day`
-              : 'no change to your lowest day'}
-        </Text>
-      ) : null}
-      {currentDelta !== 0 && hover === null ? (
-        <Text style={s.nudgedCaption}>
-          Nudged {currentDelta > 0 ? '+' : ''}
-          {currentDelta}d from its usual day
-        </Text>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => {
+          togglePaused(name, true);
+          showUndo(`${name} future forecast paused`, () => togglePaused(name, false));
+        }}
+        style={{ minHeight: 48, justifyContent: 'center' }}
+      >
+        <Text style={s.subTextAction}>Pause future forecast for one cycle</Text>
+      </Pressable>
+      {currentDelta !== 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            resetSubOverrides(name);
+            showUndo(`${name} forecast dates restored`, () => nudgeSub(name, currentDelta));
+          }}
+          style={{ minHeight: 48, justifyContent: 'center' }}
+        >
+          <Text style={s.resetLabel}>Restore usual forecast dates</Text>
+        </Pressable>
       ) : null}
     </View>
   );

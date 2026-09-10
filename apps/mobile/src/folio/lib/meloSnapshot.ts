@@ -29,6 +29,8 @@ import { summarizeWhatChanged } from './whatChanged';
 import { buildWidgetSnapshot } from './widgetSnapshot';
 import { requireWorkspaceData } from './workspaceRoot';
 import { buildBusinessCashPosition } from './businessCashPosition';
+import { buildFinancialPlanFromState } from './financialPlan';
+import { selectFinancialPresentation } from './financialPresentation';
 
 const PENCE_PER_POUND = 100;
 
@@ -77,6 +79,12 @@ export function buildMeloSnapshot(
   const localState = purgeSeedIfReal(requireWorkspaceData(state, workspaceId));
   const workspace = localState.workspaces.find((candidate) => candidate.id === workspaceId)!;
   const isBusiness = workspace.kind === 'business';
+  const presentation = isBusiness
+    ? null
+    : selectFinancialPresentation(
+        localState,
+        buildFinancialPlanFromState(localState, { now: nowDate }),
+      );
   const route = routeFromStore(localState, nowDate);
   const widget = buildWidgetSnapshot(localState, nowDate);
   const hasMoneyPicture = hasRealMoneyPicture(localState);
@@ -207,6 +215,13 @@ export function buildMeloSnapshot(
         ? formatDay(widget.paydayISO)
         : 'not set up yet',
     hasMoneyPicture: resolvedMoneyPicture,
+    ...(presentation
+      ? {
+          setupComplete: presentation.complete,
+          balanceKnown: presentation.balanceKnown,
+          setupNeeds: presentation.needs,
+        }
+      : {}),
     subscriptionCount: resolvedMoneyPicture ? activeSubscriptions.length : 0,
     activeSubscriptionMonthlyMinor: toPence(
       resolvedMoneyPicture

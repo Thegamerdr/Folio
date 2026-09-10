@@ -81,17 +81,18 @@ export function correctCompanionForScreen(
 
 type WorkspaceKind = 'personal' | 'business';
 
-const PERSONAL_HEADER_PERCHES: Partial<
-  Record<ScreenId, Readonly<{ top: number; bubbleLeft: number; birdLeft: number }>>
-> = {
-  plans: { top: 68, bubbleLeft: 44, birdLeft: 260 },
-  whatif: { top: 68, bubbleLeft: 44, birdLeft: 260 },
-  // Account owns a quiet inline character; no roaming bird or greeting over its title.
-  privacy: { top: 68, bubbleLeft: 44, birdLeft: 260 },
-  'today-after': { top: 68, bubbleLeft: 68, birdLeft: 284 },
-  timeline: { top: 68, bubbleLeft: 44, birdLeft: 260 },
-  visualizer: { top: 68, bubbleLeft: 44, birdLeft: 260 },
-};
+// Each of these pages already owns a character in its quote, empty state or hero. That inline
+// layout reserves real space and moves with the content. A second screen-fixed header perch
+// cannot exclude text/amounts as the page scrolls, especially at larger text sizes.
+export const INLINE_COMPANION_SCREENS: ReadonlySet<ScreenId> = new Set([
+  'plans',
+  'whatif',
+  'account',
+  'privacy',
+  'today-after',
+  'timeline',
+  'visualizer',
+]);
 
 function placeOnSide(
   placement: Readonly<{ top: number; bubbleLeft: number; birdLeft: number }>,
@@ -113,6 +114,7 @@ export function shellCompanionPlacement(
   side: 'auto' | 'left' | 'right',
   workspaceKind: WorkspaceKind = 'personal',
 ): ShellCompanionPlacement | null {
+  if (INLINE_COMPANION_SCREENS.has(screen)) return null;
   const existingPerch =
     screen === 'plan'
       ? { top: 485, bubbleLeft: 30, birdLeft: 260 }
@@ -121,11 +123,10 @@ export function shellCompanionPlacement(
         : null;
   if (existingPerch !== null) return placeOnSide(existingPerch, side);
   if (workspaceKind === 'business') return null;
-  const personalPerch = PERSONAL_HEADER_PERCHES[screen];
   // Header perches are authored on the trailing side because these screens use a large,
   // leading-aligned title block. Mirroring a persisted left preference puts Melo over that title.
   // Keep the preference in store for screens with two safe anchors, but use the only safe
   // authored header perch here. Connections deliberately has no roaming perch: its two-line title
   // and source cards leave no safe 64dp exclusion zone on the physical S9.
-  return personalPerch === undefined ? null : placeOnSide(personalPerch, 'right');
+  return null;
 }
