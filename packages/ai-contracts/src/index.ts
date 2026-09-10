@@ -1742,6 +1742,8 @@ export function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
       'covered',
       'cash position',
       'dated position',
+      'current position',
+      'safe zone',
       'business cash',
       'runway',
     ])

@@ -360,6 +360,22 @@ describe('local Melo AI functions', () => {
   });
 
   it.each([
+    ['Explain my current position and Safe Zone', 'explain_position'],
+    ['Explain my import review', 'review_import'],
+  ] as const)('keeps explicit Melo route wording on the %s intent', (prompt, intent) => {
+    expect(classifyMeloLocalIntent(prompt.toLowerCase())).toBe(intent);
+    expect(
+      draftMeloLocalAiResponse({
+        prompt,
+        snapshot: localMeloSnapshot,
+        cloudAiEnabled: false,
+        cloudConsentGranted: false,
+        source: 'typed_prompt',
+      }).intent,
+    ).toBe(intent);
+  });
+
+  it.each([
     ['What invoices are overdue?', 'review_business_invoices', '£800 is overdue'],
     ['How is my VAT pot?', 'review_business_vat', '£300 is not yet covered'],
     ['How is my Corporation Tax pot?', 'review_business_tax', '£300 is not yet covered'],
