@@ -50,6 +50,7 @@ function makeStyles() {
       columnGap: gap.xs,
       flexDirection: 'row',
       marginTop: gap.md,
+      maxWidth: '100%',
       paddingHorizontal: gap.md,
       paddingVertical: 6,
     },
@@ -67,7 +68,10 @@ function makeStyles() {
       fontSize: 11,
     },
     sublabel: {
+      flexShrink: 1,
       fontSize: 11,
+      lineHeight: 16,
+      minWidth: 0,
     },
   });
 }

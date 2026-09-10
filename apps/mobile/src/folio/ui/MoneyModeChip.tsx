@@ -80,6 +80,8 @@ function makeStyles(t: Palette) {
   return StyleSheet.create({
     chip: {
       flexDirection: 'row',
+      flexShrink: 1,
+      minWidth: 0,
       alignItems: 'center',
       gap: gap.xs,
       paddingVertical: 4,
@@ -96,6 +98,7 @@ function makeStyles(t: Palette) {
       borderColor: t.hairline,
     },
     label: {
+      flexShrink: 1,
       fontSize: 12,
       fontWeight: '600',
       letterSpacing: 0.2,

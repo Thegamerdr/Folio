@@ -64,8 +64,10 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { shouldStackTextRows } from '@/folio/lib/readableLayout';
 import { AccessibilityInfo } from 'react-native';
 import Animated, {
   Easing,
@@ -202,6 +204,8 @@ const TIERS: readonly {
 export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const { width, fontScale } = useWindowDimensions();
+  const stackRows = shouldStackTextRows(width, fontScale, gap.xl * 2);
   const reduceMotion = useReduceMotion();
   const workspace = useAppStore(
     (s) => s.workspaces.find((candidate) => candidate.id === s.activeWorkspaceId)!,
@@ -973,27 +977,30 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                   onPress={s.action}
                   style={({ pressed: isPressed }) => [
                     styles.row,
+                    stackRows && styles.sourceRowStacked,
                     isPressed ? styles.rowPressed : undefined,
                   ]}
                 >
-                  <View style={styles.rowText}>
+                  <View style={[styles.rowText, stackRows && styles.sourceTextStacked]}>
                     <Text style={[styles.rowLabel, { color: t.ink }]}>{s.label}</Text>
                     <Text style={[styles.rowHint, { color: t.muted }]}>{s.hint}</Text>
                   </View>
-                  <View style={[styles.rowStateChip, { backgroundColor: t.inset }]}>
-                    <Text style={[styles.rowStateLabel, { color: t.muted }]}>
-                      {s.state === 'manual'
-                        ? 'added by you'
-                        : s.state === 'connected'
-                          ? 'connected'
-                          : s.state === 'unavailable'
-                            ? 'unavailable'
-                            : s.state === 'optional'
-                              ? 'optional'
-                              : 'not yet'}
-                    </Text>
+                  <View style={[styles.sourceStatusRow, stackRows && styles.sourceStatusStacked]}>
+                    <View style={[styles.rowStateChip, { backgroundColor: t.inset }]}>
+                      <Text style={[styles.rowStateLabel, { color: t.muted }]}>
+                        {s.state === 'manual'
+                          ? 'added by you'
+                          : s.state === 'connected'
+                            ? 'connected'
+                            : s.state === 'unavailable'
+                              ? 'unavailable'
+                              : s.state === 'optional'
+                                ? 'optional'
+                                : 'not yet'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.chevron, { color: t.muted }]}>→</Text>
                   </View>
-                  <Text style={[styles.chevron, { color: t.muted }]}>→</Text>
                 </Pressable>
               </View>
             ))}
@@ -1062,7 +1069,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
           <Text style={[styles.sectionTitle, { color: t.ink }]}>
             {isBusiness ? 'Business footprint' : 'Your footprint'}
           </Text>
-          <View style={styles.statsGrid}>
+          <View style={[styles.statsGrid, stackRows && styles.statsList]}>
             <Stat n={transactionsCount} label="transactions" />
             {/* Honest label — imports can be pdf/photo/paste/csv, not only "statements" in the
                 narrow sense (task: coherence-fix stopgap ahead of the full accounts model). */}
@@ -1415,8 +1422,12 @@ function ClerkAccountRows({
 
 function Stat({ n, label }: { n: number; label: string }) {
   const t = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = shouldStackTextRows(width, fontScale, gap.xl * 2);
   return (
-    <Surface style={[styles.statCard, { borderColor: t.hairline }]}>
+    <Surface
+      style={[styles.statCard, stacked && styles.statCardFullWidth, { borderColor: t.hairline }]}
+    >
       <Text style={[styles.statNumber, { color: t.ink }]}>{n}</Text>
       <Text style={[styles.statLabel, { color: t.muted }]}>{label}</Text>
     </Surface>
@@ -1800,7 +1811,12 @@ const styles = StyleSheet.create({
   },
   rowText: {
     flex: 1,
+    minWidth: 0,
   },
+  sourceRowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: gap.sm },
+  sourceTextStacked: { flex: 0, width: '100%' },
+  sourceStatusRow: { flexDirection: 'row', alignItems: 'center', gap: gap.md },
+  sourceStatusStacked: { width: '100%', justifyContent: 'space-between' },
   rowLabel: {
     fontSize: 13.5,
     fontWeight: '500',
@@ -1845,6 +1861,8 @@ const styles = StyleSheet.create({
     marginTop: gap.md,
     rowGap: gap.sm,
   },
+  statsList: { flexDirection: 'column', alignItems: 'stretch' },
+  statCardFullWidth: { flexBasis: 'auto', minWidth: 0, width: '100%' },
   statCard: {
     alignItems: 'center',
     borderRadius: radius.lg,

@@ -86,6 +86,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { getState, nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
 import { buildRecoveryReceipt, type RecoveryAction } from '@/folio/lib/recoveryReceipt';
+import { fundedPotForShortfall } from '@/folio/lib/shortfallNavigation';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { buildRecoveryRoutePreview, RECOVERY_BILL_NUDGE_DAYS } from '@/folio/lib/recoveryPreview';
 import { EmptyState } from '@/folio/ui/EmptyState';
@@ -659,6 +660,18 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           After recorded costs {formatMoney(recoveryPreview.baseTight)}. The line shows projected
           balance. Payday {formatFinancialDate(plan.nextIncomeDate)}.
         </Text>
+
+        {fundedPotForShortfall(appState.pots, plan) !== null ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => nav.go('shortfall')}
+            style={styles.secondary}
+          >
+            <Text style={[styles.secondaryLabel, { color: t.calmStrong }]}>
+              Review a pot option →
+            </Text>
+          </Pressable>
+        ) : null}
 
         {/* "Pick one thing" — the single-select move group. */}
         <Text style={[styles.sectionLabel, { color: t.muted }]}>

@@ -1,69 +1,7 @@
-// @rn-engine pot-engine — allocations, weekly transfers, goal tracking (pure local logic, BUILD_PLAN §; ENGINES §6)
-//
-// PotsScreen — the faithful 1:1 React Native port of the web set-aside pots screen
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenPots.tsx).
-//
-// @rn-screen    PotsScreen
-// @rn-stack     MainTabs > Pots
-// @purpose      Set-aside pots — a calm "Across pots" aggregate, a list of pot cards (progress bar,
-//               pace/ETA line, +£5/+£10/+£20 quick-add), an "Open a pot" doorway, and a closing Melo
-//               line. Moving money between pots opens a screen-owned Reallocate sheet (amount + a live
-//               tight-point preview + "Move £n").
-// @reads        pots · onboarding · currentBalance · potLedger (via useAppStore) · the full app state
-//               (via useAppStore) so the Reallocate sheet can re-route a hypothetical copy through the
-//               shared money-path bridge (@/folio/lib/storeRoute) for its real lowest-balance preview
-// @writes       addToPot (each +£n quick-add → a potLedger deposit) · setPots (the committed move)
-// @opens-sheet  — (the Reallocate sheet is a screen-owned <Sheet>, NOT a shell SheetId)
-// @copy         FROZEN — pots.* keys come VERBATIM from '@/folio/copy/copy'; the frame strings the
-//               deck does not yet carry are frozen inline literals (no banned words).
-// @tokens       surface · inset · hairline · calm (accent) · calmSoft (accent-soft) · positive ·
-//               repair (negative) · ink · muted · canvas (paper) — all from the kit via '@/folio/theme'.
-// @motion       count-up on the aggregate figure (700ms) · per-pot + aggregate progress-bar width tween
-//               (700/500ms) · press 0.97 · slide-in-r (whole screen) · sheet-rise (the Reallocate sheet).
-//               Every motion collapses to its FINAL STATE under reduce-motion (count-up snaps, bars
-//               resolve, slide/sheet appear at rest).
-//
-// FIDELITY DECISIONS (each grounded in the spec + the confirmed kit / store / sibling screens):
-//   • DRAG → TAP. The web initiated a transfer by HTML5-dragging pot A onto pot B. RN has no HTML5
-//     drag-and-drop, and the project's hard rule is tap-only ≥44px targets. So each pot card carries
-//     an explicit "Move money" affordance (the ⋮⋮ grip is kept as the visual cue); tapping it reveals
-//     a small inline destination picker (the OTHER pots), and choosing one opens the same Reallocate
-//     sheet with the exact same transfer flow, copy, and states. This mirrors the in-repo precedent in
-//     surfaces/pressureMap/pots.tsx (drag replaced by an explicit affordance + the same sheet). The web
-//     never persisted a reorder (onDrop only opened the sheet), so no reorder is invented here.
-//   • SLIDER → STEPPER. The web amount control was <input type=range step=5>. The app ships no slider
-//     dependency (checked), so the amount is a calm −£5 / +£5 stepper clamped to [0, from-pot balance]
-//     in £5 steps — exactly the web slider's bounds + step — matching the established reallocation sheet.
-//   • TIGHT-POINT PREVIEW is now the REAL money-path engine, not the web's "Rough preview only"
-//     heuristic. The Reallocate sheet's "Lowest balance" base is the live route's tight point
-//     (routeFromStore(...).tightPoint.amount via @/folio/lib/storeRoute), and the delta is a true
-//     route diff: re-route a HYPOTHETICAL COPY of the state with the move applied (source pot down,
-//     destination up) and subtract the base tight point. Because every pot's saved is earmarked cash
-//     that lowers the whole path by the same flat offset (ENGINES §6 "Pots ↔ spendable money"),
-//     moving money between two pots keeps Σ saved constant, so a balanced transfer's honest delta is
-//     £0 — reallocating earmarked money doesn't change the lowest point — and it reads as the steady
-//     figure rather than the old fabricated buffer-only swing. The clock is mount-gated like
-//     TodayScreen (EPOCH sentinel + a `now` state); the single pre-mount frame keeps the honest
-//     per-pressure sample (pressureLow) so a normal open never flashes a different figure.
-//   • COPY: the empty state's head + cta come VERBATIM from '@/folio/copy/copy' (pots.empty.head /
-//     .cta); the .body is the design SoT's longer set-aside line, restored VERBATIM from the Lovable
-//     ScreenPots empty state as a frozen inline literal (the deck's shorter paraphrase was a fidelity
-//     gap). Frame strings the deck doesn't carry yet ("Set aside", "Small, calmly, on purpose.", the
-//     drag→move subhead, "Across pots", "+ Open a pot", the Melo line, and the Reallocate-sheet
-//     strings) are frozen inline literals too.
-//   • MELO MOOD reconciled to the mood map (MELO_MOODS): empty = calm (the web passed 'curious', a
-//     documented deviation; the map says calm and EmptyState defaults to calm). The closing MeloLine's
-//     web mood 'soft' normalises to 'calm' on the canonical Melo vocabulary. Loading = curious + a line
-//     (hard rule: never a spinner). The Reallocate sheet shows no Melo (faithful to the web).
-//   • name.split(' · ')[0] shortens "Holiday · September" → "Holiday" in the sheet title + impact row —
-//     preserved exactly. Money is always full money, tabular (never "12.3K"). Widths are clamped 0..100
-//     so a £0 goal can't produce a NaN/Infinity bar. Negative tight points ("£-86" / red "−£X") render.
-//
-// Tokens only — no new colour, font, spacing, radius, or shadow. Banned visible words (import / rows /
-// parser / extraction / OCR / sync / dashboard / analytics / users / 100% / bank-grade / AI-powered /
-// smart / provenance / source record / indexed) are absent.
+// Set-aside pots retain their local contributions, borrowing and reallocation behavior.
+// Every spending estimate uses the canonical financial plan; pot progress describes recorded funds.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
   Pressable,
@@ -95,16 +33,19 @@ import {
   setPotAllowNegative,
   setPots,
   useAppStore,
-  type AppState,
   type Pot,
 } from '@/folio/store';
-import { routeFromStore } from '@/folio/lib/storeRoute';
+import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { formatMoney } from '@/folio/lib/financialPresentation';
+import { useDayClock } from '@/folio/lib/useDayClock';
+import {
+  previewPotReallocation,
+  selectPotProgress,
+  selectPotsPresentation,
+} from '@/folio/lib/potsPresentation';
 import type { Nav, Pressure } from '@/folio/types';
 import { triggerFeedback } from '@/folio/lib/feedback';
-import {
-  formatAvailableAfterSetAside,
-  summarisePotLedger,
-} from '@/folio/screens/commitmentHelpers';
+import { summarisePotLedger } from '@/folio/screens/commitmentHelpers';
 
 // The render states this screen can occupy (spec stateBranches). Pots are local + synchronous, so
 // loading/error are defensive: loading shows Melo curious + a line (never a spinner), error shows an
@@ -113,10 +54,7 @@ export type PotsState = 'populated' | 'empty' | 'loading' | 'error' | 'offline';
 
 export type PotsScreenProps = {
   nav: Nav;
-  /** The route pressure band. The web read this off `nav.pressure`; the RN Nav contract carries no
-   *  pressure, so the shell threads it explicitly (mirrors TodayScreen). Now only the honest pre-mount
-   *  FALLBACK for the Reallocate sheet's "Lowest balance" (indexes pressureLow[]) — once the mount-gate
-   *  opens the real route engine supplies that figure. Defaults to the shell's calm band. */
+  /** Kept for shell compatibility; displayed money comes from the canonical financial plan. */
   pressure?: Pressure;
   /** Force a render state (defaults to deriving from the live pots). Exposed for the shell + tests. */
   state?: PotsState;
@@ -140,44 +78,6 @@ const COUNT_MS = 700;
 const SLIDE_FROM_X = 28;
 const SLIDE_MS = 360;
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
-
-// A stable sentinel "now" for the one render before the mount-gate opens. `routeFromStore` needs an
-// honest "today"; until `now` is set we route against this and discard the figure that frame.
-// Module-level so its identity never churns the memo. (Same pattern as TodayScreen / RecoveryScreen.)
-const EPOCH = new Date(0);
-
-// The REAL reallocate impact — replaces the web's "Rough preview only" heuristic (which faked a
-// buffer-only ±round(clamped·0.6) nudge). The lowest balance comes from the shared money-path engine
-// via `routeFromStore`; the delta comes from re-routing a HYPOTHETICAL COPY of the live state with the
-// move applied (the source pot down `clamped`, the destination up `clamped`) and diffing its tight
-// point against the base route's. Pure given its inputs — never mutates the live store.
-//
-// Because the engine treats every pot's `saved` as earmarked cash that lowers the whole path by the
-// same flat offset (ENGINES §6 "Pots ↔ spendable money"), moving money BETWEEN two pots keeps Σ saved
-// unchanged, so the honest tight-point delta of a balanced transfer is £0. That's the truthful answer
-// — reallocating earmarked money doesn't change the lowest point — and it shows as the steady figure
-// rather than a fabricated swing.
-function routeImpact(
-  state: AppState,
-  fromId: string,
-  toId: string,
-  clamped: number,
-  now: Date,
-): { base: number; delta: number } {
-  const base = Math.round(routeFromStore(state, now).tightPoint.amount);
-  const candidateState: AppState = {
-    ...state,
-    pots: state.pots.map((p) =>
-      p.id === fromId
-        ? { ...p, saved: p.saved - clamped }
-        : p.id === toId
-          ? { ...p, saved: p.saved + clamped }
-          : p,
-    ),
-  };
-  const candidate = Math.round(routeFromStore(candidateState, now).tightPoint.amount);
-  return { base, delta: candidate - base };
-}
 
 // Shorten "Holiday · September" → "Holiday" for the sheet title + impact row (web name.split(' · ')[0]).
 function shortName(name: string): string {
@@ -217,8 +117,6 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
   // screen is honestly bound to the same state the rest of the app mutates, even where this surface
   // only surfaces `pots` directly today.
   const pots = useAppStore((st) => st.pots);
-  const onboarding = useAppStore((st) => st.onboarding);
-  const currentBalance = useAppStore((st) => st.currentBalance);
   const potLedger = useAppStore((st) => st.potLedger);
 
   // Per-pot outstanding borrow = sum(borrow) − sum(repay) (ENGINES §4; web ScreenPots `owedByPot`).
@@ -237,14 +135,12 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
   // without touching the live store. (Mirrors RecoveryScreen.)
   const appState = useAppStore((st) => st);
 
-  // Mount-gate the clock (same as TodayScreen / RecoveryScreen): defer `new Date()` so nothing reads
-  // the clock during render and the route has an honest "today" before it computes. Until the gate
-  // opens we route against EPOCH and discard that frame's figure (`route` null), keeping the honest
-  // pre-engine fallback (pressureLow[pressure]) for that single frame.
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-  }, []);
+  const now = useDayClock();
+  const plan = useMemo(
+    () => (now ? buildFinancialPlanFromState(appState, { now }) : null),
+    [appState, now],
+  );
+  const money = selectPotsPresentation(appState, plan);
 
   // Transfer flow state: which pot we're moving FROM (its move-picker is open), and the chosen
   // {from,to} pair (drives the Reallocate sheet). amount is the chosen move in whole £.
@@ -258,9 +154,6 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
 
   const total = pots.reduce((sum, p) => sum + p.saved, 0);
   const totalGoal = pots.reduce((sum, p) => sum + p.goal, 0);
-  // Pots are earmarked money, not a second balance. Surface the real effect of that allocation in
-  // the same aggregate block so the user can read both the purpose and the available remainder.
-  const availableAfterSetAside = currentBalance.amount - total;
   const ledgerSummary = useMemo(
     () => summarisePotLedger(potLedger, new Set(pots.map((pot) => pot.id))),
     [potLedger, pots],
@@ -294,22 +187,15 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
   const maxMove = fromPot ? fromPot.saved : 0;
   const clamped = Math.max(0, Math.min(amount, maxMove));
 
-  // The REAL lowest-balance preview — the money-path engine, not the old "Rough preview only" stub.
-  // `routeImpact` reads the base tight point from the live route and re-routes a HYPOTHETICAL copy of
-  // the state with this exact move applied, diffing the tight points. The hook can't be called
-  // conditionally, so it always computes against `now ?? EPOCH`; before the mount-gate opens
-  // (`now === null`) the engine has no honest "today", so we discard that transient and fall back to
-  // the honest per-pressure sample (pressureLow) with no delta — exactly the pre-engine state, so the
-  // sheet never flashes a different figure on a normal open. The diff is recomputed only when the
-  // route inputs, the chosen pair, or the amount actually change.
+  // Reallocation preview changes only a copy of the pot allocations, using the same plan as Today.
   const impact = useMemo(() => {
     if (!now || !transfer || !fromPot || !toPot) return null;
-    return routeImpact(appState, transfer.from, transfer.to, clamped, now);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return previewPotReallocation(appState, transfer.from, transfer.to, clamped, now);
   }, [now, transfer, fromPot, toPot, clamped, appState]);
-
-  const tightPointBase = impact ? impact.base : 0;
-  const tightDelta = impact ? impact.delta : 0;
+  const impactLabel = impact?.model.label ?? money.label;
+  const impactValue = impact?.model.safe ?? null;
+  const impactMessage = impact?.model.message ?? money.message;
+  const tightDelta = impact?.delta ?? 0;
 
   function openMove(fromId: string) {
     setMoveFrom((current) => (current === fromId ? null : fromId));
@@ -466,8 +352,6 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
 
   // ── POPULATED / OFFLINE ─────────────────────────────────────────────────────────────────────────
   // offline ≡ populated (local-first; renders identically, no network language).
-  void onboarding;
-  void currentBalance;
 
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
@@ -503,9 +387,14 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
           <Text style={[styles.label, { color: t.muted }]}>Across pots</Text>
           <View style={styles.aggFigureRow}>
             <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.65}
               style={[styles.aggFigure, { color: t.ink }]}
-            >{`£${Math.round(totalDisplay)}`}</Text>
-            <Text style={[styles.aggOf, { color: t.muted }]}>{`of £${totalGoal}`}</Text>
+            >
+              {formatMoney(totalDisplay)}
+            </Text>
+            <Text style={[styles.aggOf, { color: t.muted }]}>{`of ${formatMoney(totalGoal)}`}</Text>
           </View>
           <ProgressBar
             pct={pctOf(total, totalGoal)}
@@ -516,33 +405,38 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
             reduceMotion={reduceMotion}
           />
           <View style={[styles.availableRow, { borderTopColor: t.hairline }]}>
-            <View style={styles.availableCopy}>
-              <Text style={[styles.availableLabel, { color: t.muted }]}>
-                Available after set-aside
-              </Text>
-              <Text style={[styles.availableHint, { color: t.muted }]}>
-                from your current balance
-              </Text>
-            </View>
+            <Text style={[styles.availableLabel, { color: t.muted }]}>{money.label}</Text>
             <Text
               style={[
                 styles.availableValue,
-                { color: availableAfterSetAside < 0 ? t.repair : t.ink },
+                { color: money.safe !== null && money.safe < 0 ? t.repair : t.ink },
               ]}
             >
-              {formatAvailableAfterSetAside(availableAfterSetAside)}
+              {money.safe === null ? '—' : formatMoney(money.safe)}
+            </Text>
+            <Text style={[styles.availableHint, { color: t.muted }]}>{money.message}</Text>
+          </View>
+          <View style={[styles.ledgerRow, { borderTopColor: t.hairline }]}>
+            <View style={styles.availableCopy}>
+              <Text style={[styles.availableLabel, { color: t.muted }]}>Cash outside pots</Text>
+              <Text style={[styles.availableHint, { color: t.muted }]}>
+                Before bills, essentials and buffer
+              </Text>
+            </View>
+            <Text style={[styles.ledgerValue, { color: t.muted }]}>
+              {money.cashOutsidePots === null ? '—' : formatMoney(money.cashOutsidePots)}
             </Text>
           </View>
           <View style={[styles.ledgerRow, { borderTopColor: t.hairline }]}>
             <View style={styles.availableCopy}>
-              <Text style={[styles.availableLabel, { color: t.muted }]}>Pot ledger</Text>
+              <Text style={[styles.availableLabel, { color: t.muted }]}>Pot history</Text>
               <Text style={[styles.availableHint, { color: t.muted }]}>
-                contribution · borrow · repay
+                contributions · borrowing · repayments
               </Text>
             </View>
             <Text style={[styles.ledgerValue, { color: t.ink }]}>
               {ledgerSummary.contributed > 0
-                ? `+${formatAvailableAfterSetAside(ledgerSummary.contributed)}`
+                ? `+${formatMoney(ledgerSummary.contributed)}`
                 : 'No deposits yet'}
             </Text>
           </View>
@@ -550,7 +444,7 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
           ledgerSummary.borrowed > 0 ||
           ledgerSummary.repaid > 0 ? (
             <Text style={[styles.ledgerDetail, { color: t.muted }]}>
-              {`Contributed ${formatAvailableAfterSetAside(ledgerSummary.contributed)} · borrowed ${formatAvailableAfterSetAside(ledgerSummary.borrowed)} · repaid ${formatAvailableAfterSetAside(ledgerSummary.repaid)} · available effect ${formatAvailableAfterSetAside(ledgerSummary.availableEffect)}`}
+              {`Contributed ${formatMoney(ledgerSummary.contributed)} · borrowed ${formatMoney(ledgerSummary.borrowed)} · repaid ${formatMoney(ledgerSummary.repaid)} · cash outside pots effect ${formatMoney(ledgerSummary.availableEffect)}`}
             </Text>
           ) : null}
         </View>
@@ -601,7 +495,14 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
 
         {/* The closing Melo line — web mood 'soft' → calm on the canonical vocabulary. */}
         <View style={styles.meloBlock}>
-          <MeloLine mood="calm" text="Pots quietly chip away at what's left — that's the idea." />
+          <MeloLine
+            mood={money.presentation.canReassure ? 'calm' : 'concern'}
+            text={
+              money.presentation.canReassure
+                ? 'Pot contributions reserve money for your goals. Keep recorded costs and your buffer covered.'
+                : money.message
+            }
+          />
         </View>
       </ScrollView>
 
@@ -613,7 +514,9 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
         maxMove={maxMove}
         clamped={clamped}
         amount={amount}
-        tightPointBase={tightPointBase}
+        impactLabel={impactLabel}
+        impactValue={impactValue}
+        impactMessage={impactMessage}
         tightDelta={tightDelta}
         reduceMotion={reduceMotion}
         t={t}
@@ -668,9 +571,7 @@ function PotCard({
   onToggleMove: () => void;
   onChooseDestination: (toId: string) => void;
 }) {
-  const weeksLeft =
-    pot.perWeek > 0 ? Math.ceil(Math.max(0, pot.goal - pot.saved) / pot.perWeek) : 0;
-  const etaLabel = weeksLeft > 0 ? `about ${weeksLeft} weeks` : 'goal met';
+  const progress = selectPotProgress(pot);
   const canMove = pot.saved > 0 && others.length > 0;
   const repayAmount = Math.min(owed, 20);
 
@@ -682,8 +583,10 @@ function PotCard({
           <Text style={[styles.potName, { color: t.ink }]}>{pot.name}</Text>
         </View>
         <Text style={[styles.potFigure, { color: t.ink }]}>
-          {`£${pot.saved} `}
-          <Text style={[styles.potFigureGoal, { color: t.muted }]}>{`/ £${pot.goal}`}</Text>
+          {`${formatMoney(pot.saved)} `}
+          <Text
+            style={[styles.potFigureGoal, { color: t.muted }]}
+          >{`/ ${formatMoney(pot.goal)}`}</Text>
         </Text>
       </View>
 
@@ -698,20 +601,20 @@ function PotCard({
       />
 
       <View style={styles.paceRow}>
-        <Text
-          style={[styles.paceText, { color: t.muted }]}
-        >{`£${pot.perWeek}/wk at this pace`}</Text>
-        <Text style={[styles.paceEta, { color: t.muted }]}>{etaLabel}</Text>
+        <Text style={[styles.paceText, { color: t.muted }]}>{progress.paceLabel}</Text>
+        <Text style={[styles.paceEta, { color: t.muted }]}>{progress.etaLabel}</Text>
       </View>
 
+      <Text style={[styles.owedCaption, { color: t.muted }]}>
+        Record money set aside. No bank transfer is made.
+      </Text>
       <View style={styles.actionRow}>
         <View style={styles.quickAddRow}>
           {QUICK_ADD.map((inc) => (
             <Pressable
               key={inc}
               accessibilityRole="button"
-              accessibilityLabel={`Add £${inc} to ${pot.name}`}
-              hitSlop={8}
+              accessibilityLabel={`Record ${formatMoney(inc)} set aside for ${pot.name}`}
               onPress={() => onQuickAdd(inc)}
               style={({ pressed: isPressed }) => [
                 styles.chip,
@@ -719,7 +622,7 @@ function PotCard({
                 isPressed ? styles.pressed : undefined,
               ]}
             >
-              <Text style={[styles.chipLabel, { color: t.ink }]}>{`+£${inc}`}</Text>
+              <Text style={[styles.chipLabel, { color: t.ink }]}>{`+${formatMoney(inc)}`}</Text>
             </Pressable>
           ))}
         </View>
@@ -728,7 +631,6 @@ function PotCard({
             accessibilityRole="button"
             accessibilityLabel={`Move money from ${pot.name}`}
             accessibilityState={{ expanded: moveOpen }}
-            hitSlop={8}
             onPress={onToggleMove}
             style={({ pressed: isPressed }) => [
               styles.moveChip,
@@ -750,8 +652,7 @@ function PotCard({
       {owed > 0 ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Repay £${repayAmount} to ${pot.name}`}
-          hitSlop={8}
+          accessibilityLabel={`Record ${formatMoney(repayAmount)} repaid to ${pot.name}`}
           onPress={() => onRepay(repayAmount)}
           style={({ pressed: isPressed }) => [
             styles.repayChip,
@@ -759,12 +660,14 @@ function PotCard({
             isPressed ? styles.pressed : undefined,
           ]}
         >
-          <Text style={[styles.repayChipLabel, { color: t.calm }]}>{`Repay £${repayAmount}`}</Text>
+          <Text
+            style={[styles.repayChipLabel, { color: t.calm }]}
+          >{`Record ${formatMoney(repayAmount)} repaid`}</Text>
         </Pressable>
       ) : null}
       {owed > 0 ? (
         <Text style={[styles.owedCaption, { color: t.muted }]}>
-          {`£${owed} borrowed from this pot — repay when the month allows.`}
+          {`${formatMoney(owed)} recorded as borrowed. Recording repayment clears the amount owed; it does not move cash or add to the pot.`}
         </Text>
       ) : null}
 
@@ -810,7 +713,6 @@ function PotCard({
                 key={o.id}
                 accessibilityRole="button"
                 accessibilityLabel={`Move money from ${pot.name} into ${shortName(o.name)}`}
-                hitSlop={8}
                 onPress={() => onChooseDestination(o.id)}
                 style={({ pressed: isPressed }) => [
                   styles.destChip,
@@ -875,7 +777,7 @@ function ProgressBar({
 
 // ── Reallocate sheet ───────────────────────────────────────────────────────────────────────────
 // The screen-owned bottom sheet: "Reallocate" kicker · "{from} → {to}" · the amount well (big
-// terracotta figure + a −£5/+£5 stepper) · the impact row (rough lowest-balance preview + destination
+// terracotta figure + a −£5/+£5 stepper) · the impact row (canonical protected spending amount + destination
 // gain) · Cancel / Move £n.
 function ReallocateSheet({
   visible,
@@ -884,7 +786,9 @@ function ReallocateSheet({
   maxMove,
   clamped,
   amount,
-  tightPointBase,
+  impactLabel,
+  impactValue,
+  impactMessage,
   tightDelta,
   reduceMotion,
   t,
@@ -899,7 +803,9 @@ function ReallocateSheet({
   maxMove: number;
   clamped: number;
   amount: number;
-  tightPointBase: number;
+  impactLabel: string;
+  impactValue: number | null;
+  impactMessage: string;
   tightDelta: number;
   reduceMotion: boolean;
   t: Palette;
@@ -926,9 +832,18 @@ function ReallocateSheet({
           <View style={[styles.amountWell, { backgroundColor: t.inset }]}>
             <View style={styles.amountWellHead}>
               <Text style={[styles.amountWellLabel, { color: t.muted }]}>Amount</Text>
-              <Text style={[styles.amountWellMax, { color: t.muted }]}>{`max £${maxMove}`}</Text>
+              <Text
+                style={[styles.amountWellMax, { color: t.muted }]}
+              >{`max ${formatMoney(maxMove)}`}</Text>
             </View>
-            <Text style={[styles.amountValue, { color: t.calm }]}>{`£${clamped}`}</Text>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.65}
+              style={[styles.amountValue, { color: t.calm }]}
+            >
+              {formatMoney(clamped)}
+            </Text>
             <View style={styles.stepperRow}>
               <StepButton
                 label="−£5"
@@ -945,17 +860,17 @@ function ReallocateSheet({
             </View>
           </View>
 
-          {/* Impact row — the rough lowest-balance preview (left) + the destination gain (right). */}
+          {/* Current protected amount after this move, followed by the destination allocation. */}
           <View style={[styles.impact, { backgroundColor: t.surface, borderColor: t.hairline }]}>
             <View>
-              <Text style={[styles.impactLabel, { color: t.muted }]}>Lowest balance</Text>
+              <Text style={[styles.impactLabel, { color: t.muted }]}>{impactLabel}</Text>
               <Text style={[styles.impactValue, { color: t.ink }]}>
-                {`£${tightPointBase}`}
+                {impactValue === null ? '—' : formatMoney(impactValue)}
                 {tightDelta !== 0 ? (
                   <Text
                     style={[styles.impactDelta, { color: tightDelta > 0 ? t.positive : t.repair }]}
                   >
-                    {` ${deltaSign}£${tightDelta}`}
+                    {` (${deltaSign}${formatMoney(tightDelta)} change)`}
                   </Text>
                 ) : null}
               </Text>
@@ -963,11 +878,19 @@ function ReallocateSheet({
             <View style={styles.impactRight}>
               <Text style={[styles.impactLabel, { color: t.muted }]}>{shortName(toPot.name)}</Text>
               <Text style={[styles.impactValue, { color: t.ink }]}>
-                {`£${toPot.saved} `}
-                <Text style={[styles.impactDelta, { color: t.positive }]}>{`+£${clamped}`}</Text>
+                {`${formatMoney(toPot.saved)} `}
+                <Text
+                  style={[styles.impactDelta, { color: t.positive }]}
+                >{`+${formatMoney(clamped)}`}</Text>
               </Text>
             </View>
           </View>
+
+          <Text style={[styles.creatorBody, { color: t.muted }]}>{impactMessage}</Text>
+          <Text style={[styles.creatorBody, { color: t.muted }]}>
+            This moves set-aside amounts between your pots in Melo. Tracked cash stays the same; no
+            bank transfer is made.
+          </Text>
 
           {/* Cancel / Move £n. */}
           <View style={styles.sheetActions}>
@@ -985,7 +908,7 @@ function ReallocateSheet({
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Move £${clamped}`}
+              accessibilityLabel={`Move ${formatMoney(clamped)}`}
               accessibilityState={{ disabled: !canMove }}
               disabled={!canMove}
               onPress={onMove}
@@ -996,7 +919,7 @@ function ReallocateSheet({
               ]}
             >
               <Text style={[styles.sheetMoveLabel, { color: canMove ? t.inverse : t.muted }]}>
-                {`Move £${clamped}`}
+                {`Move ${formatMoney(clamped)}`}
               </Text>
             </Pressable>
           </View>
@@ -1134,7 +1057,6 @@ function StepButton({
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
       disabled={disabled}
-      hitSlop={8}
       onPress={onPress}
       style={({ pressed: isPressed }) => [
         styles.step,
@@ -1220,7 +1142,7 @@ const styles = StyleSheet.create({
   retry: {
     alignItems: 'center',
     borderRadius: radius.xl,
-    height: 52,
+    minHeight: 52,
     justifyContent: 'center',
   },
   retryLabel: {
@@ -1245,10 +1167,12 @@ const styles = StyleSheet.create({
   aggFigureRow: {
     alignItems: 'baseline',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: gap.sm,
     marginTop: gap.xs,
   },
   aggFigure: {
+    maxWidth: '100%',
     fontFamily: serif.display,
     fontSize: 40,
     fontVariant: ['tabular-nums'],
@@ -1260,15 +1184,15 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   availableRow: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     borderTopWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: gap.sm,
     marginTop: gap.md,
     paddingTop: gap.sm,
   },
   availableCopy: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 150,
     gap: 2,
   },
   availableLabel: {
@@ -1277,15 +1201,18 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
   },
   availableHint: {
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 18,
   },
   availableValue: {
     fontFamily: serif.display,
-    fontSize: 17,
+    fontSize: 24,
     fontVariant: ['tabular-nums'],
   },
   ledgerRow: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: gap.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1293,6 +1220,8 @@ const styles = StyleSheet.create({
     paddingTop: gap.sm,
   },
   ledgerValue: {
+    flexShrink: 1,
+    maxWidth: '100%',
     fontFamily: serif.display,
     fontSize: 15,
     fontVariant: ['tabular-nums'],
@@ -1315,9 +1244,8 @@ const styles = StyleSheet.create({
     paddingVertical: gap.md,
   },
   potHead: {
-    alignItems: 'baseline',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: gap.xs,
   },
   potNameRow: {
     alignItems: 'center',
@@ -1326,6 +1254,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   potName: {
+    flexShrink: 1,
     fontSize: 14.5,
     fontWeight: '500',
   },
@@ -1340,9 +1269,8 @@ const styles = StyleSheet.create({
 
   // Pace row — mt-2.
   paceRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: gap.xs,
     marginTop: gap.sm,
   },
   paceText: {
@@ -1357,25 +1285,28 @@ const styles = StyleSheet.create({
   actionRow: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: gap.sm,
     justifyContent: 'space-between',
     marginTop: gap.sm + gap.xxs,
   },
   quickAddRow: {
     alignItems: 'center',
-    columnGap: gap.xs + gap.xxs,
+    gap: gap.sm,
     flexDirection: 'row',
+    flexWrap: 'wrap',
   },
-  // Quick-add chip — h-7, rounded-full, inset fill, ≥44px tap via hitSlop.
+  // Contribution chips have real 48dp touch bounds and wrap without overlapping their neighbours.
   chip: {
     alignItems: 'center',
     borderRadius: radius.pill,
-    height: 28,
+    minHeight: 48,
     justifyContent: 'center',
-    minWidth: 44,
+    minWidth: 64,
     paddingHorizontal: 10,
   },
   chipLabel: {
-    fontSize: 11.5,
+    fontSize: 13,
     fontVariant: ['tabular-nums'],
   },
   // Move chip — a quiet hairline pill that fills accent-soft when its picker is open.
@@ -1383,23 +1314,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
-    height: 28,
+    minHeight: 48,
     justifyContent: 'center',
-    minWidth: 44,
+    minWidth: 64,
     paddingHorizontal: 12,
   },
   moveChipLabel: {
-    fontSize: 11.5,
+    fontSize: 13,
     fontWeight: '500',
   },
 
-  // Repay affordance — full-width accent-soft pill, mt-2 (web col-span-3 min-h-[44px]).
+  // Recorded-repayment affordance, with the same 48dp minimum as contributions.
   repayChip: {
     alignItems: 'center',
     borderRadius: radius.pill,
     justifyContent: 'center',
     marginTop: gap.sm,
-    minHeight: 44,
+    minHeight: 48,
     paddingHorizontal: gap.md,
   },
   repayChipLabel: {
@@ -1414,6 +1345,7 @@ const styles = StyleSheet.create({
 
   // "Can go briefly negative" row — inset well, rounded-xl, px-3 py-2, mt-3.
   allowNegRow: {
+    minHeight: 48,
     alignItems: 'center',
     borderRadius: radius.md,
     flexDirection: 'row',
@@ -1468,7 +1400,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
-    minHeight: 36,
+    minHeight: 48,
     justifyContent: 'center',
     paddingHorizontal: gap.md,
     paddingVertical: 6,
@@ -1499,7 +1431,7 @@ const styles = StyleSheet.create({
   openCta: {
     alignItems: 'center',
     borderRadius: radius.xl,
-    height: 52,
+    minHeight: 52,
     justifyContent: 'center',
     marginTop: gap.lg,
   },
@@ -1547,10 +1479,12 @@ const styles = StyleSheet.create({
   },
   creatorNumbersRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: gap.md,
   },
   creatorNumberField: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 140,
   },
   // Amount well — inset, 2xl radius, p-5, mt-5.
   amountWell: {
@@ -1561,6 +1495,8 @@ const styles = StyleSheet.create({
   amountWellHead: {
     alignItems: 'baseline',
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: gap.sm,
     justifyContent: 'space-between',
   },
   amountWellLabel: {
@@ -1575,6 +1511,7 @@ const styles = StyleSheet.create({
   },
   // The big terracotta figure, Fraunces 44px tabular, mt-1.
   amountValue: {
+    maxWidth: '100%',
     fontFamily: serif.display,
     fontSize: 44,
     fontVariant: ['tabular-nums'],
@@ -1591,7 +1528,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     flex: 1,
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: 'center',
   },
   stepLabel: {
@@ -1602,17 +1539,17 @@ const styles = StyleSheet.create({
 
   // Impact row — surface, hairline, rounded-xl, px-4 py-3, mt-4.
   impact: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: gap.md,
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     marginTop: gap.lg,
     paddingHorizontal: gap.lg,
     paddingVertical: gap.md,
   },
   impactRight: {
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
   },
   impactLabel: {
     fontSize: 10.5,
@@ -1634,15 +1571,17 @@ const styles = StyleSheet.create({
 
   // Sheet actions — grid-cols-2 gap-2.5, mt-5.
   sheetActions: {
-    columnGap: gap.md - gap.xxs,
+    gap: gap.md - gap.xxs,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginTop: gap.lg,
   },
   sheetCancel: {
     alignItems: 'center',
     borderRadius: radius.xl,
-    flex: 1,
-    height: 50,
+    flexGrow: 1,
+    flexBasis: 110,
+    minHeight: 50,
     justifyContent: 'center',
   },
   sheetCancelLabel: {
@@ -1651,8 +1590,9 @@ const styles = StyleSheet.create({
   sheetMove: {
     alignItems: 'center',
     borderRadius: radius.xl,
-    flex: 1,
-    height: 50,
+    flexGrow: 1,
+    flexBasis: 110,
+    minHeight: 50,
     justifyContent: 'center',
   },
   sheetMoveLabel: {

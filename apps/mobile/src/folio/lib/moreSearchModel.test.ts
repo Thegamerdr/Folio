@@ -3,6 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { buildMoreSearchResults } from './moreSearchModel';
 
 describe('moreSearchModel', () => {
+  it('keeps Shortfall discoverable through normal navigation even without a funded pot', () => {
+    const empty = { pots: [], subscriptions: [], debts: [] };
+    expect(buildMoreSearchResults('shortfall', empty)).toEqual([
+      expect.objectContaining({
+        label: 'Shortfall',
+        target: { kind: 'screen', screen: 'shortfall' },
+      }),
+    ]);
+    expect(buildMoreSearchResults('', empty).some((row) => row.id === 'shortfall')).toBe(true);
+  });
   it.each(['transfer', 'refund'] as const)('finds the shipping %s action', (query) => {
     const result = buildMoreSearchResults(query, { pots: [], subscriptions: [], debts: [] });
     expect(result).toHaveLength(1);

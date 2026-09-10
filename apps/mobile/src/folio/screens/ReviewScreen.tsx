@@ -53,7 +53,7 @@
 // frame / card labels / chips / CTAs are @copy FROZEN inline literals (not keyed in COPY_DECK); the
 // Melo line is its own frozen literal.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Pressable,
@@ -102,6 +102,7 @@ import { formatGBP } from '@/folio/screens/today/format';
 import { formatEditableAmount } from '@/folio/screens/reviewFormat';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 import { reviewHistoryPresentation } from '@/folio/screens/reviewHistoryPresentation';
+import { resolveSheetFocusedScroll } from '@/surfaces/pressureMap/sheetGeometry';
 import type { Nav } from '@/folio/types';
 
 // The single candidate this screen reviews — the eventual shape of one CandidateMoneyItem from a
@@ -701,6 +702,42 @@ export function ReviewScreen({
     nav.back();
   }
 
+  const reviewBody = useRef<ScrollView>(null);
+  const reviewScrollY = useRef(0);
+  const focusFrame = useRef<number | null>(null);
+  const keepReviewInputVisible = useCallback(() => {
+    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    focusFrame.current = requestAnimationFrame(() => {
+      focusFrame.current = null;
+      const focused = TextInput.State.currentlyFocusedInput();
+      const body = reviewBody.current;
+      const native = body?.getNativeScrollRef();
+      if (!embedded || !focused || !body || !native) return;
+      native.measureInWindow((_x, bodyTop, _width, bodyHeight) => {
+        focused.measureInWindow((_inputX, inputTop, _inputWidth, inputHeight) => {
+          if (TextInput.State.currentlyFocusedInput() !== focused) return;
+          const nextY = resolveSheetFocusedScroll({
+            scrollY: reviewScrollY.current,
+            inputTop,
+            inputHeight,
+            bodyTop,
+            bodyHeight,
+          });
+          if (Math.abs(nextY - reviewScrollY.current) > 1) {
+            reviewScrollY.current = nextY;
+            body.scrollTo({ y: nextY, animated: !reduceMotion });
+          }
+        });
+      });
+    });
+  }, [embedded, reduceMotion]);
+  useEffect(
+    () => () => {
+      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    },
+    [],
+  );
+
   // The personal Review TAB owns the pinned browser composition directly. The native decision
   // authorities above remain unchanged: this branch is presentation only, and its Add / Ignore /
   // Cancel actions call the same review-before-truth handlers as the standalone detail route.
@@ -774,6 +811,13 @@ export function ReviewScreen({
     return (
       <Animated.View style={[sourceStyles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <ScrollView
+          ref={reviewBody}
+          style={sourceStyles.body}
+          onLayout={keepReviewInputVisible}
+          onScroll={(event) => {
+            reviewScrollY.current = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
           contentContainerStyle={sourceStyles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -804,6 +848,7 @@ export function ReviewScreen({
             <View style={[sourceStyles.merchantRule, { borderBottomColor: t.hairline }]}>
               <TextInput
                 accessibilityLabel="Merchant"
+                onFocus={keepReviewInputVisible}
                 editable={!stamped}
                 onChangeText={setMerchant}
                 style={[sourceStyles.merchantInput, { color: t.ink }]}
@@ -816,6 +861,7 @@ export function ReviewScreen({
               </Text>
               <TextInput
                 accessibilityLabel="Amount"
+                onFocus={keepReviewInputVisible}
                 editable={!stamped}
                 inputMode="decimal"
                 keyboardType="decimal-pad"
@@ -886,8 +932,6 @@ export function ReviewScreen({
             </View>
           </View>
 
-          <View style={sourceStyles.spacer} />
-
           {dupeProposal && !stamped ? (
             <View
               style={[sourceStyles.dupeCard, { backgroundColor: t.calmSoft, borderColor: t.calm }]}
@@ -898,6 +942,22 @@ export function ReviewScreen({
               <Text style={[sourceStyles.dupeSub, { color: t.muted }]}>
                 {reviewMatchSubline(dupeProposal)}
               </Text>
+              <Text style={[sourceStyles.dupeFoot, { color: t.muted }]}>
+                Linking keeps your original.
+              </Text>
+            </View>
+          ) : null}
+        </ScrollView>
+
+        {/* Shell owns keyboard/system insets. This footer stays inside its resized viewport. */}
+        <View
+          style={[
+            sourceStyles.actionFooter,
+            { backgroundColor: t.canvas, borderColor: t.hairline },
+          ]}
+        >
+          {dupeProposal && !stamped ? (
+            <View>
               <View style={sourceStyles.dupeRow}>
                 <Pressable
                   accessibilityRole="button"
@@ -935,9 +995,6 @@ export function ReviewScreen({
               >
                 <Text style={[sourceStyles.secondaryLabel, { color: t.ink }]}>Ignore</Text>
               </Pressable>
-              <Text style={[sourceStyles.dupeFoot, { color: t.muted }]}>
-                Linking keeps your original.
-              </Text>
             </View>
           ) : (
             <>
@@ -987,8 +1044,7 @@ export function ReviewScreen({
               </View>
             </>
           )}
-          <View style={sourceStyles.bottomSpace} />
-        </ScrollView>
+        </View>
       </Animated.View>
     );
   }
@@ -1760,7 +1816,14 @@ const styles = StyleSheet.create({
 // ScreenReview.tsx @ ad90b4f — local geometry for the embedded personal composition. Kept local so
 // the parity recovery does not mutate shared kit/shell tokens while another lane calibrates them.
 const sourceStyles = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, minHeight: 0 },
+  body: { flex: 1, minHeight: 0 },
+  actionFooter: {
+    flexShrink: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: gap.xl,
+    paddingVertical: gap.md,
+  },
   content: {
     flexGrow: 1,
     paddingBottom: gap.xl,
@@ -1895,11 +1958,11 @@ const sourceStyles = StyleSheet.create({
     paddingVertical: 6,
   },
   chipLabel: { fontSize: 12.5 },
-  spacer: { flex: 1, minHeight: gap.lg },
   primary: {
     alignItems: 'center',
     borderRadius: radius.lg,
-    height: 54,
+    minHeight: 54,
+    paddingVertical: gap.sm,
     justifyContent: 'center',
   },
   primaryLabel: { fontSize: 16, fontWeight: '500' },
@@ -1911,25 +1974,29 @@ const sourceStyles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     flex: 1,
-    height: 44,
+    minHeight: 48,
+    paddingHorizontal: gap.sm,
+    paddingVertical: gap.sm,
     justifyContent: 'center',
   },
   cancelButton: {
     alignItems: 'center',
-    height: 44,
+    minHeight: 48,
+    paddingVertical: gap.sm,
     justifyContent: 'center',
     paddingHorizontal: gap.lg,
   },
-  secondaryLabel: { fontSize: 14 },
+  secondaryLabel: { fontSize: 14, textAlign: 'center' },
   dupeCard: { borderRadius: radius.lg, borderWidth: 1, padding: gap.lg },
   dupeHead: { fontFamily: serif.display, fontSize: 16, lineHeight: 20 },
   dupeSub: { fontSize: 12.5, marginTop: gap.xs },
-  dupeRow: { flexDirection: 'row', gap: gap.md, marginTop: gap.md },
+  dupeRow: { flexDirection: 'row', gap: gap.md },
   dupePrimary: {
     alignItems: 'center',
     borderRadius: radius.md,
     flex: 1,
-    height: 44,
+    minHeight: 48,
+    paddingVertical: gap.sm,
     justifyContent: 'center',
   },
   dupePrimaryLabel: { fontSize: 14, fontWeight: '600' },
@@ -1938,18 +2005,19 @@ const sourceStyles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     flex: 1,
-    height: 44,
+    minHeight: 48,
+    paddingVertical: gap.sm,
     justifyContent: 'center',
   },
   dupeIgnore: {
     alignItems: 'center',
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    height: 44,
+    minHeight: 48,
+    paddingVertical: gap.sm,
     justifyContent: 'center',
     marginTop: gap.md,
   },
   dupeFoot: { fontSize: 11, marginTop: gap.md, textAlign: 'center' },
-  bottomSpace: { height: gap.lg },
   pressed: { opacity: 0.6, transform: [{ scale: 0.97 }] },
 });

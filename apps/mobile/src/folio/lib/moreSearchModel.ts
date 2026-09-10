@@ -73,6 +73,12 @@ const DESTINATIONS: readonly MoreSearchResult[] = [
     target: { kind: 'screen', screen: 'pots' },
   },
   {
+    id: 'shortfall',
+    label: 'Shortfall',
+    meta: 'review a gap and available pot or bill changes',
+    target: { kind: 'screen', screen: 'shortfall' },
+  },
+  {
     id: 'subs',
     label: 'Bills and commitments',
     meta: 'recurring charges',

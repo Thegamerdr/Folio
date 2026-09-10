@@ -87,6 +87,7 @@ import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { deriveShortfallBudget } from '@/folio/lib/shortfallBudget';
+import { shortfallCompletionPresentation } from '@/folio/lib/shortfallNavigation';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { isDiscretionarySubscription } from '@/folio/lib/recoveryPreview';
 import { type DerivedEvent } from '@/folio/lib/calendarEvents';
@@ -192,6 +193,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     [appState, now],
   );
   const presentation = selectFinancialPresentation(appState, plan);
+  const completion = shortfallCompletionPresentation(presentation);
 
   // The same protected budget as Today; never count the future salary visible at the chart's payday.
   const { gap: gapNow, daysLeft, dailyCap } = deriveShortfallBudget(route);
@@ -239,7 +241,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     ? tightEvent.source === 'sub' && tightEvent.subName
       ? `A recurring payment from ${tightEvent.subName} lands in that stretch.`
       : `${tightEvent.title} is one of the outgoings in that stretch.`
-    : 'Your current balance runs out before the next payday.';
+    : 'Recorded costs, money in pots and your buffer leave a gap before payday.';
   const dayLabel = daysLeft === 1 ? 'day' : 'days';
   const recoverabilityLine =
     lendingPot && lendingPot.saved >= gapNow && gapNow > 0
@@ -307,8 +309,13 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   const [relief, setRelief] = useState(false);
   const prevGapRef = useRef(gapNow);
   useEffect(() => {
-    if (prevGapRef.current > 0 && gapNow === 0) {
+    const previousGap = prevGapRef.current;
+    prevGapRef.current = gapNow;
+    if (previousGap > 0 && gapNow === 0) {
       setRelief(true);
+      // A zero numeric gap does not clear overdue commitments or pending imported figures.
+      // Keep that status visible instead of celebrating and navigating away from it.
+      if (!completion.canCelebrate) return undefined;
       void triggerFeedback('shortfall-closed', {
         soundEnabled,
         quietMode,
@@ -319,15 +326,22 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
       }, 1400);
       return () => clearTimeout(id);
     }
-    prevGapRef.current = gapNow;
     return undefined;
-  }, [gapNow, nav, quietMode, soundEnabled]);
-  const meloMood = relief ? 'cheer' : 'concern';
+  }, [gapNow, nav, quietMode, soundEnabled, completion.canCelebrate]);
+  const meloMood = relief && completion.canCelebrate ? 'cheer' : 'concern';
 
   // ── EMPTY ──────────────────────────────────────────────────────────────────────────────────────
   // STATES: n/a ("only shown when short"); the screen is gated upstream by the money-path verdict and
   // is never reached with no data. Kept defensive only — a calm doorway, never an error.
-  if (!presentation.complete)
+  if (!now)
+    return (
+      <View
+        style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.huge }]}
+      >
+        <MeloLine mood="curious" text="One moment — working out the gap." />
+      </View>
+    );
+  if (!presentation.complete || !plan.nextIncomeDate)
     return (
       <FinancialSetupNotice
         state={appState}
@@ -336,7 +350,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
       />
     );
 
-  if (resolvedState === 'empty') {
+  if (resolvedState === 'empty' || gapNow === 0) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.md }]}>
@@ -350,9 +364,9 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
           />
           <View style={styles.flexFill}>
             <EmptyState
-              mood="calm"
-              headline="No gap in the current plan"
-              body={presentation.message}
+              mood={completion.mood}
+              headline={completion.headline}
+              body={completion.message}
             />
           </View>
         </View>

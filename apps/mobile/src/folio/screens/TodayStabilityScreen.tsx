@@ -22,7 +22,9 @@
  */
 
 import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+
+import { shouldStackTextRows } from '@/folio/lib/readableLayout';
 
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
@@ -70,6 +72,8 @@ const BALANCE_SOURCE_LABEL: Record<string, string> = {
 export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
+  const { width, fontScale } = useWindowDimensions();
+  const stackHeader = shouldStackTextRows(width, fontScale);
 
   const subs = useAppStore((st) => st.subs);
   const subPaused = useAppStore((st) => st.subPaused);
@@ -208,8 +212,8 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
       showsVerticalScrollIndicator={false}
       contentContainerStyle={s.scrollContent}
     >
-      <View style={s.header}>
-        <View>
+      <View style={[s.header, stackHeader && s.headerStacked]}>
+        <View style={[s.headerText, stackHeader && s.headerTextStacked]}>
           <Text style={[s.headerDate, { color: t.muted }]}>Today</Text>
           <Pressable accessibilityRole="button" onPress={() => nav.go('ritual')}>
             <Text style={[s.headerDays, { color: t.muted }]}>{daysToPayday} days to payday →</Text>
@@ -479,11 +483,23 @@ function makeStyles(t: Palette) {
       alignItems: 'center',
       justifyContent: 'space-between',
     },
+    headerStacked: { flexDirection: 'column', alignItems: 'stretch', gap: gap.sm },
+    headerText: { flex: 1, minWidth: 0 },
+    headerTextStacked: { flex: 0, width: '100%' },
     headerDate: { fontFamily: serif.displayItalic, fontSize: 13 },
     headerDays: { fontSize: 12, marginTop: 2 },
-    headerRight: { flexDirection: 'row', alignItems: 'center', gap: gap.xs },
+    headerRight: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: gap.xs,
+      maxWidth: '100%',
+    },
     lensPill: {
-      height: 32,
+      minHeight: 44,
+      maxWidth: '100%',
+      flexShrink: 1,
+      paddingVertical: gap.xs,
       paddingLeft: gap.sm,
       paddingRight: gap.sm + 2,
       borderRadius: 999,

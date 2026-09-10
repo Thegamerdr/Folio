@@ -85,6 +85,7 @@ import {
   useReaderCandidates,
 } from '@/folio/store';
 import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
+import { formatReviewDate } from '@/folio/screens/reviewFormat';
 import type { Nav } from '@/folio/types';
 
 // One thing Folio found in the pasted text — `id` is the candidate's own identity (the list keys on
@@ -442,7 +443,7 @@ export function PasteSuccessScreen({
                     {item.merchant}
                   </Text>
                   <Text style={[styles.rowSub, { color: t.muted }]}>
-                    {`${item.date} · money ${item.flow}`}
+                    {`${formatReviewDate(item.date)} · money ${item.flow}`}
                   </Text>
                 </View>
                 {/* Money — money-in green/positive, money-out INK; sign carried by the +/− glyph. */}

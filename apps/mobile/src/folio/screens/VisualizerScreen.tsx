@@ -101,6 +101,7 @@ import { findCaughtBills } from '@/folio/lib/caughtBills';
 import { findDriftCandidates } from '@/folio/lib/caughtDrift';
 import { findCaughtAnnual } from '@/folio/lib/caughtAnnual';
 import { isOverspentLanding } from '@/folio/lib/storeRoute';
+import { formatReviewDate } from '@/folio/screens/reviewFormat';
 import type { Nav } from '@/folio/types';
 
 // ---------------------------------------------------------------------------
@@ -588,7 +589,7 @@ export function VisualizerScreen({
                       {item.merchant}
                     </Text>
                     <View style={styles.metaLine}>
-                      <Text style={styles.metaText}>{item.date}</Text>
+                      <Text style={styles.metaText}>{formatReviewDate(item.date)}</Text>
                       <Text style={styles.metaText}>·</Text>
                       <Text style={[styles.metaText, isCheck ? styles.metaCheck : undefined]}>
                         {item.type}

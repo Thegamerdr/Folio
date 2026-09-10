@@ -22,7 +22,9 @@
  */
 
 import { useMemo, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+
+import { shouldStackTextRows } from '@/folio/lib/readableLayout';
 
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { Melo } from '@/folio/melo/Melo';
@@ -766,6 +768,8 @@ const StyleSheetHairline = StyleSheet.hairlineWidth;
 export function TodayModeScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
+  const { width, fontScale } = useWindowDimensions();
+  const stackHeader = shouldStackTextRows(width, fontScale);
 
   const subs = useAppStore((st) => st.subs);
   const onboarding = useAppStore((st) => st.onboarding);
@@ -1012,8 +1016,8 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
       showsVerticalScrollIndicator={false}
       contentContainerStyle={s.scrollContent}
     >
-      <View style={s.header}>
-        <View>
+      <View style={[s.header, stackHeader && s.headerStacked]}>
+        <View style={[s.headerText, stackHeader && s.headerTextStacked]}>
           <Text style={[s.headerDate, { color: t.muted }]}>Today</Text>
           <Pressable accessibilityRole="button" onPress={() => nav.go('ritual')}>
             <Text style={[s.headerDays, { color: t.muted }]}>
@@ -1250,8 +1254,10 @@ function formatCanonicalPounds(amount: number): string {
 // ---------------------------------------------------------------------------
 
 function RowLabel({ left, right, t }: { left: string; right: string; t: Palette }) {
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = shouldStackTextRows(width, fontScale, 72);
   return (
-    <View style={heroStyles.rowLabel}>
+    <View style={[heroStyles.rowLabel, stacked && heroStyles.rowLabelStacked]}>
       <Text style={[heroStyles.rowLabelLeft, { color: t.muted }]}>{left}</Text>
       <Text style={[heroStyles.rowLabelRight, { color: t.muted }]}>{right}</Text>
     </View>
@@ -1323,7 +1329,14 @@ function HeroCta({
 
 const heroStyles = StyleSheet.create({
   block: { marginTop: gap.lg },
-  rowLabel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  rowLabel: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: gap.sm,
+  },
+  rowLabelStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   rowLabelLeft: { fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase' },
   rowLabelRight: { fontSize: 10, fontVariant: ['tabular-nums'] },
   progressGap: { marginTop: gap.sm },
@@ -1447,11 +1460,23 @@ function makeStyles(t: Palette) {
       alignItems: 'center',
       justifyContent: 'space-between',
     },
+    headerStacked: { flexDirection: 'column', alignItems: 'stretch', gap: gap.sm },
+    headerText: { flex: 1, minWidth: 0 },
+    headerTextStacked: { flex: 0, width: '100%' },
     headerDate: { fontFamily: serif.displayItalic, fontSize: 13 },
     headerDays: { fontSize: 12, marginTop: 2 },
-    headerRight: { flexDirection: 'row', alignItems: 'center', gap: gap.xs },
+    headerRight: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: gap.xs,
+      maxWidth: '100%',
+    },
     lensPill: {
-      height: 32,
+      minHeight: 44,
+      maxWidth: '100%',
+      flexShrink: 1,
+      paddingVertical: gap.xs,
       paddingLeft: gap.sm,
       paddingRight: gap.sm + 2,
       borderRadius: 999,

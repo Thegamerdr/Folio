@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+
+import { shouldStackTextRows } from '@/folio/lib/readableLayout';
 
 import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentation';
 import type { Debt, TimelineEvent, Transaction } from '@/folio/store';
@@ -42,6 +44,8 @@ export function DebtCommitmentSurface({
   onViewDebts?: (() => void) | undefined;
 }) {
   const [showWorking, setShowWorking] = useState(false);
+  const { width, fontScale } = useWindowDimensions();
+  const stackTotal = shouldStackTextRows(width, fontScale, 72);
   const tracking = selectDebtTrackingPresentation({ debts, transactions, timelineEvents });
   const list = tracking.active;
   const summary = debtEngine.summarise(list, 0, today);
@@ -108,7 +112,7 @@ export function DebtCommitmentSurface({
 
   return (
     <View style={styles.block}>
-      <View style={styles.rowLabel}>
+      <View style={[styles.rowLabel, stackTotal && styles.rowLabelStacked]}>
         <Text style={[styles.rowLabelLeft, { color: t.muted }]}>Outstanding debt</Text>
         <Text style={[styles.rowLabelRight, { color: t.muted }]}>{formatGBP(summary.total)}</Text>
       </View>
@@ -201,7 +205,14 @@ function formatGBP(amount: number): string {
 
 const styles = StyleSheet.create({
   block: { marginTop: gap.lg },
-  rowLabel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  rowLabel: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: gap.sm,
+  },
+  rowLabelStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   rowLabelLeft: { fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase' },
   rowLabelRight: { fontFamily: serif.display, fontSize: 22, fontVariant: ['tabular-nums'] },
   tripleRow: {

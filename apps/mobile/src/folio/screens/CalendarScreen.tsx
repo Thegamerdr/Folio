@@ -538,7 +538,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
               </Text>
             </View>
             <View style={layout.storyBlock}>
-              <Text style={s.storyLabel}>Bills before payday</Text>
+              <Text style={s.storyLabel}>Reserved before payday</Text>
               <Text style={s.storyValue}>
                 {nextPaydayDate ? formatGBP(committedBeforePayday) : 'Not set yet'}
               </Text>
