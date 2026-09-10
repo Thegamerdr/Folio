@@ -71,6 +71,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
@@ -793,6 +794,8 @@ function TightestPill({
   caption: string | null;
   reduceMotion: boolean;
 }) {
+  const { width, fontScale } = useWindowDimensions();
+  const stackContent = width / fontScale < 320;
   const appear = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
     if (reduceMotion) {
@@ -814,7 +817,11 @@ function TightestPill({
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${dateProse}${captionSuffix}. Go there.`}
         onPress={onPress}
-        style={({ pressed }) => [s.pill, pressed ? layout.pressed : undefined]}
+        style={({ pressed }) => [
+          s.pill,
+          stackContent ? s.pillStacked : undefined,
+          pressed ? layout.pressed : undefined,
+        ]}
       >
         <Text style={s.pillText}>
           <Text style={s.pillLead}>{`${label}:`}</Text>
@@ -2060,6 +2067,7 @@ export function makeStyles(t: Palette) {
       paddingHorizontal: 16,
       paddingVertical: 12,
     },
+    pillStacked: { flexDirection: 'column', alignItems: 'stretch' },
     pillText: { color: t.ink, fontSize: 12.5, flexShrink: 1 },
     pillLead: { color: t.calm, fontWeight: '600' },
     pillGo: {

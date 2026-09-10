@@ -70,6 +70,7 @@ import { toFinancialPlanInput } from '@/folio/lib/financialPlan';
 import { setSubscriptionOccurrenceResolution } from '@/folio/lib/obligationState';
 import { createScopedFinancialUndo } from '@/folio/lib/scopedFinancialUndo';
 import { ritualPausePresentation } from '@/folio/lib/ritualStepPresentation';
+import { subscriptionSchedulePresentation } from '@/folio/lib/subscriptionSchedulePresentation';
 
 import {
   type AppState,
@@ -603,12 +604,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
                 setEditError('');
               }}
               today={dueInput.asOf}
-              nextOccurrence={
-                dueCommitments.find(
-                  (item) =>
-                    item.id.startsWith(`subscription:${sub.name}:`) && item.date > dueInput.asOf,
-                )?.date
-              }
+              schedule={subscriptionSchedulePresentation(sub, dueInput.asOf, dueCommitments)}
               outstanding={dueCommitments.find((item) =>
                 item.id.startsWith(`subscription:${sub.name}:`),
               )}
@@ -827,7 +823,7 @@ function SubscriptionRow({
   onCancel,
   onEdit,
   today,
-  nextOccurrence,
+  schedule,
   outstanding,
   onResolve,
 }: {
@@ -842,7 +838,7 @@ function SubscriptionRow({
   onCancel: () => void;
   onEdit: () => void;
   today: string;
-  nextOccurrence?: string | undefined;
+  schedule: ReturnType<typeof subscriptionSchedulePresentation>;
   outstanding?: FinancialCommitment | undefined;
   onResolve: (occurrence: FinancialCommitment) => void;
 }) {
@@ -894,13 +890,10 @@ function SubscriptionRow({
           ) : null}
         </View>
         <View style={layout.rowAmountCol}>
+          <Text style={s.rowMeta}>{schedule.amountLabel}</Text>
           <Text style={s.rowCost}>{pounds(sub.cost)}</Text>
           <Text style={s.rowAnnual}>{pounds(annualCost)}/yr</Text>
-          <Text style={s.rowNext}>
-            {nextOccurrence
-              ? `Next scheduled ${formatFinancialDate(nextOccurrence)}`
-              : 'Check next date'}
-          </Text>
+          <Text style={s.rowNext}>{schedule.dateLabel}</Text>
         </View>
       </View>
 
