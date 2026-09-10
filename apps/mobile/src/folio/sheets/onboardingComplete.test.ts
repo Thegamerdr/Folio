@@ -7,7 +7,7 @@ import { resetSampleFixture as resetAll } from '../test/sampleFixture';
 //
 // Imports go through the store's public surface, mirroring store.test.ts / editTxnSave.test.ts.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   addTransaction,
@@ -20,9 +20,11 @@ import {
   setIncomeSources,
   setOnboarding,
   setPots,
+  setSubs,
 } from '../store';
 import { monthlyEquivalent } from '../lib/driftSignals';
 import { commitOnboarding, skipOnboardingForNow } from '../lib/onboardingMutations';
+import { PERSONAL_WORKSPACE_ID } from '../lib/workspaceRoot';
 
 // Reset to the demo seed before each test so we always start in the PRE-ONBOARDING regime that
 // finishing onboarding must transition out of (resetAll seeds demo pots/subs/cycles/transactions +
@@ -346,6 +348,196 @@ describe('OnboardingSheet cadence step → incomeSources + legacy payday equival
 });
 
 describe('OnboardingSheet returning editor → shared essentials, buffer and bill values', () => {
+  it('preserves the complete bundled subscription on an unchanged returning save', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T12:00:00.000Z'));
+    try {
+      completeOnboarding({
+        name: 'Ada',
+        payday: 10,
+        monthlyIncome: 1800,
+        balance: 1700,
+        pickedPots: [],
+      });
+      setOnboarding({ bundledCommitmentName: 'Council tax' });
+      setSubs([
+        {
+          name: 'Council tax',
+          workspaceId: PERSONAL_WORKSPACE_ID,
+          cost: 950,
+          nextRenewalDaysAway: 2,
+          nextRenewalISO: '2026-09-12',
+          obligationAnchorISO: '2026-09-12',
+          obligationOccurrences: {
+            '2026-09-12': { status: 'paid', amountMinor: 95000 },
+            '2026-10-12': { status: 'unpaid', amountMinor: 95000 },
+          },
+          lastUsedDaysAgo: 4,
+          usesPerMonth: 1,
+          pausedUntil: '2026-11-12',
+          autoResume: 'prompt',
+          pauseReason: 'you chose to rest it',
+          pausedAt: '2026-09-01',
+        },
+        {
+          name: 'Unrelated bill',
+          workspaceId: PERSONAL_WORKSPACE_ID,
+          cost: 35,
+          nextRenewalDaysAway: 5,
+          nextRenewalISO: '2026-09-15',
+          lastUsedDaysAgo: 0,
+          usesPerMonth: 1,
+        },
+      ]);
+      const before = getState().subs;
+
+      commitOnboarding({
+        name: 'Ada',
+        payday: 10,
+        monthlyIncome: 1800,
+        balance: 1700,
+        pickedPots: [],
+        cadence: 'monthly',
+        anchorISO: '2026-09-01',
+        legacyPayday: 10,
+        intentMode: 'survival',
+        modeExtra: 100,
+        desiredBuffer: 200,
+        weeklyEssentials: 70,
+        bundledCommitment: { name: 'Council tax', amount: 950, dueDom: 12 },
+      });
+
+      expect(getState().subs).toEqual(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('uses the future-only subscription patch so an edit keeps paid/current obligations and ownership', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T12:00:00.000Z'));
+    try {
+      completeOnboarding({
+        name: 'Ada',
+        payday: 10,
+        monthlyIncome: 1800,
+        balance: 1700,
+        pickedPots: [],
+      });
+      setOnboarding({ bundledCommitmentName: 'Council tax' });
+      setSubs([
+        {
+          name: 'Council tax',
+          workspaceId: PERSONAL_WORKSPACE_ID,
+          cost: 950,
+          nextRenewalDaysAway: 2,
+          nextRenewalISO: '2026-09-12',
+          obligationAnchorISO: '2026-09-12',
+          obligationOccurrences: {
+            '2026-09-12': { status: 'paid', amountMinor: 95000 },
+            '2026-10-12': { status: 'unpaid', amountMinor: 95000 },
+          },
+          lastUsedDaysAgo: 4,
+          usesPerMonth: 1,
+        },
+        {
+          name: 'Rent + bills',
+          workspaceId: PERSONAL_WORKSPACE_ID,
+          cost: 20,
+          nextRenewalDaysAway: 3,
+          nextRenewalISO: '2026-09-13',
+          lastUsedDaysAgo: 0,
+          usesPerMonth: 0,
+        },
+      ]);
+
+      commitOnboarding({
+        name: 'Ada',
+        payday: 10,
+        monthlyIncome: 1800,
+        balance: 1700,
+        pickedPots: [],
+        cadence: 'monthly',
+        anchorISO: '2026-09-01',
+        legacyPayday: 10,
+        intentMode: 'survival',
+        modeExtra: 100,
+        desiredBuffer: 200,
+        weeklyEssentials: 70,
+        bundledCommitment: { name: 'Council tax', amount: 951, dueDom: 13 },
+      });
+
+      const edited = getState().subs.find((sub) => sub.name === 'Council tax');
+      expect(edited).toMatchObject({
+        workspaceId: PERSONAL_WORKSPACE_ID,
+        cost: 951,
+        nextRenewalISO: '2026-11-13',
+        obligationAnchorISO: '2026-11-13',
+        obligationOccurrences: {
+          '2026-09-12': { status: 'paid', amountMinor: 95000 },
+          '2026-10-12': { status: 'unpaid', amountMinor: 95000 },
+        },
+      });
+      expect(getState().subs.find((sub) => sub.name === 'Rent + bills')).toMatchObject({
+        cost: 20,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects a bundled rename collision without partially saving the returning editor', () => {
+    completeOnboarding({
+      name: 'Ada',
+      payday: 10,
+      monthlyIncome: 1800,
+      balance: 1700,
+      pickedPots: [],
+    });
+    setOnboarding({ bundledCommitmentName: 'Council tax' });
+    setSubs([
+      {
+        name: 'Council tax',
+        workspaceId: PERSONAL_WORKSPACE_ID,
+        cost: 950,
+        nextRenewalDaysAway: 2,
+        nextRenewalISO: '2026-09-12',
+        obligationAnchorISO: '2026-09-12',
+        lastUsedDaysAgo: 0,
+        usesPerMonth: 0,
+      },
+      {
+        name: 'Phone',
+        workspaceId: PERSONAL_WORKSPACE_ID,
+        cost: 35,
+        nextRenewalDaysAway: 5,
+        nextRenewalISO: '2026-09-15',
+        lastUsedDaysAgo: 0,
+        usesPerMonth: 0,
+      },
+    ]);
+    const before = getState();
+
+    expect(() =>
+      commitOnboarding({
+        name: 'Ada updated',
+        payday: 12,
+        monthlyIncome: 1900,
+        balance: 1600,
+        pickedPots: [],
+        cadence: 'monthly',
+        anchorISO: '2026-09-01',
+        legacyPayday: 12,
+        intentMode: 'survival',
+        modeExtra: 100,
+        desiredBuffer: 250,
+        weeklyEssentials: 80,
+        bundledCommitment: { name: 'Phone', amount: 951, dueDom: 13 },
+      }),
+    ).toThrow('Another bill already has this name.');
+    expect(getState()).toEqual(before);
+  });
+
   it('updates owned planning inputs without wiping existing activity or duplicating the bundled bill', () => {
     completeOnboarding({
       name: 'Ada',

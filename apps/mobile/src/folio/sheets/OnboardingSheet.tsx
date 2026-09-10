@@ -590,6 +590,7 @@ function OnboardingFlow({
   }
 
   const savingRef = useRef(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   function done() {
     if (savingRef.current || !costsConfirmed || !allNumbersValid) return;
     savingRef.current = true;
@@ -607,30 +608,35 @@ function OnboardingFlow({
       perWeek: tpl.perWeek,
       accent: tpl.accent,
     }));
-    commitOnboarding({
-      name,
-      payday,
-      monthlyIncome: income,
-      balance,
-      pickedPots,
-      cadence,
-      anchorISO,
-      legacyPayday,
-      intentMode,
-      modeExtra,
-      desiredBuffer,
-      weeklyEssentials,
-      ...(bundledCommitmentAmount > 0 || isReturning
-        ? {
-            bundledCommitment: {
-              name: bundledCommitmentName,
-              amount: bundledCommitmentAmount,
-              dueDom: bundledCommitmentDueDay,
-            },
-          }
-        : {}),
-    });
-    onClose();
+    try {
+      commitOnboarding({
+        name,
+        payday,
+        monthlyIncome: income,
+        balance,
+        pickedPots,
+        cadence,
+        anchorISO,
+        legacyPayday,
+        intentMode,
+        modeExtra,
+        desiredBuffer,
+        weeklyEssentials,
+        ...(bundledCommitmentAmount > 0 || isReturning
+          ? {
+              bundledCommitment: {
+                name: bundledCommitmentName,
+                amount: bundledCommitmentAmount,
+                dueDom: bundledCommitmentDueDay,
+              },
+            }
+          : {}),
+      });
+      onClose();
+    } catch (error) {
+      savingRef.current = false;
+      setSaveError(error instanceof Error ? error.message : 'Could not save these changes.');
+    }
   }
 
   function skipForNow() {
@@ -713,6 +719,7 @@ function OnboardingFlow({
     if (numericError !== null) return;
     Keyboard.dismiss();
     if (isReturning) {
+      setSaveError(null);
       setShowSummary(true);
       setCostsConfirmed(false);
       return;
@@ -812,6 +819,11 @@ function OnboardingFlow({
       {!showSummary && numericError ? (
         <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
           {numericError}
+        </Text>
+      ) : null}
+      {showSummary && saveError ? (
+        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
+          {saveError}
         </Text>
       ) : null}
       {!showSummary && activeStepIndex === 1 ? (

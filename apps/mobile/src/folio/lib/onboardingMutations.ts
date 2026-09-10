@@ -11,6 +11,7 @@ import {
   setMoneyMode,
   setOnboarding,
   setPots,
+  setPartial,
   setSubs,
   type AppState,
   type IncomeSource,
@@ -18,6 +19,7 @@ import {
 } from '../store';
 import { monthlyEquivalent } from './driftSignals';
 import { daysUntilDayOfMonth } from './renewalMath';
+import { buildSubscriptionEditPatch, subscriptionEditBoundary } from './subscriptionEditing';
 import type { MoneyMode } from './modes/types';
 
 const WEEK_BASED_CADENCES = new Set<IncomeSource['cadence']>([
@@ -48,6 +50,28 @@ function nextMonthlyCommitmentISO(dayOfMonth: number): string {
   return `${String(targetYear).padStart(4, '0')}-${String(targetMonth + 1).padStart(2, '0')}-${String(
     targetDay,
   ).padStart(2, '0')}`;
+}
+
+function monthlyDateAfter(dayOfMonth: number, afterISO: string, preferredISO: string): string {
+  const after = Date.parse(`${afterISO}T00:00:00Z`);
+  const preferred = new Date(`${preferredISO}T00:00:00Z`);
+  let year = preferred.getUTCFullYear();
+  let month = preferred.getUTCMonth();
+  const requestedDay = Math.min(31, Math.max(1, Math.round(dayOfMonth)));
+  const daysInMonth = (targetYear: number, targetMonth: number) =>
+    new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  let targetDay = Math.min(requestedDay, daysInMonth(year, month));
+  let candidate = Date.UTC(year, month, targetDay);
+  if (candidate <= after) {
+    month += 1;
+    if (month === 12) {
+      month = 0;
+      year += 1;
+    }
+    targetDay = Math.min(requestedDay, daysInMonth(year, month));
+    candidate = Date.UTC(year, month, targetDay);
+  }
+  return new Date(candidate).toISOString().slice(0, 10);
 }
 
 export type OnboardingCommitInput = Readonly<{
@@ -88,6 +112,61 @@ export function commitOnboarding(input: OnboardingCommitInput): void {
   const before = getState();
   const firstRun = isOnboardingFirstRun(before);
   const legacySample = before.currentBalance.source === 'sample' && !isRealUser(before);
+
+  // Validate and prepare a returning bill edit before any other setter runs. This keeps a name
+  // collision or an invalid future boundary from partially saving the editor's other fields.
+  let returningBundledPatch: Partial<AppState> | undefined;
+  if (!firstRun && input.bundledCommitment !== undefined) {
+    const bundled = input.bundledCommitment;
+    const bundledName = bundled.name.trim() || 'Rent + bills';
+    const priorBundledName = before.onboarding.bundledCommitmentName;
+    const ownedNames = [priorBundledName, 'Rent + bills'].filter((name): name is string =>
+      Boolean(name),
+    );
+    const existingBundled = ownedNames
+      .map((name) => before.subs.find((subscription) => subscription.name === name))
+      .find((subscription): subscription is NonNullable<typeof subscription> =>
+        Boolean(subscription),
+      );
+    const cost = Math.max(0, Math.round(bundled.amount * 100) / 100);
+    const collidesWithOther = before.subs.some(
+      (subscription) =>
+        subscription.name !== existingBundled?.name &&
+        subscription.name.toLowerCase() === bundledName.toLowerCase(),
+    );
+    if (cost > 0 && collidesWithOther) throw new Error('Another bill already has this name.');
+    if (existingBundled && cost > 0) {
+      const now = new Date();
+      const currentDay = Number(
+        (existingBundled.nextRenewalISO ?? existingBundled.obligationAnchorISO ?? '').slice(8, 10),
+      );
+      const unchanged =
+        existingBundled.name === bundledName &&
+        Math.round(existingBundled.cost * 100) === Math.round(cost * 100) &&
+        existingBundled.renewalPeriodDays === undefined &&
+        currentDay === Math.min(31, Math.max(1, Math.round(bundled.dueDom)));
+      if (!unchanged) {
+        const boundary = subscriptionEditBoundary(before, existingBundled.name, now);
+        // The edit boundary keeps the current/paid occurrence protected; only later occurrences
+        // move to this future date and amount through the canonical subscription helper.
+        returningBundledPatch = buildSubscriptionEditPatch(
+          before,
+          existingBundled.name,
+          {
+            name: bundledName,
+            cost,
+            periodDays: null,
+            futureDate: monthlyDateAfter(
+              bundled.dueDom,
+              boundary.protectedDate,
+              boundary.defaultDate,
+            ),
+          },
+          now,
+        );
+      }
+    }
+  }
 
   if (legacySample) resetToEmpty();
 
@@ -132,31 +211,41 @@ export function commitOnboarding(input: OnboardingCommitInput): void {
       const bundled = input.bundledCommitment;
       const bundledName = bundled.name.trim() || 'Rent + bills';
       const priorBundledName = before.onboarding.bundledCommitmentName;
-      setSubs((previous) => [
-        // The default label is the legacy owned key; the chosen label is the current owned key.
-        // Filtering both makes repeated saves idempotent even when the user keeps a custom name.
-        ...previous.filter(
-          (subscription) =>
-            subscription.name !== 'Rent + bills' &&
-            subscription.name !== bundledName &&
-            subscription.name !== priorBundledName,
-        ),
-        ...(bundled.amount > 0
-          ? [
-              {
-                name: bundledName,
-                cost: Math.max(0, Math.round(bundled.amount * 100) / 100),
-                nextRenewalDaysAway: daysUntilDayOfMonth(
-                  Math.min(31, Math.max(1, Math.round(bundled.dueDom))),
-                  new Date().toISOString().slice(0, 10),
-                ),
-                nextRenewalISO: nextMonthlyCommitmentISO(bundled.dueDom),
-                lastUsedDaysAgo: 0,
-                usesPerMonth: 0,
-              },
-            ]
-          : []),
-      ]);
+      const existingBundled = [priorBundledName, 'Rent + bills']
+        .filter((name): name is string => Boolean(name))
+        .map((name) => before.subs.find((subscription) => subscription.name === name))
+        .find((subscription): subscription is NonNullable<typeof subscription> =>
+          Boolean(subscription),
+        );
+      const cost = Math.max(0, Math.round(bundled.amount * 100) / 100);
+      if (existingBundled && cost > 0) {
+        if (returningBundledPatch) {
+          setPartial(returningBundledPatch);
+        }
+      } else {
+        setSubs((previous) => [
+          // Remove only the previously identified owned row; unrelated subscriptions remain.
+          ...previous.filter(
+            (subscription) =>
+              existingBundled === undefined || subscription.name !== existingBundled.name,
+          ),
+          ...(cost > 0
+            ? [
+                {
+                  name: bundledName,
+                  cost,
+                  nextRenewalDaysAway: daysUntilDayOfMonth(
+                    Math.min(31, Math.max(1, Math.round(bundled.dueDom))),
+                    new Date().toISOString().slice(0, 10),
+                  ),
+                  nextRenewalISO: nextMonthlyCommitmentISO(bundled.dueDom),
+                  lastUsedDaysAgo: 0,
+                  usesPerMonth: 0,
+                },
+              ]
+            : []),
+        ]);
+      }
     }
     return;
   }
