@@ -100,8 +100,10 @@ import { subscribeToBillingEntitlements } from '@/folio/lib/billing/billingLifec
 import { hasStatementSourceData } from '@/folio/lib/accountSources';
 import { unsettledBankImportBatches } from '@/folio/lib/bankImportInbox';
 import { formatMoney } from '@/folio/lib/financialPresentation';
+import { selectBalanceSourceLabel } from '@/folio/lib/balanceProvenance';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
+import { privacyHistoryPresentation } from '@/folio/lib/privacyHistoryPresentation';
 import { isClerkConfigured } from '@/folio/lib/clerkAuth';
 import { isOpenBankingEnabled } from '@/folio/lib/openBankingConfig';
 import {
@@ -148,17 +150,6 @@ function useReduceMotion(): boolean {
   }, []);
   return reduce;
 }
-
-// Honest balance-source caption (ENGINES.md §6) — matches TodayStabilityScreen/TodayScreen's own
-// map so the same balance reads the same everywhere.
-const BALANCE_SOURCE_LABEL: Record<string, string> = {
-  'user-entered': 'you set this',
-  statement: 'from your last statement',
-  'pdf-derived': 'from a statement you added',
-  'ocr-derived': 'from a photo you added',
-  corrected: 'you corrected this',
-  sample: 'sample data',
-};
 
 // Cadence display labels for the detected income source.
 const CADENCE_LABEL: Record<string, string> = {
@@ -216,7 +207,8 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
 
   const subsCount = useAppStore((s) => s.subs.length);
   const potsCount = useAppStore((s) => s.pots.length);
-  const cyclesCount = useAppStore((s) => s.cycles.length);
+  const savedCycles = useAppStore((s) => s.cycles);
+  const savedHistory = privacyHistoryPresentation(savedCycles);
   const transactionsCount = useAppStore((s) => s.transactions.length);
   const transactions = useAppStore((s) => s.transactions);
   const rawBankImportInbox = useAppStore((s) => s.bankImportInbox);
@@ -226,8 +218,8 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const readerCandidates = useAppStore((s) => s.readerCandidates);
   const reviewQueue = useAppStore((s) => s.reviewQueue);
   const reviewQueueSpillover = useAppStore((s) => s.reviewQueueSpillover);
-  const onboarding = useAppStore((s) => s.onboarding);
   const currentBalance = useAppStore((s) => s.currentBalance);
+  const balanceSourceLabel = useAppStore(selectBalanceSourceLabel);
   // Keep the external-store selector referentially stable. Filtering inside the selector creates a
   // new array on every snapshot read, which React correctly treats as an endless update loop.
   const allAccounts = useAppStore((s) => s.accounts);
@@ -328,16 +320,6 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const incomeCadenceLabel = primaryIncomeSource
     ? CADENCE_LABEL[primaryIncomeSource.cadence]
     : 'monthly';
-
-  const balanceSourceLabel =
-    !onboarding.done &&
-    currentBalance.amount === 0 &&
-    transactionsCount === 0 &&
-    statementImportsCount === 0
-      ? 'not set yet'
-      : isBusiness && currentBalance.source === 'sample'
-        ? 'not set yet'
-        : (BALANCE_SOURCE_LABEL[currentBalance.source] ?? 'source not recorded');
 
   // Sign-in is entirely optional (see clerkAuth.ts). Evaluated once per render, not via a hook, so
   // this branch stays safe whether or not a ClerkProvider ancestor exists — Clerk's own hooks only
@@ -1077,7 +1059,12 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             {isBusiness ? <Stat n={accounts.length} label="accounts" /> : null}
             {!isBusiness ? <Stat n={subsCount} label="Bills" /> : null}
             {!isBusiness ? <Stat n={potsCount} label="pots" /> : null}
-            {!isBusiness ? <Stat n={cyclesCount} label="cycles" /> : null}
+            {!isBusiness ? (
+              <Stat n={savedHistory.recordedReviews} label="recorded reviews" />
+            ) : null}
+            {!isBusiness && savedHistory.historySummaries > 0 ? (
+              <Stat n={savedHistory.historySummaries} label="history summaries" />
+            ) : null}
           </View>
         </View>
 

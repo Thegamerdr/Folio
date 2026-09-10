@@ -971,7 +971,7 @@ function MeloPrimerCard({ onDone }: { onDone: () => void }) {
       lead: 'What I ',
       accent: 'watch',
       tail: '.',
-      body: 'The path to payday. Your subscriptions. The tight point in the middle.',
+      body: 'The path to payday. Your bills and commitments. The tight point in the middle.',
     },
     {
       lead: 'How I ',

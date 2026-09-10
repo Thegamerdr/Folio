@@ -19,9 +19,9 @@
 // @copy         FROZEN
 // @tokens       surface · hairline · inset · calm (accent) · calmSoft (accent-soft) · muted · ink ·
 //               inverse — all from the kit via '@/folio/theme'. No new token.
-// @motion       stamp 600ms cubic-bezier(.34,1.56,.64,1) (the "Added" seal) · slide-in-r (whole
-//               screen) · count-up on the accepted amount · press 0.97 (kit `pressed`).
-//               Reduced motion = final state (stamp + slide collapse, count-up snaps).
+// @motion       stamp 600ms cubic-bezier(.34,1.56,.64,1) (the "Added" seal) · count-up on the
+//               accepted amount · press 0.97 (kit `pressed`). Interactive roots are always visible.
+//               Reduced motion = final state (stamp collapses, count-up snaps).
 //
 // @rn-engine statement-reader|photo-reader|text-reader|open-banking — all semi-automatic sources
 //   stage candidates here; none writes directly to the ledger.
@@ -44,8 +44,8 @@
 //     accent-soft fill + terracotta text; the rest read surface + muted, faithful to the web. They
 //     are disabled once stamped (the decision is sealed).
 //   • The web's '←' glyph is kept as the shared react-native-svg BackArrow.
-//   • slide-in-r: translateX 28→0 + fade over 360ms ease-out-expo, gated to FINAL STATE under
-//     reduce-motion (resolved layout, never a slower animation), mirroring Melo + StartScreen.
+//   • Form visibility is immediate on normal and reduced motion. Only the accepted-record stamp
+//     owns animated opacity; keyboard and duplicate-proposal changes cannot hide the form.
 //
 // Tokens only — no new colour, font, spacing, radius, or shadow. Banned visible words (import / rows /
 // parser / extraction / OCR / sync / dashboard / analytics / users / 100% / bank-grade / AI-powered /
@@ -66,7 +66,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
-  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -191,15 +190,8 @@ export type ReviewScreenProps = {
   embedded?: boolean;
 };
 
-// Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1) — for the slide-in.
-const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
-
 // The stamp's signature curve — the web's cubic-bezier(.34, 1.56, .64, 1) (a soft overshoot).
 const STAMP_EASE = Easing.bezier(0.34, 1.56, 0.64, 1);
-
-// slide-in-r geometry (web .slide-in-r): the whole screen enters from +28px on X with a fade, 360ms.
-const SLIDE_FROM_X = 28;
-const SLIDE_MS = 360;
 
 // Stamp duration (web .stamp ~600ms) and the dwell after a successful Add before routing to Today
 // (web setTimeout 900ms).
@@ -514,19 +506,9 @@ export function ReviewScreen({
     );
   }, [hasRealCandidate, stamped, now, candidate, signedDelta, merchant, transactions]);
 
-  // slide-in-r — drives the whole screen. Resolves straight to final state under reduce-motion.
-  const enter = useSharedValue(reduceMotion ? 1 : 0);
-  useEffect(() => {
-    if (reduceMotion) {
-      enter.value = 1;
-      return;
-    }
-    enter.value = withTiming(1, { duration: SLIDE_MS, easing: EASE_OUT_EXPO });
-  }, [enter, reduceMotion]);
-  const enterStyle = useAnimatedStyle(() => ({
-    opacity: enter.value,
-    transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
-  }));
+  // Inputs and their fixed actions stay on a native, immediately visible root. A cancelled
+  // entrance must never leave an editable card transparent after the keyboard or duplicate
+  // proposal changes its layout. The accepted-record stamp keeps its independent motion.
 
   // The "Added" stamp — a 600ms scale-overshoot on the stamp curve, fired once on Accept.
   const stampScale = useSharedValue(0);
@@ -733,12 +715,8 @@ export function ReviewScreen({
     });
   }, [embedded, reduceMotion]);
   const onReviewInputFocus = useCallback(() => {
-    // Editing takes precedence over the decorative entrance: native caret/IME can become visible
-    // before a translucent animated ancestor finishes drawing its form and fixed actions.
-    cancelAnimation(enter);
-    enter.value = 1;
     keepReviewInputVisible();
-  }, [enter, keepReviewInputVisible]);
+  }, [keepReviewInputVisible]);
   useEffect(
     () => () => {
       if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
@@ -760,7 +738,7 @@ export function ReviewScreen({
 
     if (state === 'empty' || !hasRealCandidate) {
       return (
-        <Animated.View style={[sourceStyles.root, enterStyle, { backgroundColor: t.canvas }]}>
+        <View style={[sourceStyles.root, { backgroundColor: t.canvas }]}>
           <View style={sourceStyles.emptyContent}>
             <View style={sourceStyles.emptyRow}>
               <View style={sourceStyles.emptyMelo}>
@@ -806,7 +784,7 @@ export function ReviewScreen({
               </Pressable>
             ) : null}
           </View>
-        </Animated.View>
+        </View>
       );
     }
 
@@ -817,7 +795,7 @@ export function ReviewScreen({
     const hidden = (getState().ignoredReviewSigs ?? []).length;
 
     return (
-      <Animated.View style={[sourceStyles.root, enterStyle, { backgroundColor: t.canvas }]}>
+      <View style={[sourceStyles.root, { backgroundColor: t.canvas }]}>
         <ScrollView
           ref={reviewBody}
           style={sourceStyles.body}
@@ -1053,7 +1031,7 @@ export function ReviewScreen({
             </>
           )}
         </View>
-      </Animated.View>
+      </View>
     );
   }
 
@@ -1061,7 +1039,7 @@ export function ReviewScreen({
   // (we show the doorway instead of a fabricated sample row). Routes to intake rather than dead-ending.
   if (state === 'empty' || !hasRealCandidate) {
     return (
-      <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
+      <View style={[styles.root, { backgroundColor: t.canvas }]}>
         <View style={[styles.emptyWrap, { paddingTop: insets.top + gap.xxl }]}>
           <MeloLine
             mood="calm"
@@ -1084,7 +1062,7 @@ export function ReviewScreen({
             <Text style={[styles.primaryLabel, { color: t.inverse }]}>Add a statement</Text>
           </Pressable>
         </View>
-      </Animated.View>
+      </View>
     );
   }
 
@@ -1111,7 +1089,7 @@ export function ReviewScreen({
   const dateLine = candidate.date ? `${friendlyDate(candidate.date)} · ${provenance}` : provenance;
 
   return (
-    <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
+    <View style={[styles.root, { backgroundColor: t.canvas }]}>
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -1452,7 +1430,7 @@ export function ReviewScreen({
           </>
         )}
       </ScrollView>
-    </Animated.View>
+    </View>
   );
 }
 

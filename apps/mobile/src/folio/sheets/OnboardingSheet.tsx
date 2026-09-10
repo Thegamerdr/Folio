@@ -68,6 +68,11 @@ import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore, type IncomeSource } from '@/folio/store';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
+import {
+  createOnboardingAmountDraft,
+  selectOnboardingAmount,
+  updateOnboardingAmount,
+} from '@/folio/lib/onboardingAmountDraft';
 import { isHorizontalSliderGesture, parseDayOfMonth } from '@/folio/lib/formDrafts';
 import type { MoneyMode } from '@/folio/lib/modes/types';
 import { isBusinessDay } from '@/folio/lib/payday';
@@ -485,6 +490,7 @@ function OnboardingFlow({
   const savedMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const isDark = useIsDark();
   const savedBuffer = useAppStore((st) => st.bufferAmount ?? 100);
+  const savedModeExtras = useAppStore((st) => st.modeExtras);
   const savedEssentials = useAppStore((st) => st.modeExtras?.reset ?? 0);
   const savedBundledCommitment = useAppStore((st) => {
     const ownedName = st.onboarding.bundledCommitmentName;
@@ -526,12 +532,16 @@ function OnboardingFlow({
   // to a Money Mode, stored explicitly (never silently switched later). `modeExtra` is the mode's
   // follow-up captured value; EVERY mode's answer persists to `modeExtras` on done() (see there).
   const [intentMode, setIntentMode] = useState<MoneyMode>(savedMode);
-  const [modeExtra, setModeExtra] = useState<number>(savedBuffer);
-  const [modeExtraInput, setModeExtraInput] = useState(String(savedBuffer));
+  const [amountDraft, setAmountDraft] = useState(() =>
+    createOnboardingAmountDraft(savedBuffer, savedModeExtras),
+  );
+  const { amount: modeExtra, input: modeExtraInput } = selectOnboardingAmount(
+    amountDraft,
+    intentMode,
+  );
+  const { amount: desiredBuffer, input: bufferInput } = amountDraft.buffer;
   const [weeklyEssentials, setWeeklyEssentials] = useState<number>(savedEssentials);
-  const [desiredBuffer, setDesiredBuffer] = useState<number>(savedBuffer);
   const [essentialsInput, setEssentialsInput] = useState(String(savedEssentials));
-  const [bufferInput, setBufferInput] = useState(String(savedBuffer));
   const [commitmentInput, setCommitmentInput] = useState(String(savedBundledCommitment?.cost ?? 0));
   const [commitmentDayInput, setCommitmentDayInput] = useState(
     String(Number(savedBundledCommitment?.nextRenewalISO?.slice(8, 10) ?? 1)),
@@ -1009,9 +1019,7 @@ function OnboardingFlow({
               <TextInput
                 value={modeExtraInput}
                 onChangeText={(raw) => {
-                  setModeExtraInput(raw);
-                  const parsed = parseManualMoney(raw, { allowZero: true });
-                  if (parsed !== undefined) setModeExtra(parsed);
+                  setAmountDraft((draft) => updateOnboardingAmount(draft, intentMode, raw));
                 }}
                 selectTextOnFocus
                 keyboardType="decimal-pad"
@@ -1024,8 +1032,9 @@ function OnboardingFlow({
                 step={extra.step}
                 value={modeExtra}
                 onChange={(value) => {
-                  setModeExtra(value);
-                  setModeExtraInput(String(value));
+                  setAmountDraft((draft) =>
+                    updateOnboardingAmount(draft, intentMode, String(value)),
+                  );
                 }}
                 palette={t}
                 accessibilityLabel={extra.eyebrow}
@@ -1280,9 +1289,7 @@ function OnboardingFlow({
                 value={bufferInput}
                 selectTextOnFocus
                 onChangeText={(value) => {
-                  setBufferInput(value);
-                  const parsed = parseManualMoney(value, { allowZero: true });
-                  if (parsed !== undefined) setDesiredBuffer(parsed);
+                  setAmountDraft((draft) => updateOnboardingAmount(draft, 'buffer', value));
                 }}
                 keyboardType="decimal-pad"
                 style={s.amountInput}
@@ -1294,8 +1301,7 @@ function OnboardingFlow({
                 step={10}
                 value={desiredBuffer}
                 onChange={(value) => {
-                  setDesiredBuffer(value);
-                  setBufferInput(String(value));
+                  setAmountDraft((draft) => updateOnboardingAmount(draft, 'buffer', String(value)));
                 }}
                 palette={t}
                 accessibilityLabel="Protected cash buffer"

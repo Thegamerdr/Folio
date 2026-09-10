@@ -312,7 +312,7 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
                       <View style={[styles.rule, { backgroundColor: t.hairline }]} />
                       <DestinationLine
                         label="Insights"
-                        meta="the shape of your finished months"
+                        meta="your recorded forecast reviews"
                         onPress={() => nav.go('insights')}
                       />
                     </View>

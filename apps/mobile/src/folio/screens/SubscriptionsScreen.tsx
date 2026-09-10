@@ -659,8 +659,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
             </View>
             <Text style={s.cancelledSummary}>
               Forecast excludes {pounds(cancelledMonthlySaved)}/mo after you removed{' '}
-              {cancelledSubs.length} {cancelledSubs.length === 1 ? 'subscription' : 'subscriptions'}
-              .
+              {cancelledSubs.length} {cancelledSubs.length === 1 ? 'commitment' : 'commitments'}.
             </Text>
           </View>
         ) : null}

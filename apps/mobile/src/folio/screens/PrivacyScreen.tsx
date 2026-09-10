@@ -22,6 +22,7 @@ import { runExport } from '@/folio/lib/exportNative';
 import { applyRestore, pickRestoreFile } from '@/folio/lib/restoreNative';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
 import { clearLocalMeloData } from '@/folio/lib/localDataDeletion';
+import { privacyHistoryPresentation } from '@/folio/lib/privacyHistoryPresentation';
 import { useUndo } from '@/folio/ui/useUndo';
 import { useAppStore } from '@/folio/store';
 import {
@@ -70,7 +71,8 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   const savedRecordCount = useAppStore((current) => current.transactions.length);
   const savedSourceCount = useAppStore((current) => current.evidenceDocuments?.length ?? 0);
   const savedAccountCount = useAppStore((current) => current.accounts?.length ?? 0);
-  const savedCycleCount = useAppStore((current) => current.cycles.length);
+  const savedCycles = useAppStore((current) => current.cycles);
+  const savedHistory = privacyHistoryPresentation(savedCycles);
   const [appLockSettings, setAppLockSettings] = useState(getCachedAppLockSettings());
   const [appLockCapability, setAppLockCapability] = useState<AppLockCapability | null>(null);
   const [changingAppLock, setChangingAppLock] = useState(false);
@@ -378,11 +380,19 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
               muted={t.muted}
             />
             <FootprintValue
-              label="closed cycles"
-              value={savedCycleCount}
+              label="recorded reviews"
+              value={savedHistory.recordedReviews}
               color={t.ink}
               muted={t.muted}
             />
+            {savedHistory.historySummaries > 0 ? (
+              <FootprintValue
+                label="history summaries"
+                value={savedHistory.historySummaries}
+                color={t.ink}
+                muted={t.muted}
+              />
+            ) : null}
           </View>
         </View>
 
@@ -589,8 +599,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
             </Text>
             <Text style={[styles.body, { color: t.ink }]}>
               In {activeWorkspace.name}: {savedRecordCount} transactions, {savedBillCount} bills,{' '}
-              {savedDebtCount} debts, {savedSourceCount} original files and {savedCycleCount} closed
-              cycles.
+              {savedDebtCount} debts, {savedSourceCount} original files and {savedHistory.summary}.
             </Text>
             <Text style={[styles.body, { color: t.muted }]}>
               Money, setup details, imports, history, widgets and app-owned export files will be

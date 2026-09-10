@@ -120,15 +120,19 @@ const ReviewRow = memo(function ReviewRow({
         accessibilityState={{ checked: selected }}
         accessibilityLabel={`${selected ? 'Selected' : 'Not selected'}, ${candidate.merchant}`}
         onPress={() => onToggle(candidate.id)}
-        style={[
-          styles.check,
-          {
-            borderColor: selected ? t.calm : t.hairline,
-            backgroundColor: selected ? t.calm : t.inset,
-          },
-        ]}
+        style={styles.checkTarget}
       >
-        <Text style={[styles.checkGlyph, { color: t.inverse }]}>{selected ? '✓' : ''}</Text>
+        <View
+          style={[
+            styles.check,
+            {
+              borderColor: selected ? t.calm : t.hairline,
+              backgroundColor: selected ? t.calm : t.inset,
+            },
+          ]}
+        >
+          <Text style={[styles.checkGlyph, { color: t.inverse }]}>{selected ? '✓' : ''}</Text>
+        </View>
       </Pressable>
       <View style={styles.rowCopy}>
         <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
@@ -147,7 +151,6 @@ const ReviewRow = memo(function ReviewRow({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Edit ${candidate.merchant}`}
-        hitSlop={8}
         onPress={() => onEdit(candidate)}
         style={styles.editButton}
       >
@@ -535,20 +538,32 @@ export function BulkStatementLanding({
 
       <View style={[styles.footer, { backgroundColor: t.surface, borderTopColor: t.hairline }]}>
         <View style={styles.batchActions}>
-          <Pressable onPress={selectReady}>
+          <Pressable accessibilityRole="button" onPress={selectReady} style={styles.batchButton}>
             <Text style={[styles.batchLabel, { color: t.calm }]}>Accept ready</Text>
           </Pressable>
-          <Pressable onPress={() => setFilter('issues')}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setFilter('issues')}
+            style={styles.batchButton}
+          >
             <Text style={[styles.batchLabel, { color: t.calm }]}>Review issues</Text>
           </Pressable>
-          <Pressable onPress={keepCurrentIssuesAside}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={keepCurrentIssuesAside}
+            style={styles.batchButton}
+          >
             <Text style={[styles.batchLabel, { color: t.muted }]}>Keep aside</Text>
           </Pressable>
         </View>
         <Pressable
           disabled={selectedIds.size === 0}
           onPress={addSelected}
-          style={[styles.primary, { backgroundColor: selectedIds.size > 0 ? t.calm : t.inset }]}
+          style={[
+            styles.primary,
+            styles.footerPrimary,
+            { backgroundColor: selectedIds.size > 0 ? t.calm : t.inset },
+          ]}
         >
           <Text
             style={[styles.primaryLabel, { color: selectedIds.size > 0 ? t.inverse : t.muted }]}
@@ -760,8 +775,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 24,
     justifyContent: 'center',
-    marginRight: gap.md,
     width: 24,
+  },
+  checkTarget: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    minWidth: 48,
+    minHeight: 48,
   },
   checkGlyph: { fontSize: 14, fontWeight: '800' },
   rowCopy: { flex: 1, minWidth: 0 },
@@ -773,7 +794,13 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     marginLeft: gap.sm,
   },
-  editButton: { justifyContent: 'center', minHeight: 44, paddingLeft: gap.md },
+  editButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    minWidth: 48,
+    minHeight: 48,
+  },
   editLabel: { fontSize: 12, fontWeight: '700' },
   emptyList: { flexGrow: 1, justifyContent: 'center' },
   emptyText: { alignSelf: 'center', fontSize: 14 },
@@ -782,8 +809,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: gap.lg,
     paddingTop: gap.sm,
   },
-  batchActions: { flexDirection: 'row', justifyContent: 'space-between' },
-  batchLabel: { fontSize: 12.5, fontWeight: '700', paddingVertical: gap.sm },
+  batchActions: { flexDirection: 'row', gap: gap.sm },
+  batchButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    minWidth: 48,
+    minHeight: 48,
+    paddingVertical: gap.sm,
+  },
+  batchLabel: { fontSize: 12.5, fontWeight: '700', textAlign: 'center' },
+  // The larger secondary targets provide their own spacing; keep list room above the keyboard.
+  footerPrimary: { marginTop: 0 },
   offerActions: { alignItems: 'center', flexDirection: 'row', gap: gap.lg },
   offerButton: { flex: 1 },
   secondaryButton: {
