@@ -356,6 +356,19 @@ export function Sheet({
       focusFrame.current = null;
       const focused = TextInput.State.currentlyFocusedInput();
       const body = bodyScrollRef.current;
+      if (captureMode && scrollKey !== undefined) {
+        console.info(
+          'MeloSheetGeometry',
+          JSON.stringify({
+            event: 'focus-check',
+            step: scrollKey,
+            focused: !!focused,
+            body: !!body,
+            visible,
+            scrollY: scrollY.current,
+          }),
+        );
+      }
       if (!visible || !scrollable || !focused || !body) return;
       const bodyNative = body.getNativeScrollRef();
       if (!bodyNative) return;
@@ -379,6 +392,21 @@ export function Sheet({
             contextBefore: focusContextBefore,
             contextAfter: focusContextAfter,
           });
+          if (captureMode && scrollKey !== undefined) {
+            console.info(
+              'MeloSheetGeometry',
+              JSON.stringify({
+                event: 'measured',
+                step: scrollKey,
+                bodyTop,
+                bodyHeight,
+                inputTop,
+                inputHeight,
+                scrollY: scrollY.current,
+                nextY,
+              }),
+            );
+          }
           if (Math.abs(nextY - scrollY.current) > 1) {
             scrollY.current = nextY;
             body.scrollTo({ y: nextY, animated: !shouldReduceMotion });
@@ -388,6 +416,8 @@ export function Sheet({
     });
   }, [
     bodyScrollRef,
+    captureMode,
+    scrollKey,
     focusContextBefore,
     focusContextAfter,
     scrollable,
@@ -618,6 +648,18 @@ export function Sheet({
                   onContentSizeChange={keepFocusedInputVisible}
                   onScroll={(event) => {
                     scrollY.current = event.nativeEvent.contentOffset.y;
+                    if (captureMode && scrollKey !== undefined) {
+                      console.info(
+                        'MeloSheetGeometry',
+                        JSON.stringify({
+                          event: 'scroll',
+                          step: scrollKey,
+                          scrollY: scrollY.current,
+                          contentHeight: event.nativeEvent.contentSize.height,
+                          viewportHeight: event.nativeEvent.layoutMeasurement.height,
+                        }),
+                      );
+                    }
                   }}
                   scrollEventThrottle={16}
                   showsVerticalScrollIndicator
