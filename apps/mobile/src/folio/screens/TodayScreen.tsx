@@ -1,4 +1,9 @@
 import { MeloScrollView } from '@/folio/melo/MeloScrollView';
+import {
+  MeloProtectedText as Text,
+  MeloProtectedPressable as Pressable,
+  MeloExclusionView,
+} from '@/folio/melo/MeloExclusion';
 import { MeloFigure } from '@/folio/melo/MeloFigure';
 import Svg, { Path } from 'react-native-svg';
 import { MeloPerch } from '@/folio/ui/MeloPerch';
@@ -32,9 +37,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   PanResponder,
-  Pressable,
   StyleSheet,
-  Text,
   View,
   type LayoutChangeEvent,
   useWindowDimensions,
@@ -880,7 +883,7 @@ export function TodayScreen({
             </Pressable>
           </View>
 
-          <View
+          <MeloExclusionView
             style={[styles.svgWrap, focusX !== null ? { height: 184 } : undefined]}
             onLayout={onCardLayout}
             {...panResponder.panHandlers}
@@ -898,7 +901,7 @@ export function TodayScreen({
               hideEventLabels
               onTightTap={() => nav.go('calendar')}
             />
-          </View>
+          </MeloExclusionView>
 
           {pathEvents.length > 0 ? (
             <View style={styles.pathEventRows}>

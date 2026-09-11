@@ -228,11 +228,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-splash-screen',
         {
           backgroundColor: '#F7F6F1',
-          image: './assets/splash.png',
-          imageWidth: 120,
+          image: './assets/brand/melo-resting-splash.png',
+          // The unchanged 512px authored frame has a 263px visible character.
+          // Scale its transparent canvas so the resting character is 96dp tall.
+          imageWidth: 187,
           dark: {
             backgroundColor: '#18231D',
-            image: './assets/splash.png',
+            image: './assets/brand/melo-resting-splash.png',
           },
         },
       ],

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState, Image, View } from 'react-native';
 import { useAppStore } from '@/folio/store';
-import { Melo, type MeloMood } from './Melo';
+import { GroundPool, Melo, type MeloMood } from './Melo';
 import type { PresencePhase } from '@/folio/lib/melo/presenceMotion';
 
 type Frame = {
@@ -32,6 +32,7 @@ export function MeloAtlas({
   faceLeft,
   shortHop,
   paused,
+  contact = true,
 }: {
   size: number;
   phase: PresencePhase;
@@ -39,6 +40,7 @@ export function MeloAtlas({
   faceLeft: boolean;
   shortHop: boolean;
   paused: boolean;
+  contact?: boolean;
 }) {
   const wardrobe = useAppStore((state) => state.melo?.wardrobe);
   const [failed, setFailed] = useState(false);
@@ -114,7 +116,8 @@ export function MeloAtlas({
   }, [clip, paused, poster, backgrounded, failed, wardrobe]);
   // The reference preserves equipped static wardrobe art instead of dropping
   // the accessory when switching to the animation atlas.
-  if (failed || wardrobe?.length) return <Melo mood={mood} size={Math.ceil(size / 0.82)} frozen />;
+  if (failed || wardrobe?.length)
+    return <Melo mood={mood} size={Math.ceil(size / 0.82)} grounded={contact} frozen />;
   const frame = clip.frames[paused ? poster : index] ?? clip.frames[0]!;
   const scale = size / manifest.atlas.cellWidth;
   return (
@@ -132,6 +135,7 @@ export function MeloAtlas({
           top: -frame.rect.y * scale,
         }}
       />
+      {contact ? <GroundPool size={size} opacity={0.8} /> : null}
     </View>
   );
 }

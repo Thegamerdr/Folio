@@ -1,4 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import {
+  MeloProtectedText as Text,
+  MeloProtectedPressable as Pressable,
+} from '@/folio/melo/MeloExclusion';
 import type { ReactNode } from 'react';
 import type { AppState } from '../store';
 import type { FinancialPlanResult } from '@folio/finance-engine';

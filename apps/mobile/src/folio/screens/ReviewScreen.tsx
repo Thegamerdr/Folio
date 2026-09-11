@@ -1,4 +1,8 @@
 import { MeloScrollView } from '@/folio/melo/MeloScrollView';
+import {
+  MeloProtectedText as Text,
+  MeloProtectedPressable as Pressable,
+} from '@/folio/melo/MeloExclusion';
 import { MeloPerch } from '@/folio/ui/MeloPerch';
 import { MeloFigure } from '@/folio/melo/MeloFigure';
 // @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review (see BUILD_PLAN §3)
@@ -57,15 +61,7 @@ import { MeloFigure } from '@/folio/melo/MeloFigure';
 // Melo line is its own frozen literal.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {

@@ -482,7 +482,7 @@ function PhoenixBody({
 // 4. Ground pool — soft warm shadow anchoring the bird to the surface.
 // ---------------------------------------------------------------------------
 
-function GroundPool({ size, opacity }: { size: number; opacity: number }) {
+export function GroundPool({ size, opacity }: { size: number; opacity: number }) {
   const uid = useId();
   const width = size * 0.44;
   const height = size * 0.06;

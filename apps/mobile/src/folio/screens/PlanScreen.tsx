@@ -19,7 +19,11 @@ import { MeloPerch } from '@/folio/ui/MeloPerch';
 // @motion       press 0.97 only; ScreenPlanHub has no route-entry animation.
 
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import {
+  MeloProtectedText as Text,
+  MeloProtectedPressable as Pressable,
+} from '@/folio/melo/MeloExclusion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 

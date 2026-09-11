@@ -6,6 +6,9 @@ export const PRESENCE_TIMING = {
   peek: 240,
   move: 260,
   leave: 180,
+  settle: 180,
+  coveredLeave: 120,
+  coveredCross: 80,
   stillAfterEngagement: 6000,
 } as const;
 export type PresencePhase =
@@ -16,6 +19,44 @@ export type PresencePhase =
   | 'perched'
   | 'leaving'
   | 'moving';
+
+function overlaps(a: Rect, b: Rect, margin = 8) {
+  return (
+    a.x < b.x + b.width + margin &&
+    a.x + a.width + margin > b.x &&
+    a.y < b.y + b.height + margin &&
+    a.y + a.height + margin > b.y
+  );
+}
+
+/** Test the actual cubic travel + quadratic lift, including its settling
+ * overshoot. Adjacent samples enclose the swept body, with a 1px curvature guard. */
+export function hasSafeMotionCorridor(from: Rect, to: Rect, exclusions: readonly Rect[]) {
+  const { arc, overshoot } = motionBetween(from, to);
+  let last = from;
+  for (let step = 0; step <= 240; step++) {
+    const p = step / 240;
+    const travel = p < 0.5 ? 4 * p ** 3 : 1 - (-2 * p + 2) ** 3 / 2;
+    const half = p < 0.5 ? p * 2 : (p - 0.5) * 2;
+    const lift = p < 0.5 ? -arc * (1 - (1 - half) ** 2) : -arc + (arc + overshoot) * half ** 2;
+    const box = {
+      x: from.x + (to.x - from.x) * travel,
+      y: from.y + (to.y - from.y) * travel + lift,
+      width: Math.max(from.width, to.width),
+      height: Math.max(from.height, to.height),
+    };
+    const swept = {
+      x: Math.min(last.x, box.x),
+      y: Math.min(last.y, box.y),
+      width: Math.max(last.x + last.width, box.x + box.width) - Math.min(last.x, box.x),
+      height: Math.max(last.y + last.height, box.y + box.height) - Math.min(last.y, box.y),
+    };
+    if (exclusions.some((other) => overlaps(swept, other, 9))) return false;
+    last = box;
+  }
+  // The final 180ms settles from the overshoot to the anchor.
+  return !exclusions.some((other) => overlaps({ ...to, height: to.height + overshoot }, other));
+}
 export function motionBetween(from: Rect, to: Rect) {
   const dx = to.x + to.width / 2 - from.x - from.width / 2;
   const dy = to.y + to.height / 2 - from.y - from.height / 2;

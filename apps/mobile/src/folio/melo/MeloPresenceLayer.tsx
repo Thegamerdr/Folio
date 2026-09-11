@@ -24,8 +24,10 @@ import { MeloAtlas } from './MeloAtlas';
 import type { MeloMood } from './Melo';
 import {
   motionBetween,
+  hasSafeMotionCorridor,
   PRESENCE_TIMING,
   resolvePresenceTarget,
+  safePresenceRect,
   type PresencePhase,
 } from '@/folio/lib/melo/presenceMotion';
 import type { Rect } from '@/folio/lib/melo/scrollOwner';
@@ -43,6 +45,8 @@ export type PresenceAnchor = {
   onDrop: (dx: number, dy: number) => boolean;
 };
 type PresenceApi = {
+  exclude: (id: string, node: PresenceMeasurable) => void;
+  removeExclusion: (id: string) => void;
   publish: (anchor: PresenceAnchor) => void;
   remove: (id: string) => void;
   refresh: (scrolling?: boolean) => void;
@@ -50,8 +54,17 @@ type PresenceApi = {
 };
 const PresenceContext = createContext<PresenceApi | null>(null);
 export const useMeloPresenceLayer = () => useContext(PresenceContext);
-type Target = { id: string; screen: string; rect: Rect; followingScroll: boolean; mood: MeloMood };
-const measure = (node: View | null): Promise<Rect | null> =>
+export type PresenceMeasurable = Pick<View, 'measureInWindow'>;
+type Target = {
+  id: string;
+  screen: string;
+  rect: Rect;
+  followingScroll: boolean;
+  mood: MeloMood;
+  exclusions: Rect[];
+  bounds: Rect;
+};
+const measure = (node: PresenceMeasurable | null): Promise<Rect | null> =>
   new Promise((resolve) => {
     if (!node) {
       resolve(null);
@@ -89,6 +102,7 @@ export function MeloPresenceProvider({
   const root = useRef<View>(null);
   const rootFrame = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
   const anchors = useRef(new Map<string, PresenceAnchor>());
+  const exclusions = useRef(new Map<string, { screen: string; node: PresenceMeasurable }>());
   const authoredOwners = useRef(new Set<string>());
   const [authoredVisible, setAuthoredVisible] = useState(false);
   const { undoVisible, undoHeight } = useUndo();
@@ -101,6 +115,7 @@ export function MeloPresenceProvider({
   const [backgrounded, setBackgrounded] = useState(AppState.currentState !== 'active');
   const [reduce, setReduce] = useState(true);
   const [still, setStill] = useState(false);
+  const [unsafeDrag, setUnsafeDrag] = useState(false);
   const stillRef = useRef(still);
   stillRef.current = still;
   const quiet = useAppStore((state) => state.melo?.quietMode === true);
@@ -114,6 +129,9 @@ export function MeloPresenceProvider({
     feedback: undoVisible ? undoHeight : toastHeight,
   };
   const previous = useRef<Target | null>(null);
+  const routeCommit = useRef({ screen, at: performance.now() });
+  if (routeCommit.current.screen !== screen)
+    routeCommit.current = { screen, at: performance.now() };
   const epoch = useRef(0);
   const unsafeWhileScrolling = useRef(false);
   const frame = useRef<number | null>(null);
@@ -133,67 +151,97 @@ export function MeloPresenceProvider({
     frame.current = requestAnimationFrame(() => {
       frame.current = null;
       if (dragging.current) return;
-      const owner = [...anchors.current.values()].find(
+      const owners = [...anchors.current.values()].filter(
         (a) => a.screen === live.current.screen && a.visible && a.node,
       );
-      if (!owner || live.current.suppressed) {
+      if (!owners.length || live.current.suppressed) {
         setTarget(null);
         return;
       }
+      const screenExclusions = [...exclusions.current.values()].filter(
+        (entry) => entry.screen === live.current.screen,
+      );
       void Promise.all([
         measure(root.current),
-        measure(owner.node),
-        measure(owner.viewport),
-        measure(owner.exclusion),
-      ]).then(([shell, slot, viewport, exclusion]) => {
-        if (
-          version !== epoch.current ||
-          anchors.current.get(owner.id) !== owner ||
-          owner.screen !== live.current.screen
-        )
-          return;
-        if (!shell || !slot || !viewport || !exclusion) {
+        Promise.all(
+          owners.map(async (owner) => ({
+            owner,
+            measured: await Promise.all([
+              measure(owner.node),
+              measure(owner.viewport),
+              measure(owner.exclusion),
+            ]),
+          })),
+        ),
+        Promise.all(screenExclusions.map((entry) => measure(entry.node))),
+      ]).then(([shell, placements, measuredExclusions]) => {
+        if (version !== epoch.current) return;
+        if (!shell) {
           setTarget(null);
           return;
         }
         rootFrame.current = shell;
-        const bounds = intersection(viewport, {
-          ...shell,
-          y: shell.y + live.current.topClearance,
-          height: Math.max(
-            0,
-            shell.height -
-              live.current.topClearance -
-              live.current.bottomClearance -
-              live.current.feedback,
-          ),
-        });
-        const rect = resolvePresenceTarget(slot, bounds, [exclusion]);
-        // These dense screens have no registered shell whitespace outside the
-        // semantic slot. Unsafe means hidden, never an invented corner or rail.
-        if (!rect) {
-          unsafeWhileScrolling.current = followingScroll;
-          setTarget(null);
+        const registered = measuredExclusions.filter((rect): rect is Rect => rect !== null);
+        for (const {
+          owner,
+          measured: [slot, viewport, exclusion],
+        } of placements) {
+          if (
+            anchors.current.get(owner.id) !== owner ||
+            owner.screen !== live.current.screen ||
+            !slot ||
+            !viewport ||
+            !exclusion
+          )
+            continue;
+          const bounds = intersection(viewport, {
+            ...shell,
+            y: shell.y + live.current.topClearance,
+            height: Math.max(
+              0,
+              shell.height -
+                live.current.topClearance -
+                live.current.bottomClearance -
+                live.current.feedback,
+            ),
+          });
+          const allExclusions = [...registered, exclusion];
+          const rect = resolvePresenceTarget(slot, bounds, allExclusions);
+          // These dense screens have no registered shell whitespace outside the
+          // semantic slot. Unsafe means hidden, never an invented corner or rail.
+          if (!rect) {
+            continue;
+          }
+          unsafeWhileScrolling.current = false;
+          const next = {
+            id: owner.id,
+            screen: owner.screen,
+            rect: { ...rect, x: rect.x - shell.x, y: rect.y - shell.y },
+            followingScroll,
+            mood: owner.mood,
+            exclusions: allExclusions.map((box) => ({
+              ...box,
+              x: box.x - shell.x,
+              y: box.y - shell.y,
+            })),
+            bounds: { ...bounds, x: bounds.x - shell.x, y: bounds.y - shell.y },
+          };
+          setTarget((old) =>
+            old &&
+            old.id === next.id &&
+            Math.abs(old.rect.x - next.rect.x) < 0.5 &&
+            Math.abs(old.rect.y - next.rect.y) < 0.5 &&
+            old.rect.width === next.rect.width &&
+            old.mood === next.mood &&
+            JSON.stringify(old.exclusions) === JSON.stringify(next.exclusions) &&
+            JSON.stringify(old.bounds) === JSON.stringify(next.bounds)
+              ? old
+              : next,
+          );
           return;
         }
-        unsafeWhileScrolling.current = false;
-        const next = {
-          id: owner.id,
-          screen: owner.screen,
-          rect: { ...rect, x: rect.x - shell.x, y: rect.y - shell.y },
-          followingScroll,
-          mood: owner.mood,
-        };
-        setTarget((old) =>
-          old &&
-          old.id === next.id &&
-          Math.abs(old.rect.x - next.rect.x) < 0.5 &&
-          Math.abs(old.rect.y - next.rect.y) < 0.5 &&
-          old.rect.width === next.rect.width &&
-          old.mood === next.mood
-            ? old
-            : next,
-        );
+        unsafeWhileScrolling.current = followingScroll;
+        setTarget(null);
       });
     });
   }, []);
@@ -216,9 +264,23 @@ export function MeloPresenceProvider({
     else authoredOwners.current.delete(id);
     setAuthoredVisible(authoredOwners.current.size > 0);
   }, []);
+  const exclude = useCallback(
+    (id: string, node: PresenceMeasurable) => {
+      exclusions.current.set(id, { screen: live.current.screen, node });
+      refresh();
+    },
+    [refresh],
+  );
+  const removeExclusion = useCallback(
+    (id: string) => {
+      exclusions.current.delete(id);
+      refresh();
+    },
+    [refresh],
+  );
   const api = useMemo(
-    () => ({ publish, remove, refresh, authored }),
-    [publish, remove, refresh, authored],
+    () => ({ publish, remove, refresh, authored, exclude, removeExclusion }),
+    [publish, remove, refresh, authored, exclude, removeExclusion],
   );
   useLayoutEffect(() => {
     refresh();
@@ -259,9 +321,9 @@ export function MeloPresenceProvider({
   }, []);
   // Engagement changes opacity/ambient playback without restarting route travel.
   useEffect(() => {
-    if (phase === 'perched') opacity.setValue(still ? 0.55 : 1);
+    if (phase === 'perched' && !dragging.current) opacity.setValue(still ? 0.55 : 1);
   }, [still, phase, opacity]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const version = ++sequence.current;
     timers.current.forEach(clearTimeout);
     timers.current = [];
@@ -285,7 +347,15 @@ export function MeloPresenceProvider({
       hide();
       return;
     }
-    if (!target) {
+    if (!target || target.screen !== screen) {
+      // A new route cannot inherit even one painted frame at an old coordinate.
+      // Keep its identity/origin for destination-first resolution (PASS53/54).
+      if (previous.current && previous.current.screen !== screen) {
+        opacity.setValue(0);
+        setRendered(null);
+        setPhase('hidden');
+        return;
+      }
       if (previous.current && !reduce && !unsafeWhileScrolling.current) {
         setPhase('leaving');
         Animated.parallel([
@@ -308,6 +378,43 @@ export function MeloPresenceProvider({
     };
     setRendered(target);
     if (
+      old &&
+      !target.followingScroll &&
+      !reduce &&
+      !hasSafeMotionCorridor(old.rect, target.rect, target.exclusions)
+    ) {
+      const originSafe = safePresenceRect(old.rect, target.bounds, target.exclusions);
+      setPhase('leaving');
+      x.setValue(old.rect.x);
+      y.setValue(old.rect.y);
+      lift.setValue(0);
+      opacity.setValue(originSafe ? 1 : 0);
+      if (originSafe)
+        Animated.timing(opacity, { toValue: 0, duration: 120, useNativeDriver: true }).start();
+      const elapsed = old.screen !== target.screen ? performance.now() - routeCommit.current.at : 0;
+      schedule(
+        () => {
+          setPhase('entering'); // authored settle clip, never the first-entrance peek
+          x.setValue(target.rect.x);
+          y.setValue(target.rect.y);
+          lift.setValue(4);
+          opacity.setValue(0);
+          Animated.parallel([
+            Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+            Animated.timing(lift, {
+              toValue: 0,
+              duration: 180,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+          ]).start();
+          schedule(settle, 180);
+        },
+        Math.max(originSafe ? 120 : 0, 200 - elapsed),
+      );
+      return () => timers.current.forEach(clearTimeout);
+    }
+    if (
       reduce ||
       (old?.id === target.id &&
         (target.followingScroll || motionBetween(old.rect, target.rect).distance < 2))
@@ -321,6 +428,7 @@ export function MeloPresenceProvider({
       y: target.rect.y + 16,
     };
     const motion = motionBetween(from, target.rect);
+    const duration = old ? PRESENCE_TIMING.move : motion.duration;
     setFaceLeft(motion.faceLeft);
     setShortHop(motion.distance <= 180);
     x.setValue(from.x);
@@ -332,26 +440,26 @@ export function MeloPresenceProvider({
       Animated.parallel([
         Animated.timing(x, {
           toValue: target.rect.x,
-          duration: motion.duration,
+          duration,
           easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(y, {
           toValue: target.rect.y,
-          duration: motion.duration,
+          duration,
           easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.sequence([
           Animated.timing(lift, {
             toValue: -motion.arc,
-            duration: motion.duration / 2,
+            duration: duration / 2,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(lift, {
             toValue: motion.overshoot,
-            duration: motion.duration / 2,
+            duration: duration / 2,
             easing: Easing.in(Easing.quad),
             useNativeDriver: true,
           }),
@@ -365,18 +473,18 @@ export function MeloPresenceProvider({
           setPhase('peeking');
           schedule(settle, 240);
         }
-      }, motion.duration + 180);
+      }, duration + 180);
     };
     if (old) {
       setPhase('leaving');
-      schedule(move, 180);
+      schedule(move, 0);
     } else {
       setPhase('waiting');
       opacity.setValue(0);
       schedule(move, 1200);
     }
     return () => timers.current.forEach(clearTimeout);
-  }, [target, suppressed, reduce, x, y, lift, opacity]);
+  }, [target, screen, suppressed, reduce, x, y, lift, opacity]);
 
   const activate = () => {
     if (!rendered || phase !== 'perched') return;
@@ -389,9 +497,12 @@ export function MeloPresenceProvider({
     if (!rendered || !start) return;
     const moved = { ...start, x: start.x + dx, y: start.y + dy };
     previous.current = { ...rendered, rect: moved };
-    becomeStill();
+    if (stillTimer.current) clearTimeout(stillTimer.current);
+    stillRef.current = false;
+    setStill(false);
     const accepted = anchors.current.get(rendered.id)?.onDrop(dx, dy) === true;
     if (accepted) {
+      setUnsafeDrag(false);
       refresh();
       return;
     }
@@ -414,9 +525,18 @@ export function MeloPresenceProvider({
       }),
     ]).start(({ finished }) => {
       if (finished) {
-        previous.current = rendered;
-        setPhase('perched');
-        refresh();
+        setUnsafeDrag(false);
+        setPhase('entering');
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: reduce ? 0 : 180,
+          useNativeDriver: true,
+        }).start(({ finished: settled }) => {
+          if (!settled) return;
+          previous.current = rendered;
+          setPhase('perched');
+          refresh();
+        });
       }
     });
   };
@@ -430,12 +550,25 @@ export function MeloPresenceProvider({
     onPanResponderGrant: () => {
       dragging.current = true;
       dragStart.current = rendered?.rect ?? null;
+      if (stillTimer.current) clearTimeout(stillTimer.current);
+      stillRef.current = false;
+      setStill(false);
+      opacity.setValue(1);
     },
     onPanResponderMove: (_event, event) => {
       const start = dragStart.current;
       if (start) {
         x.setValue(start.x + event.dx);
         y.setValue(start.y + event.dy);
+        const unsafe =
+          !rendered ||
+          !safePresenceRect(
+            { ...start, x: start.x + event.dx, y: start.y + event.dy },
+            rendered.bounds,
+            rendered.exclusions,
+          );
+        setUnsafeDrag(unsafe);
+        opacity.setValue(unsafe ? 0.4 : 1);
       }
     },
     onPanResponderRelease: (_event, event) => finishDrag(event.dx, event.dy),
@@ -446,7 +579,7 @@ export function MeloPresenceProvider({
     <PresenceContext.Provider value={api}>
       <View ref={root} collapsable={false} onLayout={() => refresh()} style={{ flex: 1 }}>
         {children}
-        {rendered && !suppressed ? (
+        {rendered && rendered.screen === screen && target?.screen === screen && !suppressed ? (
           <Animated.View
             {...gesture.panHandlers}
             accessible
@@ -500,6 +633,7 @@ export function MeloPresenceProvider({
                 faceLeft={faceLeft}
                 shortHop={shortHop}
                 paused={still || reduce}
+                contact={!unsafeDrag}
               />
             </View>
           </Animated.View>

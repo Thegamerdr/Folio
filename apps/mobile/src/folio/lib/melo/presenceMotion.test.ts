@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   motionBetween,
+  hasSafeMotionCorridor,
   resolvePresenceDrop,
   resolvePresenceTarget,
   safePresenceRect,
@@ -36,5 +37,28 @@ describe('persistent companion in the S9 content viewport', () => {
     expect(move.arc).toBe(80);
     expect(move.faceLeft).toBe(true);
     expect(move.overshoot).toBe(6);
+  });
+  it('rejects a stale origin on money even when the new perch is safe', () => {
+    const old = { x: 268, y: 320, width: 60, height: 65 };
+    const next = { ...old, x: 32, y: 200 };
+    expect(hasSafeMotionCorridor(old, next, [{ x: 260, y: 320, width: 80, height: 40 }])).toBe(
+      false,
+    );
+  });
+  it('detects a headline in the lifted arc that a straight-line test misses', () => {
+    const old = { x: 20, y: 200, width: 60, height: 65 };
+    const next = { ...old, x: 270 };
+    expect(hasSafeMotionCorridor(old, next, [{ x: 145, y: 145, width: 35, height: 25 }])).toBe(
+      false,
+    );
+    expect(hasSafeMotionCorridor(old, next, [{ x: 145, y: 20, width: 35, height: 25 }])).toBe(true);
+  });
+  it('keeps clear-corridor travel and includes the final settle overshoot', () => {
+    const old = { x: 20, y: 200, width: 60, height: 65 };
+    const next = { ...old, x: 280 };
+    expect(hasSafeMotionCorridor(old, next, [])).toBe(true);
+    expect(hasSafeMotionCorridor(old, next, [{ x: 280, y: 272, width: 60, height: 20 }])).toBe(
+      false,
+    );
   });
 });
