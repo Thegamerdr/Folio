@@ -66,7 +66,7 @@ import {
   useTheme,
   type Palette,
 } from '@/folio/theme';
-import { Melo } from '@/folio/melo/Melo';
+import { MeloFigure } from '@/folio/melo/MeloFigure';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
@@ -511,7 +511,7 @@ function OnboardingFlow({
     return st.subs.find((subscription) => subscription.name === 'Rent + bills') ?? null;
   });
 
-  const [step, setStep] = useState(initialField === 'payday' ? (isReturning ? 1 : 3) : 0);
+  const [step, setStep] = useState(initialField === 'payday' ? 3 : 0);
   // Returning users start in the summary. First-run users enter it after Pots, and an edited row
   // returns directly to the summary instead of replaying every following step.
   const [hasEnteredSummary, setHasEnteredSummary] = useState(isReturning && !initialField);
@@ -736,11 +736,8 @@ function OnboardingFlow({
   const STEP_ESSENTIALS = 7;
   const STEP_COMMITMENT = 8;
   const STEP_POTS = 9;
-  // Returning users keep the payday/income editor and can also correct the essentials, buffer and
-  // bundled bill values that feed the shared plan. The first-run flow keeps all setup steps.
-  const visibleStepIndices = isReturning
-    ? [0, STEP_CADENCE, STEP_PAYDAY, 5, STEP_BALANCE, STEP_ESSENTIALS, STEP_COMMITMENT, STEP_POTS]
-    : steps.map((_, i) => i);
+  // Both reviews expose every saved setting. Returning edits still go straight back to summary.
+  const visibleStepIndices = steps.map((_, i) => i);
   const activeStepIndex = visibleStepIndices[step] ?? 0;
   const current = steps[activeStepIndex] ?? steps[0];
   const isLast = step === visibleStepIndices.length - 1;
@@ -831,7 +828,7 @@ function OnboardingFlow({
     potsValid &&
     incomeInputValue !== undefined &&
     balanceInputValue !== undefined &&
-    (isReturning || parseManualMoney(modeExtraInput, { allowZero: true }) !== undefined) &&
+    parseManualMoney(modeExtraInput, { allowZero: true }) !== undefined &&
     (cadence !== 'monthly' || paydayInputValue !== undefined) &&
     parseManualMoney(essentialsInput, { allowZero: true }) !== undefined &&
     parseManualMoney(bufferInput, { allowZero: true }) !== undefined &&
@@ -840,7 +837,7 @@ function OnboardingFlow({
   const invalidReviewIndex = !allNumbersValid
     ? !potsValid
       ? STEP_POTS
-      : !isReturning && parseManualMoney(modeExtraInput, { allowZero: true }) === undefined
+      : parseManualMoney(modeExtraInput, { allowZero: true }) === undefined
         ? 2
         : incomeInputValue === undefined
           ? 5
@@ -882,19 +879,15 @@ function OnboardingFlow({
     .join(', ');
   const reviewRows = [
     { label: 'Name', value: name || 'Not set', index: 0 },
-    ...(!isReturning
-      ? [
-          { label: 'Goal', value: intentLabel, index: 1 },
-          {
-            label: intentMode === 'debt' ? 'Debt estimate' : extra.eyebrow,
-            value:
-              intentMode === 'debt'
-                ? `${money(Math.round(modeExtra * 100))} · estimate; recorded debts are separate`
-                : money(Math.round(modeExtra * 100)),
-            index: 2,
-          },
-        ]
-      : []),
+    { label: 'Goal', value: intentLabel, index: 1 },
+    {
+      label: intentMode === 'debt' ? 'Debt estimate' : extra.eyebrow,
+      value:
+        intentMode === 'debt'
+          ? `${money(Math.round(modeExtra * 100))} · estimate; recorded debts are separate`
+          : money(Math.round(modeExtra * 100)),
+      index: 2,
+    },
     {
       label: 'Pay frequency',
       value: CADENCE_OPTIONS.find((option) => option.cadence === cadence)?.label ?? cadence,
@@ -1119,7 +1112,7 @@ function OnboardingFlow({
         {/* Eyebrow with the documented Melo mood beside it (the web rendered no Melo; the spec asks the
           port to add the mood). */}
         <View style={[s.eyebrowRow, keyboardOpen ? { display: 'none' } : undefined]}>
-          <Melo mood={meloMood} size={24} grounded={false} />
+          <MeloFigure role="portrait" mood={meloMood} />
           <Eyebrow tone="muted">{current.eyebrow}</Eyebrow>
         </View>
 
@@ -1150,7 +1143,7 @@ function OnboardingFlow({
 
           {/* Intent picker (BREAKS-PARITY fix) — the ten Money Modes, in the user's language. Choosing
             one sets `intentMode`, which `done()` persists via `setMoneyMode`. */}
-          {!isReturning && activeStepIndex === 1 ? (
+          {activeStepIndex === 1 ? (
             <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <Text style={s.intentIntro}>
                 Choose one to start. You can change this later — Melo reshapes around it.
@@ -1196,7 +1189,7 @@ function OnboardingFlow({
           ) : null}
 
           {/* Mode-extra follow-up (BREAKS-PARITY fix) — one slider per mode, copy from MODE_EXTRA. */}
-          {!isReturning && activeStepIndex === 2 ? (
+          {activeStepIndex === 2 ? (
             <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <View style={s.valueRow}>
                 <Text

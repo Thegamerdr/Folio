@@ -743,7 +743,8 @@ export function ReviewScreen({
         <View style={[sourceStyles.root, { backgroundColor: t.canvas }]}>
           <MeloScrollView
             contentContainerStyle={sourceStyles.emptyContent}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator
+            persistentScrollbar
           >
             <View style={sourceStyles.emptyRow}>
               <View style={sourceStyles.emptyMelo}>
