@@ -1,0 +1,46 @@
+diff --git a/android/src/main/java/expo/modules/splashscreen/SplashScreenManager.kt b/android/src/main/java/expo/modules/splashscreen/SplashScreenManager.kt
+index 0dcb89e6cf02fdbd414375e2cd0b7ac4fe2e4950..787c1177fecb2288d1cab93b417c8f146a7acb4c 100644
+--- a/android/src/main/java/expo/modules/splashscreen/SplashScreenManager.kt
++++ b/android/src/main/java/expo/modules/splashscreen/SplashScreenManager.kt
+@@ -17,6 +17,7 @@ object SplashScreenManager {
+   private var keepSplashScreenOnScreen = true
+   var preventAutoHideCalled: Boolean = false
+   private lateinit var splashScreen: SplashScreen
++  private var splashScreenOptions = SplashScreenOptions()
+ 
+   private val contentAppearedListener = ReactMarker.MarkerListener { name, _, _ ->
+     if (name == ReactMarkerConstants.CONTENT_APPEARED) {
+@@ -26,16 +27,21 @@ object SplashScreenManager {
+     }
+   }
+ 
+-  private fun configureSplashScreen(options: SplashScreenOptions = SplashScreenOptions()) {
++  private fun configureSplashScreen() {
+     // If loaded in a headless JS context we might not have initialized the splash screen
+     // lateinit variable, so let's check to be nice citizens
+     if (!::splashScreen.isInitialized) {
+       return
+     }
+ 
+-    val duration = options.duration
+-
+     splashScreen.setOnExitAnimationListener { splashScreenViewProvider ->
++      // Updating the listener creates another view on AndroidX API < 31.
++      // Register once per Activity and read the latest options at exit instead.
++      val duration = splashScreenOptions.duration
++      if (duration <= 0L) {
++        splashScreenViewProvider.remove()
++        return@setOnExitAnimationListener
++      }
+       val splashScreenView = splashScreenViewProvider.view
+       splashScreenView
+         .animate()
+@@ -102,7 +108,7 @@ object SplashScreenManager {
+   }
+ 
+   fun setSplashScreenOptions(options: SplashScreenOptions) {
+-    configureSplashScreen(options)
++    splashScreenOptions = options
+   }
+ 
+   fun unregisterContentAppearedListener() {

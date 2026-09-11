@@ -715,9 +715,15 @@ export function Sheet({
                     ref={contentRef}
                     collapsable={false}
                     onFocus={settleFocusedInput}
-                    style={{ flexShrink: 0, width: '100%', paddingVertical: bodyContentInset }}
+                    style={{ flexShrink: 0, width: '100%' }}
                   >
+                    {bodyContentInset > 0 ? (
+                      <View style={{ height: bodyContentInset, flexShrink: 0 }} />
+                    ) : null}
                     {children}
+                    {bodyContentInset > 0 ? (
+                      <View style={{ height: bodyContentInset, flexShrink: 0 }} />
+                    ) : null}
                   </View>
                 </ScrollView>
               ) : (

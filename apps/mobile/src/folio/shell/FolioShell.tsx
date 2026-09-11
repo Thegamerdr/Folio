@@ -521,7 +521,6 @@ export function FolioShell() {
 
   useEffect(() => {
     if (parityRuntime === null || parityRuntime.globalSurface === 'global.boot-splash') return;
-    SplashScreen.setOptions({ duration: 1, fade: false });
     let secondFrame: number | undefined;
     const firstFrame = requestAnimationFrame(() => {
       secondFrame = requestAnimationFrame(() => {

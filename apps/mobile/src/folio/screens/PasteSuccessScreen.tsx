@@ -53,6 +53,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -193,9 +194,13 @@ export function PasteSuccessScreen({
   // cleared only after the candidates move into the persisted review queue.
   const staged = useReaderCandidates();
   const [draft, setDraft] = useState(pasteText ?? '');
+  const [submittedDraft, setSubmittedDraft] = useState(pasteText ?? '');
 
   useEffect(() => {
-    if (pasteText !== undefined) setDraft(pasteText);
+    if (pasteText !== undefined) {
+      setDraft(pasteText);
+      setSubmittedDraft(pasteText);
+    }
   }, [pasteText]);
 
   // The real engine derivation. User-pasted text is read by `parseSheet`. An
@@ -210,8 +215,8 @@ export function PasteSuccessScreen({
         candidates: [] as readonly CandidateMoneyItem[],
       };
     }
-    if (draft.trim()) {
-      const parsed = parseSheet(draft, { source: 'paste' });
+    if (submittedDraft.trim()) {
+      const parsed = parseSheet(submittedDraft, { source: 'paste' });
       // RECALL (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): this is the
       // one paste path that never touches setReaderCandidates (the file/photo
       // reader's choke point), so a remembered merchant category is applied here
@@ -237,7 +242,7 @@ export function PasteSuccessScreen({
       issues: [] as readonly ColumnIssue[],
       candidates: [] as readonly CandidateMoneyItem[],
     };
-  }, [draft, itemsOverride, staged]);
+  }, [submittedDraft, itemsOverride, staged]);
 
   // slide-in-r — drives the whole screen. Under reduce-motion we resolve straight to final state.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -361,6 +366,22 @@ export function PasteSuccessScreen({
             textAlignVertical="top"
             value={draft}
           />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Preview sheet"
+            disabled={!draft.trim()}
+            onPress={() => {
+              Keyboard.dismiss();
+              setSubmittedDraft(draft);
+            }}
+            style={({ pressed: isPressed }) => [
+              styles.primary,
+              { marginTop: gap.lg, backgroundColor: t.calm, opacity: draft.trim() ? 1 : 0.45 },
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.primaryLabel, { color: t.inverse }]}>Preview sheet</Text>
+          </Pressable>
         </ScrollView>
       </Animated.View>
     );
