@@ -228,13 +228,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-splash-screen',
         {
           backgroundColor: '#EFEBE1',
-          image: './src/folio/melo/assets/fenice-a-plus-master-square-native.webp',
+          image: './assets/brand/melo-canonical-splash.png',
           // Reuse the canonical transparent master: its 630px visible body is
           // 96dp tall within the unchanged 768px canvas. No launch-only tile.
           imageWidth: 117,
           dark: {
             backgroundColor: '#14100D',
-            image: './src/folio/melo/assets/fenice-a-plus-master-square-native.webp',
+            image: './assets/brand/melo-canonical-splash.png',
           },
         },
       ],

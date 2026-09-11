@@ -150,11 +150,15 @@ export function KeyboardSafeView({
   style,
   reduceMotion = false,
   enabled = true,
+  scrollRef,
+  scrollOffset,
 }: {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   reduceMotion?: boolean;
   enabled?: boolean;
+  scrollRef?: RefObject<ScrollView | null>;
+  scrollOffset?: { current: number };
 }) {
   const { width, height } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -163,6 +167,39 @@ export function KeyboardSafeView({
   const rootRef = useRef<View>(null);
   const [frame, setFrame] = useState<SheetWindowFrame>({ x: 0, y: 0, width, height });
   const metrics = useSheetKeyboardMetrics(enabled, reduceMotion);
+  const focusTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const keepFieldVisible = useCallback(() => {
+    const body = scrollRef?.current;
+    const focused = TextInput.State.currentlyFocusedInput();
+    if (!body || !focused || !scrollOffset) return;
+    body.getNativeScrollRef()?.measureInWindow((_x, bodyTop, _width, bodyHeight) => {
+      focused.measureInWindow((_inputX, inputTop, _inputWidth, inputHeight) => {
+        if (TextInput.State.currentlyFocusedInput() !== focused) return;
+        const y = resolveSheetFocusedScroll({
+          scrollY: scrollOffset.current,
+          inputTop,
+          inputHeight,
+          bodyTop,
+          bodyHeight,
+          contextBefore: 24,
+          contextAfter: 12,
+        });
+        if (Math.abs(y - scrollOffset.current) > 1) {
+          scrollOffset.current = y;
+          body.scrollTo({ y, animated: false });
+        }
+      });
+    });
+  }, [scrollRef, scrollOffset]);
+  const settleField = useCallback(() => {
+    focusTimers.current.forEach(clearTimeout);
+    keepFieldVisible();
+    focusTimers.current = [100, 300].map((delay) => setTimeout(keepFieldVisible, delay));
+  }, [keepFieldVisible]);
+  useEffect(() => {
+    if (metrics) settleField();
+    return () => focusTimers.current.forEach(clearTimeout);
+  }, [metrics, settleField]);
   const keyboard = resolveSheetKeyboardFrame(
     enabled ? metrics : undefined,
     Platform.OS === 'android' ? Number(Platform.Version) : null,
@@ -194,6 +231,7 @@ export function KeyboardSafeView({
       ref={rootRef}
       collapsable={false}
       onLayout={measure}
+      onFocus={settleField}
       style={[style, { paddingBottom: viewport.bottom }]}
     >
       {children}

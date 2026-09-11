@@ -246,7 +246,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const appState = useAppStore((st) => st);
   const [step, setStep] = useState(0);
   const scrollRef = useRef<ScrollView | null>(null);
-  const [actionHeight, setActionHeight] = useState(0);
+  const scrollOffset = useRef(0);
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
@@ -673,7 +673,12 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   // populated / offline / error — the real four-step ceremony. offline ≡ populated (local-first); a
   // direct error mount still shows the ritual so the user can close the cycle in hand.
   return (
-    <KeyboardSafeView style={styles.flex} reduceMotion={reduceMotion}>
+    <KeyboardSafeView
+      style={styles.flex}
+      reduceMotion={reduceMotion}
+      scrollRef={scrollRef}
+      scrollOffset={scrollOffset}
+    >
       <View
         style={[
           styles.screen,
@@ -690,7 +695,11 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
         <ScrollView
           ref={scrollRef}
           style={styles.scrollFlex}
-          contentContainerStyle={[styles.scrollBody, { paddingBottom: actionHeight + gap.lg }]}
+          contentContainerStyle={[styles.scrollBody, { paddingBottom: gap.lg }]}
+          onScroll={(event) => {
+            scrollOffset.current = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -1024,10 +1033,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
           {/* Spacer pins the CTAs to the bottom (web flex-1). */}
           <View style={styles.spacer} />
         </ScrollView>
-        <View
-          onLayout={(event) => setActionHeight(event.nativeEvent.layout.height)}
-          style={{ backgroundColor: t.canvas }}
-        >
+        <View style={{ backgroundColor: t.canvas }}>
           {/* Primary CTA — advance, or finish on the last step. Coral lift via the cta elevation. */}
           <Pressable
             accessibilityRole="button"
