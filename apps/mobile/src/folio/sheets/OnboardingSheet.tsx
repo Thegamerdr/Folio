@@ -510,7 +510,6 @@ function OnboardingFlow({
     }
     return st.subs.find((subscription) => subscription.name === 'Rent + bills') ?? null;
   });
-
   const [step, setStep] = useState(initialField === 'payday' ? 3 : 0);
   // Returning users start in the summary. First-run users enter it after Pots, and an edited row
   // returns directly to the summary instead of replaying every following step.
@@ -518,17 +517,6 @@ function OnboardingFlow({
   const [reviewingRow, setReviewingRow] = useState(false);
   const showSummary = hasEnteredSummary;
   const [costsConfirmed, setCostsConfirmed] = useState(false);
-  const [keyboardOpen, setKeyboardOpen] = useState(Keyboard.isVisible());
-  const [focusedPot, setFocusedPot] = useState<string | null>(null);
-  useEffect(() => {
-    const shown = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
-    const hidden = Keyboard.addListener('keyboardDidHide', () => setKeyboardOpen(false));
-    return () => {
-      shown.remove();
-      hidden.remove();
-    };
-  }, []);
-
   const [showMoreGoals, setShowMoreGoals] = useState(false);
   const [intentLabel, setIntentLabel] = useState(
     INTENT_OPTIONS.find((option) => option.mode === savedMode)?.label ?? INTENT_OPTIONS[0]!.label,
@@ -551,7 +539,12 @@ function OnboardingFlow({
   const updatePotAmount = (id: string, field: keyof PotAmounts, value: string) =>
     setPotAmounts((previous) => ({
       ...previous,
-      [id]: { goal: '', perWeek: '', ...previous[id], [field]: value },
+      [id]: {
+        goal: '',
+        perWeek: '',
+        ...previous[id],
+        [field]: value,
+      },
     }));
   const [payday, setPayday] = useState(savedIncomeSource?.dayOfMonth ?? ob.payday);
   const [paydayInput, setPaydayInput] = useState(
@@ -608,7 +601,9 @@ function OnboardingFlow({
   const [balanceInput, setBalanceInput] = useState(
     String(currentBalance.source === 'sample' ? 0 : currentBalance.amount),
   );
-  const incomeInputValue = parseManualMoney(incomeInput, { allowZero: true });
+  const incomeInputValue = parseManualMoney(incomeInput, {
+    allowZero: true,
+  });
   const balanceInputValue = parseManualMoney(balanceInput, {
     allowZero: true,
     allowNegative: true,
@@ -619,7 +614,6 @@ function OnboardingFlow({
   const [picked, setPicked] = useState<Set<string>>(
     () => new Set(isFirstRun ? [] : existingPots.map((p) => p.id)),
   );
-
   function togglePot(id: string) {
     setPicked((prev) => {
       const next = new Set(prev);
@@ -628,7 +622,6 @@ function OnboardingFlow({
       return next;
     });
   }
-
   const savingRef = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   function done() {
@@ -646,7 +639,9 @@ function OnboardingFlow({
         id: tpl.id,
         name: tpl.name,
         goal: parseManualMoney(potAmounts[tpl.id]?.goal ?? '')!,
-        perWeek: parseManualMoney(potAmounts[tpl.id]?.perWeek ?? '', { allowZero: true })!,
+        perWeek: parseManualMoney(potAmounts[tpl.id]?.perWeek ?? '', {
+          allowZero: true,
+        })!,
         accent: tpl.accent,
       }),
     );
@@ -662,7 +657,9 @@ function OnboardingFlow({
               potEdits: existingPots.map((pot) => ({
                 id: pot.id,
                 goal: parseManualMoney(potAmounts[pot.id]?.goal ?? '')!,
-                perWeek: parseManualMoney(potAmounts[pot.id]?.perWeek ?? '', { allowZero: true })!,
+                perWeek: parseManualMoney(potAmounts[pot.id]?.perWeek ?? '', {
+                  allowZero: true,
+                })!,
               })),
             }
           : {}),
@@ -695,7 +692,6 @@ function OnboardingFlow({
       setSaveError(error instanceof Error ? error.message : 'Could not save these changes.');
     }
   }
-
   function skipForNow() {
     // On a configured workspace this is cancellation, not a destructive reset.
     skipOnboardingForNow();
@@ -711,22 +707,86 @@ function OnboardingFlow({
   // picker (extends beyond the Lovable design — the web has no cadence UI). STEP_INDEX below
   // documents each index.
   const steps: readonly [Step, Step, Step, Step, Step, Step, Step, Step, Step, Step] = [
-    { eyebrow: 'Hello', head: { lead: 'What should Melo ', accent: 'call you?', tail: '' } },
+    {
+      eyebrow: 'Hello',
+      head: {
+        lead: 'What should Melo ',
+        accent: 'call you?',
+        tail: '',
+      },
+    },
     {
       eyebrow: 'First thing',
-      head: { lead: 'What should Melo ', accent: 'help with first?', tail: '' },
+      head: {
+        lead: 'What should Melo ',
+        accent: 'help with first?',
+        tail: '',
+      },
     },
-    { eyebrow: extra.eyebrow, head: { lead: extra.headLead, accent: extra.headAccent, tail: '' } },
-    { eyebrow: 'Rhythm', head: { lead: 'How does pay ', accent: 'arrive?', tail: '' } },
-    { eyebrow: 'Rhythm', head: { lead: 'When does payday ', accent: 'land?', tail: '' } },
-    { eyebrow: 'Rough only', head: { lead: 'What lands, ', accent: 'roughly?', tail: '' } },
-    { eyebrow: 'Today', head: { lead: "What's ", accent: 'in your account', tail: ' right now?' } },
+    {
+      eyebrow: extra.eyebrow,
+      head: {
+        lead: extra.headLead,
+        accent: extra.headAccent,
+        tail: '',
+      },
+    },
+    {
+      eyebrow: 'Rhythm',
+      head: {
+        lead: 'How does pay ',
+        accent: 'arrive?',
+        tail: '',
+      },
+    },
+    {
+      eyebrow: 'Rhythm',
+      head: {
+        lead: 'When does payday ',
+        accent: 'land?',
+        tail: '',
+      },
+    },
+    {
+      eyebrow: 'Rough only',
+      head: {
+        lead: 'What lands, ',
+        accent: 'roughly?',
+        tail: '',
+      },
+    },
+    {
+      eyebrow: 'Today',
+      head: {
+        lead: "What's ",
+        accent: 'in your account',
+        tail: ' right now?',
+      },
+    },
     {
       eyebrow: 'Essentials',
-      head: { lead: 'What do you need for ', accent: 'the week?', tail: '' },
+      head: {
+        lead: 'What do you need for ',
+        accent: 'the week?',
+        tail: '',
+      },
     },
-    { eyebrow: 'Bills', head: { lead: 'What needs ', accent: 'protecting?', tail: '' } },
-    { eyebrow: 'Pots', head: { lead: 'What are you ', accent: 'saving for?', tail: '' } },
+    {
+      eyebrow: 'Bills',
+      head: {
+        lead: 'What needs ',
+        accent: 'protecting?',
+        tail: '',
+      },
+    },
+    {
+      eyebrow: 'Pots',
+      head: {
+        lead: 'What are you ',
+        accent: 'saving for?',
+        tail: '',
+      },
+    },
   ];
   // Step indices — mirror the `steps` array above. 0 Hello · 1 intent picker · 2 mode-extra ·
   // 3 cadence · 4 payday-day/anchor · 5 income · 6 balance · 7 essentials · 8 commitment · 9 pots.
@@ -767,8 +827,10 @@ function OnboardingFlow({
     animation.start();
     return () => animation.stop();
   }, [step, reduceMotion, slide]);
-  const bodyOpacity = slide.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.5, 1, 0.5] });
-
+  const bodyOpacity = slide.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [0.5, 1, 0.5],
+  });
   function handlePrimary() {
     if (numericError !== null) return;
     Keyboard.dismiss();
@@ -794,11 +856,12 @@ function OnboardingFlow({
     setReviewingRow(false);
     setCostsConfirmed(false);
   }
-
   const potsValid = [...picked].every(
     (id) =>
       parseManualMoney(potAmounts[id]?.goal ?? '') !== undefined &&
-      parseManualMoney(potAmounts[id]?.perWeek ?? '', { allowZero: true }) !== undefined,
+      parseManualMoney(potAmounts[id]?.perWeek ?? '', {
+        allowZero: true,
+      }) !== undefined,
   );
   const numericError =
     activeStepIndex === STEP_POTS && !potsValid
@@ -810,14 +873,22 @@ function OnboardingFlow({
           : activeStepIndex === STEP_BALANCE && balanceInputValue === undefined
             ? 'Enter your current balance. A negative balance is allowed.'
             : activeStepIndex === 2 &&
-                parseManualMoney(modeExtraInput, { allowZero: true }) === undefined
+                parseManualMoney(modeExtraInput, {
+                  allowZero: true,
+                }) === undefined
               ? 'Enter an amount of £0 or more.'
               : activeStepIndex === STEP_ESSENTIALS &&
-                  (parseManualMoney(essentialsInput, { allowZero: true }) === undefined ||
-                    parseManualMoney(bufferInput, { allowZero: true }) === undefined)
+                  (parseManualMoney(essentialsInput, {
+                    allowZero: true,
+                  }) === undefined ||
+                    parseManualMoney(bufferInput, {
+                      allowZero: true,
+                    }) === undefined)
                 ? 'Enter essentials and a buffer of £0 or more.'
                 : activeStepIndex === STEP_COMMITMENT &&
-                    parseManualMoney(commitmentInput, { allowZero: true }) === undefined
+                    parseManualMoney(commitmentInput, {
+                      allowZero: true,
+                    }) === undefined
                   ? 'Enter a regular payment amount of £0 or more.'
                   : activeStepIndex === STEP_COMMITMENT &&
                       bundledCommitmentAmount > 0 &&
@@ -828,16 +899,26 @@ function OnboardingFlow({
     potsValid &&
     incomeInputValue !== undefined &&
     balanceInputValue !== undefined &&
-    parseManualMoney(modeExtraInput, { allowZero: true }) !== undefined &&
+    parseManualMoney(modeExtraInput, {
+      allowZero: true,
+    }) !== undefined &&
     (cadence !== 'monthly' || paydayInputValue !== undefined) &&
-    parseManualMoney(essentialsInput, { allowZero: true }) !== undefined &&
-    parseManualMoney(bufferInput, { allowZero: true }) !== undefined &&
-    parseManualMoney(commitmentInput, { allowZero: true }) !== undefined &&
+    parseManualMoney(essentialsInput, {
+      allowZero: true,
+    }) !== undefined &&
+    parseManualMoney(bufferInput, {
+      allowZero: true,
+    }) !== undefined &&
+    parseManualMoney(commitmentInput, {
+      allowZero: true,
+    }) !== undefined &&
     (bundledCommitmentAmount === 0 || commitmentDayValue !== undefined);
   const invalidReviewIndex = !allNumbersValid
     ? !potsValid
       ? STEP_POTS
-      : parseManualMoney(modeExtraInput, { allowZero: true }) === undefined
+      : parseManualMoney(modeExtraInput, {
+            allowZero: true,
+          }) === undefined
         ? 2
         : incomeInputValue === undefined
           ? 5
@@ -845,10 +926,16 @@ function OnboardingFlow({
             ? STEP_BALANCE
             : cadence === 'monthly' && paydayInputValue === undefined
               ? STEP_PAYDAY
-              : parseManualMoney(essentialsInput, { allowZero: true }) === undefined ||
-                  parseManualMoney(bufferInput, { allowZero: true }) === undefined
+              : parseManualMoney(essentialsInput, {
+                    allowZero: true,
+                  }) === undefined ||
+                  parseManualMoney(bufferInput, {
+                    allowZero: true,
+                  }) === undefined
                 ? STEP_ESSENTIALS
-                : parseManualMoney(commitmentInput, { allowZero: true }) === undefined ||
+                : parseManualMoney(commitmentInput, {
+                      allowZero: true,
+                    }) === undefined ||
                     (bundledCommitmentAmount > 0 && commitmentDayValue === undefined)
                   ? STEP_COMMITMENT
                   : null
@@ -859,7 +946,9 @@ function OnboardingFlow({
       : invalidReviewIndex === STEP_POTS
         ? 'Check the target and weekly amount for each selected pot.'
         : invalidReviewIndex === STEP_COMMITMENT &&
-            parseManualMoney(commitmentInput, { allowZero: true }) === undefined
+            parseManualMoney(commitmentInput, {
+              allowZero: true,
+            }) === undefined
           ? 'Check the highlighted regular payment amount before saving.'
           : invalidReviewIndex === STEP_PAYDAY || invalidReviewIndex === STEP_COMMITMENT
             ? 'Check the highlighted day before saving.'
@@ -874,12 +963,24 @@ function OnboardingFlow({
     .filter((template) => picked.has(template.id))
     .map(
       (template) =>
-        `${template.name} (${poundsTabular(parseManualMoney(potAmounts[template.id]?.goal ?? '') ?? 0)} goal · ${poundsTabular(parseManualMoney(potAmounts[template.id]?.perWeek ?? '', { allowZero: true }) ?? 0)} ${potTopUpTiming(template)})`,
+        `${template.name} (${poundsTabular(parseManualMoney(potAmounts[template.id]?.goal ?? '') ?? 0)} goal · ${poundsTabular(
+          parseManualMoney(potAmounts[template.id]?.perWeek ?? '', {
+            allowZero: true,
+          }) ?? 0,
+        )} ${potTopUpTiming(template)})`,
     )
     .join(', ');
   const reviewRows = [
-    { label: 'Name', value: name || 'Not set', index: 0 },
-    { label: 'Goal', value: intentLabel, index: 1 },
+    {
+      label: 'Name',
+      value: name || 'Not set',
+      index: 0,
+    },
+    {
+      label: 'Goal',
+      value: intentLabel,
+      index: 1,
+    },
     {
       label: intentMode === 'debt' ? 'Debt estimate' : extra.eyebrow,
       value:
@@ -900,11 +1001,23 @@ function OnboardingFlow({
           ? `Day ${paydayInput} each month`
           : cadence === 'last-working-day'
             ? 'Last working day'
-            : `Last received ${new Date(`${anchorISO}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+            : `Last received ${new Date(`${anchorISO}T12:00:00`).toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}`,
       index: STEP_PAYDAY,
     },
-    { label: 'Income', value: `${money(Math.round(income * 100))} ${incomeRange.unit}`, index: 5 },
-    { label: 'Current balance', value: money(Math.round(balance * 100)), index: STEP_BALANCE },
+    {
+      label: 'Income',
+      value: `${money(Math.round(income * 100))} ${incomeRange.unit}`,
+      index: 5,
+    },
+    {
+      label: 'Current balance',
+      value: money(Math.round(balance * 100)),
+      index: STEP_BALANCE,
+    },
     {
       label: 'Essentials and buffer',
       value: `${money(Math.round(weeklyEssentials * 100))} / week · ${money(Math.round(desiredBuffer * 100))} protected`,
@@ -915,12 +1028,18 @@ function OnboardingFlow({
       value: `${money(Math.round(bundledCommitmentAmount * 100))} / month${bundledCommitmentAmount > 0 ? ` · due day ${commitmentDayInput}` : ' · none included'}`,
       index: STEP_COMMITMENT,
     },
-    { label: 'Pots', value: selectedPotSummary || 'None selected', index: STEP_POTS },
+    {
+      label: 'Pots',
+      value: selectedPotSummary || 'None selected',
+      index: STEP_POTS,
+    },
   ];
   const confirmation = (
     <Pressable
       accessibilityRole="checkbox"
-      accessibilityState={{ checked: costsConfirmed }}
+      accessibilityState={{
+        checked: costsConfirmed,
+      }}
       onPress={() => setCostsConfirmed((previous) => !previous)}
       style={s.confirmation}
     >
@@ -939,11 +1058,26 @@ function OnboardingFlow({
     </Pressable>
   );
   const primaryDisabled = showSummary ? !costsConfirmed || !allNumbersValid : numericError !== null;
+  const emptyPayday =
+    activeStepIndex === STEP_PAYDAY && cadence === 'monthly' && !paydayInput.trim();
+  const primaryAction = showSummary
+    ? isReturning
+      ? 'Save changes'
+      : 'Save my setup'
+    : isReturning
+      ? 'Review changes'
+      : isLast || reviewingRow
+        ? 'Review my setup'
+        : 'Next';
   const footer = (
     <View>
       {showSummary ? confirmation : null}
-      {!showSummary && numericError && !keyboardOpen ? (
-        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
+      {!showSummary && numericError ? (
+        <Text
+          accessibilityRole={emptyPayday ? 'text' : 'alert'}
+          accessibilityLiveRegion="polite"
+          style={[s.error, emptyPayday ? { color: t.muted } : undefined]}
+        >
           {numericError}
         </Text>
       ) : null}
@@ -977,22 +1111,19 @@ function OnboardingFlow({
           },
         ]}
       >
-        <Text style={[s.primaryLabel, { color: primaryDisabled ? t.ink : t.inverse }]}>
-          {primaryDisabled
-            ? showSummary && !costsConfirmed
-              ? 'Confirm your costs above'
-              : activeStepIndex === STEP_POTS
-                ? 'Check amounts'
-                : 'Check entry'
-            : showSummary
-              ? isReturning
-                ? 'Save changes'
-                : 'Save my setup'
-              : isReturning
-                ? 'Review changes'
-                : isLast || reviewingRow
-                  ? 'Review my setup'
-                  : 'Next'}
+        <Text
+          style={[
+            s.primaryLabel,
+            {
+              color: primaryDisabled ? t.ink : t.inverse,
+            },
+          ]}
+        >
+          {primaryDisabled && showSummary && !costsConfirmed
+            ? 'Confirm your costs above'
+            : primaryDisabled && activeStepIndex === STEP_POTS
+              ? numericError
+              : primaryAction}
         </Text>
       </Pressable>
       <View style={s.footerActions}>
@@ -1020,12 +1151,11 @@ function OnboardingFlow({
       </View>
     </View>
   );
-
   if (showSummary)
     return (
       <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion} scrollKey="summary">
         <Text accessibilityRole="header" style={s.headline}>
-          {isReturning ? 'Review your numbers' : 'Review my setup'}
+          Review your numbers
         </Text>
         <Text style={s.help}>
           Check your balance, payday and regular costs. Tap a row to change it; nothing changes
@@ -1062,79 +1192,64 @@ function OnboardingFlow({
         {footer}
       </Sheet>
     );
-
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
       reduceMotion={reduceMotion}
       scrollKey={step}
-      focusContextBefore={keyboardOpen ? 48 : 0}
+      focusContextBefore={48}
       footer={footer}
       header={
-        <View style={{ paddingBottom: gap.sm }}>
+        <View
+          style={{
+            paddingBottom: gap.sm,
+          }}
+        >
           <Text maxFontSizeMultiplier={1.35} style={s.selectedGoal}>
             {isReturning
               ? `Edit · ${current.eyebrow}`
               : `Step ${step + 1} of ${visibleStepIndices.length} · ${current.eyebrow}`}
           </Text>
-          {keyboardOpen ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: gap.sm }}>
-              <MeloFigure role="portrait" mood={meloMood} hideForKeyboard={false} />
-              <Text
-                accessibilityRole="header"
-                maxFontSizeMultiplier={1.35}
-                style={[s.typingQuestion, { flex: 1 }]}
-              >
-                {current.head.lead}
-                <Text style={s.headlineAccent}>{current.head.accent}</Text>
-                {current.head.tail}
-              </Text>
-            </View>
-          ) : null}
-          {keyboardOpen && activeStepIndex === STEP_PAYDAY && cadence === 'monthly' ? (
-            <Text
-              accessibilityLiveRegion="polite"
-              style={[s.paydayTypingContext, { color: numericError ? t.repair : t.muted }]}
-            >
-              {numericError ? 'Enter a day: 1–31' : 'Day of month · 1–31'}
-            </Text>
-          ) : null}
         </View>
       }
     >
       <View style={s.body}>
         {/* Progress pips — three states (active w7 accent · done w5 ink/60 · future w5 hairline). */}
-        <View style={[s.pips, keyboardOpen ? { display: 'none' } : undefined]}>
-          {visibleStepIndices.map((_, i) => (
-            <ProgressPip
-              key={i}
-              kind={i === step ? 'active' : i < step ? 'done' : 'future'}
-              palette={t}
-              reduceMotion={reduceMotion}
-            />
-          ))}
-        </View>
+        {!isReturning ? (
+          <View style={s.pips}>
+            {visibleStepIndices.map((_, i) => (
+              <ProgressPip
+                key={i}
+                kind={i === step ? 'active' : i < step ? 'done' : 'future'}
+                palette={t}
+                reduceMotion={reduceMotion}
+              />
+            ))}
+          </View>
+        ) : null}
 
         {/* Eyebrow with the documented Melo mood beside it (the web rendered no Melo; the spec asks the
           port to add the mood). */}
-        <View style={[s.eyebrowRow, keyboardOpen ? { display: 'none' } : undefined]}>
-          <MeloFigure role="portrait" mood={meloMood} />
+        <View style={[s.eyebrowRow]}>
+          <MeloFigure role="portrait" mood={meloMood} hideForKeyboard={false} />
           <Eyebrow tone="muted">{current.eyebrow}</Eyebrow>
         </View>
 
         {/* Headline — one terracotta-italic accent run carved into the Fraunces line. */}
-        <Text
-          style={[s.headline, keyboardOpen ? { display: 'none' } : undefined]}
-          accessibilityRole="header"
-        >
+        <Text style={[s.headline]} accessibilityRole="header">
           {current.head.lead}
           <Text style={s.headlineAccent}>{current.head.accent}</Text>
           {current.head.tail}
         </Text>
 
         {/* The per-step body — seven mutually exclusive branches, sliding on step change. */}
-        <Animated.View style={{ opacity: bodyOpacity, width: '100%' }}>
+        <Animated.View
+          style={{
+            opacity: bodyOpacity,
+            width: '100%',
+          }}
+        >
           {activeStepIndex === 0 ? (
             <TextInput
               autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
@@ -1142,7 +1257,7 @@ function OnboardingFlow({
               onChangeText={setName}
               placeholder={copy.onb[1].placeholder}
               placeholderTextColor={t.muted}
-              style={[s.nameInput, keyboardOpen ? { marginTop: gap.sm } : undefined]}
+              style={[s.nameInput]}
               accessibilityLabel="Your name"
               returnKeyType="next"
             />
@@ -1151,7 +1266,7 @@ function OnboardingFlow({
           {/* Intent picker (BREAKS-PARITY fix) — the ten Money Modes, in the user's language. Choosing
             one sets `intentMode`, which `done()` persists via `setMoneyMode`. */}
           {activeStepIndex === 1 ? (
-            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
+            <View style={[s.fieldBlock]}>
               <Text style={s.intentIntro}>
                 Choose one to start. You can change this later — Melo reshapes around it.
               </Text>
@@ -1162,7 +1277,9 @@ function OnboardingFlow({
                     <Pressable
                       key={opt.label}
                       accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}
+                      accessibilityState={{
+                        selected: on,
+                      }}
                       accessibilityLabel={`${opt.modeLabel}: ${opt.label}`}
                       onPress={() => {
                         setIntentMode(opt.mode);
@@ -1186,7 +1303,9 @@ function OnboardingFlow({
               </View>
               <Pressable
                 accessibilityRole="button"
-                accessibilityState={{ expanded: showMoreGoals }}
+                accessibilityState={{
+                  expanded: showMoreGoals,
+                }}
                 style={s.footerAction}
                 onPress={() => setShowMoreGoals((previous) => !previous)}
               >
@@ -1197,11 +1316,9 @@ function OnboardingFlow({
 
           {/* Mode-extra follow-up (BREAKS-PARITY fix) — one slider per mode, copy from MODE_EXTRA. */}
           {activeStepIndex === 2 ? (
-            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
+            <View style={[s.fieldBlock]}>
               <View style={s.valueRow}>
-                <Text
-                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
-                >
+                <Text style={[s.bigValue]}>
                   {extra.unit}
                   {modeExtra.toLocaleString()}
                 </Text>
@@ -1213,7 +1330,9 @@ function OnboardingFlow({
                     updateOnboardingAmount(
                       draft,
                       intentMode,
-                      normalizeManualMoneyDraft(modeExtraInput, { allowZero: true }),
+                      normalizeManualMoneyDraft(modeExtraInput, {
+                        allowZero: true,
+                      }),
                     ),
                   )
                 }
@@ -1226,7 +1345,6 @@ function OnboardingFlow({
                 accessibilityLabel={`Exact ${extra.eyebrow.toLowerCase()} amount`}
               />
               <FolioSlider
-                hidden={keyboardOpen}
                 min={extra.min}
                 max={extra.max}
                 step={extra.step}
@@ -1247,7 +1365,7 @@ function OnboardingFlow({
             week-based cadence swaps the next step's slider for a date pick; monthly/last-working-day
             keep the day-of-month slider (hidden for last-working-day, which needs no day input). */}
           {activeStepIndex === STEP_CADENCE ? (
-            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
+            <View style={[s.fieldBlock]}>
               <View style={s.intentList}>
                 {CADENCE_OPTIONS.map((opt) => {
                   const on = cadence === opt.cadence;
@@ -1255,7 +1373,9 @@ function OnboardingFlow({
                     <Pressable
                       key={opt.cadence}
                       accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}
+                      accessibilityState={{
+                        selected: on,
+                      }}
                       accessibilityLabel={opt.label}
                       onPress={() => setCadence(opt.cadence)}
                       style={({ pressed: isPressed }) => [
@@ -1276,18 +1396,11 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === STEP_PAYDAY ? (
-            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
+            <View style={[s.fieldBlock]}>
               {cadence === 'monthly' ? (
                 <>
-                  <View style={[s.valueRow, keyboardOpen ? { display: 'none' } : undefined]}>
-                    <Text
-                      style={[
-                        s.bigValue,
-                        keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined,
-                      ]}
-                    >
-                      {paydayInput || '—'}
-                    </Text>
+                  <View style={[s.valueRow]}>
+                    <Text style={[s.bigValue]}>{paydayInput || '—'}</Text>
                     <Text style={s.unit}>of the month</Text>
                   </View>
                   <TextInput
@@ -1302,21 +1415,18 @@ function OnboardingFlow({
                     style={s.amountInput}
                     accessibilityLabel="Exact payday day of month"
                   />
-                  {paydayInputValue === undefined ? null : (
-                    <FolioSlider
-                      hidden={keyboardOpen}
-                      min={PAYDAY_MIN}
-                      max={PAYDAY_MAX}
-                      step={PAYDAY_STEP}
-                      value={payday}
-                      onChange={(value) => {
-                        setPayday(value);
-                        setPaydayInput(String(value));
-                      }}
-                      palette={t}
-                      accessibilityLabel="Payday day of the month"
-                    />
-                  )}
+                  <FolioSlider
+                    min={PAYDAY_MIN}
+                    max={PAYDAY_MAX}
+                    step={PAYDAY_STEP}
+                    value={payday}
+                    onChange={(value) => {
+                      setPayday(value);
+                      setPaydayInput(String(value));
+                    }}
+                    palette={t}
+                    accessibilityLabel="Payday day of the month"
+                  />
                   <Text style={s.help}>
                     For shorter months, payday falls on the last day of the month.
                   </Text>
@@ -1365,24 +1475,26 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === 5 ? (
-            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
+            <View style={[s.fieldBlock]}>
               <View style={s.valueRow}>
-                <Text
-                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
-                >
-                  {poundsTabular(income)}
-                </Text>
+                <Text style={[s.bigValue]}>{poundsTabular(income)}</Text>
                 <Text style={s.unit}>{incomeRange.unit}</Text>
               </View>
               <TextInput
                 value={incomeInput}
                 selectTextOnFocus
                 onBlur={() =>
-                  setIncomeInput(normalizeManualMoneyDraft(incomeInput, { allowZero: true }))
+                  setIncomeInput(
+                    normalizeManualMoneyDraft(incomeInput, {
+                      allowZero: true,
+                    }),
+                  )
                 }
                 onChangeText={(value) => {
                   setIncomeInput(value);
-                  const parsed = parseManualMoney(value, { allowZero: true });
+                  const parsed = parseManualMoney(value, {
+                    allowZero: true,
+                  });
                   if (parsed !== undefined) setIncome(parsed);
                 }}
                 keyboardType="decimal-pad"
@@ -1390,7 +1502,6 @@ function OnboardingFlow({
                 accessibilityLabel={`Exact income${incomeRange.unit}`}
               />
               <FolioSlider
-                hidden={keyboardOpen}
                 min={incomeRange.min}
                 max={incomeRange.max}
                 step={incomeRange.step}
@@ -1407,13 +1518,9 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === STEP_BALANCE ? (
-            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
+            <View style={[s.fieldBlock]}>
               <View style={s.valueRow}>
-                <Text
-                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
-                >
-                  {poundsTabular(balance)}
-                </Text>
+                <Text style={[s.bigValue]}>{poundsTabular(balance)}</Text>
                 <Text style={s.unit}>available now</Text>
               </View>
               <TextInput
@@ -1429,7 +1536,10 @@ function OnboardingFlow({
                 }
                 onChangeText={(value) => {
                   setBalanceInput(value);
-                  const parsed = parseManualMoney(value, { allowZero: true, allowNegative: true });
+                  const parsed = parseManualMoney(value, {
+                    allowZero: true,
+                    allowNegative: true,
+                  });
                   if (parsed !== undefined) setBalance(parsed);
                 }}
                 keyboardType="decimal-pad"
@@ -1437,7 +1547,6 @@ function OnboardingFlow({
                 accessibilityLabel="Exact current account balance"
               />
               <FolioSlider
-                hidden={keyboardOpen}
                 min={BALANCE_MIN}
                 max={BALANCE_MAX}
                 step={BALANCE_STEP}
@@ -1457,7 +1566,10 @@ function OnboardingFlow({
                     ? balanceInput.slice(1)
                     : `-${balanceInput}`;
                   setBalanceInput(raw);
-                  const parsed = parseManualMoney(raw, { allowZero: true, allowNegative: true });
+                  const parsed = parseManualMoney(raw, {
+                    allowZero: true,
+                    allowNegative: true,
+                  });
                   if (parsed !== undefined) setBalance(parsed);
                 }}
               >
@@ -1475,26 +1587,26 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === STEP_ESSENTIALS ? (
-            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
+            <View style={[s.fieldBlock]}>
               <View style={s.valueRow}>
-                <Text
-                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
-                >
-                  {poundsTabular(weeklyEssentials)}
-                </Text>
+                <Text style={[s.bigValue]}>{poundsTabular(weeklyEssentials)}</Text>
                 <Text style={s.unit}>/ week essentials</Text>
               </View>
               <TextInput
                 value={essentialsInput}
                 onBlur={() =>
                   setEssentialsInput(
-                    normalizeManualMoneyDraft(essentialsInput, { allowZero: true }),
+                    normalizeManualMoneyDraft(essentialsInput, {
+                      allowZero: true,
+                    }),
                   )
                 }
                 selectTextOnFocus
                 onChangeText={(value) => {
                   setEssentialsInput(value);
-                  const parsed = parseManualMoney(value, { allowZero: true });
+                  const parsed = parseManualMoney(value, {
+                    allowZero: true,
+                  });
                   if (parsed !== undefined) setWeeklyEssentials(parsed);
                 }}
                 keyboardType="decimal-pad"
@@ -1502,7 +1614,6 @@ function OnboardingFlow({
                 accessibilityLabel="Exact weekly essential living allowance"
               />
               <FolioSlider
-                hidden={keyboardOpen}
                 min={0}
                 max={500}
                 step={5}
@@ -1514,12 +1625,15 @@ function OnboardingFlow({
                 palette={t}
                 accessibilityLabel="Weekly essential living allowance"
               />
-              <View style={[s.valueRow, { marginTop: gap.lg }]}>
-                <Text
-                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
-                >
-                  {poundsTabular(desiredBuffer)}
-                </Text>
+              <View
+                style={[
+                  s.valueRow,
+                  {
+                    marginTop: gap.lg,
+                  },
+                ]}
+              >
+                <Text style={[s.bigValue]}>{poundsTabular(desiredBuffer)}</Text>
                 <Text style={s.unit}>protected buffer</Text>
               </View>
               <TextInput
@@ -1529,7 +1643,9 @@ function OnboardingFlow({
                     updateOnboardingAmount(
                       draft,
                       'buffer',
-                      normalizeManualMoneyDraft(bufferInput, { allowZero: true }),
+                      normalizeManualMoneyDraft(bufferInput, {
+                        allowZero: true,
+                      }),
                     ),
                   )
                 }
@@ -1542,7 +1658,6 @@ function OnboardingFlow({
                 accessibilityLabel="Exact protected cash buffer"
               />
               <FolioSlider
-                hidden={keyboardOpen}
                 min={0}
                 max={1000}
                 step={10}
@@ -1560,42 +1675,36 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === STEP_COMMITMENT ? (
-            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
+            <View style={[s.fieldBlock]}>
               <TextInput
                 value={bundledCommitmentName}
                 onChangeText={setBundledCommitmentName}
                 placeholder="For example, rent + bills"
                 placeholderTextColor={t.muted}
-                style={[s.nameInput, keyboardOpen ? { marginTop: gap.sm } : undefined]}
+                style={[s.nameInput]}
                 accessibilityLabel="Recurring commitment name"
               />
-              <View style={keyboardOpen ? s.potAmountColumns : undefined}>
-                <View style={keyboardOpen ? s.potAmountColumn : undefined}>
-                  {keyboardOpen ? (
-                    <Text style={[s.help, { marginTop: gap.sm }]}>Monthly (£)</Text>
-                  ) : null}
-                  <View style={[s.valueRow, keyboardOpen ? { display: 'none' } : undefined]}>
-                    <Text
-                      style={[
-                        s.bigValue,
-                        keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined,
-                      ]}
-                    >
-                      {poundsTabular(bundledCommitmentAmount)}
-                    </Text>
+              <View>
+                <View>
+                  <View style={[s.valueRow]}>
+                    <Text style={[s.bigValue]}>{poundsTabular(bundledCommitmentAmount)}</Text>
                     <Text style={s.unit}>/ month</Text>
                   </View>
                   <TextInput
                     value={commitmentInput}
                     onBlur={() =>
                       setCommitmentInput(
-                        normalizeManualMoneyDraft(commitmentInput, { allowZero: true }),
+                        normalizeManualMoneyDraft(commitmentInput, {
+                          allowZero: true,
+                        }),
                       )
                     }
                     selectTextOnFocus
                     onChangeText={(value) => {
                       setCommitmentInput(value);
-                      const parsed = parseManualMoney(value, { allowZero: true });
+                      const parsed = parseManualMoney(value, {
+                        allowZero: true,
+                      });
                       if (parsed !== undefined) setBundledCommitmentAmount(parsed);
                     }}
                     keyboardType="decimal-pad"
@@ -1603,7 +1712,6 @@ function OnboardingFlow({
                     accessibilityLabel="Exact recurring commitment amount"
                   />
                   <FolioSlider
-                    hidden={keyboardOpen}
                     min={0}
                     max={COMMITMENT_MAX}
                     step={COMMITMENT_STEP}
@@ -1616,11 +1724,8 @@ function OnboardingFlow({
                     accessibilityLabel="Recurring commitment amount"
                   />
                 </View>
-                <View style={keyboardOpen ? s.potAmountColumn : undefined}>
-                  {keyboardOpen ? (
-                    <Text style={[s.help, { marginTop: gap.sm }]}>Due day (1–31)</Text>
-                  ) : null}
-                  <View style={[s.valueRow, keyboardOpen ? { display: 'none' } : undefined]}>
+                <View>
+                  <View style={[s.valueRow]}>
                     <Text style={s.dueLabel}>Due on day</Text>
                     <Text style={s.dueValue}>{commitmentDayInput || '—'}</Text>
                     <Text style={s.unit}>of each month</Text>
@@ -1637,77 +1742,62 @@ function OnboardingFlow({
                     style={s.amountInput}
                     accessibilityLabel="Exact regular payment due day"
                   />
-                  {commitmentDayValue === undefined ? null : (
-                    <FolioSlider
-                      hidden={keyboardOpen}
-                      min={1}
-                      max={31}
-                      step={1}
-                      value={bundledCommitmentDueDay}
-                      onChange={(value) => {
-                        setBundledCommitmentDueDay(value);
-                        setCommitmentDayInput(String(value));
-                      }}
-                      palette={t}
-                      accessibilityLabel="Recurring commitment day"
-                    />
-                  )}
+                  <FolioSlider
+                    min={1}
+                    max={31}
+                    step={1}
+                    value={bundledCommitmentDueDay}
+                    onChange={(value) => {
+                      setBundledCommitmentDueDay(value);
+                      setCommitmentDayInput(String(value));
+                    }}
+                    palette={t}
+                    accessibilityLabel="Recurring commitment day"
+                  />
                 </View>
               </View>
-              {keyboardOpen ? (
-                <Text style={[s.help, { marginTop: gap.sm }]}>
-                  Monthly; shorter months use their last day. Not marked paid.
-                </Text>
-              ) : null}
-              <Text style={[s.help, keyboardOpen ? { display: 'none' } : undefined]}>
+
+              <Text style={[s.help]}>
                 In shorter months, use the last day. This records when it is due; it does not mark a
                 payment as paid.
               </Text>
-              <Text style={[s.help, keyboardOpen ? { display: 'none' } : undefined]}>
+              <Text style={[s.help]}>
                 One bundled payment is fine. Add separate bills later from Plan.
               </Text>
             </View>
           ) : null}
 
           {activeStepIndex === STEP_POTS ? (
-            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
-              <Text style={[s.potsIntro, keyboardOpen ? { display: 'none' } : undefined]}>
+            <View style={[s.fieldBlock]}>
+              <Text style={[s.potsIntro]}>
                 {isReturning
                   ? 'Correct a target or top-up amount here. Saved deposits stay unchanged. Add or remove pots from Pots.'
                   : 'Choose optional pots, then add your own target and top-up amount. New pots are planned after payday. Leave all unselected to save your setup without pots. You can add pots later.'}
               </Text>
               <View style={s.potGrid}>
-                {potChoices
-                  .filter((tpl) => !keyboardOpen || focusedPot === null || tpl.id === focusedPot)
-                  .map((tpl) => (
-                    <PotTile
-                      key={tpl.id}
-                      template={tpl}
-                      selected={picked.has(tpl.id)}
-                      editableSelection={!isReturning}
-                      compact={keyboardOpen}
-                      onFocus={() => setFocusedPot(tpl.id)}
-                      amounts={potAmounts[tpl.id] ?? { goal: '', perWeek: '' }}
-                      onAmountChange={(field, value) => updatePotAmount(tpl.id, field, value)}
-                      onPress={() => togglePot(tpl.id)}
-                      styles={s}
-                    />
-                  ))}
+                {potChoices.map((tpl) => (
+                  <PotTile
+                    key={tpl.id}
+                    template={tpl}
+                    selected={picked.has(tpl.id)}
+                    editableSelection={!isReturning}
+                    amounts={
+                      potAmounts[tpl.id] ?? {
+                        goal: '',
+                        perWeek: '',
+                      }
+                    }
+                    onAmountChange={(field, value) => updatePotAmount(tpl.id, field, value)}
+                    onPress={() => togglePot(tpl.id)}
+                    styles={s}
+                  />
+                ))}
               </View>
             </View>
           ) : null}
         </Animated.View>
 
-        {keyboardOpen &&
-        numericError &&
-        activeStepIndex !== STEP_POTS &&
-        !(activeStepIndex === STEP_PAYDAY && cadence === 'monthly') ? (
-          <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
-            {numericError}
-          </Text>
-        ) : null}
-
-        <Text style={[s.footer, keyboardOpen ? { display: 'none' } : undefined]}>
+        <Text style={[s.footer]}>
           {isReturning
             ? 'Cancel keeps everything you’ve already added unchanged.'
             : activeStepIndex === 0
@@ -1768,8 +1858,6 @@ function PotTile({
   template,
   selected,
   editableSelection = true,
-  compact,
-  onFocus,
   amounts,
   onPress,
   onAmountChange,
@@ -1778,68 +1866,62 @@ function PotTile({
   template: PotTemplate;
   selected: boolean;
   editableSelection?: boolean;
-  compact: boolean;
-  onFocus: () => void;
   amounts: PotAmounts;
   onPress: () => void;
   onAmountChange: (field: keyof PotAmounts, value: string) => void;
   styles: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <View
-      style={[
-        s.potTile,
-        selected ? s.potTileSelected : s.potTileUnselected,
-        compact ? { padding: gap.sm } : undefined,
-      ]}
-    >
+    <View style={[s.potTile, selected ? s.potTileSelected : s.potTileUnselected]}>
       {editableSelection ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ selected }}
+          accessibilityState={{
+            selected,
+          }}
           onPress={onPress}
-          style={{ minHeight: 48, justifyContent: 'center' }}
+          style={{
+            minHeight: 48,
+            justifyContent: 'center',
+          }}
         >
           <Text style={s.potName}>{template.name}</Text>
-          {!compact ? (
+          {
             <Text style={s.potMeta}>
               {selected ? 'Selected · tap to remove' : 'Choose this pot'}
             </Text>
-          ) : null}
+          }
         </Pressable>
       ) : (
-        <View style={{ minHeight: 48, justifyContent: 'center' }}>
+        <View
+          style={{
+            minHeight: 48,
+            justifyContent: 'center',
+          }}
+        >
           <Text style={s.potName}>{template.name}</Text>
         </View>
       )}
       {selected ? (
         <View>
-          {!compact ? (
-            <Text style={s.help}>Planned {potTopUpTiming(template)}. Change the date in Pots.</Text>
-          ) : null}
-          <View style={compact ? s.potAmountColumns : undefined}>
-            <View style={compact ? s.potAmountColumn : undefined}>
-              <Text style={[s.help, compact ? { marginTop: 0 } : undefined]}>Target (£)</Text>
+          {<Text style={s.help}>Planned {potTopUpTiming(template)}. Change the date in Pots.</Text>}
+          <View>
+            <View>
+              <Text style={[s.help]}>Target (£)</Text>
               <TextInput
                 value={amounts.goal}
                 onChangeText={(value) => onAmountChange('goal', value)}
-                onFocus={onFocus}
                 selectTextOnFocus
                 keyboardType="decimal-pad"
                 style={s.amountInput}
                 accessibilityLabel={`${template.name} target in pounds`}
               />
             </View>
-            <View style={compact ? s.potAmountColumn : undefined}>
-              <Text style={[s.help, compact ? { marginTop: 0 } : undefined]}>
-                {compact
-                  ? 'Top-up (£, 0 allowed)'
-                  : `Set aside ${potTopUpTiming(template)} (£, can be 0)`}
-              </Text>
+            <View>
+              <Text style={[s.help]}>{`Set aside ${potTopUpTiming(template)} (£, can be 0)`}</Text>
               <TextInput
                 value={amounts.perWeek}
                 onChangeText={(value) => onAmountChange('perWeek', value)}
-                onFocus={onFocus}
                 selectTextOnFocus
                 keyboardType="decimal-pad"
                 style={s.amountInput}
@@ -2213,8 +2295,8 @@ function makeStyles(t: Palette, fontScale: number) {
       flexBasis: '100%',
       minWidth: '100%',
       flexShrink: 0,
-      backgroundColor: t.calmSoft,
-      borderColor: t.calm,
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
       borderWidth: 1,
     },
     potTileUnselected: {

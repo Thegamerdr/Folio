@@ -353,8 +353,9 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  segmentInset: { paddingHorizontal: gap.xl },
+  segmentInset: { paddingHorizontal: gap.xl, flexShrink: 0 },
   segmented: {
+    flexShrink: 0,
     borderRadius: radius.md,
     flexDirection: 'row',
     gap: gap.xs,

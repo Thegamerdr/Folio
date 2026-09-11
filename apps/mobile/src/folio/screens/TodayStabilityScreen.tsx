@@ -282,7 +282,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
             <Text style={[s.verdict, { color: t.ink }]}>
               <Text
                 style={{
-                  color: !financePresentation.canReassure ? t.caution : t.positive,
+                  color: t.calm,
                   fontWeight: '600',
                 }}
               >
@@ -367,7 +367,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
           <View style={[s.monthShapeRow, stackMonthShape && s.monthShapeRowStacked]}>
             {(
               [
-                { label: 'Monthly income', value: monthlyIn, tone: t.positive },
+                { label: 'Monthly income', value: monthlyIn, tone: t.ink },
                 { label: 'Bills and commitments', value: billsReserved, tone: t.muted },
                 { label: 'Buffer', value: bufferAmount, tone: t.ink },
               ] as const

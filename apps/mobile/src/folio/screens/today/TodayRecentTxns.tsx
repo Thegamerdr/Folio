@@ -285,6 +285,9 @@ const styles = StyleSheet.create({
   },
   headRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: gap.md,
+    rowGap: gap.xs,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: gap.xxs,

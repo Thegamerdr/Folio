@@ -212,7 +212,7 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
         {/* Balance card — the In-your-account label, the big £ + figure with the blinking caret, and the
           three source chips. The figure count-ups per keystroke; money never slides. */}
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          <Text style={[styles.cardLabel, { color: t.muted }]}>In your account</Text>
+          <Text style={[styles.cardLabel, { color: t.muted }]}>Current available balance</Text>
           <View style={styles.amountRow}>
             <Text style={[styles.symbol, { color: t.ink }]}>{copy.global.currency.symbol}</Text>
             <TextInput
@@ -240,7 +240,13 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
           bg-accent text-white). Persists the rough figure honestly, then advances to intake. */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={balanceValid ? 'Continue' : 'Enter a valid balance'}
+          accessibilityLabel={
+            balanceValid
+              ? 'Continue'
+              : value.trim()
+                ? 'Enter a valid balance'
+                : 'Enter your balance'
+          }
           accessibilityState={{ disabled: !balanceValid }}
           disabled={!balanceValid}
           accessibilityHint="Saves this rough figure and opens the next step"
@@ -252,7 +258,11 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
           ]}
         >
           <Text style={[styles.continueLabel, { color: balanceValid ? t.inverse : t.muted }]}>
-            {balanceValid ? 'Continue' : 'Enter a valid balance'}
+            {balanceValid
+              ? 'Continue'
+              : value.trim()
+                ? 'Enter a valid balance'
+                : 'Enter your balance'}
           </Text>
         </Pressable>
       </View>
