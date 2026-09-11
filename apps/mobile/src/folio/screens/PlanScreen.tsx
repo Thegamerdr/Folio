@@ -130,7 +130,8 @@ function ChevronGlyph({
 export function PlanScreen({ nav, state }: PlanScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
+  const stackMoney = width / fontScale < 280;
   const stackDominantActions = width < 380;
 
   // Supporting facts alongside the canonical plan. The route reads its own store inputs.
@@ -384,8 +385,14 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                   : `over the ${daysToPayday} day${daysToPayday === 1 ? '' : 's'} to payday, including unpaid bills`}
               </Text>
               {financialPlan ? (
-                <View style={[styles.safePlan, { borderTopColor: t.hairline }]}>
-                  <View>
+                <View
+                  style={[
+                    styles.safePlan,
+                    { borderTopColor: t.hairline },
+                    stackMoney ? styles.safePlanStacked : undefined,
+                  ]}
+                >
+                  <View style={{ flexShrink: 1, minWidth: 0 }}>
                     <Text style={[styles.smallLabel, { color: t.muted }]}>
                       {financePresentation.canReassure ? 'Safe to spend' : 'After recorded costs'}
                     </Text>
@@ -723,9 +730,11 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
     marginTop: 16,
     paddingTop: 14,
   },
+  safePlanStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   safeCaption: {
     fontFamily: weightFamily(400),
     fontSize: 11,
@@ -931,6 +940,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   money: {
+    flexShrink: 0,
     fontFamily: weightFamily(500),
     fontVariant: ['tabular-nums'],
   },

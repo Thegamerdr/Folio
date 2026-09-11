@@ -47,7 +47,15 @@ import { MeloFigure } from '@/folio/melo/MeloFigure';
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 import Animated, {
@@ -383,6 +391,8 @@ export type WhatIfScreenProps = {
 
 export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
   const t = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  const stackMoney = width / fontScale < 280;
   const styles = useMemo(() => makeStyles(t), [t]);
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
@@ -620,7 +630,15 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
 
           {/* Spend card — the −/+ steppers around the centred amount, then the mini money path. */}
           <View style={styles.spendCard}>
-            <View style={styles.stepperRow}>
+            <View
+              style={[styles.stepperRow, stackMoney ? { flexWrap: 'wrap', rowGap: 12 } : undefined]}
+            >
+              {stackMoney ? (
+                <View style={[styles.stepperCenter, { width: '100%' }]}>
+                  <Text style={styles.amountValue}>£{amount}</Text>
+                  <Text style={styles.amountCaption}>hypothetical amount</Text>
+                </View>
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Spend five pounds less"
@@ -633,10 +651,12 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
                 <Text style={styles.stepperGlyph}>{MINUS}</Text>
               </Pressable>
 
-              <View style={styles.stepperCenter}>
-                <Text style={styles.amountValue}>£{amount}</Text>
-                <Text style={styles.amountCaption}>hypothetical amount</Text>
-              </View>
+              {!stackMoney ? (
+                <View style={styles.stepperCenter}>
+                  <Text style={styles.amountValue}>£{amount}</Text>
+                  <Text style={styles.amountCaption}>hypothetical amount</Text>
+                </View>
+              ) : null}
 
               <Pressable
                 accessibilityRole="button"
@@ -705,7 +725,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
 
           {/* Stat tiles — New lowest (count-up, negative tone on breach / tight) + floor caption (only
               when a floor is set), and Days this would last (count-up, negative under 5d) + pots total. */}
-          <View style={styles.tilesRow}>
+          <View style={[styles.tilesRow, stackMoney ? { flexDirection: 'column' } : undefined]}>
             <View style={styles.tile}>
               <Text style={styles.tileLabel}>After this</Text>
               <Text
@@ -780,8 +800,13 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
           {/* Payday shift — another preview, never a silent write. The result already flows through
               the same burn-rate and lowest-point numbers above, so the choice is legible before save. */}
           <View style={styles.paydayShiftSection}>
-            <View style={styles.paydayShiftHeader}>
-              <View>
+            <View
+              style={[
+                styles.paydayShiftHeader,
+                stackMoney ? { flexDirection: 'column' } : undefined,
+              ]}
+            >
+              <View style={{ flexShrink: 1, minWidth: 0 }}>
                 <Text style={styles.paydayShiftLabel}>If payday moves</Text>
                 <Text style={styles.paydayShiftCaption}>
                   Preview the extra days this path would carry.
@@ -808,7 +833,11 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
               >
                 <Text style={styles.stepperGlyph}>{MINUS}</Text>
               </Pressable>
-              <Text style={styles.paydayShiftMid}>payday shift</Text>
+              <Text style={styles.paydayShiftMid}>
+                {paydayShift === 0
+                  ? '0 days'
+                  : `${Math.abs(paydayShift)} ${Math.abs(paydayShift) === 1 ? 'day' : 'days'} ${paydayShift < 0 ? 'early' : 'late'}`}
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Payday one day later"
@@ -1016,6 +1045,7 @@ function makeStyles(t: Palette) {
     },
     // The 44px round stepper — inset well fill + hairline (web w-11 h-11 rounded-full hairline bg-inset).
     stepper: {
+      flexShrink: 0,
       alignItems: 'center',
       backgroundColor: t.inset,
       borderColor: t.hairline,
@@ -1032,6 +1062,8 @@ function makeStyles(t: Palette) {
     },
     stepperCenter: {
       alignItems: 'center',
+      flexShrink: 1,
+      minWidth: 0,
     },
     // The centred amount — the input itself (Money xl, tone accent). Instant, never count-up.
     amountValue: {
@@ -1043,6 +1075,7 @@ function makeStyles(t: Palette) {
       lineHeight: 44,
     },
     amountCaption: {
+      textAlign: 'center',
       color: t.muted,
       fontSize: 10.5,
       letterSpacing: CAPTION_TRACKING,
@@ -1173,6 +1206,10 @@ function makeStyles(t: Palette) {
       opacity: 0.45,
     },
     paydayShiftMid: {
+      flex: 1,
+      minWidth: 0,
+      textAlign: 'center',
+      marginHorizontal: 8,
       color: t.muted,
       fontSize: 11,
       letterSpacing: 1,

@@ -871,7 +871,7 @@ export function TodayScreen({
               accessibilityRole="button"
               accessibilityLabel="Open the day-by-day calendar"
               onPress={() => nav.go('calendar')}
-              style={({ pressed: p }) => (p ? pressed : undefined)}
+              style={({ pressed: p }) => [styles.calendarPathLink, p ? pressed : undefined]}
             >
               <Text style={[styles.pathRange, { color: t.calm }]}>Calendar →</Text>
             </Pressable>
@@ -1730,16 +1730,21 @@ const styles = StyleSheet.create({
   pathHead: {
     minHeight: 44,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 12,
+    rowGap: 4,
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: gap.sm,
   },
   pathEyebrow: {
+    maxWidth: '100%',
     fontFamily: weightFamily(400),
     fontSize: 11,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
+  calendarPathLink: { minHeight: 48, justifyContent: 'center', flexShrink: 0 },
   pathRange: {
     fontFamily: weightFamily(400),
     fontSize: 12.5,
