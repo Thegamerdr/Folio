@@ -15,14 +15,15 @@ export type MeloLineProps = {
   text: string;
   mood?: MeloMood;
   size?: number;
+  showCompanion?: boolean;
 };
 
-export function MeloLine({ text, mood = 'calm', size = 28 }: MeloLineProps) {
+export function MeloLine({ text, mood = 'calm', size = 28, showCompanion = true }: MeloLineProps) {
   const t = useTheme();
 
   return (
     <View style={styles.row}>
-      <Melo mood={mood} size={size} />
+      {showCompanion ? <Melo mood={mood} size={size} /> : null}
       <Text style={[styles.line, { color: t.secondary }]}>{`“${text}”`}</Text>
     </View>
   );

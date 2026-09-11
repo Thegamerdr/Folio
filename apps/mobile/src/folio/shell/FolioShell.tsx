@@ -145,7 +145,7 @@ import { MeloAlertHost } from '@/folio/ui/MeloAlertHost';
 import { UndoToast } from '@/folio/ui/UndoToast';
 import { AppLockGate } from '@/folio/ui/AppLockGate';
 import { RootErrorFallback } from '@/folio/ui/RootErrorFallback';
-import { ShellMeloCompanion } from '@/folio/ui/ShellMeloCompanion';
+import { MeloSuppressedContext } from '@/folio/melo/MeloVisibility';
 import { getState, reanchorSubRenewals, subscribeStore, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { endLensTrialIfExpired, useLens } from '@/folio/lib/lens';
@@ -867,22 +867,19 @@ export function FolioShell() {
                 forceError={captureGlobalSurface === 'global.screen-error-boundary'}
               >
                 <SafeAreaInsetsContext.Provider value={screenInsets}>
-                  <ScreenView
-                    screen={screen}
-                    nav={nav}
-                    pressure={activePressure}
-                    payload={screenPayload}
-                  />
+                  <MeloSuppressedContext.Provider
+                    value={sheet !== null || portalSheetOpen || workspaceSheetVisible}
+                  >
+                    <ScreenView
+                      screen={screen}
+                      nav={nav}
+                      pressure={activePressure}
+                      payload={screenPayload}
+                    />
+                  </MeloSuppressedContext.Provider>
                 </SafeAreaInsetsContext.Provider>
               </ScreenErrorBoundary>
             </KeyboardSafeView>
-            {screen !== 'review' &&
-            screen !== 'plan' &&
-            sheet === null &&
-            !portalSheetOpen &&
-            !workspaceSheetVisible ? (
-              <ShellMeloCompanion screen={screen} nav={nav} />
-            ) : null}
             <FeedbackClearance toastHeight={toastHeight} />
             {businessWorkspaceActive ? (
               <BusinessWorkspaceBar label="Business" onPress={() => nav.openWorkspace?.()} />

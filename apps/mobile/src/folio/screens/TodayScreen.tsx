@@ -1,3 +1,5 @@
+import { MeloFigure } from '@/folio/melo/MeloFigure';
+import { MeloPerch } from '@/folio/ui/MeloPerch';
 /**
  * @rn-screen    TodayScreen
  * @rn-stack     MainTabs > Today
@@ -817,8 +819,44 @@ export function TodayScreen({
 
         {/* Melo enters the money story after the answer, never between chrome and
             the decision. First-run primer and one-move are mutually exclusive. */}
-        {!meloPrimerSeen ? <MeloPrimerCard onDone={() => setMeloPrimerSeen(true)} /> : null}
-        {meloPrimerSeen && oneMove ? <OneMoveCard oneMove={oneMove} /> : null}
+        {financialPlan.safeToSpendMinor < 0 ? (
+          <View
+            style={[
+              styles.companionCard,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+              fontScale > 1.3 ? { flexDirection: 'column' } : undefined,
+            ]}
+          >
+            <MeloFigure role="inline" mood="concern" />
+            <View
+              style={[
+                styles.companionCardBody,
+                fontScale > 1.3 ? { flex: undefined, alignSelf: 'stretch' } : undefined,
+              ]}
+            >
+              <Text style={[styles.companionCardCopy, { color: t.ink }]}>
+                Let's look at what could ease this gap.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.go('recovery')}
+                style={{ minHeight: 48, justifyContent: 'center' }}
+              >
+                <Text style={[styles.companionPrimaryAction, { color: t.calm }]}>
+                  Open Recovery →
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : !meloPrimerSeen ? (
+          <MeloPrimerCard onDone={() => setMeloPrimerSeen(true)} />
+        ) : oneMove ? (
+          <OneMoveCard oneMove={oneMove} />
+        ) : (
+          <View style={{ marginHorizontal: 28 }}>
+            <MeloPerch screen="today" nav={nav} />
+          </View>
+        )}
 
         {/* The path is the signature object: plain ground, one hairline chapter
             break, no card shell or decorative analytics grid. */}
@@ -972,6 +1010,7 @@ export function TodayScreen({
 
 function MeloPrimerCard({ onDone }: { onDone: () => void }) {
   const t = useTodayTheme();
+  const { fontScale } = useWindowDimensions();
   const [beat, setBeat] = useState(0);
   const beats = [
     {
@@ -999,10 +1038,19 @@ function MeloPrimerCard({ onDone }: { onDone: () => void }) {
     <View
       accessibilityRole="summary"
       accessibilityLabel={`Meet Melo, step ${beat + 1} of ${beats.length}`}
-      style={[styles.companionCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+      style={[
+        styles.companionCard,
+        { backgroundColor: t.surface, borderColor: t.hairline },
+        fontScale > 1.3 ? { flexDirection: 'column' } : undefined,
+      ]}
     >
-      <Melo size={36} mood="calm" />
-      <View style={styles.companionCardBody}>
+      <MeloFigure role="inline" mood="calm" />
+      <View
+        style={[
+          styles.companionCardBody,
+          fontScale > 1.3 ? { flex: undefined, alignSelf: 'stretch' } : undefined,
+        ]}
+      >
         <Text style={[styles.companionCardTitle, { color: t.ink }]}>
           {current.lead}
           <Text style={{ color: t.calm }}>{current.accent}</Text>
@@ -1046,6 +1094,7 @@ function MeloPrimerCard({ onDone }: { onDone: () => void }) {
 
 function OneMoveCard({ oneMove }: { oneMove: NonNullable<ReturnType<typeof deriveOneMove>> }) {
   const t = useTodayTheme();
+  const { fontScale } = useWindowDimensions();
   const [pickerOpen, setPickerOpen] = useState(false);
   const dismiss = (reason: DismissReason | null) => {
     recordOneMoveDismissed(oneMove.key, reason);
@@ -1055,10 +1104,19 @@ function OneMoveCard({ oneMove }: { oneMove: NonNullable<ReturnType<typeof deriv
     <View
       accessibilityRole="summary"
       accessibilityLabel={`Melo suggests: ${oneMove.line}`}
-      style={[styles.companionCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+      style={[
+        styles.companionCard,
+        { backgroundColor: t.surface, borderColor: t.hairline },
+        fontScale > 1.3 ? { flexDirection: 'column' } : undefined,
+      ]}
     >
-      <Melo size={36} mood="curious" />
-      <View style={styles.companionCardBody}>
+      <MeloFigure role="inline" mood="curious" />
+      <View
+        style={[
+          styles.companionCardBody,
+          fontScale > 1.3 ? { flex: undefined, alignSelf: 'stretch' } : undefined,
+        ]}
+      >
         <Text style={[styles.companionCardCopy, { color: t.ink }]}>{oneMove.line}</Text>
         <View style={styles.companionCardActions}>
           <Pressable

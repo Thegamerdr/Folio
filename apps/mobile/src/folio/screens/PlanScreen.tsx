@@ -1,3 +1,4 @@
+import { MeloPerch } from '@/folio/ui/MeloPerch';
 // Exact native presentation owner for the pinned Lovable Plan tab root:
 // private-money-pilot@ad90b4fee36c58be156e145e8663d8c6be1bf0eb
 // src/components/folio/screens/ScreenPlanHub.tsx.
@@ -331,6 +332,8 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
               What is still to leave, where it gets tight, and what you can change before it does.
             </Text>
           </View>
+
+          <MeloPerch screen="plan" nav={nav} />
 
           {!financePresentation.complete || !financialPlan?.nextIncomeDate ? (
             <FinancialSetupNotice

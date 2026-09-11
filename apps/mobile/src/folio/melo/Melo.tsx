@@ -26,7 +26,7 @@
 // `paper`): --ink → ink · --surface → surface · --caution → caution · --accent → calm ·
 // --accent-soft → calmSoft · --positive → positive · --negative → repair.
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import Svg, {
   Circle,
@@ -40,6 +40,9 @@ import Svg, {
 } from 'react-native-svg';
 
 import { useTheme, type Palette } from '@/surfaces/pressureMap/kit';
+import { useAppStore } from '@/folio/store';
+import { MeloWardrobe } from './MeloWardrobe';
+import { MeloSuppressedContext } from './MeloVisibility';
 
 // Android-safe lossless WebP raster of the pinned 2048px master beside it. It keeps the square
 // canvas, alpha and decoded artwork while avoiding the platform PNG pipeline's transparent decode.
@@ -200,6 +203,9 @@ function useReduceMotion(): boolean {
 
 export function Melo({ mood, pose = 'none', size = 28, grounded = true, onTap }: MeloProps) {
   const t = useTheme();
+  const quietMode = useAppStore((state) => state.melo?.quietMode === true);
+  const suppressed = useContext(MeloSuppressedContext);
+  const wardrobe = useAppStore((state) => state.melo?.wardrobe);
   const reduceMotion = useReduceMotion();
   const spec = MOOD[mood];
 
@@ -228,7 +234,9 @@ export function Melo({ mood, pose = 'none', size = 28, grounded = true, onTap }:
     onTap();
   }
 
-  const ariaLabel = onTap ? `Melo, ${mood}, tap to chat` : `Melo, ${mood}`;
+  if (quietMode || suppressed) return null;
+  const touches = wardrobe?.length ? `, wearing ${wardrobe.join(', ')}` : '';
+  const ariaLabel = (onTap ? `Melo, ${mood}, tap to chat` : `Melo, ${mood}`) + touches;
 
   const figure = (
     <Animated.View style={{ width: size, height: size, transform: [{ scale: tapScale }] }}>
@@ -240,6 +248,7 @@ export function Melo({ mood, pose = 'none', size = 28, grounded = true, onTap }:
         reduceMotion={reduceMotion}
         showGlow={showGlow}
         effGlow={effGlow}
+        wardrobe={wardrobe ?? []}
       />
       {grounded ? <GroundPool size={size} opacity={0.5 + v * 0.3} /> : null}
       {pose !== 'none' ? (
@@ -385,12 +394,14 @@ function PhoenixBody({
   reduceMotion,
   showGlow,
   effGlow,
+  wardrobe,
 }: {
   spec: MoodSpec;
   size: number;
   reduceMotion: boolean;
   showGlow: boolean;
   effGlow: number;
+  wardrobe: readonly string[];
 }) {
   const float = useRef(new Animated.Value(0)).current;
 
@@ -430,10 +441,7 @@ function PhoenixBody({
   const shadowOpacity = showGlow ? 0.2 + effGlow * 0.35 : 0;
 
   return (
-    <Animated.Image
-      source={spec.src}
-      resizeMode="contain"
-      resizeMethod="scale"
+    <Animated.View
       style={{
         position: 'absolute',
         top: 0,
@@ -447,7 +455,16 @@ function PhoenixBody({
         shadowRadius: size * 0.06,
         shadowOffset: { width: 0, height: size * 0.03 },
       }}
-    />
+    >
+      <MeloWardrobe items={wardrobe} size={size} layer="back" />
+      <Animated.Image
+        source={spec.src}
+        resizeMode="contain"
+        resizeMethod="scale"
+        style={{ width: size, height: size }}
+      />
+      <MeloWardrobe items={wardrobe} size={size} layer="front" />
+    </Animated.View>
   );
 }
 

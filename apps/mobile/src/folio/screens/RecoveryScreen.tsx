@@ -1,3 +1,4 @@
+import { MeloFigure } from '@/folio/melo/MeloFigure';
 // @rn-engine money-path — the overspent verdict + each move's real £ lift + the re-drawn route now
 //   come from the REAL pure route engine via the shared store→money-path bridge
 //   (@/folio/lib/storeRoute → routeFromStore → computeRoute, ENGINES §6). This screen is the CONSUMER
@@ -82,7 +83,6 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
-import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { getState, nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
 import { buildRecoveryReceipt, type RecoveryAction } from '@/folio/lib/recoveryReceipt';
@@ -534,7 +534,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         </View>
         <View style={{ flex: 1, justifyContent: 'center', paddingVertical: gap.xl, gap: gap.md }}>
           <View style={{ alignItems: 'center' }}>
-            <Melo mood={presentation.canReassure ? 'calm' : 'concern'} size={64} />
+            <MeloFigure role="pressured" mood={presentation.canReassure ? 'calm' : 'concern'} />
           </View>
           <Text
             accessibilityRole="header"
@@ -657,6 +657,10 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           </View>
         ) : null}
 
+        <View style={{ alignItems: 'center', marginTop: 16, marginBottom: 16 }}>
+          <MeloFigure role="pressured" mood={previewPresentation.mood} />
+        </View>
+
         {/* Title block — italic reassurance + the headline with the mode-tinted accent word
             (BREAKS-PARITY fix — was fixed to survival's "Something has to move."). */}
         <View style={styles.titleBlock}>
@@ -676,7 +680,6 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         <View
           style={[styles.shortfallCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
         >
-          <Melo size={56} mood={previewPresentation.mood} grounded={false} />
           <View style={styles.shortfallBody} accessibilityLiveRegion="polite">
             <Text style={[styles.cardLabel, { color: t.muted }]}>
               {pickedMove ? modeCopy.afterLabel : modeCopy.shortfallLabel}
@@ -808,6 +811,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             MeloLine adds the quotes. */}
         <View style={styles.meloAside}>
           <MeloLine
+            showCompanion={false}
             mood={previewPresentation.mood}
             size={28}
             text={

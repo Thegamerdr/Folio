@@ -1,3 +1,4 @@
+import { MeloFigure } from '@/folio/melo/MeloFigure';
 /**
  * @rn-screen    WhatIfScreen
  * @rn-stack     More > What if
@@ -58,7 +59,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
-import { Melo, type MeloMood } from '@/folio/melo/Melo';
+import { type MeloMood } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import {
@@ -744,7 +745,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
           {/* Melo line — the quiet companion verdict, mood derived dynamically from newLow. Melo is
               grounded and non-interactive here (the web never made it tappable / never opened a sheet). */}
           <View style={styles.meloRow}>
-            <Melo size={28} mood={mood} />
+            <MeloFigure role="empty" mood={mood} hideForKeyboard />
             <Text style={styles.meloLine}>{meloLine}</Text>
           </View>
 
@@ -1104,14 +1105,13 @@ function makeStyles(t: Palette) {
 
     // Melo line — web mt-5 flex items-start gap-3, the quote in Fraunces italic muted.
     meloRow: {
-      alignItems: 'flex-start',
-      flexDirection: 'row',
+      alignItems: 'center',
       gap: gap.md,
       marginTop: gap.xl,
     },
     meloLine: {
       color: t.muted,
-      flex: 1,
+      textAlign: 'center',
       fontFamily: serif.displayItalic,
       fontSize: 13,
       lineHeight: 18,

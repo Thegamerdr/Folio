@@ -29,7 +29,6 @@ export function MeloContextSheet({
   visible,
   onClose,
   mood,
-  presence,
   action,
   quietMode,
   position,
@@ -41,13 +40,14 @@ export function MeloContextSheet({
   const t = useTheme();
   return (
     <Sheet visible={visible} onClose={onClose}>
-      <View accessibilityRole="summary" accessibilityLabel={`Melo is ${presence}, mood ${mood}`}>
+      <View>
         <View style={styles.header}>
-          <Melo mood={mood} size={42} />
+          {!quietMode ? <Melo mood={mood} size={64} /> : null}
           <View style={styles.headerCopy}>
             <Text style={[styles.eyebrow, { color: t.muted }]}>Melo · here with you</Text>
-            <Text style={[styles.title, { color: t.ink }]}>A useful moment, not a dashboard.</Text>
-            <Text style={[styles.subline, { color: t.muted }]}>Presence: {presence}</Text>
+            <Text accessibilityRole="header" style={[styles.title, { color: t.ink }]}>
+              {quietMode ? 'Melo is resting.' : 'A little help with your next step.'}
+            </Text>
           </View>
         </View>
 
@@ -72,21 +72,21 @@ export function MeloContextSheet({
             <Text style={[styles.arrow, { color: t.calm }]}>→</Text>
           </Pressable>
         ) : (
-          <Text style={[styles.empty, { color: t.muted }]}>Nothing needs your attention here.</Text>
+          <Text style={[styles.empty, { color: t.muted }]}>Ask Melo about your numbers.</Text>
         )}
 
         <View style={[styles.controls, { borderTopColor: t.hairline }]}>
           <Pressable
             accessibilityRole="switch"
-            accessibilityLabel={`Quiet presence, ${quietMode ? 'on' : 'off'}`}
+            accessibilityLabel={`Quiet Mode, ${quietMode ? 'on' : 'off'}`}
             accessibilityState={{ checked: quietMode }}
             onPress={onQuietModeChange}
             style={({ pressed }) => [styles.controlRow, pressed ? styles.pressed : undefined]}
           >
             <View style={styles.controlCopy}>
-              <Text style={[styles.controlLabel, { color: t.ink }]}>Quiet presence</Text>
+              <Text style={[styles.controlLabel, { color: t.ink }]}>Quiet Mode</Text>
               <Text style={[styles.controlHint, { color: t.muted }]}>
-                Keep the numbers; soften Melo's appearances.
+                Turn off the character. Keep the numbers.
               </Text>
             </View>
             <Text style={[styles.controlValue, { color: quietMode ? t.calm : t.muted }]}>
@@ -147,15 +147,6 @@ export function MeloContextSheet({
             <Text style={[styles.talkLabel, { color: t.inverse }]}>Talk to Melo</Text>
           </Pressable>
         ) : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close Melo options"
-          onPress={onClose}
-          hitSlop={8}
-          style={styles.close}
-        >
-          <Text style={[styles.closeLabel, { color: t.muted }]}>Close</Text>
-        </Pressable>
       </View>
     </Sheet>
   );

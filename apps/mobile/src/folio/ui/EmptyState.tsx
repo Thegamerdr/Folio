@@ -21,7 +21,8 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Body, gap, Headline, PressureScreen, PrimaryAction } from '@/folio/theme';
-import { Melo, type MeloMood } from '@/folio/melo/Melo';
+import { type MeloMood } from '@/folio/melo/Melo';
+import { MeloFigure } from '@/folio/melo/MeloFigure';
 
 export type EmptyStateCta = {
   label: string;
@@ -30,6 +31,7 @@ export type EmptyStateCta = {
 
 export type EmptyStateProps = {
   mood?: MeloMood | undefined;
+  companionRole?: 'empty' | 'pressured';
   headline: string;
   body?: string | undefined;
   cta?: EmptyStateCta | undefined;
@@ -51,13 +53,19 @@ function splitHeadline(headline: string): { lead: string | undefined; accent: st
   };
 }
 
-export function EmptyState({ mood = 'calm', headline, body, cta }: EmptyStateProps) {
+export function EmptyState({
+  mood = 'calm',
+  companionRole = 'empty',
+  headline,
+  body,
+  cta,
+}: EmptyStateProps) {
   const { lead, accent } = useMemo(() => splitHeadline(headline), [headline]);
 
   return (
     <PressureScreen centered>
       <View style={styles.column}>
-        <Melo mood={mood} grounded size={64} />
+        <MeloFigure role={companionRole} mood={mood} />
         <Headline lead={lead} accent={accent} style={styles.headline} />
         {body !== undefined ? <Body style={styles.body}>{body}</Body> : null}
         {cta !== undefined ? (

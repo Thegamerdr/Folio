@@ -1,3 +1,5 @@
+import { MeloPerch } from '@/folio/ui/MeloPerch';
+import { MeloFigure } from '@/folio/melo/MeloFigure';
 // @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review (see BUILD_PLAN §3)
 //
 // ReviewScreen — the native review-before-truth surface shared by manual, statement, photo and
@@ -75,7 +77,6 @@ import Animated, {
 
 import { elevation, gap, radius, serif, useCountUp, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
-import { Melo } from '@/folio/melo/Melo';
 import { copy } from '@/folio/copy/copy';
 import {
   addIgnoredBankExternalId,
@@ -739,10 +740,13 @@ export function ReviewScreen({
     if (state === 'empty' || !hasRealCandidate) {
       return (
         <View style={[sourceStyles.root, { backgroundColor: t.canvas }]}>
-          <View style={sourceStyles.emptyContent}>
+          <ScrollView
+            contentContainerStyle={sourceStyles.emptyContent}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={sourceStyles.emptyRow}>
               <View style={sourceStyles.emptyMelo}>
-                <Melo mood="calm" size={56} />
+                <MeloFigure role="empty" mood="calm" />
               </View>
               <View style={sourceStyles.emptyCopy}>
                 <Text style={[sourceStyles.emptyHeadline, { color: t.ink }]}>
@@ -783,7 +787,7 @@ export function ReviewScreen({
                 </Text>
               </Pressable>
             ) : null}
-          </View>
+          </ScrollView>
         </View>
       );
     }
@@ -821,6 +825,8 @@ export function ReviewScreen({
               </Text>
             </Pressable>
           ) : null}
+
+          <MeloPerch screen="review" nav={nav} />
 
           <View style={sourceStyles.hero}>
             {stamped ? (
@@ -1826,17 +1832,17 @@ const sourceStyles = StyleSheet.create({
     paddingTop: gap.lg,
   },
   emptyContent: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     paddingBottom: gap.xl,
     paddingHorizontal: gap.xl,
     paddingTop: gap.lg,
   },
-  emptyRow: { alignItems: 'center', flexDirection: 'row', gap: gap.lg },
-  emptyMelo: { alignItems: 'center', height: 64, justifyContent: 'center', width: 64 },
-  emptyCopy: { flex: 1, minWidth: 0 },
-  emptyHeadline: { fontFamily: serif.display, fontSize: 28, lineHeight: 32 },
-  emptyBody: { fontSize: 14, lineHeight: 22, marginTop: gap.md, maxWidth: 240 },
+  emptyRow: { alignItems: 'center', gap: 16 },
+  emptyMelo: { alignItems: 'center', height: 112, justifyContent: 'center', width: 112 },
+  emptyCopy: { alignSelf: 'stretch', minWidth: 0 },
+  emptyHeadline: { fontFamily: serif.display, fontSize: 28, lineHeight: 32, textAlign: 'center' },
+  emptyBody: { fontSize: 14, lineHeight: 22, marginTop: gap.md, textAlign: 'center' },
   emptyCta: {
     alignItems: 'center',
     borderRadius: radius.lg,

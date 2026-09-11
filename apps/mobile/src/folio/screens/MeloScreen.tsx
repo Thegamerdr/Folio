@@ -1,3 +1,4 @@
+import { MeloFigure } from '@/folio/melo/MeloFigure';
 // MeloScreen — the faithful 1:1 React Native port of the web Melo companion hub
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenMelo.tsx).
 //
@@ -96,7 +97,6 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
-import { Melo } from '@/folio/melo/Melo';
 import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentation';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
@@ -111,7 +111,6 @@ import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 import { latestLivedCycle } from '@/folio/lib/historyCycles';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
-import { MeloCompanionHost } from '@/folio/ui/MeloCompanionHost';
 import {
   deriveMeloPresence,
   derivePersonalContextAction,
@@ -400,15 +399,14 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               <Text style={[styles.restingLine, { color: t.muted }]}>Melo is resting.</Text>
             </View>
           ) : (
-            <MeloCompanionHost
-              size={162}
+            <MeloFigure
+              role="home"
               mood={mood}
-              pose="none"
-              position={preferredPosition}
-              presence={presence}
               onPress={() => setContextOpen(true)}
-              accessibilityLabel={
-                hasMoneyPicture ? 'Melo. Tap for options.' : 'Melo, ready to help you start. Tap for options.'
+              label={
+                hasMoneyPicture
+                  ? 'Melo. Tap for options.'
+                  : 'Melo, ready to help you start. Tap for options.'
               }
             />
           )}
@@ -469,107 +467,97 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         </View>
 
         {/* Plumage — word + segmented meter + one honest whisper. */}
-        {!melo.quietMode ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: t.ink }]}>Your money picture</Text>
-              <Text style={[styles.sectionHint, { color: t.muted }]}>From your numbers</Text>
-            </View>
-            <View style={styles.plumageRow}>
-              <Text style={[styles.plumageWord, { color: t.ink }]}>
-                {health.scored ? plumage : health.presentation.label}
-              </Text>
-              {health.scored ? (
-                <View
-                  style={styles.plumageMeter}
-                  accessibilityLabel={`plumage ${plumage}, ${dotCount} of 4`}
-                >
-                  <Text style={[styles.plumageCount, { color: t.muted }]}>{dotCount}/4</Text>
-                  <View style={styles.plumageTrack}>
-                    {[0, 1, 2, 3].map((i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.plumageSegment,
-                          { backgroundColor: i < dotCount ? t.calm : t.inset },
-                        ]}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-            </View>
-            <Text style={[styles.plumageCaption, { color: t.muted }]}>{health.caption}</Text>
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>Your money picture</Text>
+            <Text style={[styles.sectionHint, { color: t.muted }]}>From your numbers</Text>
           </View>
-        ) : null}
-
-        {!melo.quietMode ? (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: t.ink }]}>What he's reading</Text>
-            <View style={styles.readingGrid}>
-              <ReadingCell
-                label="balance"
-                value={formatWholePounds(currentBalance.amount)}
-                palette={t}
-              />
-              <ReadingCell label="live bills" value={String(activeSubs)} palette={t} />
-              <ReadingCell label="funded pots" value={String(fundedPots)} palette={t} />
-            </View>
-          </View>
-        ) : null}
-
-        {!melo.quietMode ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: t.ink }]}>Memory</Text>
-              <Text style={[styles.sectionHint, { color: t.muted }]}>
-                {memory.length > 0 ? `last ${memory.length}` : 'quiet so far'}
-              </Text>
-            </View>
-            {memory.length === 0 ? (
+          <View style={styles.plumageRow}>
+            <Text style={[styles.plumageWord, { color: t.ink }]}>
+              {health.scored ? plumage : health.presentation.label}
+            </Text>
+            {health.scored ? (
               <View
-                style={[
-                  styles.memoryEmpty,
-                  { backgroundColor: t.surface, borderColor: t.hairline },
-                ]}
+                style={styles.plumageMeter}
+                accessibilityLabel={`plumage ${plumage}, ${dotCount} of 4`}
               >
-                <Melo size={28} mood="calm" />
-                <Text style={[styles.memoryEmptyCopy, { color: t.ink }]}>
-                  Hasn't needed to speak yet — that's not nothing.
-                </Text>
-              </View>
-            ) : (
-              <View
-                style={[styles.memoryList, { backgroundColor: t.surface, borderColor: t.hairline }]}
-              >
-                {memory.map((event, index) => (
-                  <View
-                    key={event.id}
-                    style={[
-                      styles.memoryRow,
-                      index > 0
-                        ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline }
-                        : undefined,
-                    ]}
-                  >
+                <Text style={[styles.plumageCount, { color: t.muted }]}>{dotCount}/4</Text>
+                <View style={styles.plumageTrack}>
+                  {[0, 1, 2, 3].map((i) => (
                     <View
+                      key={i}
                       style={[
-                        styles.memoryDot,
-                        {
-                          backgroundColor: event.kind === 'win' ? t.calm : t.muted,
-                        },
+                        styles.plumageSegment,
+                        { backgroundColor: i < dotCount ? t.calm : t.inset },
                       ]}
                     />
-                    <Text style={[styles.memoryLine, { color: t.ink }]}>{event.line}</Text>
-                    <Text style={[styles.memoryWhen, { color: t.muted }]}>
-                      {formatMeloMemoryTime(event.at, now)}
-                    </Text>
-                  </View>
-                ))}
+                  ))}
+                </View>
               </View>
-            )}
+            ) : null}
           </View>
-        ) : null}
+          <Text style={[styles.plumageCaption, { color: t.muted }]}>{health.caption}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>What he's reading</Text>
+          <View style={styles.readingGrid}>
+            <ReadingCell
+              label="balance"
+              value={formatWholePounds(currentBalance.amount)}
+              palette={t}
+            />
+            <ReadingCell label="live bills" value={String(activeSubs)} palette={t} />
+            <ReadingCell label="funded pots" value={String(fundedPots)} palette={t} />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>Memory</Text>
+            <Text style={[styles.sectionHint, { color: t.muted }]}>
+              {memory.length > 0 ? `last ${memory.length}` : 'quiet so far'}
+            </Text>
+          </View>
+          {memory.length === 0 ? (
+            <View
+              style={[styles.memoryEmpty, { backgroundColor: t.surface, borderColor: t.hairline }]}
+            >
+              <Text style={[styles.memoryEmptyCopy, { color: t.ink }]}>
+                Hasn't needed to speak yet — that's not nothing.
+              </Text>
+            </View>
+          ) : (
+            <View
+              style={[styles.memoryList, { backgroundColor: t.surface, borderColor: t.hairline }]}
+            >
+              {memory.map((event, index) => (
+                <View
+                  key={event.id}
+                  style={[
+                    styles.memoryRow,
+                    index > 0
+                      ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline }
+                      : undefined,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.memoryDot,
+                      {
+                        backgroundColor: event.kind === 'win' ? t.calm : t.muted,
+                      },
+                    ]}
+                  />
+                  <Text style={[styles.memoryLine, { color: t.ink }]}>{event.line}</Text>
+                  <Text style={[styles.memoryWhen, { color: t.muted }]}>
+                    {formatMeloMemoryTime(event.at, now)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
 
         {/* Companion touches — reframed wardrobe, quieter row. */}
         <View style={styles.section}>

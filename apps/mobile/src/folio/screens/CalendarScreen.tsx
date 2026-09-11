@@ -156,9 +156,9 @@ const EPOCH = new Date(0);
 // manual = ink at 60% (web bg-[var(--ink)]/60); the rest map 1:1 to the web tokens.
 function kindDotColor(t: Palette, kind: DerivedEvent['kind']): string {
   if (kind === 'in') return t.positive;
-  if (kind === 'out') return t.repair;
+  if (kind === 'out') return t.repairInk;
   if (kind === 'review') return t.muted;
-  if (kind === 'deadline') return t.caution;
+  if (kind === 'deadline') return t.warmInk;
   return withAlpha(t.ink, 0.6); // manual
 }
 
@@ -1926,8 +1926,8 @@ const layout = StyleSheet.create({
   },
   // Height bumped from 4 to 8 vs the original dots-only row so the "+N" overflow chip (7.5px text,
   // web-matched) has room without clipping; the dots themselves stay 4px and vertically centre.
-  gridDots: { flexDirection: 'row', gap: 2, marginTop: 2, height: 8, alignItems: 'center' },
-  gridDot: { width: 4, height: 4, borderRadius: 2 },
+  gridDots: { flexDirection: 'row', gap: 3, marginTop: 3, height: 10, alignItems: 'center' },
+  gridDot: { width: 6, height: 6, borderRadius: 3 },
   sparkBlock: { paddingHorizontal: 4, paddingTop: 4 },
 
   // Event row

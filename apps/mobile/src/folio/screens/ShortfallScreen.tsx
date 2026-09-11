@@ -1,3 +1,4 @@
+import { MeloFigure } from '@/folio/melo/MeloFigure';
 // @rn-engine money-path — the gap (£) + days-to-payday verdict and the tight-point recompute are the
 // real money-path engine (ENGINES §6), read through the shared `useRoute` bridge
 // (@/folio/lib/storeRoute → computeRoute) exactly as Today and the Calendar read it, so every surface
@@ -79,7 +80,6 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
-import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
@@ -362,13 +362,14 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
             eyebrowSize={11}
             eyebrowTracking={1.54}
           />
-          <View style={styles.flexFill}>
+          <ScrollView style={styles.flexFill} contentContainerStyle={{ flexGrow: 1 }}>
             <EmptyState
+              companionRole="pressured"
               mood={completion.mood}
               headline={completion.headline}
               body={completion.message}
             />
-          </View>
+          </ScrollView>
         </View>
       </Animated.View>
     );
@@ -445,7 +446,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
 
         {/* Melo — mode-honest to the gap; briefly "cheer" on the relief close (web meloMood). */}
         <View style={styles.meloHead}>
-          <Melo size={36} mood={meloMood} />
+          <MeloFigure role="pressured" mood={meloMood} />
           <Text style={[styles.kicker, { color: t.muted }]}>{modeCopy.intro}</Text>
         </View>
 
@@ -590,6 +591,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
             mirroring web's `relief ? "Gap closed..." : copy.meloDefault`. */}
         <View style={styles.meloLine}>
           <MeloLine
+            showCompanion={false}
             mood={meloMood}
             text={
               relief
@@ -707,16 +709,15 @@ const styles = StyleSheet.create({
 
   // Melo head — mt-6 (gap.xl).
   meloHead: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: gap.sm,
+    gap: 16,
     marginTop: gap.xl,
   },
   // Fraunces italic kicker, 13px muted, mt-4.
   kicker: {
     fontFamily: serif.displayItalic,
     fontSize: 13,
-    flex: 1,
+    textAlign: 'center',
   },
   // The gap headline — Fraunces display 32px, tight leading, mt-1.
   headline: {

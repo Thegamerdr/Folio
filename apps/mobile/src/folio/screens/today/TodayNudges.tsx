@@ -30,7 +30,6 @@ import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, pressed, radius, type Palette } from '@/folio/theme';
-import { Melo } from '@/folio/melo/Melo';
 import { sweepReviewQueue, useAppStore, type IncomeSource, type ReviewItem } from '@/folio/store';
 import { useShelf } from '@/folio/lib/shelf';
 import { daysToNextIncome } from '@/folio/lib/income';
@@ -389,7 +388,9 @@ export function TodayNudges({
         ]}
       >
         {top.tone === 'melo' ? (
-          <Melo size={20} mood="curious" />
+          <Text style={{ color: t.calm }} accessibilityElementsHidden>
+            ·
+          </Text>
         ) : (
           <View style={[styles.dot, top.tone === 'accent' ? s.dotAccent : s.dotMuted]} />
         )}
