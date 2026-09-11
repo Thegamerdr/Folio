@@ -706,11 +706,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
               when a floor is set), and Days this would last (count-up, negative under 5d) + pots total. */}
           <View style={styles.tilesRow}>
             <View style={styles.tile}>
-              <Text style={styles.tileLabel}>
-                {previewPresentation.canReassure
-                  ? 'After this · safe to spend'
-                  : 'After this · after recorded costs'}
-              </Text>
+              <Text style={styles.tileLabel}>After this</Text>
               <Text
                 style={[styles.tileValue, lowIsNegative ? styles.tileValueNegative : undefined]}
               >
@@ -730,19 +726,18 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
             </View>
 
             <View style={styles.tile}>
-              <Text style={styles.tileLabel}>
-                {presentation.canReassure
-                  ? 'Current safe to spend'
-                  : 'Current · after recorded costs'}
-              </Text>
+              <Text style={styles.tileLabel}>Now</Text>
               <Text style={styles.tileValue}>{formatGBP(baseLow)}</Text>
-              <Text style={styles.tileCaption}>{currentPresentation.caption}</Text>
-              {currentPresentation.qualification ? (
-                <Text style={styles.tileCaption}>{currentPresentation.qualification}</Text>
-              ) : null}
             </View>
           </View>
 
+          <Text style={styles.tileCaption}>
+            {presentation.canReassure
+              ? 'Safe to spend after recorded costs and buffer.'
+              : 'Both figures are after recorded costs and buffer.'}{' '}
+            {currentPresentation.caption}
+            {currentPresentation.qualification ? ` ${currentPresentation.qualification}` : ''}
+          </Text>
           <Text style={styles.tileCaption}>
             Projected balance: lowest {formatGBP(scenario.preview.lowestProjectedMinor / 100)}.
             Payday {formatFinancialDate(scenario.preview.nextIncomeDate)}. No money has moved.

@@ -159,6 +159,13 @@ export function SheetDayDetail({ visible, onClose, nav, date }: SheetDayDetailPr
           </View>
         ) : null}
 
+        {dayEvents.length > 0 && typeof spare !== 'number' ? (
+          <Text style={s.tightestNote}>
+            No forecast balance is available for this date. Confirmed payments are already included
+            in your recorded cash.
+          </Text>
+        ) : null}
+
         {isTightest ? (
           <Text style={s.tightestNote}>
             This is the lowest projected balance before payday. Changing a date here changes your

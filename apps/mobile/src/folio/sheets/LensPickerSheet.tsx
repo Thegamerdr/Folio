@@ -92,7 +92,6 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
             const onTrial = trialCycleId !== null && tier === 'full' && !fullUnlocked;
             const badgeLabel =
               tier === 'free' ? 'Free' : locked ? 'Full' : onTrial ? 'Full · trial' : 'Full';
-            const badgeActive = tier !== 'free' && !locked;
 
             return (
               <Pressable
@@ -133,12 +132,8 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
                 <View style={s.rowBody}>
                   <View style={s.rowTitleRow}>
                     <Text style={s.rowTitle}>{MODE_LABEL[m]}</Text>
-                    <View
-                      style={[s.badge, { backgroundColor: badgeActive ? t.calmSoft : t.inset }]}
-                    >
-                      <Text style={[s.badgeText, { color: badgeActive ? t.calm : t.muted }]}>
-                        {badgeLabel}
-                      </Text>
+                    <View style={s.badge}>
+                      <Text style={[s.badgeText, { color: t.muted }]}>{badgeLabel}</Text>
                     </View>
                   </View>
                   <Text style={s.rowLine}>"{ONE_LINE[m]}"</Text>
@@ -249,7 +244,7 @@ function makeStyles(t: Palette) {
     rowTitleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: gap.xs },
     rowTitle: { fontSize: 14.5, fontWeight: '500', color: t.ink },
     badge: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-    badgeText: { fontSize: 9, letterSpacing: 0.6, textTransform: 'uppercase' },
+    badgeText: { fontSize: 10 },
     rowLine: { marginTop: 2, fontSize: 12, fontStyle: 'italic', color: t.muted },
     activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.calm },
     chevron: { fontSize: 16, color: t.muted },

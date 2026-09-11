@@ -68,7 +68,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
 import { useAppStore, type IncomeSource } from '@/folio/store';
-import { parseManualMoney } from '@/folio/lib/manualMoney';
+import { parseManualMoney, normalizeManualMoneyDraft } from '@/folio/lib/manualMoney';
 import {
   createOnboardingAmountDraft,
   selectOnboardingAmount,
@@ -1118,6 +1118,15 @@ function OnboardingFlow({
               </View>
               <TextInput
                 value={modeExtraInput}
+                onBlur={() =>
+                  setAmountDraft((draft) =>
+                    updateOnboardingAmount(
+                      draft,
+                      intentMode,
+                      normalizeManualMoneyDraft(modeExtraInput, { allowZero: true }),
+                    ),
+                  )
+                }
                 onChangeText={(raw) => {
                   setAmountDraft((draft) => updateOnboardingAmount(draft, intentMode, raw));
                 }}
@@ -1195,15 +1204,7 @@ function OnboardingFlow({
                     style={s.amountInput}
                     accessibilityLabel="Exact payday day of month"
                   />
-                  {paydayInputValue === undefined ? (
-                    <Text
-                      accessibilityRole="alert"
-                      accessibilityLiveRegion="polite"
-                      style={s.error}
-                    >
-                      Enter a day from 1 to 31.
-                    </Text>
-                  ) : (
+                  {paydayInputValue === undefined ? null : (
                     <FolioSlider
                       min={PAYDAY_MIN}
                       max={PAYDAY_MAX}
@@ -1284,6 +1285,10 @@ function OnboardingFlow({
               />
               <TextInput
                 value={incomeInput}
+                selectTextOnFocus
+                onBlur={() =>
+                  setIncomeInput(normalizeManualMoneyDraft(incomeInput, { allowZero: true }))
+                }
                 onChangeText={(value) => {
                   setIncomeInput(value);
                   const parsed = parseManualMoney(value, { allowZero: true });
@@ -1317,6 +1322,15 @@ function OnboardingFlow({
               />
               <TextInput
                 value={balanceInput}
+                selectTextOnFocus
+                onBlur={() =>
+                  setBalanceInput(
+                    normalizeManualMoneyDraft(balanceInput, {
+                      allowZero: true,
+                      allowNegative: true,
+                    }),
+                  )
+                }
                 onChangeText={(value) => {
                   setBalanceInput(value);
                   const parsed = parseManualMoney(value, { allowZero: true, allowNegative: true });
@@ -1359,6 +1373,11 @@ function OnboardingFlow({
               </View>
               <TextInput
                 value={essentialsInput}
+                onBlur={() =>
+                  setEssentialsInput(
+                    normalizeManualMoneyDraft(essentialsInput, { allowZero: true }),
+                  )
+                }
                 selectTextOnFocus
                 onChangeText={(value) => {
                   setEssentialsInput(value);
@@ -1387,6 +1406,15 @@ function OnboardingFlow({
               </View>
               <TextInput
                 value={bufferInput}
+                onBlur={() =>
+                  setAmountDraft((draft) =>
+                    updateOnboardingAmount(
+                      draft,
+                      'buffer',
+                      normalizeManualMoneyDraft(bufferInput, { allowZero: true }),
+                    ),
+                  )
+                }
                 selectTextOnFocus
                 onChangeText={(value) => {
                   setAmountDraft((draft) => updateOnboardingAmount(draft, 'buffer', value));
@@ -1428,6 +1456,11 @@ function OnboardingFlow({
               </View>
               <TextInput
                 value={commitmentInput}
+                onBlur={() =>
+                  setCommitmentInput(
+                    normalizeManualMoneyDraft(commitmentInput, { allowZero: true }),
+                  )
+                }
                 selectTextOnFocus
                 onChangeText={(value) => {
                   setCommitmentInput(value);
@@ -1467,11 +1500,7 @@ function OnboardingFlow({
                 style={s.amountInput}
                 accessibilityLabel="Exact regular payment due day"
               />
-              {commitmentDayValue === undefined ? (
-                <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
-                  Enter a day from 1 to 31.
-                </Text>
-              ) : (
+              {commitmentDayValue === undefined ? null : (
                 <FolioSlider
                   min={1}
                   max={31}

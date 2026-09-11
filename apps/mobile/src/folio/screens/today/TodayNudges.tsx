@@ -189,8 +189,8 @@ export function TodayNudges({
     nudges.push({
       key: 'shortfall',
       tone: 'accent',
-      label: `${shortfallDiagnosis} Review the gap and the options available.`,
-      cta: 'Open →',
+      label: shortfallDiagnosis,
+      cta: 'Review gap →',
       onPress: () => nav.go('shortfall'),
     });
   }
@@ -393,7 +393,10 @@ export function TodayNudges({
         ) : (
           <View style={[styles.dot, top.tone === 'accent' ? s.dotAccent : s.dotMuted]} />
         )}
-        <Text style={[styles.label, { color: t.ink }]} numberOfLines={2}>
+        <Text
+          style={[styles.label, { color: t.ink }]}
+          numberOfLines={top.key === 'shortfall' ? undefined : 2}
+        >
           {top.label}
         </Text>
         {extra > 0 && (

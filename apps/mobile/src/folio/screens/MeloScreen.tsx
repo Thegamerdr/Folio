@@ -432,7 +432,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
             <Text style={[styles.holdLabel, { color: t.muted }]}>VOICE IN CHAT</Text>
           </Pressable>
           <Text style={[styles.voiceHelper, { color: t.muted }]}>
-            Choose Voice in chat to speak. You can review the words before sending.
+            Speak in chat. Review before sending.
           </Text>
 
           {/* Live state line — weather + lens, no chip container. Locked Full lens shows a small

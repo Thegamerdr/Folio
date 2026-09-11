@@ -468,14 +468,28 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
         <View style={s.totals}>
           <View style={layout.totalsLeft}>
             <Text style={s.totalsLabel}>Monthly equivalent</Text>
-            <Text style={s.totalsValue}>{poundsWhole(monthlyDisplay)}</Text>
+            <Text
+              style={s.totalsValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              {poundsWhole(monthlyDisplay)}
+            </Text>
             {monthlySaved > 0 ? (
               <Text style={s.totalsSaved}>Forecast pauses only exclude the scheduled charge</Text>
             ) : null}
           </View>
           <View style={layout.totalsRight}>
             <Text style={s.totalsLabel}>Per year</Text>
-            <Text style={s.totalsYear}>{poundsWhole(monthly * 12)}</Text>
+            <Text
+              style={s.totalsYear}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              {poundsWhole(monthly * 12)}
+            </Text>
           </View>
         </View>
 
@@ -1033,12 +1047,12 @@ const layout = StyleSheet.create({
   head: { gap: 4, marginTop: 4 },
   emptyWrap: { marginTop: 8 },
 
-  totalsLeft: { flex: 1 },
-  totalsRight: { alignItems: 'flex-start' },
+  totalsLeft: { flex: 1, minWidth: 0 },
+  totalsRight: { flex: 1, minWidth: 0, alignItems: 'flex-end' },
 
   flex1: { flex: 1 },
 
-  sortRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  sortRow: { flexDirection: 'row', gap: 6 },
 
   rowFirst: { borderTopWidth: 0 },
   rowPaused: {},
@@ -1109,12 +1123,12 @@ function makeStyles(t: Palette) {
 
     // Totals card — a raised paper surface, baseline-aligned left vs right.
     totals: {
-      flexDirection: 'column',
-      gap: 16,
-      alignItems: 'flex-start',
+      flexDirection: 'row',
+      gap: 12,
+      alignItems: 'baseline',
       backgroundColor: t.surface,
       borderRadius: 20,
-      padding: 20,
+      padding: 14,
       marginTop: 4,
       ...elevation.card,
     },
@@ -1187,6 +1201,8 @@ function makeStyles(t: Palette) {
 
     // Sort chips — ink fill + paper label when selected; inset fill + muted label at rest.
     sortChip: {
+      flex: 1,
+      minWidth: 0,
       minHeight: 48,
       paddingHorizontal: 12,
       borderRadius: radius.pill,

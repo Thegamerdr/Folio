@@ -592,9 +592,13 @@ function EditTxnForm({
         <Text style={[s.footerButtonLabel, { color: t.inverse }]}>
           {reviewing
             ? 'Confirm changes'
-            : pendingChanges.length === 0
-              ? 'No changes'
-              : 'Review changes'}
+            : !amountValid
+              ? 'Check amount'
+              : paymentPreview?.error
+                ? 'Check correction'
+                : pendingChanges.length === 0
+                  ? 'No changes'
+                  : 'Review changes'}
         </Text>
       </Pressable>
     </View>

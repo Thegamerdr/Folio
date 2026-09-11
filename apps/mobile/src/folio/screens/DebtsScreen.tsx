@@ -76,6 +76,7 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
   });
   const activeDebts = tracking.active;
   const clearedDebts = tracking.cleared;
+  const totalOutstanding = activeDebts.reduce((total, debt) => total + debt.balance, 0);
   const [strategy, setStrategy] = useState<DebtStrategy>('hybrid');
   const [selectedDebtId, setSelectedDebtId] = useState<string | undefined>(debts[0]?.id);
   const [extraInput, setExtraInput] = useState('');
@@ -161,12 +162,23 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
               <Text style={[styles.planCopy, { color: t.muted }]}>{tracking.detail}</Text>
             </View>
           ) : (
-            <Text style={[styles.planHeadline, { color: t.ink }]}>Outstanding debts</Text>
+            <View style={styles.position}>
+              <Text style={[styles.planLabel, { color: t.muted }]}>Total outstanding</Text>
+              <Text style={[styles.positionValue, { color: t.ink }]}>
+                {formatMoney(totalOutstanding)}
+              </Text>
+              <Text style={[styles.meta, { color: t.muted }]}>
+                {activeDebts.length} {activeDebts.length === 1 ? 'debt' : 'debts'} tracked
+              </Text>
+            </View>
           )}
           {activeDebts.map((debt) => {
             const nextMinimum = selectDebtMinimumPresentation(plan, debt.id);
             return (
-              <View key={debt.id} style={[styles.row, { borderBottomColor: t.hairline }]}>
+              <View
+                key={debt.id}
+                style={[styles.debtCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+              >
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`View or edit ${debt.name}`}
@@ -198,11 +210,9 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
                   accessibilityRole="button"
                   accessibilityLabel={`Log payment to ${debt.name}`}
                   onPress={() => nav.openSheet('log-payment', { debtId: debt.id })}
-                  style={styles.tryChange}
+                  style={[styles.paymentAction, { backgroundColor: t.calm }]}
                 >
-                  <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
-                    Log a payment
-                  </Text>
+                  <Text style={[styles.tryChangeLabel, { color: t.inverse }]}>Log a payment</Text>
                 </Pressable>
               </View>
             );
@@ -211,9 +221,14 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
         <Pressable
           accessibilityRole="button"
           onPress={() => nav.openSheet('declare-debt')}
-          style={[styles.add, { backgroundColor: t.calm }]}
+          style={[
+            styles.add,
+            { borderColor: t.hairline, backgroundColor: activeDebts.length ? t.surface : t.calm },
+          ]}
         >
-          <Text style={[styles.addLabel, { color: t.inverse }]}>+ Add a debt</Text>
+          <Text style={[styles.addLabel, { color: activeDebts.length ? t.ink : t.inverse }]}>
+            + Add a debt
+          </Text>
         </Pressable>
         {clearedDebts.length > 0 ? (
           <View style={styles.list}>
@@ -552,6 +567,28 @@ const styles = StyleSheet.create({
   },
   tryChange: { minHeight: 48, justifyContent: 'center', marginTop: gap.sm },
   tryChangeLabel: { fontFamily: weightFamily(500), fontSize: 13 },
+  position: { marginBottom: gap.md },
+  positionValue: {
+    fontFamily: serif.display,
+    fontSize: 30,
+    lineHeight: 36,
+    marginTop: gap.xs,
+    fontVariant: ['tabular-nums'],
+  },
+  debtCard: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: gap.lg,
+    marginBottom: gap.md,
+  },
+  paymentAction: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    marginTop: gap.sm,
+    padding: gap.sm,
+  },
   list: { marginTop: gap.xl },
   row: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -564,6 +601,7 @@ const styles = StyleSheet.create({
   meta: { fontFamily: weightFamily(400), fontSize: 12.5, lineHeight: 19, marginTop: 2 },
   empty: { fontFamily: weightFamily(400), fontSize: 14, lineHeight: 22, paddingVertical: gap.xl },
   add: {
+    borderWidth: 1,
     alignItems: 'center',
     borderRadius: radius.md,
     justifyContent: 'center',

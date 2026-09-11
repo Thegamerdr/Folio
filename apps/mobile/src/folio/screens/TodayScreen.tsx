@@ -678,14 +678,16 @@ export function TodayScreen({
             >
               {heroFigure}
             </Text>
-            <Text
-              style={[
-                styles.heroSpare,
-                { color: t.muted, fontSize: Math.max(12, heroFigureSize * 0.235) },
-              ]}
-            >
-              {heroUnitLabel}
-            </Text>
+            {financePresentation.canReassure || heroUnitLabel !== financePresentation.label ? (
+              <Text
+                style={[
+                  styles.heroSpare,
+                  { color: t.muted, fontSize: Math.max(12, heroFigureSize * 0.235) },
+                ]}
+              >
+                {heroUnitLabel}
+              </Text>
+            ) : null}
           </View>
           {effectiveMode !== 'survival' ? (
             <Text style={[styles.heroCaption, { color: t.muted }]}>

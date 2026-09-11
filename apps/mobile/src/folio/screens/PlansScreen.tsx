@@ -266,7 +266,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
         ) : (
           <View style={[styles.dominant, { backgroundColor: t.surface, borderColor: t.hairline }]}>
             <Text style={[styles.smallLabel, { color: t.muted }]}>Reserved commitments</Text>
-            <Money value={formatGBP(total)} size="lg" tone="negative" t={t} />
+            <Money value={formatGBP(total)} size="lg" t={t} />
             <Text style={[styles.dominantCaption, { color: t.muted }]}>
               {upcoming.length === 0
                 ? model?.emptyMessage
@@ -281,10 +281,17 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
                 still reserved
               </Text>
             ) : null}
-            <Text style={[styles.dominantCaption, { color: t.muted }]}>
-              {presentation.canReassure ? 'Safe to spend until payday' : 'After recorded costs'}:{' '}
-              {formatGBP(financialPlan.safeToSpendMinor / 100)}
-            </Text>
+            <View style={[styles.spendFigure, { borderTopColor: t.hairline }]}>
+              <Text style={[styles.smallLabel, { color: t.muted }]}>
+                {presentation.canReassure ? 'Safe to spend until payday' : 'After recorded costs'}
+              </Text>
+              <Money
+                value={formatGBP(financialPlan.safeToSpendMinor / 100)}
+                size="lg"
+                tone={financialPlan.safeToSpendMinor < 0 ? 'negative' : 'ink'}
+                t={t}
+              />
+            </View>
             <Text style={[styles.dominantCaption, { color: t.muted }]}>
               After bills, everyday essentials, debt minimums and your buffer. {daysToPayday} days
               until {formatFinancialDate(financialPlan.nextIncomeDate)}.
@@ -317,7 +324,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
                 onPress={() => nav.go('whatif')}
                 style={({ pressed: isPressed }) => [
                   styles.quietAction,
-                  { borderColor: t.hairline },
+                  { borderColor: 'transparent' },
                   isPressed ? styles.pressed : undefined,
                 ]}
               >
@@ -642,6 +649,7 @@ const styles = StyleSheet.create({
     maxWidth: 340,
   },
 
+  spendFigure: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: gap.md, marginTop: gap.md },
   dominant: {
     borderRadius: radius.xxl,
     borderWidth: 1,

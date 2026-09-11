@@ -367,13 +367,8 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           style={[s.input, { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink }]}
           accessibilityLabel="Due day of month, required"
         />
-        <Text
-          style={parseDayOfMonth(dueDayInput) === undefined ? s.error : s.helper}
-          accessibilityLiveRegion="polite"
-        >
-          {parseDayOfMonth(dueDayInput) === undefined
-            ? 'Enter a day from 1 to 31.'
-            : 'Choose 1–31. In a shorter month, the payment falls on its last day.'}
+        <Text style={s.helper}>
+          Choose 1–31. In a shorter month, the payment falls on its last day.
         </Text>
       </View>
       <View style={s.field}>

@@ -99,6 +99,7 @@ import { endLensTrialIfExpired } from '@/folio/lib/lens';
 import { computeGreenStreak } from '@/folio/lib/streaks';
 import { computeRitualLedgerActuals, type RitualLedgerActuals } from '@/folio/lib/potLedgerActuals';
 import { useRoute } from '@/folio/lib/storeRoute';
+import { KeyboardSafeView } from '@/surfaces/pressureMap/Sheet';
 import { selectPaydayTightPoint } from '@/folio/lib/moneyPath';
 import { setPots, addToPot } from '@/folio/store';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
@@ -245,6 +246,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   const appState = useAppStore((st) => st);
   const [step, setStep] = useState(0);
   const scrollRef = useRef<ScrollView | null>(null);
+  const [actionHeight, setActionHeight] = useState(0);
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
@@ -358,7 +360,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       headlineLead: 'Review this ',
       headlineAccent: 'cycle',
       headlineTrail: '.',
-      body: `Recorded spending: ${formatMoney(actuals.spent)}. Recorded pot contributions: ${formatMoney(actuals.setAside)}. The balance figures below are the forecast at this review, not proof that bills were paid.`,
+      body: `Recorded spending: ${formatMoney(actuals.spent)}. Recorded pot contributions: ${formatMoney(actuals.setAside)}. Forecast figures do not confirm that bills were paid.`,
       stat: {
         label: 'Forecast balance at payday',
         value: actuals.spare,
@@ -633,10 +635,36 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
       </View>
     );
 
+  const statCard = (
+    <View style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+      {/* The ceremonial seal — only after finish. */}
+      {sealed ? (
+        <Animated.View
+          style={[styles.seal, sealStyle, { borderColor: t.calm }]}
+          pointerEvents="none"
+        >
+          <Text style={[styles.sealLabel, { color: t.calm }]}>Sealed</Text>
+        </Animated.View>
+      ) : null}
+
+      <Text style={[styles.statLabel, { color: t.muted }]}>{current.stat.label}</Text>
+      <StatMoney
+        label={current.stat.label}
+        value={current.stat.value}
+        tone={current.stat.tone}
+        kind={current.stat.kind ?? 'money'}
+        isNote={current.isNote === true}
+        noted={noted}
+        palette={t}
+        reduceMotion={reduceMotion}
+      />
+    </View>
+  );
+
   // populated / offline / error — the real four-step ceremony. offline ≡ populated (local-first); a
   // direct error mount still shows the ritual so the user can close the cycle in hand.
   return (
-    <View style={styles.flex}>
+    <KeyboardSafeView style={styles.flex} reduceMotion={reduceMotion}>
       <View
         style={[
           styles.screen,
@@ -653,7 +681,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
         <ScrollView
           ref={scrollRef}
           style={styles.scrollFlex}
-          contentContainerStyle={styles.scrollBody}
+          contentContainerStyle={[styles.scrollBody, { paddingBottom: actionHeight + gap.lg }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -697,17 +725,6 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
             <View style={styles.headerSpacer} />
           </View>
 
-          {step === 0 ? (
-            <Text style={[styles.body, { color: t.muted }]}>
-              Recorded activity:{' '}
-              {formatFinancialDate(
-                new Date(now.getTime() - 30 * 86_400_000).toISOString().slice(0, 10),
-              )}
-              –{formatFinancialDate(now.toISOString().slice(0, 10))}. Forecast: today–
-              {formatFinancialDate(financialPlan.nextIncomeDate)}.
-            </Text>
-          ) : null}
-
           {/* Copy block — eyebrow · headline (with the single upright accent word) · body or textarea. */}
           <View style={styles.copyBlock}>
             <Text style={[styles.eyebrow, { color: t.muted }]}>
@@ -722,6 +739,19 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
               </Text>
               {current.headlineTrail}
             </Text>
+
+            {step === 0 ? (
+              <Text style={[styles.body, { color: t.muted }]}>
+                Recorded activity:{' '}
+                {formatFinancialDate(
+                  new Date(now.getTime() - 30 * 86_400_000).toISOString().slice(0, 10),
+                )}
+                –{formatFinancialDate(now.toISOString().slice(0, 10))}. Forecast: today–
+                {formatFinancialDate(financialPlan.nextIncomeDate)}.
+              </Text>
+            ) : null}
+
+            {step === 0 ? statCard : null}
 
             {/* Mode framing banner (BREAKS-PARITY fix) — web renders this only on step 0, telling the
                 user why this closing ritual reads differently in their current Money Mode. Returns
@@ -975,30 +1005,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
             </View>
           ) : null}
 
-          {/* Stat card — surface, hairline, soft card lift; the label + the count-up money figure. */}
-          <View style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-            {/* The ceremonial seal — only after finish. */}
-            {sealed ? (
-              <Animated.View
-                style={[styles.seal, sealStyle, { borderColor: t.calm }]}
-                pointerEvents="none"
-              >
-                <Text style={[styles.sealLabel, { color: t.calm }]}>Sealed</Text>
-              </Animated.View>
-            ) : null}
-
-            <Text style={[styles.statLabel, { color: t.muted }]}>{current.stat.label}</Text>
-            <StatMoney
-              label={current.stat.label}
-              value={current.stat.value}
-              tone={current.stat.tone}
-              kind={current.stat.kind ?? 'money'}
-              isNote={current.isNote === true}
-              noted={noted}
-              palette={t}
-              reduceMotion={reduceMotion}
-            />
-          </View>
+          {step !== 0 ? statCard : null}
 
           {/* Melo line — the quiet companion; mood changes step-to-step. MeloLine adds the quotes. */}
           <View style={styles.meloBlock}>
@@ -1008,34 +1015,39 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
           {/* Spacer pins the CTAs to the bottom (web flex-1). */}
           <View style={styles.spacer} />
         </ScrollView>
-        {/* Primary CTA — advance, or finish on the last step. Coral lift via the cta elevation. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: sealed }}
-          accessibilityLabel={current.cta}
-          disabled={sealed}
-          onPress={onAdvance}
-          style={({ pressed: isPressed }) => [
-            styles.primary,
-            { backgroundColor: t.calm },
-            sealed ? styles.primaryStamped : undefined,
-            isPressed && !sealed ? pressed : undefined,
-          ]}
+        <View
+          onLayout={(event) => setActionHeight(event.nativeEvent.layout.height)}
+          style={{ backgroundColor: t.canvas }}
         >
-          <Text style={[styles.primaryLabel, { color: t.inverse }]}>{current.cta}</Text>
-        </Pressable>
+          {/* Primary CTA — advance, or finish on the last step. Coral lift via the cta elevation. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: sealed }}
+            accessibilityLabel={current.cta}
+            disabled={sealed}
+            onPress={onAdvance}
+            style={({ pressed: isPressed }) => [
+              styles.primary,
+              { backgroundColor: t.calm },
+              sealed ? styles.primaryStamped : undefined,
+              isPressed && !sealed ? pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.primaryLabel, { color: t.inverse }]}>{current.cta}</Text>
+          </Pressable>
 
-        {/* Secondary — "Save and finish later" exits WITHOUT recording a cycle. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Save and finish later"
-          onPress={nav.back}
-          style={({ pressed: isPressed }) => [styles.secondary, isPressed ? pressed : undefined]}
-        >
-          <Text style={[styles.secondaryLabel, { color: t.muted }]}>Save and finish later</Text>
-        </Pressable>
+          {/* Secondary — "Save and finish later" exits WITHOUT recording a cycle. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Save and finish later"
+            onPress={nav.back}
+            style={({ pressed: isPressed }) => [styles.secondary, isPressed ? pressed : undefined]}
+          >
+            <Text style={[styles.secondaryLabel, { color: t.muted }]}>Save and finish later</Text>
+          </Pressable>
+        </View>
       </View>
-    </View>
+    </KeyboardSafeView>
   );
 }
 
@@ -1166,6 +1178,7 @@ const styles = StyleSheet.create({
   // pinning the CTAs when there's room, then scrolls when there isn't.
   scrollFlex: {
     flex: 1,
+    overflow: 'hidden',
   },
   scrollBody: {
     flexGrow: 1,

@@ -446,10 +446,8 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         {/* Melo — mode-honest to the gap; briefly "cheer" on the relief close (web meloMood). */}
         <View style={styles.meloHead}>
           <Melo size={36} mood={meloMood} />
+          <Text style={[styles.kicker, { color: t.muted }]}>{modeCopy.intro}</Text>
         </View>
-
-        {/* Fraunces italic kicker — mode-tinted (web copy.intro). */}
-        <Text style={[styles.kicker, { color: t.muted }]}>{modeCopy.intro}</Text>
 
         {/* The gap headline — "{headlineLead} £{gap}." with the gap em in warm-negative + the
             gap-pulse. The accent is the gap figure (the ONE coloured term); headlineLead tints by
@@ -709,13 +707,16 @@ const styles = StyleSheet.create({
 
   // Melo head — mt-6 (gap.xl).
   meloHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: gap.sm,
     marginTop: gap.xl,
   },
   // Fraunces italic kicker, 13px muted, mt-4.
   kicker: {
     fontFamily: serif.displayItalic,
     fontSize: 13,
-    marginTop: gap.lg,
+    flex: 1,
   },
   // The gap headline — Fraunces display 32px, tight leading, mt-1.
   headline: {

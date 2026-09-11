@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseManualMoney } from './manualMoney';
+import { parseManualMoney, normalizeManualMoneyDraft } from './manualMoney';
 
 describe('manual money entry', () => {
   it('retains pennies and correctly grouped pasted currency', () => {
@@ -27,5 +27,19 @@ describe('manual money entry', () => {
     expect(parseManualMoney('0', { allowZero: true })).toBe(0);
     expect(parseManualMoney('-12.50', { allowNegative: true })).toBe(-12.5);
     expect(parseManualMoney('-12.50')).toBeUndefined();
+  });
+});
+
+describe('finished amount drafts', () => {
+  it('removes leading zeros without changing money, pennies or overdrafts', () => {
+    expect(normalizeManualMoneyDraft('0570')).toBe('570');
+    expect(normalizeManualMoneyDraft('01800.25')).toBe('1800.25');
+    expect(normalizeManualMoneyDraft('-0012.50', { allowNegative: true })).toBe('-12.5');
+    expect(normalizeManualMoneyDraft('000', { allowZero: true })).toBe('0');
+  });
+  it('leaves invalid drafts available for correction instead of silently accepting them', () => {
+    for (const value of ['', '0.001', '12x', '1,23', '-005']) {
+      expect(normalizeManualMoneyDraft(value)).toBe(value);
+    }
   });
 });

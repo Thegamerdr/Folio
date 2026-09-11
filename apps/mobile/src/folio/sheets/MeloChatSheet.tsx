@@ -340,6 +340,15 @@ function MeloChat({
   // proactive-money gate on Today both read this same persisted Melo settings slice.
   const savedTone = useAppStore((s) => s.melo?.tone ?? DEFAULT_MELO_TONE);
   const [showSettings, setShowSettings] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const [input, setInput] = useState(prefill ?? '');
   const inputRef = useRef<TextInput>(null);
   const [expandedSources, setExpandedSources] = useState<ReadonlySet<string>>(new Set());
@@ -785,7 +794,7 @@ function MeloChat({
       ) : null}
 
       {/* Transcript */}
-      <View style={s.transcript}>
+      <View style={[s.transcript, showEmpty && keyboardVisible ? { flex: 0 } : undefined]}>
         <ScrollView
           ref={scrollRef}
           style={s.scroll}
@@ -803,7 +812,7 @@ function MeloChat({
           }}
         >
           {/* Empty — Fraunces-italic prompt + 4 tappable starter chips. */}
-          {showEmpty ? (
+          {showEmpty && !keyboardVisible ? (
             <View style={s.empty}>
               <Text style={s.emptyHeadline}>What's on your mind?</Text>
               <View style={s.starters}>
@@ -1064,6 +1073,15 @@ function MeloChat({
         ) : null}
       </View>
 
+      {showEmpty && keyboardVisible ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => Keyboard.dismiss()}
+          style={{ minHeight: 48, justifyContent: 'center' }}
+        >
+          <Text style={{ color: t.calmStrong }}>Show suggested questions</Text>
+        </Pressable>
+      ) : null}
       {voice.phase === 'starting' || voice.phase === 'listening' || voice.phase === 'processing' ? (
         <View
           style={s.voiceListening}

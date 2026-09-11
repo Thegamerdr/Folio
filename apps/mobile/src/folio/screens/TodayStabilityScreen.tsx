@@ -295,17 +295,20 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
               {formatMoney(financialPlan.safeToSpendMinor / 100)}
             </Text>
           </View>
-          <Text style={[s.verdict, { color: t.ink }]}>
-            <Text
-              style={{
-                color: !financePresentation.canReassure ? t.caution : t.positive,
-                fontWeight: '600',
-              }}
-            >
-              {accentWord}
-            </Text>{' '}
-            {verdictTail}
-          </Text>
+          {`${accentWord} ${verdictTail}`.trim() !==
+          financialAmountLabel(financialPlan, financePresentation) ? (
+            <Text style={[s.verdict, { color: t.ink }]}>
+              <Text
+                style={{
+                  color: !financePresentation.canReassure ? t.caution : t.positive,
+                  fontWeight: '600',
+                }}
+              >
+                {accentWord}
+              </Text>{' '}
+              {verdictTail}
+            </Text>
+          ) : null}
           {/* The strategy owns the whole caption (incl. the buffer claim) so it can never
               contradict its own accounting — see stability.ts `formula`. */}
           <Text style={[s.formula, { color: t.muted }]}>{financePresentation.message}</Text>

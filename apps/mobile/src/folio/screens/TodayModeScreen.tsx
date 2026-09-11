@@ -1111,17 +1111,20 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
               <Text style={[s.spareLabel, { color: t.muted }]}>{outerSpareLabel}</Text>
             )}
           </View>
-          <Text style={[s.verdict, { color: t.ink }]}>
-            <Text
-              style={{
-                color: !financePresentation.canReassure ? t.caution : heroTone,
-                fontWeight: '600',
-              }}
-            >
-              {accentWord}
-            </Text>{' '}
-            {verdictTail}
-          </Text>
+          {!canonicalMoneyMode ||
+          outerVerdict !== financialAmountLabel(canonicalPlan, financePresentation) ? (
+            <Text style={[s.verdict, { color: t.ink }]}>
+              <Text
+                style={{
+                  color: !financePresentation.canReassure ? t.caution : heroTone,
+                  fontWeight: '600',
+                }}
+              >
+                {accentWord}
+              </Text>{' '}
+              {verdictTail}
+            </Text>
+          ) : null}
           <Text style={[s.formula, { color: t.muted }]}>{outerFormula}</Text>
           {!financePresentation.canReassure && outerFormula !== financePresentation.message && (
             <Text style={[s.formula, { color: t.muted }]}>{financePresentation.message}</Text>
