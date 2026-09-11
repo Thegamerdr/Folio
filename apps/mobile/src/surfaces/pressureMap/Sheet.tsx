@@ -428,6 +428,10 @@ export function Sheet({
             inputHeight,
             bodyTop,
             bodyHeight,
+            padding: Math.max(
+              8,
+              Math.min(bodyContentInset, Math.max(8, (bodyHeight - inputHeight) / 2)),
+            ),
             contextBefore: focusContextBefore,
             contextAfter: focusContextAfter,
           });
@@ -455,6 +459,7 @@ export function Sheet({
     });
   }, [
     bodyScrollRef,
+    bodyContentInset,
     captureMode,
     scrollKey,
     focusContextBefore,
