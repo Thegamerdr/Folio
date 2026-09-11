@@ -242,6 +242,7 @@ const styles = StyleSheet.create({
   },
   scrollBody: {
     flexGrow: 1,
+    paddingBottom: gap.xl,
   },
   loading: {
     flex: 1,

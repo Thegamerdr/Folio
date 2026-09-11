@@ -86,6 +86,7 @@ const SCRIM_OPACITY = 0.45;
 
 type SheetProps = {
   visible: boolean;
+  dismissible?: boolean;
   onClose: () => void;
   children: ReactNode;
   // Skip the rise/fade and appear instantly. Source this from the same mechanism the
@@ -259,6 +260,7 @@ export function SheetPortalProvider({
 
 export function Sheet({
   visible,
+  dismissible = true,
   onClose,
   children,
   reduceMotion,
@@ -442,6 +444,7 @@ export function Sheet({
   }, [onClose, scheduleUnderlyingRepaint]);
 
   const handleClose = useCallback(() => {
+    if (!dismissible) return;
     if (shouldReduceMotion) {
       finishClose();
       return;
@@ -464,7 +467,15 @@ export function Sheet({
         finishClose();
       }
     });
-  }, [finishClose, height, shouldReduceMotion, scrimOpacity, translateY, usesAndroidPortal]);
+  }, [
+    dismissible,
+    finishClose,
+    height,
+    shouldReduceMotion,
+    scrimOpacity,
+    translateY,
+    usesAndroidPortal,
+  ]);
 
   const sheetLayer = useMemo(
     () =>
@@ -505,14 +516,16 @@ export function Sheet({
                   importantForAccessibility="no-hide-descendants"
                   style={s.handle}
                 />
-                <Pressable
-                  accessibilityLabel="Close"
-                  accessibilityRole="button"
-                  onPress={handleClose}
-                  style={({ pressed }) => [s.close, { opacity: pressed ? 0.6 : 1 }]}
-                >
-                  <Text style={s.closeLabel}>×</Text>
-                </Pressable>
+                {dismissible ? (
+                  <Pressable
+                    accessibilityLabel="Close"
+                    accessibilityRole="button"
+                    onPress={handleClose}
+                    style={({ pressed }) => [s.close, { opacity: pressed ? 0.6 : 1 }]}
+                  >
+                    <Text style={s.closeLabel}>×</Text>
+                  </Pressable>
+                ) : null}
               </View>
               {scrollable ? (
                 <ScrollView
@@ -544,6 +557,7 @@ export function Sheet({
     [
       children,
       footer,
+      dismissible,
       bodyScrollRef,
       handleClose,
       insets.bottom,

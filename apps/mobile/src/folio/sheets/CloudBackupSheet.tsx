@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 import { useAuth } from '@clerk/clerk-expo';
 
 import { gap, radius, serif, Sheet, Surface, useTheme } from '@/folio/theme';

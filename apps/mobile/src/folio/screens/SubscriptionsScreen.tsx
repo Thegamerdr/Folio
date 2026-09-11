@@ -1,3 +1,4 @@
+import { canConfirmBillOccurrence } from '@/folio/lib/billConfirmationPresentation';
 /**
  * @rn-screen    SubscriptionsScreen
  * @rn-stack     MainTabs > Subs
@@ -49,7 +50,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -58,6 +58,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { localDayKey } from '@/folio/lib/dayClock';
 import {
@@ -403,6 +404,33 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     );
   };
 
+  const onUndoConfirmation = (sub: StoreSub, date: string) => {
+    Alert.alert(
+      'Undo this paid confirmation?',
+      `${sub.name} · due ${formatFinancialDate(date)} will be reserved as unpaid again. This changes the plan only; it does not reverse a bank payment or change your entered cash.`,
+      [
+        { text: 'Keep confirmed', style: 'cancel' },
+        {
+          text: 'Undo confirmation',
+          onPress: () => {
+            const before = getState();
+            const live = before.subs.find((item) => item.name === sub.name);
+            if (live?.obligationOccurrences?.[date]?.status !== 'paid') return;
+            setSubscriptionOccurrenceResolution(sub.name, date, { status: 'unpaid' });
+            const undo = createScopedFinancialUndo(before, ['subs']);
+            showUndo(`${sub.name} · ${formatFinancialDate(date)} reserved as unpaid`, () => {
+              if (!undo())
+                Alert.alert(
+                  'Bill status kept',
+                  'Your bills have changed. Review the current status before confirming this bill again.',
+                );
+            });
+          },
+        },
+      ],
+    );
+  };
+
   // EMPTY BRANCH — the calm doorway. No top Melo on the populated screen; here EmptyState owns it.
   if (subs.length === 0 && cancelledSubs.length === 0) {
     return (
@@ -623,6 +651,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
                 item.id.startsWith(`subscription:${sub.name}:`),
               )}
               onResolve={(occurrence) => onResolve(sub, occurrence)}
+              onUndoConfirmation={(date) => onUndoConfirmation(sub, date)}
             />
           ))}
         </View>
@@ -698,7 +727,8 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
           <>
             <ActionLink
               label="Save bill changes"
-              color={t.calm}
+              color={t.inverse}
+              fill={t.calm}
               onPress={() => {
                 if (!editing) return;
                 try {
@@ -760,7 +790,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
           style={s.editInput}
         />
         <Text style={s.rowMeta}>Repeats</Text>
-        <View style={layout.sortRow}>
+        <View style={[layout.sortRow, { flexWrap: 'wrap' }]}>
           {(
             [
               { label: 'Monthly', value: null },
@@ -774,7 +804,11 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
               accessibilityRole="button"
               accessibilityState={{ selected: editPeriod === option.value }}
               onPress={() => setEditPeriod(option.value)}
-              style={[s.sortChip, editPeriod === option.value ? s.sortChipOn : undefined]}
+              style={[
+                s.sortChip,
+                { flexBasis: '45%' },
+                editPeriod === option.value ? s.sortChipOn : undefined,
+              ]}
             >
               <Text
                 style={[
@@ -840,6 +874,7 @@ function SubscriptionRow({
   schedule,
   outstanding,
   onResolve,
+  onUndoConfirmation,
 }: {
   sub: StoreSub;
   first: boolean;
@@ -855,6 +890,7 @@ function SubscriptionRow({
   schedule: ReturnType<typeof subscriptionSchedulePresentation>;
   outstanding?: FinancialCommitment | undefined;
   onResolve: (occurrence: FinancialCommitment) => void;
+  onUndoConfirmation: (date: string) => void;
 }) {
   const hasTrial = typeof sub.trialEndsInDays === 'number';
   const annualCost = subscriptionAnnualCost(sub);
@@ -922,17 +958,31 @@ function SubscriptionRow({
             · {formatFinancialDate(outstanding.date)} · {pounds(outstanding.amountMinor / 100)}{' '}
             unpaid
           </Text>
-          <ActionLink
-            label="Mark already paid"
-            color={t.calmStrong}
-            onPress={() => onResolve(outstanding)}
-          />
+          {canConfirmBillOccurrence({
+            occurrenceDate: outstanding.id.slice(-10),
+            occurrenceStatus: sub.obligationOccurrences?.[outstanding.id.slice(-10)]?.status,
+            latestPaidDate: latestPaid,
+            today,
+          }) ? (
+            <ActionLink
+              label="Mark already paid"
+              color={t.calmStrong}
+              onPress={() => onResolve(outstanding)}
+            />
+          ) : null}
         </View>
       ) : null}
       {latestPaid ? (
-        <Text style={[s.rowMeta, { marginTop: 8, color: t.positiveInk }]}>
-          Confirmed paid · due {formatFinancialDate(latestPaid)}
-        </Text>
+        <View>
+          <Text style={[s.rowMeta, { marginTop: 8, color: t.positiveInk }]}>
+            Confirmed paid · due {formatFinancialDate(latestPaid)}
+          </Text>
+          <ActionLink
+            label="Undo this confirmation"
+            color={t.calmStrong}
+            onPress={() => onUndoConfirmation(latestPaid)}
+          />
+        </View>
       ) : null}
       <ActionLink
         label={manageOpen ? 'Hide details and actions' : 'Manage / details'}
@@ -962,7 +1012,7 @@ function SubscriptionRow({
           {!paused ? (
             <ActionLink
               label="I used this today"
-              color={t.positiveInk}
+              color={t.calmStrong}
               onPress={onUsedToday}
               accessibilityHint="Marks this subscription as used today."
             />
@@ -970,16 +1020,25 @@ function SubscriptionRow({
 
           <ActionLink
             label="Ask Melo"
-            color={t.muted}
+            color={t.calmStrong}
             onPress={onAskMelo}
             accessibilityHint={`Asks Melo about ${sub.name}.`}
           />
 
-          <View style={layout.actionsSpacer} />
+          <View
+            style={[
+              layout.actionsSpacer,
+              {
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: t.hairline,
+                alignSelf: 'stretch',
+              },
+            ]}
+          />
 
           <ActionLink
             label="Remove from Melo"
-            color={t.repairInk}
+            color={t.calmStrong}
             onPress={onCancel}
             accessibilityHint={`Removes ${sub.name} from this forecast only.`}
           />
@@ -1004,9 +1063,11 @@ function ActionLink({
   color,
   onPress,
   accessibilityHint,
+  fill,
 }: {
   label: string;
   color: string;
+  fill?: string;
   onPress: () => void;
   accessibilityHint?: string | undefined;
 }) {
@@ -1018,6 +1079,14 @@ function ActionLink({
       onPress={onPress}
       style={({ pressed: isPressed }) => [
         layout.actionLink,
+        fill
+          ? {
+              backgroundColor: fill,
+              borderRadius: radius.pill,
+              minHeight: 48,
+              alignItems: 'center',
+            }
+          : undefined,
         isPressed ? layout.pressed : undefined,
       ]}
     >
@@ -1210,7 +1279,7 @@ function makeStyles(t: Palette) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    sortChipOn: { backgroundColor: t.ink },
+    sortChipOn: { backgroundColor: t.calm },
     sortChipLabel: { color: t.muted, fontSize: 11 },
     sortChipLabelOn: { color: t.inverse },
 
@@ -1276,14 +1345,16 @@ function makeStyles(t: Palette) {
 
     // Pause/Resume — a compact inset pill (web h-8 px-3 rounded-full bg-[var(--inset)]).
     pausePill: {
-      backgroundColor: t.inset,
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderWidth: StyleSheet.hairlineWidth,
       borderRadius: radius.pill,
       minHeight: 48,
       paddingHorizontal: 12,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    pausePillLabel: { color: t.ink, fontSize: 12, fontWeight: '600' },
+    pausePillLabel: { color: t.calmStrong, fontSize: 12, fontWeight: '600' },
     cancelledEyebrow: {
       color: t.muted,
       fontSize: 11,

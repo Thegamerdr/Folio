@@ -56,7 +56,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   Share,
@@ -66,6 +65,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { shouldStackTextRows } from '@/folio/lib/readableLayout';
 import { AccessibilityInfo } from 'react-native';
@@ -947,7 +947,9 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             <Text style={[styles.sectionTitle, { color: t.ink }]}>
               {isBusiness ? 'Where business records come from' : 'Where your money comes from'}
             </Text>
-            <Text style={[styles.sectionHint, { color: t.muted }]}>set by you · imported</Text>
+            <Text style={[styles.sectionHint, { color: t.muted }]}>
+              set by you · added from a statement
+            </Text>
           </View>
           <Surface style={[styles.card, { borderColor: t.hairline }]}>
             {sources.map((s, index) => (

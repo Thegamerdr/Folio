@@ -1,6 +1,7 @@
 // Privacy controls keep local clearing separate from remote account services.
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sheet } from '@/surfaces/pressureMap/Sheet';
 

@@ -77,11 +77,12 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
             Pick a <Text style={s.accentWord}>lens</Text>.
           </Text>
           <Text style={s.tierCounts}>
-            {FREE_LENSES.length} free · {FULL_LENSES.length} in full
+            {FREE_LENSES.length} free · {FULL_LENSES.length} paid
           </Text>
         </View>
         <Text style={s.subline}>
-          Reshapes Today's verdict and Melo's voice. Switch back any time.
+          Reshapes Today's verdict and Melo's voice. Free lenses stay free; paid lenses need a plan
+          or trial. Switch back any time.
         </Text>
 
         <View style={s.list}>
@@ -91,7 +92,13 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
             const locked = !canAccess(m);
             const onTrial = trialCycleId !== null && tier === 'full' && !fullUnlocked;
             const badgeLabel =
-              tier === 'free' ? 'Free' : locked ? 'Full' : onTrial ? 'Full · trial' : 'Full';
+              tier === 'free'
+                ? 'Free'
+                : locked
+                  ? 'Paid'
+                  : onTrial
+                    ? 'Paid · trial'
+                    : 'Paid · included';
 
             return (
               <Pressable

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, Share, Text, TextInput, View } from 'react-native';
+import { Pressable, Share, Text, TextInput, View } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import type { CloudSyncDevice } from '@folio/sync';
 import { Sheet, Surface, gap, useTheme } from '@/folio/theme';

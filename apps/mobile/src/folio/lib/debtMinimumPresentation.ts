@@ -34,7 +34,7 @@ export function selectDebtMinimumPresentation(
     label: event.label,
     date,
     amountMinor: event.protectedOutflowMinor,
-    amountLabel: `${formatMoney(event.protectedOutflowMinor / 100)} remaining`,
+    amountLabel: `${formatMoney(event.protectedOutflowMinor / 100)} payment due`,
     overdue,
     dueLabel,
   };

@@ -1,3 +1,4 @@
+import { normalizeManualMoneyDraft } from '@/folio/lib/manualMoney';
 // @rn-sheet     AddDebtSheet
 // @purpose      Declare one outstanding debt line (loan / card / BNPL / other). Feeds `debts[]` in the
 //               store; the Debt lens strategy + amortisation engine (lib/modes/debtEngine.ts) read it
@@ -23,16 +24,8 @@
 // the just-added debt, which is a faithful (if stronger) analogue of a plain acknowledgment toast.
 
 import { useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Keyboard,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -46,7 +39,7 @@ import {
   weightFamily,
   type Palette,
 } from '@/folio/theme';
-import { debtDraftIssue, parseDayOfMonth } from '@/folio/lib/formDrafts';
+import { debtDraftProblem, parseDayOfMonth, type DebtDraftField } from '@/folio/lib/formDrafts';
 import { parseManualMoney } from '@/folio/lib/manualMoney';
 import { toFinancialPlanInput } from '@/folio/lib/financialPlan';
 import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentation';
@@ -127,6 +120,14 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
     );
   }
 
+  const fieldInputs = useRef<Partial<Record<DebtDraftField, TextInput | null>>>({});
+  const fieldLabels: Record<DebtDraftField, string> = {
+    name: 'debt name',
+    balance: 'outstanding balance',
+    minimum: 'minimum payment',
+    dueDay: 'due day',
+    apr: 'interest rate',
+  };
   const [name, setName] = useState('');
   const [kind, setKind] = useState<Debt['kind']>('card');
   const [balance, setBalance] = useState('');
@@ -184,7 +185,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
   const bal = parseNonNegative(balance);
   const rate = parseNonNegative(apr);
   const min = parseNonNegative(minPayment);
-  const draftIssue = debtDraftIssue({
+  const draftProblem = debtDraftProblem({
     name,
     balance,
     apr,
@@ -193,7 +194,13 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
     editing: target !== null,
   });
   const dueDom = parseDayOfMonth(dueDayInput) ?? 1;
-  const canAdd = draftIssue === null && !saving;
+  const canAdd = draftProblem === null && !saving;
+  const fieldError = (field: DebtDraftField) =>
+    draftProblem?.field === field ? (
+      <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
+        {draftProblem.message}
+      </Text>
+    ) : null;
   const activeKind = KINDS.find((k) => k.id === kind);
 
   function reset() {
@@ -275,10 +282,21 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
 
   const footer = (
     <View>
-      {saveError || draftIssue ? (
-        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
-          {saveError ?? draftIssue}
+      {saveError ? (
+        <Text accessibilityRole="alert" style={s.error}>
+          {saveError}
         </Text>
+      ) : null}
+      {draftProblem ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => fieldInputs.current[draftProblem.field]?.focus()}
+          style={s.cancel}
+        >
+          <Text style={[s.cancelLabel, { color: t.calmStrong }]}>
+            Review {fieldLabels[draftProblem.field]} ↑
+          </Text>
+        </Pressable>
       ) : null}
       <Pressable
         accessibilityRole="button"
@@ -286,9 +304,16 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
         accessibilityState={{ disabled: !canAdd, busy: saving }}
         disabled={!canAdd}
         onPress={handleAdd}
-        style={[s.primary, { backgroundColor: t.calm, opacity: canAdd || saving ? 1 : 0.45 }]}
+        style={[
+          s.primary,
+          {
+            backgroundColor: canAdd || saving ? t.calm : t.surface,
+            borderWidth: 1,
+            borderColor: t.hairline,
+          },
+        ]}
       >
-        <Text style={[s.primaryLabel, { color: t.inverse }]}>
+        <Text style={[s.primaryLabel, { color: canAdd || saving ? t.inverse : t.muted }]}>
           {saving
             ? target === null
               ? 'Adding debt…'
@@ -317,8 +342,12 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           placeholder="e.g. Barclaycard"
           placeholderTextColor={t.muted}
           style={[s.input, { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink }]}
+          ref={(input) => {
+            fieldInputs.current.name = input;
+          }}
           accessibilityLabel="Debt name, required"
         />
+        {fieldError('name')}
       </View>
       <View style={s.field}>
         <Text style={[s.label, { color: t.muted }]}>Outstanding balance *</Text>
@@ -327,14 +356,19 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           <TextInput
             value={balance}
             onChangeText={setBalance}
+            onBlur={() => setBalance(normalizeManualMoneyDraft(balance, { allowZero: true }))}
             selectTextOnFocus
             keyboardType="decimal-pad"
             placeholder="0"
             placeholderTextColor={t.muted}
             style={[s.moneyInput, { color: t.ink }]}
+            ref={(input) => {
+              fieldInputs.current.balance = input;
+            }}
             accessibilityLabel="Balance, required"
           />
         </View>
+        {fieldError('balance')}
       </View>
       <View style={s.field}>
         <Text style={[s.label, { color: t.muted }]}>Monthly minimum payment *</Text>
@@ -343,14 +377,19 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           <TextInput
             value={minPayment}
             onChangeText={setMinPayment}
+            onBlur={() => setMinPayment(normalizeManualMoneyDraft(minPayment, { allowZero: true }))}
             selectTextOnFocus
             keyboardType="decimal-pad"
             placeholder="0"
             placeholderTextColor={t.muted}
             style={[s.moneyInput, { color: t.ink }]}
+            ref={(input) => {
+              fieldInputs.current.minimum = input;
+            }}
             accessibilityLabel="Minimum per month, required"
           />
         </View>
+        {fieldError('minimum')}
         <Text style={s.helper}>
           {target === null
             ? 'Enter the minimum required by the lender, above £0.'
@@ -365,8 +404,12 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           selectTextOnFocus
           keyboardType="number-pad"
           style={[s.input, { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink }]}
+          ref={(input) => {
+            fieldInputs.current.dueDay = input;
+          }}
           accessibilityLabel="Due day of month, required"
         />
+        {fieldError('dueDay')}
         <Text style={s.helper}>
           Choose 1–31. In a shorter month, the payment falls on its last day.
         </Text>
@@ -377,15 +420,20 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           <TextInput
             value={apr}
             onChangeText={setApr}
+            onBlur={() => setApr(normalizeManualMoneyDraft(apr, { allowZero: true }))}
             selectTextOnFocus
             keyboardType="decimal-pad"
             placeholder="Unknown"
             placeholderTextColor={t.muted}
             style={[s.moneyInput, { color: t.ink }]}
+            ref={(input) => {
+              fieldInputs.current.apr = input;
+            }}
             accessibilityLabel="APR, optional"
           />
           <Text style={[s.currency, { color: t.muted }]}>%</Text>
         </View>
+        {fieldError('apr')}
         <Text style={s.helper}>
           The yearly interest rate from your lender. Enter 0 for interest-free; leave blank if
           unknown.

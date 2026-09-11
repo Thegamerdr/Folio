@@ -19,25 +19,45 @@ export function applyMoneyKey(raw: string, key: string): string {
   return (raw === '0' ? key : raw + key).slice(0, 12);
 }
 
-export function debtDraftIssue(input: {
+export type DebtDraft = {
   name: string;
   balance: string;
   apr: string;
   minimum: string;
   dueDay: string;
   editing: boolean;
-}): string | null {
-  if (!input.name.trim()) return 'Add a name for this debt.';
+};
+export type DebtDraftField = Exclude<keyof DebtDraft, 'editing'>;
+
+/** Keep each error attached to the field that needs attention, even when it is offscreen. */
+export function debtDraftProblem(
+  input: DebtDraft,
+): { field: DebtDraftField; message: string } | null {
+  if (!input.name.trim()) return { field: 'name', message: 'Add a name for this debt.' };
   if (parseManualMoney(input.balance, { allowZero: input.editing }) === undefined)
-    return input.editing
-      ? 'Enter a balance of £0 or more.'
-      : 'Enter the outstanding balance, above £0.';
+    return {
+      field: 'balance',
+      message: input.editing
+        ? 'Enter a balance of £0 or more.'
+        : 'Enter the outstanding balance, above £0.',
+    };
   if (parseManualMoney(input.minimum, { allowZero: input.editing }) === undefined)
-    return input.editing
-      ? 'Enter a minimum payment of £0 or more.'
-      : 'Enter the monthly minimum payment, above £0.';
-  if (parseDayOfMonth(input.dueDay) === undefined) return 'Enter a day from 1 to 31.';
+    return {
+      field: 'minimum',
+      message: input.editing
+        ? 'Enter a minimum payment of £0 or more.'
+        : 'Enter the monthly minimum payment, above £0.',
+    };
+  if (parseDayOfMonth(input.dueDay) === undefined)
+    return { field: 'dueDay', message: 'Enter a day from 1 to 31.' };
   if (input.apr.trim() && parseManualMoney(input.apr, { allowZero: true }) === undefined)
-    return 'Enter an annual interest rate of 0% or more, or leave it blank if unknown.';
+    return {
+      field: 'apr',
+      message: 'Enter an annual interest rate of 0% or more, or leave it blank if unknown.',
+    };
   return null;
+}
+
+export function debtDraftIssue(input: DebtDraft): string | null {
+  return debtDraftProblem(input)?.message ?? null;
 }

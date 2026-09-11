@@ -59,6 +59,18 @@ export function calendarFixture(): AppState {
 }
 const NOW = new Date(2026, 8, 9);
 describe('one Calendar presentation for the parent and Full day', () => {
+  it('keeps daily essentials in detail and forecast balances while limiting markers to dated events', () => {
+    const model = buildCalendarPresentation(calendarFixture(), NOW);
+    const daily = model.events.filter(
+      (event) => event.note === 'Daily share of your weekly essentials',
+    );
+    expect(daily.length).toBeGreaterThan(0);
+    expect(daily.every((event) => event.showDayMarker === false && (event.amount ?? 0) < 0)).toBe(
+      true,
+    );
+    expect(model.events.find((event) => event.title === 'Rent + bills')?.showDayMarker).toBe(true);
+    expect(model.spareByDay['2026-09-11']).toBeLessThan(model.spareByDay['2026-09-10']!);
+  });
   it('preserves the 12 September rent row and date when Full day selects it', () => {
     const model = buildCalendarPresentation(calendarFixture(), NOW);
     const parent = model.groups.find((group) => group.date === '2026-09-12')?.events;
@@ -116,13 +128,17 @@ describe('one Calendar presentation for the parent and Full day', () => {
       }),
     );
     state.subs = [
-      { ...state.subs[0]!, obligationOccurrences: { '2026-09-12': { status: 'paid' } } },
+      {
+        ...state.subs[0]!,
+        obligationOccurrences: { '2026-09-12': { status: 'paid', amountMinor: 95000 } },
+      },
     ];
     const paid = buildCalendarPresentation(state, NOW);
     expect(paid.eventsByDay['2026-09-06']).toContainEqual(
       expect.objectContaining({
         title: 'Rent + bills',
         note: expect.stringContaining('Confirmed already paid'),
+        confirmedPaidAmount: 950,
       }),
     );
     expect(paid.eventsByDay['2026-09-06']?.some((event) => event.amount === -950)).toBe(false);

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyMoneyKey,
   debtDraftIssue,
+  debtDraftProblem,
   isHorizontalSliderGesture,
   parseDayOfMonth,
 } from './formDrafts';
@@ -46,6 +47,12 @@ describe('exact form drafts (A03, B04, B11)', () => {
     expect(debtDraftIssue({ ...debt, minimum: '0' })).toContain('minimum payment, above £0');
     expect(debtDraftIssue({ ...debt, apr: '0' })).toBeNull();
     expect(debtDraftIssue({ ...debt, apr: '' })).toBeNull();
+  });
+  it('points validation to its actual field even when another field is visible', () => {
+    expect(debtDraftProblem({ ...debt, name: '' })?.field).toBe('name');
+    expect(debtDraftProblem({ ...debt, minimum: '0' })?.field).toBe('minimum');
+    expect(debtDraftProblem({ ...debt, dueDay: '32' })?.field).toBe('dueDay');
+    expect(debtDraftProblem({ ...debt, apr: '-1' })?.field).toBe('apr');
   });
   it('preserves zero balances and minimums for existing cleared debts', () => {
     expect(debtDraftIssue({ ...debt, balance: '0', minimum: '0', editing: true })).toBeNull();

@@ -52,6 +52,10 @@ export type DerivedEvent = {
   kind: DerivedEventKind;
   /** Where the event came from — drives "Repeats monthly" hint + pause action. */
   source: DerivedEventSource;
+  /** False for daily forecast allocation; kept in totals and day detail, omitted from markers. */
+  showDayMarker?: boolean;
+  /** Historical paid amount for display only; never included in forecast outflow totals. */
+  confirmedPaidAmount?: number;
   title: string;
   note?: string;
   /** signed pounds; positive = in, negative = out, undefined = informational */

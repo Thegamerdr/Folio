@@ -732,9 +732,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
           </View>
 
           <Text style={styles.tileCaption}>
-            {presentation.canReassure
-              ? 'Safe to spend after recorded costs and buffer.'
-              : 'Both figures are after recorded costs and buffer.'}{' '}
+            {presentation.canReassure ? 'Safe to spend. ' : 'Both figures: '}
             {currentPresentation.caption}
             {currentPresentation.qualification ? ` ${currentPresentation.qualification}` : ''}
           </Text>

@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 
 import manifestJson from '@/folio/parity/statusDialogs.json';
 

@@ -37,7 +37,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
-  Alert,
   Animated,
   Easing,
   Keyboard,
@@ -52,6 +51,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { copy } from '@/folio/copy/copy';
@@ -253,10 +253,10 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
     // opened it" claim or a "pause/cancel it" directive — she surfaces the upcoming charge and asks a
     // neutral question; the user decides. Both branches key on the renewal date, never on usage.
     if (soon && soon.nextRenewalDaysAway <= 3) {
-      return `${name}quick one — ${soon.name} £${soon.cost.toFixed(2)} leaves ${soon.nextRenewalDaysAway === 0 ? 'today' : `in ${soon.nextRenewalDaysAway}d`}. all good with that?`;
+      return `${name}quick one — ${soon.name} ${formatMoney(soon.cost)} leaves ${soon.nextRenewalDaysAway === 0 ? 'today' : `in ${soon.nextRenewalDaysAway} ${soon.nextRenewalDaysAway === 1 ? 'day' : 'days'}`}. All good with that?`;
     }
     if (soon && soon.nextRenewalDaysAway <= 7) {
-      return `${name}heads up — ${soon.name} (£${soon.cost.toFixed(2)}) renews in ${soon.nextRenewalDaysAway} day${soon.nextRenewalDaysAway === 1 ? '' : 's'}. want a look before it goes out?`;
+      return `${name}heads up — ${soon.name} (${formatMoney(soon.cost)}) renews in ${soon.nextRenewalDaysAway} day${soon.nextRenewalDaysAway === 1 ? '' : 's'}. want a look before it goes out?`;
     }
     if (snapshot.setupComplete === false) {
       return `${name}your money picture still needs ${snapshot.setupNeeds?.join(', ') || 'your numbers'}. You can add or confirm them in setup.`;
@@ -771,7 +771,16 @@ function MeloChat({
             languagePackState.kind === 'unavailable' ? (
               <PressText
                 label="Install · 648 MB"
-                onPress={() => void installLanguagePack()}
+                onPress={() =>
+                  Alert.alert(
+                    'Download the private language pack?',
+                    'This is a one-off download of about 648 MB. Use Wi-Fi to avoid mobile data charges. Melo still works without this optional pack.',
+                    [
+                      { text: 'Not now', style: 'cancel' },
+                      { text: 'Download 648 MB', onPress: () => void installLanguagePack() },
+                    ],
+                  )
+                }
                 style={s.languagePackAction}
                 labelStyle={s.languagePackActionLabel}
                 reduceMotion={reduceMotion}
@@ -1256,7 +1265,7 @@ function describeLanguagePackState(
     case 'installed':
       return 'Ready on this phone for broader wording and more natural replies.';
     case 'not-installed':
-      return 'Add the private language pack for broader wording and more natural replies.';
+      return 'Optional, one-off 648 MB download for more natural replies. Use Wi-Fi. Melo works without it.';
     case 'invalid':
       return 'The saved pack did not pass verification. Install a clean copy.';
     case 'unavailable':
@@ -1801,9 +1810,11 @@ function makeStyles(t: Palette) {
     },
     languagePackAction: {
       alignItems: 'center',
-      backgroundColor: t.inset,
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderWidth: StyleSheet.hairlineWidth,
       borderRadius: radius.pill,
-      minHeight: 34,
+      minHeight: 48,
       justifyContent: 'center',
       paddingHorizontal: gap.md,
     },
@@ -1916,7 +1927,7 @@ function makeStyles(t: Palette) {
       gap: gap.xs + gap.xxs, // gap-1.5 = 6
     },
     toneSelected: {
-      backgroundColor: t.ink,
+      backgroundColor: t.calm,
     },
     toneUnselected: {
       backgroundColor: t.inset,

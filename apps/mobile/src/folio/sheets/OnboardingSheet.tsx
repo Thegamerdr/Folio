@@ -1547,9 +1547,11 @@ function OnboardingFlow({
         <Text style={s.footer}>
           {isReturning
             ? 'Cancel keeps everything you’ve already added unchanged.'
-            : activeStepIndex === STEP_POTS
-              ? 'You can add pots later. Save my setup keeps the numbers entered in these steps.'
-              : 'Only numbers you add are used. Entries in these steps are saved together at the end; Finish later leaves existing data unchanged.'}
+            : activeStepIndex === 0
+              ? 'Use a name or nickname. Nothing is saved until you finish setup.'
+              : activeStepIndex === STEP_POTS
+                ? 'You can add pots later. Save my setup keeps the numbers entered in these steps.'
+                : 'Your entries are saved together when you finish setup.'}
         </Text>
       </View>
     </Sheet>

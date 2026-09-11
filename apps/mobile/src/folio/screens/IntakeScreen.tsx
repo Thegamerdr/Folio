@@ -72,7 +72,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
-  Alert,
   Clipboard,
   Pressable,
   ScrollView,
@@ -80,7 +79,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Circle } from 'react-native-svg';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -811,7 +812,20 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
       ]}
     >
       <View style={[styles.iconTile, { backgroundColor: t.inset }]}>
-        <Text style={[styles.icon, { color: t.ink }]}>{option.icon}</Text>
+        {option.icon === '▢' ? (
+          <Svg width={24} height={24} viewBox="0 0 24 24" accessible={false}>
+            <Path
+              d="M3 6h4l2-3h6l2 3h4v15H3z"
+              fill="none"
+              stroke={t.ink}
+              strokeWidth={1.6}
+              strokeLinejoin="round"
+            />
+            <Circle cx={12} cy={13} r={4} fill="none" stroke={t.ink} strokeWidth={1.6} />
+          </Svg>
+        ) : (
+          <Text style={[styles.icon, { color: t.ink }]}>{option.icon}</Text>
+        )}
       </View>
       <View style={styles.rowBody}>
         <View style={styles.titleRow}>

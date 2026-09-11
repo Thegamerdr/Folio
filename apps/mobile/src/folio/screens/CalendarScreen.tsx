@@ -157,7 +157,7 @@ const EPOCH = new Date(0);
 function kindDotColor(t: Palette, kind: DerivedEvent['kind']): string {
   if (kind === 'in') return t.positive;
   if (kind === 'out') return t.repair;
-  if (kind === 'review') return t.calm;
+  if (kind === 'review') return t.muted;
   if (kind === 'deadline') return t.caution;
   return withAlpha(t.ink, 0.6); // manual
 }
@@ -197,6 +197,8 @@ function shiftIso(iso: string, days: number): string {
 // amountStr — "+£11" / "−£540" / "+£11.99". The '−' is U+2212 (MINUS SIGN), not ASCII '-'; the '+'
 // and the toFixed(0|2) split (whole pounds drop the decimals) are byte-faithful to the web.
 function amountStr(e: DerivedEvent): string | null {
+  if (typeof e.confirmedPaidAmount === 'number')
+    return `Paid ${formatMoney(e.confirmedPaidAmount)}`;
   if (typeof e.amount !== 'number') return null;
   const sign = e.amount >= 0 ? '+' : '−';
   return `${sign}£${Math.abs(e.amount).toLocaleString('en-GB', { maximumFractionDigits: 2 })}`;
@@ -236,7 +238,12 @@ function describeDay(
       deadline: 'deadline',
       manual: 'you added',
     };
-    const amt = typeof e.amount === 'number' ? ` ${formatMoney(e.amount)}` : '';
+    const amt =
+      typeof e.confirmedPaidAmount === 'number'
+        ? ` paid ${formatMoney(e.confirmedPaidAmount)}`
+        : typeof e.amount === 'number'
+          ? ` ${formatMoney(e.amount)}`
+          : '';
     return `${labels[e.kind]}${amt} ${e.title}`;
   });
   const spareTxt = typeof spare === 'number' ? `, ${formatGBP(spare)} projected balance after` : '';
@@ -355,6 +362,7 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
   const tightestSpare = (calendar?.lowestBeforeIncome.closingMinor ?? 0) / 100;
 
   const [view, setView] = useState<CalendarView>('agenda');
+  const [showForecastHelp, setShowForecastHelp] = useState(false);
 
   // One selected date survives Month/Week/Agenda changes and full-day sheets. Go there and Route
   // detail set this same date explicitly; a stale request must never become a new tight-point jump.
@@ -561,10 +569,25 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
               </Pressable>
             </View>
           ) : null}
-          <Text style={s.eventNote}>
-            Projected balance includes essentials. Bills and debt minimums use the same dates and
-            unpaid amounts as Plan. Income dated today is already in your entered balance.
-          </Text>
+          <View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showForecastHelp }}
+              onPress={() => setShowForecastHelp((value) => !value)}
+              style={{ minHeight: 48, justifyContent: 'center' }}
+            >
+              <Text style={s.fullDayLink}>
+                {showForecastHelp ? 'Hide forecast explanation −' : 'About this forecast +'}
+              </Text>
+            </Pressable>
+            {showForecastHelp ? (
+              <Text style={s.subhead}>
+                Projected balance includes essentials. Bills and debt minimums use the same dates
+                and unpaid amounts as Plan. Income dated today is already in your entered balance.
+                Day markers show dated events; daily essentials remain included in the balance.
+              </Text>
+            ) : null}
+          </View>
 
           {/* View switcher — a tablist over the inset well. The selected tab lifts to the paper surface
             with a soft shadow; the rest are muted text. */}
@@ -681,6 +704,9 @@ export function CalendarScreen({ nav }: { nav: Nav }) {
               </View>
             ))}
           </View>
+          <Text style={[s.legendLabel, { marginTop: gap.sm }]}>
+            ▲ Net dated money in · ▼ Net dated money out
+          </Text>
 
           {/* Footer actions — three CTAs. Add an event (terracotta), Add to your calendar app (the real
             .ics export sheet), Connect Google (hosted push — UI only). Labels never truncate; long
@@ -1121,6 +1147,7 @@ function WeekView({
         {days.map((d) => {
           const iso = isoDay(d);
           const evs = eventsByDay[iso] ?? [];
+          const markerEvents = evs.filter((event) => event.showDayMarker !== false);
           const isToday = iso === todayIso;
           const isTightest = iso === tightestDate;
           const isPast = iso < todayIso;
@@ -1143,7 +1170,7 @@ function WeekView({
                 {d.getDate()}
               </Text>
               <View style={layout.stripDots}>
-                {evs.slice(0, 4).map((e) => (
+                {markerEvents.slice(0, 4).map((e) => (
                   <View
                     key={e.id}
                     style={[layout.stripDot, { backgroundColor: kindDotColor(t, e.kind) }]}
@@ -1330,23 +1357,18 @@ function MonthView({
           if (!d) return <View key={`blank-${i}`} style={layout.gridBlank} />;
           const iso = isoDay(d);
           const evs = eventsByDay[iso] ?? [];
+          const markerEvents = evs.filter((event) => event.showDayMarker !== false);
           const isToday = iso === todayIso;
           const isTightest = iso === tightestDate;
           const isSelected = iso === selected;
           const isPast = iso < todayIso;
-          const net = netForDay(evs);
+          const net = netForDay(markerEvents);
           const tick = net > 0 ? '▲' : net < 0 ? '▼' : '';
-          const tickColor = isSelected
-            ? withAlpha(t.canvas, 0.7)
-            : net > 0
-              ? t.positive
-              : net < 0
-                ? t.repair
-                : 'transparent';
+          const tickColor = net > 0 ? t.positive : net < 0 ? t.repair : 'transparent';
           // Tap semantics mirror the web exactly: tapping an unselected cell selects it (as before);
           // tapping the ALREADY-selected cell opens the full-detail sheet ("tap again for full
           // detail" — the web's aria-label addendum, carried into accessibilityHint below).
-          const overflow = evs.length > 3 ? evs.length - 3 : 0;
+          const overflow = markerEvents.length > 3 ? markerEvents.length - 3 : 0;
           return (
             <Pressable
               key={iso}
@@ -1384,15 +1406,13 @@ function MonthView({
               </Text>
               {tick ? <Text style={[s.gridTick, { color: tickColor }]}>{tick}</Text> : null}
               <View style={layout.gridDots}>
-                {evs.slice(0, 3).map((e) => (
+                {markerEvents.slice(0, 3).map((e) => (
                   <View
                     key={e.id}
                     style={[
                       layout.gridDot,
                       {
-                        backgroundColor: isSelected
-                          ? withAlpha(t.canvas, 0.7)
-                          : kindDotColor(t, e.kind),
+                        backgroundColor: kindDotColor(t, e.kind),
                       },
                     ]}
                   />
@@ -1403,10 +1423,7 @@ function MonthView({
                   <Text
                     accessibilityElementsHidden
                     importantForAccessibility="no-hide-descendants"
-                    style={[
-                      s.gridOverflow,
-                      { color: isSelected ? withAlpha(t.canvas, 0.7) : t.muted },
-                    ]}
+                    style={[s.gridOverflow, { color: t.muted }]}
                   >
                     {`+${overflow}`}
                   </Text>
@@ -1579,7 +1596,14 @@ export function EventRow({
             <Text
               style={[
                 compact ? s.eventAmountCompact : s.eventAmount,
-                { color: e.kind === 'in' ? t.positive : t.ink },
+                {
+                  color:
+                    e.confirmedPaidAmount !== undefined
+                      ? t.muted
+                      : e.kind === 'in'
+                        ? t.positive
+                        : t.ink,
+                },
               ]}
             >
               {amt}
@@ -2216,11 +2240,11 @@ export function makeStyles(t: Palette) {
       letterSpacing: 1.14,
       textTransform: 'uppercase',
     },
-    gridCellSelected: { backgroundColor: t.ink },
-    gridCellTightest: { backgroundColor: t.calmSoft },
-    gridCellToday: { backgroundColor: t.inset },
+    gridCellSelected: { backgroundColor: t.calm },
+    gridCellTightest: { borderBottomWidth: 2, borderBottomColor: t.calm },
+    gridCellToday: { borderWidth: 1, borderColor: t.calm },
     gridDay: { color: t.ink, fontSize: 13, fontVariant: ['tabular-nums'] },
-    gridDaySelected: { color: t.canvas },
+    gridDaySelected: { color: t.inverse, fontWeight: '600' },
     gridDayTightest: { color: t.calm, fontWeight: '500' },
     gridTick: { fontSize: 7, marginTop: 1 },
 

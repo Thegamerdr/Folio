@@ -61,7 +61,7 @@ describe('canonical next debt minimum presentation', () => {
     ]);
     expect(selectDebtMinimumPresentation(plan, 'card')).toMatchObject({
       amountMinor: 5000,
-      amountLabel: '£50 remaining',
+      amountLabel: '£50 payment due',
       overdue: true,
     });
     expect(debt.minPayment).toBe(80);
@@ -80,7 +80,7 @@ describe('canonical next debt minimum presentation', () => {
   it('shows the engine-capped final principal rather than the contractual monthly minimum', () => {
     expect(selectDebtMinimumPresentation(planFor([{ ...debt, balance: 20.45 }]))).toMatchObject({
       amountMinor: 2045,
-      amountLabel: '£20.45 remaining',
+      amountLabel: '£20.45 payment due',
     });
   });
   it('makes today explicit with the same full date shown in Calendar', () => {

@@ -20,7 +20,8 @@ import { isDebtPayment } from '@/folio/lib/debtPaymentLedger';
 //               days (web parity).
 
 import { useMemo } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 
 import { gap, pressed, radius, serif, type Palette } from '@/folio/theme';
 import { removeTransactionWithUndo, getState, useAppStore, type Transaction } from '@/folio/store';

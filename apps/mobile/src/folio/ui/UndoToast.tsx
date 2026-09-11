@@ -176,7 +176,9 @@ function makeStyles(t: Palette) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: gap.md,
-      backgroundColor: t.ink,
+      backgroundColor: t.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.hairline,
       borderRadius: radius.lg,
       paddingVertical: gap.md,
       paddingHorizontal: gap.lg,
@@ -184,7 +186,7 @@ function makeStyles(t: Palette) {
       ...elevation.card,
     },
     label: {
-      color: t.inverse,
+      color: t.ink,
       fontSize: 13,
       lineHeight: 18,
     },
@@ -198,7 +200,7 @@ function makeStyles(t: Palette) {
       justifyContent: 'center',
     },
     undoLabel: {
-      color: t.canvas,
+      color: t.calmStrong,
       fontSize: 13,
       fontWeight: '700',
       letterSpacing: 0.3,

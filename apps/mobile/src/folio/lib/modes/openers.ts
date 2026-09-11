@@ -1,3 +1,4 @@
+import { formatMoney } from '../financialPresentation';
 /**
  * @rn-lib       modeOpeners
  * @purpose      Per-mode opener library for Melo. Each mode picks the first
@@ -45,9 +46,11 @@ const survivalPool: Opener[] = [
       : null,
   (c) =>
     c.soonSubName
-      ? `${c.name}quick one — ${c.soonSubName} £${(c.soonSubCost ?? 0).toFixed(2)} leaves ${
-          c.soonSubDays === 0 ? 'today' : `in ${c.soonSubDays}d`
-        }. all good?`
+      ? `${c.name}quick one — ${c.soonSubName} ${formatMoney(c.soonSubCost ?? 0)} leaves ${
+          c.soonSubDays === 0
+            ? 'today'
+            : `in ${c.soonSubDays} ${c.soonSubDays === 1 ? 'day' : 'days'}`
+        }. All good?`
       : null,
   (c) =>
     c.quietSubName
@@ -102,7 +105,7 @@ const irregularPool: Opener[] = [
     `${c.name}runway's the honest number here. want to see how far the current balance stretches?`,
   (c) =>
     c.soonSubName
-      ? `${c.name}${c.soonSubName} £${(c.soonSubCost ?? 0).toFixed(2)} lands in ${c.soonSubDays}d — worth timing against the next inflow?`
+      ? `${c.name}${c.soonSubName} ${formatMoney(c.soonSubCost ?? 0)} lands in ${c.soonSubDays}d — worth timing against the next inflow?`
       : null,
   (c) => `${c.name}quiet week or busy week — either way we can look at the shape.`,
 ];

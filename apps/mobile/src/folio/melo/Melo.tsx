@@ -433,6 +433,7 @@ function PhoenixBody({
     <Animated.Image
       source={spec.src}
       resizeMode="contain"
+      resizeMethod="scale"
       style={{
         position: 'absolute',
         top: 0,

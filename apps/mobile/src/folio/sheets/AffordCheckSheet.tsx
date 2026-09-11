@@ -238,9 +238,11 @@ function AffordCheckForm({
               setCheckedAmount(amount);
               Keyboard.dismiss();
             }}
-            style={[s.shelfCta, { opacity: amount > 0 ? 1 : 0.5 }]}
+            style={[s.shelfCta, amount <= 0 && s.doneCtaSecondary]}
           >
-            <Text style={s.shelfCtaLabel}>Check this amount</Text>
+            <Text style={[s.shelfCtaLabel, amount <= 0 && { color: t.muted }]}>
+              Check this amount
+            </Text>
           </Pressable>
         ) : (
           <View style={s.footerActions}>

@@ -98,6 +98,7 @@ export function buildCalendarPresentation(state: AppState, now: Date, windowDays
                 : pot
                   ? 'pot'
                   : 'hold',
+      showDayMarker: item.source !== 'living',
       title: debt ? `${debt.name} · minimum payment` : item.label,
       amount: item.amountMinor / 100,
       note:
@@ -128,6 +129,9 @@ export function buildCalendarPresentation(state: AppState, now: Date, windowDays
         kind: 'review',
         source: 'bill',
         title: sub.name,
+        ...(resolution.amountMinor === undefined
+          ? {}
+          : { confirmedPaidAmount: resolution.amountMinor / 100 }),
         note: 'Confirmed already paid · included in your cash balance',
       });
     }
@@ -142,6 +146,7 @@ export function buildCalendarPresentation(state: AppState, now: Date, windowDays
         kind: 'review',
         source: 'manual',
         title: event.title,
+        ...(event.amount === undefined ? {} : { confirmedPaidAmount: Math.abs(event.amount) }),
         note: 'Confirmed already paid · included in your cash balance',
         manual: true,
       });

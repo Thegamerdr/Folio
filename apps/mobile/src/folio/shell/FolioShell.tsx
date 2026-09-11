@@ -28,7 +28,6 @@ import {
 import type { ErrorInfo, ReactNode } from 'react';
 import {
   AccessibilityInfo,
-  Alert,
   AppState,
   BackHandler,
   Platform,
@@ -37,6 +36,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 // Matches errorReporting.ts's own import — that module only inits Sentry, it exposes no
 // captureException helper, so componentDidCatch below imports the SDK directly.
 import * as Sentry from '@sentry/react-native';
@@ -139,6 +139,7 @@ import { DriftCaughtSheet } from '@/folio/sheets/DriftCaughtSheet';
 import { AnnualCaughtSheet } from '@/folio/sheets/AnnualCaughtSheet';
 import { UndoProvider, useUndo } from '@/folio/ui/useUndo';
 import { ToastHost } from '@/folio/ui/Toast';
+import { MeloAlertHost } from '@/folio/ui/MeloAlertHost';
 import { UndoToast } from '@/folio/ui/UndoToast';
 import { AppLockGate } from '@/folio/ui/AppLockGate';
 import { RootErrorFallback } from '@/folio/ui/RootErrorFallback';
@@ -974,6 +975,7 @@ export function FolioShell() {
           {/* Generic toast host — the web-parity confirmation surface (sonner toast(title, {description})
           ported). Mounted once at the top-level overlay, alongside the undo snackbar it never
           disturbs. */}
+          <MeloAlertHost />
           <ToastHost
             bottomOffset={bottomChromeHeight}
             paused={sheet !== null || workspaceSheetVisible}

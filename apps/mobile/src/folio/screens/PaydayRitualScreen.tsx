@@ -567,29 +567,38 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
   // sheet; an already-configured user simply returns to Today until their payday review is due.
   if (state === 'empty' || needsSetup || firstCycle) {
     return (
-      <EmptyState
-        mood="calm"
-        headline={
-          needsSetup
-            ? 'Add your first money picture'
-            : firstCycle
-              ? 'Start your first cycle'
-              : 'Nothing to close yet'
-        }
-        body={
-          needsSetup
-            ? 'Set your balance and payday first. The review will use what really happened after that.'
-            : `Your first cycle starts with the numbers you entered. Keep recording activity; your next payday is ${formatFinancialDate(financialPlan.nextIncomeDate)}. There is no completed cycle to close yet.`
-        }
-        cta={
-          needsSetup
-            ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
-            : {
-                label: firstCycle ? 'Start with Today' : 'Back to Today',
-                onPress: () => nav.go('today'),
-              }
-        }
-      />
+      <ScrollView
+        style={styles.scrollFlex}
+        contentContainerStyle={{
+          paddingHorizontal: gap.xl,
+          paddingTop: insets.top + gap.lg,
+          paddingBottom: insets.bottom + gap.xl,
+        }}
+      >
+        <EmptyState
+          mood="calm"
+          headline={
+            needsSetup
+              ? 'Add your first money picture'
+              : firstCycle
+                ? 'Start your first cycle'
+                : 'Nothing to close yet'
+          }
+          body={
+            needsSetup
+              ? 'Set your balance and payday first. The review will use what really happened after that.'
+              : `Your first cycle starts with the numbers you entered. Keep recording activity; your next payday is ${formatFinancialDate(financialPlan.nextIncomeDate)}. There is no completed cycle to close yet.`
+          }
+          cta={
+            needsSetup
+              ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
+              : {
+                  label: firstCycle ? 'Start with Today' : 'Back to Today',
+                  onPress: () => nav.go('today'),
+                }
+          }
+        />
+      </ScrollView>
     );
   }
 

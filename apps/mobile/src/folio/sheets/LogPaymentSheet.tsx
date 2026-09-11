@@ -16,7 +16,8 @@
 // including an overpayment's full cash amount and its smaller principal reduction.
 
 import { useMemo, useRef, useState } from 'react';
-import { Alert, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 
 import { gap, radius, serif, Sheet, useTheme, type Palette } from '@/folio/theme';
 import { useAppStore, logDebtPayment, getState } from '@/folio/store';
@@ -165,7 +166,7 @@ export function LogPaymentSheet({ visible, onClose, targetId }: LogPaymentSheetP
     setConfirmationOpen(true);
     Alert.alert(
       amt > selected.balance ? 'Record this overpayment?' : 'Record this payment?',
-      `${preview.text}\n\nThis records a payment you already made. Melo does not send money.${amt > selected.balance ? ` Only ${formatMoney(selected.balance, true)} reduces the debt; the full ${formatMoney(amt, true)} reduces tracked cash.` : ''}`,
+      `This records a payment you already made. Melo does not send money.${amt > selected.balance ? ` Only ${formatMoney(selected.balance, true)} reduces the debt; the full ${formatMoney(amt, true)} reduces tracked cash.` : ''}`,
       [
         { text: 'Back', style: 'cancel', onPress: dismissConfirmation },
         {
@@ -360,8 +361,10 @@ function makeStyles(t: Palette) {
     shortcut: {
       minHeight: 48,
       padding: 12,
-      borderRadius: radius.md,
-      backgroundColor: t.inset,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: t.hairline,
+      backgroundColor: t.surface,
       justifyContent: 'center',
     },
     shortcutLabel: { fontSize: 13, color: t.ink },
@@ -411,7 +414,7 @@ function makeStyles(t: Palette) {
     },
     currency: { fontSize: 14, fontVariant: ['tabular-nums'] },
     moneyInput: { flex: 1, fontSize: 13.5, fontVariant: ['tabular-nums'], padding: 0 },
-    warnLine: { marginTop: 6, fontSize: 11, fontStyle: 'italic', color: t.caution },
+    warnLine: { marginTop: 6, fontSize: 11, fontStyle: 'italic', color: t.repairInk },
     primary: {
       marginTop: gap.xl,
       height: 54,

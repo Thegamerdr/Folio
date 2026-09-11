@@ -399,7 +399,7 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
           <ProgressBar
             pct={pctOf(total, totalGoal)}
             trackColor={t.inset}
-            fillColor={t.ink}
+            fillColor={t.calm}
             height={6}
             durationMs={AGG_TWEEN_MS}
             reduceMotion={reduceMotion}
@@ -593,7 +593,7 @@ function PotCard({
       <ProgressBar
         pct={pctOf(pot.saved, pot.goal)}
         trackColor={t.inset}
-        fillColor={pot.accent ? t.calm : t.ink}
+        fillColor={t.calm}
         fillOpacity={pot.accent ? 1 : 0.7}
         height={5}
         durationMs={POT_TWEEN_MS}

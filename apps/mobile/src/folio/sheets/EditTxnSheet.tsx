@@ -53,7 +53,6 @@ import { isDebtPayment } from '@/folio/lib/debtPaymentLedger';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -62,6 +61,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 

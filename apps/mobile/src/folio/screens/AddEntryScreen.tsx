@@ -78,6 +78,7 @@ import Animated, {
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
+import { KeyboardSafeView } from '@/surfaces/pressureMap/Sheet';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { addCalendarEvent, setSubs, type Sub } from '@/folio/store';
 import { applyMoneyKey } from '@/folio/lib/formDrafts';
@@ -389,7 +390,7 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
         },
       ]}
     >
-      <View style={styles.formLayout}>
+      <KeyboardSafeView style={styles.formLayout} reduceMotion={reduceMotion}>
         <ScrollView
           style={styles.formLayout}
           contentContainerStyle={styles.formBody}
@@ -476,8 +477,6 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
           <Text style={[styles.contextHelp, { color: t.muted }]}>
             This adds a scheduled commitment. It does not make a payment.
           </Text>
-        </ScrollView>
-        <View style={styles.fixedControls}>
           {/* Amount display card — label + the £ amount, tabular figures, terracotta, em-dash when empty. */}
           <Pressable
             accessibilityRole="button"
@@ -519,7 +518,9 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
               </View>
             </>
           ) : null}
-          {/* Primary CTA — full-width terracotta, white label. The stamp scales it once on save. */}
+        </ScrollView>
+        <View style={styles.fixedControls}>
+          {/* Primary CTA stays clear of the keyboard; the full form and keypad scroll together. */}
           <Animated.View style={stampStyle}>
             <Pressable
               accessibilityHint="Saves this entry to your plans"
@@ -540,7 +541,7 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
             </Pressable>
           </Animated.View>
         </View>
-      </View>
+      </KeyboardSafeView>
     </Animated.View>
   );
 }
@@ -600,7 +601,7 @@ const styles = StyleSheet.create({
   },
   formLayout: { flex: 1 },
   formBody: { paddingBottom: gap.sm },
-  fixedControls: { flexShrink: 0 },
+  fixedControls: { flexShrink: 0, paddingTop: gap.sm },
   contextHelp: { fontSize: 12, lineHeight: 17, marginTop: gap.sm },
   loading: {
     flex: 1,
