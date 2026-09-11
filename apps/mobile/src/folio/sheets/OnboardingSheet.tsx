@@ -957,15 +957,21 @@ function OnboardingFlow({
         ]}
       >
         <Text style={[s.primaryLabel, { color: primaryDisabled ? t.ink : t.inverse }]}>
-          {showSummary
-            ? isReturning
-              ? 'Save changes'
-              : 'Save my setup'
-            : isReturning
-              ? 'Review changes'
-              : isLast || reviewingRow
-                ? 'Review my setup'
-                : 'Next'}
+          {primaryDisabled
+            ? showSummary && !costsConfirmed
+              ? 'Confirm your costs above'
+              : activeStepIndex === STEP_POTS
+                ? 'Complete the pot amounts'
+                : 'Check the highlighted field'
+            : showSummary
+              ? isReturning
+                ? 'Save changes'
+                : 'Save my setup'
+              : isReturning
+                ? 'Review changes'
+                : isLast || reviewingRow
+                  ? 'Review my setup'
+                  : 'Next'}
         </Text>
       </Pressable>
       <View style={s.footerActions}>
@@ -1048,14 +1054,16 @@ function OnboardingFlow({
       reduceMotion={reduceMotion}
       scrollKey={step}
       footer={footer}
-    >
-      <View style={s.body}>
-        {/* Progress pips — three states (active w7 accent · done w5 ink/60 · future w5 hairline). */}
-        <Text style={s.selectedGoal}>
+      header={
+        <Text style={[s.selectedGoal, { paddingBottom: gap.sm }]}>
           {isReturning
             ? `Edit · ${current.eyebrow}`
             : `Step ${step + 1} of ${visibleStepIndices.length} · ${current.eyebrow}`}
         </Text>
+      }
+    >
+      <View style={s.body}>
+        {/* Progress pips — three states (active w7 accent · done w5 ink/60 · future w5 hairline). */}
         <View style={[s.pips, keyboardOpen ? { marginBottom: gap.sm } : undefined]}>
           {visibleStepIndices.map((_, i) => (
             <ProgressPip

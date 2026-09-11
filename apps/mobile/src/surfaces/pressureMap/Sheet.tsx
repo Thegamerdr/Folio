@@ -98,6 +98,8 @@ type SheetProps = {
   scrollable?: boolean;
   /** Workflow actions stay above the keyboard while only the form body scrolls. */
   footer?: ReactNode;
+  /** Title or workflow context that remains visible while the body scrolls. */
+  header?: ReactNode;
   /** A new step starts at its heading without discarding the caller's draft. */
   scrollKey?: string | number;
   scrollRef?: RefObject<ScrollView | null>;
@@ -279,6 +281,7 @@ export function Sheet({
   reduceMotion,
   scrollable = true,
   footer,
+  header,
   scrollKey,
   scrollRef,
 }: SheetProps) {
@@ -553,6 +556,7 @@ export function Sheet({
                   </Pressable>
                 ) : null}
               </View>
+              {header ? <View style={{ flexShrink: 0 }}>{header}</View> : null}
               {scrollable ? (
                 <ScrollView
                   ref={bodyScrollRef}
@@ -595,6 +599,7 @@ export function Sheet({
     [
       children,
       footer,
+      header,
       footerHeight,
       dismissible,
       bodyScrollRef,

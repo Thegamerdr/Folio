@@ -545,7 +545,7 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
               style={({ pressed: isPressed }) => [
                 styles.primaryCta,
                 {
-                  backgroundColor: !name.trim() || !(parseAmount(amount) > 0) ? t.surface : t.calm,
+                  backgroundColor: !name.trim() || !(parseAmount(amount) > 0) ? t.inset : t.calm,
                   borderWidth: 1,
                   borderColor: t.hairline,
                 },
@@ -558,7 +558,11 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
                   { color: !name.trim() || !(parseAmount(amount) > 0) ? t.muted : t.inverse },
                 ]}
               >
-                Add it to plans
+                {!name.trim()
+                  ? 'Enter a payment name'
+                  : !(parseAmount(amount) > 0)
+                    ? 'Enter an amount above £0'
+                    : 'Add it to plans'}
               </Text>
             </Pressable>
           </Animated.View>
@@ -610,10 +614,18 @@ function SelectCell({
         <Text style={[styles.fieldLabelSm, { color: mutedColor }]}>{label}</Text>
         <Text style={[styles.selectValue, { color: inkColor }]}>{value} ▾</Text>
       </Pressable>
-      <Sheet visible={open} onClose={() => setOpen(false)}>
-        <Text accessibilityRole="header" style={[styles.headline, { color: inkColor }]}>
-          {label === 'When' ? 'Due day each month' : 'How often?'}
-        </Text>
+      <Sheet
+        visible={open}
+        onClose={() => setOpen(false)}
+        header={
+          <Text
+            accessibilityRole="header"
+            style={[styles.headline, { color: inkColor, paddingBottom: gap.sm }]}
+          >
+            {label === 'When' ? 'Due day each month' : 'How often?'}
+          </Text>
+        }
+      >
         {label === 'When' ? (
           <Text style={[styles.contextHelp, { color: mutedColor }]}>
             Choose any day. If a month is shorter, the payment falls on its last day.

@@ -1120,7 +1120,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
               </View>
             </Surface>
 
-            <View style={styles.tiersGrid}>
+            <View style={[styles.tiersGrid, stackRows && { flexDirection: 'column' }]}>
               {TIERS.map((p) => {
                 const isCurrent =
                   p.key === 'full'
@@ -1138,6 +1138,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                     onPress={() => nav.go('paywall')}
                     style={({ pressed: isPressed }) => [
                       styles.tierGridCard,
+                      stackRows && { flex: 0, width: '100%' },
                       {
                         backgroundColor: isCurrent ? t.calmSoft : t.surface,
                         borderColor: t.hairline,
@@ -1414,10 +1415,31 @@ function Stat({ n, label }: { n: number; label: string }) {
   const stacked = shouldStackTextRows(width, fontScale, gap.xl * 2);
   return (
     <Surface
-      style={[styles.statCard, stacked && styles.statCardFullWidth, { borderColor: t.hairline }]}
+      style={[
+        styles.statCard,
+        stacked && styles.statCardFullWidth,
+        stacked && {
+          flexDirection: 'row',
+          gap: gap.md,
+          paddingHorizontal: gap.md,
+          flexGrow: 0,
+          justifyContent: 'space-between',
+        },
+        { borderColor: t.hairline },
+      ]}
     >
-      <Text style={[styles.statNumber, { color: t.ink }]}>{n}</Text>
-      <Text style={[styles.statLabel, { color: t.muted }]}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.4} style={[styles.statNumber, { color: t.ink }]}>
+        {n}
+      </Text>
+      <Text
+        style={[
+          styles.statLabel,
+          stacked && { flex: 1, textAlign: 'right', marginTop: 0 },
+          { color: t.muted },
+        ]}
+      >
+        {label}
+      </Text>
     </Surface>
   );
 }

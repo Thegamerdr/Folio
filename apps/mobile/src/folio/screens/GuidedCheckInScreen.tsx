@@ -1,74 +1,21 @@
-// GuidedCheckInScreen — the faithful 1:1 React Native port of the web "rough number" check-in
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenGuided.tsx).
-//
-// @rn-screen    GuidedCheckInScreen
-// @rn-stack     Onboarding > Guided
-// @purpose      Rough-number check-in — gather payday + income + headline spend without an account.
-// @reads        onboarding (currentBalance.amount seeds the figure — see FIDELITY below)
-// @writes       setCurrentBalance (the real honest write path for "what's roughly in your account
-//               today"; the web file declared @writes setOnboarding but never called it — see below)
-// @opens-sheet  —
-// @copy         FROZEN
-// @tokens       canvas (paper) · ink · calm (accent) · muted · surface · inset · hairline — all kit
-// @motion       slide-in-r (whole screen) · press 0.97/120ms (back · Skip · every key · Continue)
-//               · count-up (balance figure per keystroke; money NEVER slides) · caret blink
-//
-// FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store sources):
-//   • CONTRACT vs IMPLEMENTATION GAP (spec fidelityRisks): the web doc-block declares @reads
-//     onboarding / @writes setOnboarding, but the web code does NEITHER — it uses local
-//     useState("1240") and Continue just calls nav.go("intake"). The spec is explicit: do NOT copy
-//     the dead behaviour — persist the entered balance, and ideally seed the figure from the store.
-//     The store's `Onboarding` type has NO visible-cash field (done/name/payday/monthlyIncome only),
-//     so the spec's "e.g. visibleCash" slot does not exist. The CORRECT, REAL, honest write path is
-//     `setCurrentBalance` — whose own docstring says it is "the single write path for the user's
-//     current account position … what's roughly in your account today". So: seed `value` from
-//     `currentBalance.amount` (via useAppStore), and on Continue persist via setCurrentBalance with
-//     source 'user-entered', confidence 'rough'. Both are confirmed store exports; no symbol invented.
-//   • CUSTOM KEYPAD, not the OS keyboard (spec): a 3-col grid of Pressables with the web's exact key
-//     set (1-9 · . · 0 · ←) and its exact edit rules. The kit's MoneyPad was NOT substituted — it has
-//     a different key set (clear/back, no decimal) and different leading-zero/length semantics, so it
-//     would break the 1:1 layout and the per-keystroke count-up. Faithful to the web means the web
-//     keypad, built from tokens (the same way IntakeScreen builds its own option list inline).
-//   • EDIT RULES mirrored byte-for-byte from the web `press(k)`:
-//       "←" → value.slice(0,-1) || "0"   (backspace to empty falls back to "0")
-//       "." → value.includes(".") ? value : value + "."   (single dot only)
-//       else → value === "0" ? k : value + k   (leading "0" replaced by first digit)
-//     `shown` = Number(value).toLocaleString("en-GB"). Number("12.")→12 so "12." shows "12"; no pence
-//     shown (integer grouping only). These exact edge cases are preserved.
-//   • COUNT-UP per keystroke (spec + MOTION.md "money never slides"): the figure re-ticks on every
-//     change via the kit's useCountUp (easeOutCubic settle, reduce-motion → snap). A short 220ms tween
-//     keeps the per-keystroke re-tick calm, never busy — tuned per the spec's jank warning. It is a
-//     fade/tick, never a slide.
-//   • CARET BLINK: the web's animate-pulse terracotta caret is NOT a Folio named motion (spec). It is
-//     a subtle infinite opacity blink on a 2px accent bar; under reduce-motion it renders STATIC so it
-//     never competes with Melo's breathe (room-tone rule).
-//   • HEADLINE ACCENT: "see" is the single terracotta word, rendered UPRIGHT (web em.not-italic) in the
-//     Fraunces display face — three Text runs, the accent run coloured t.calm, fontStyle normal.
-//   • TABULAR FIGURES are load-bearing for money: the £, the amount, and every keypad key set
-//     fontVariant ['tabular-nums'] so digits don't jitter width as they change.
-//   • PROGRESS TICKS are hardcoded 2-of-4 filled (step two), faithful to the web's static four bars.
-//   • COPY: the deck has no keys for these guided/keypad strings (they are inline in the web
-//     prototype). Per the established StartScreen / IntakeScreen precedent they are ported as @copy
-//     FROZEN inline literals, byte-for-byte from the web source; the currency symbol is read from
-//     copy.global.currency.symbol. No banned word appears in any visible string.
-//   • STATES: the spec marks Guided populated-only (offline ≡ populated; empty/loading/error n/a). All
-//     five branches are rendered for completeness: populated/offline = the check-in; loading = Melo
-//     curious + a line (NEVER a spinner); empty/error = the calm EmptyState doorway that still routes
-//     into the check-in so it never dead-ends.
-//   • slide-in-r: translateX 28→0 + fade over 360ms, ease-out-expo — gated to the FINAL STATE under
-//     reduce-motion (resolved layout, never a slower animation), mirroring StartScreen / Intake / Melo.
-//
-// Tokens only — no new colour, font, spacing, or radius. Tap targets clear 44px (keys are 48px tall;
-// back + Skip carry hitSlop). Honest claims only — this screen asserts no privacy/security property.
+// Guided balance entry: same native numeric keyboard as the remaining setup forms.
+// The entered balance remains a rough user-entered figure until setup is confirmed.
 
-import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -77,7 +24,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { setCurrentBalance, useAppStore } from '@/folio/store';
-import { applyMoneyKey } from '@/folio/lib/formDrafts';
+import { parseManualMoney } from '@/folio/lib/manualMoney';
 import { guidedBalanceDraft } from '@/folio/lib/guidedBalance';
 import type { Nav } from '@/folio/types';
 
@@ -92,7 +39,6 @@ export type GuidedCheckInScreenProps = {
 };
 
 // The keypad's exact key set, byte-for-byte from the web `keys` array (3-col grid, reading order).
-const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '←'] as const;
 
 // The three account-source chips, byte-for-byte from the web (decorative labels under the figure).
 const SOURCE_CHIPS = ['current', 'savings', 'cash'] as const;
@@ -105,7 +51,6 @@ const SLIDE_FROM_X = 28;
 const SLIDE_MS = 360;
 
 // The caret's blink half-cycle. A gentle opacity breath, not an attention-grab.
-const CARET_BLINK_MS = 720;
 
 // Local reduce-motion read, mirroring Melo.tsx / StartScreen / IntakeScreen exactly: read once, then
 // subscribe to changes. Kept self-contained so this screen pulls no heavy module graph.
@@ -139,16 +84,8 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
   const currentBalance = useAppStore((s) => s.currentBalance);
   const [value, setValue] = useState(() => guidedBalanceDraft(currentBalance));
 
-  // The grouped display string — Number(value).toLocaleString('en-GB'), exactly as the web computes
-  // it. Number("12.")→12, leading "0" already replaced on input, backspace-to-empty → "0".
-  const shownNumber = Number(value);
-  const grouped = useMemo(() => shownNumber.toLocaleString('en-GB'), [shownNumber]);
-
-  // Per-keystroke count-up: the figure re-ticks to the new number on every change (money never slides
-  // — this is a calm settle, gated to a snap under reduce-motion by the hook itself).
-  const countedLabel = value.includes('.')
-    ? `${Math.trunc(shownNumber).toLocaleString('en-GB')}.${value.split('.')[1] ?? ''}`
-    : grouped;
+  const parsedBalance = parseManualMoney(value, { allowZero: true });
+  const balanceValid = parsedBalance !== undefined;
 
   // slide-in-r — drives the whole screen. 0 = resting (translateX 0, opacity 1); under reduce-motion
   // we resolve straight to the final state instead of animating.
@@ -166,35 +103,12 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
     transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
   }));
 
-  // The terracotta caret's gentle blink (web animate-pulse). Static under reduce-motion so it never
-  // becomes a second infinite animation competing with Melo's breathe.
-  const caret = useSharedValue(reduceMotion ? 1 : 0);
-  useEffect(() => {
-    if (reduceMotion) {
-      caret.value = 1;
-      return;
-    }
-    caret.value = withRepeat(
-      withTiming(1, { duration: CARET_BLINK_MS, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true,
-    );
-  }, [caret, reduceMotion]);
-
-  const caretStyle = useAnimatedStyle(() => ({
-    // Breathe between 0.35 and 1.0 opacity — present but quiet.
-    opacity: 0.35 + caret.value * 0.65,
-  }));
-
-  function handleKey(key: (typeof KEYS)[number]) {
-    setValue((v) => applyMoneyKey(v, key));
-  }
-
   // Persist the rough figure honestly before advancing. The web omitted this; the spec requires it.
   // 'user-entered' source + 'rough' confidence is exactly what this screen captures.
   function commitAndGo() {
+    if (parsedBalance === undefined) return;
     setCurrentBalance({
-      amount: Math.max(0, Math.round(shownNumber * 100) / 100),
+      amount: parsedBalance,
       source: 'user-entered',
       confidence: 'rough',
     });
@@ -300,13 +214,15 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
           <Text style={[styles.cardLabel, { color: t.muted }]}>In your account</Text>
           <View style={styles.amountRow}>
             <Text style={[styles.symbol, { color: t.ink }]}>{copy.global.currency.symbol}</Text>
-            <Text
-              accessibilityLabel={`${copy.global.currency.symbol}${grouped}`}
-              style={[styles.amount, { color: t.ink }]}
-            >
-              {countedLabel}
-            </Text>
-            <Animated.View style={[styles.caret, caretStyle, { backgroundColor: t.calm }]} />
+            <TextInput
+              accessibilityLabel="Current available balance"
+              value={value}
+              onChangeText={setValue}
+              keyboardType="decimal-pad"
+              selectTextOnFocus
+              maxFontSizeMultiplier={1.35}
+              style={[styles.amount, { color: t.ink, flex: 1, minHeight: 56, paddingVertical: 8 }]}
+            />
           </View>
           <View style={styles.chipsRow}>
             {SOURCE_CHIPS.map((label) => (
@@ -316,41 +232,26 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
             ))}
           </View>
         </View>
-
-        {/* Keypad — the 3-col grid of Pressables (1-9 · . · 0 · ←). Custom, not the OS keyboard. */}
-        <View style={styles.keypad}>
-          {KEYS.map((key) => (
-            <Pressable
-              key={key}
-              accessibilityRole="button"
-              accessibilityLabel={key === '←' ? 'Delete last digit' : `Key ${key}`}
-              onPress={() => handleKey(key)}
-              style={({ pressed: isPressed }) => [
-                styles.keyButton,
-                { backgroundColor: t.surface, borderColor: t.hairline },
-                isPressed ? styles.pressed : undefined,
-              ]}
-            >
-              <Text style={[styles.keyLabel, { color: t.ink }]}>{key}</Text>
-            </Pressable>
-          ))}
-        </View>
       </ScrollView>
       <View style={styles.controls}>
         {/* Continue — the kit accent CTA shape rebuilt as a single terracotta button (the web's
           bg-accent text-white). Persists the rough figure honestly, then advances to intake. */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Continue"
+          accessibilityLabel={balanceValid ? 'Continue' : 'Enter a valid balance'}
+          accessibilityState={{ disabled: !balanceValid }}
+          disabled={!balanceValid}
           accessibilityHint="Saves this rough figure and opens the next step"
           onPress={commitAndGo}
           style={({ pressed: isPressed }) => [
             styles.continue,
-            { backgroundColor: t.calm },
+            { backgroundColor: balanceValid ? t.calm : t.inset },
             isPressed ? styles.pressed : undefined,
           ]}
         >
-          <Text style={[styles.continueLabel, { color: t.inverse }]}>Continue</Text>
+          <Text style={[styles.continueLabel, { color: balanceValid ? t.inverse : t.muted }]}>
+            {balanceValid ? 'Continue' : 'Enter a valid balance'}
+          </Text>
         </Pressable>
       </View>
     </Animated.View>

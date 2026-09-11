@@ -987,7 +987,8 @@ function makeStyles(t: Palette) {
       fontFamily: serif.display,
       fontSize: 30,
       letterSpacing: -0.3,
-      lineHeight: 32, // web leading-[1.05] on 30px ≈ 31.5
+      lineHeight: 36,
+      paddingBottom: 3,
       marginTop: gap.xs,
     },
     // The accent word £{amount} — same upright Fraunces face, recoloured terracotta (web

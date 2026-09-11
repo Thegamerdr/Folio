@@ -208,12 +208,6 @@ export default function FolioRoute() {
     };
   }, [updateLocked]);
 
-  useEffect(() => {
-    if (ready && getParityHarnessConfig()?.globalSurface !== 'global.boot-splash') {
-      void SplashScreen.hideAsync().catch(() => undefined);
-    }
-  }, [ready]);
-
   if (!ready) return null; // keep the native splash up until hydration finishes.
 
   return (
@@ -223,7 +217,18 @@ export default function FolioRoute() {
             second safe-area + 24dp frame here doubled their intended phone gutters and exposed the
             window background when Android invalidated an animated child. This native root owns the
             full canvas; screens remain responsible for their designed content insets. */}
-        <View collapsable={false} style={[styles.frame, { backgroundColor: t.canvas }]}>
+        <View
+          collapsable={false}
+          style={[styles.frame, { backgroundColor: t.canvas }]}
+          onLayout={() => {
+            if (getParityHarnessConfig()?.globalSurface === 'global.boot-splash') return;
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                void SplashScreen.hideAsync().catch(() => undefined);
+              }),
+            );
+          }}
+        >
           {lockEnabled && locked ? (
             <AppLockGate busy={lockBusy} message={lockMessage} onUnlock={attemptUnlock} />
           ) : (

@@ -519,7 +519,16 @@ export function FolioShell() {
 
   useEffect(() => {
     if (parityRuntime === null || parityRuntime.globalSurface === 'global.boot-splash') return;
-    void SplashScreen.hideAsync().catch(() => undefined);
+    let secondFrame: number | undefined;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        void SplashScreen.hideAsync().catch(() => undefined);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame !== undefined) cancelAnimationFrame(secondFrame);
+    };
   }, [parityRuntime]);
 
   useEffect(() => {

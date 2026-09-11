@@ -2320,7 +2320,7 @@ function buildMeloLocalAnswer(input: {
     }
 
     case 'clarify':
-      return 'I can check a purchase, explain the available amount, review bills or imports, show payday, debts, goals, calendar changes or irregular income, and preview recovery. The financial answer stays local and review-only.';
+      return 'I can check a purchase, explain the available amount, review bills or statements you added, show payday, debts, goals, calendar changes or irregular income, and preview recovery. The financial answer stays local and review-only.';
   }
 }
 

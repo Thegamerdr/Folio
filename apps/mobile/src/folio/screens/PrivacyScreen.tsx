@@ -540,6 +540,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       </ScrollView>
       <Sheet
         visible={resetStep !== null}
+        dismissible={!clearing}
         onClose={closeReset}
         scrollKey={resetStep ?? 'closed'}
         footer={

@@ -633,6 +633,7 @@ export function TodayScreen({
             </Text>
           ) : null}
           <Text
+            maxFontSizeMultiplier={1.4}
             style={[
               styles.verdict,
               {
@@ -654,10 +655,13 @@ export function TodayScreen({
           </Text>
           <View style={styles.heroRow}>
             {heroProvisional ? (
-              <Text style={[styles.heroQualifier, { color: t.muted }]}>about</Text>
+              <Text maxFontSizeMultiplier={1.4} style={[styles.heroQualifier, { color: t.muted }]}>
+                about
+              </Text>
             ) : null}
             <Text
               adjustsFontSizeToFit
+              maxFontSizeMultiplier={1.35}
               minimumFontScale={0.5}
               numberOfLines={1}
               style={[
@@ -669,6 +673,7 @@ export function TodayScreen({
             </Text>
             {financePresentation.canReassure || heroUnitLabel !== financePresentation.label ? (
               <Text
+                maxFontSizeMultiplier={1.4}
                 style={[
                   styles.heroSpare,
                   { color: t.muted, fontSize: Math.max(12, heroFigureSize * 0.235) },

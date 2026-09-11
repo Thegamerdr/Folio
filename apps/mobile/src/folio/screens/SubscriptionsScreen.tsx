@@ -207,10 +207,19 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
 
   const sorted = useMemo(() => {
     const arr = optionalOnly ? subs.filter(isDiscretionarySubscription) : [...subs];
-    if (sort === 'cost') arr.sort((a, b) => b.cost - a.cost);
-    else arr.sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway);
+    const overdue = (name: string) =>
+      dueCommitments.some(
+        (item) => item.id.startsWith(`subscription:${name}:`) && item.date < dueInput.asOf,
+      );
+    arr.sort((a, b) => {
+      const urgency = Number(overdue(b.name)) - Number(overdue(a.name));
+      return (
+        urgency ||
+        (sort === 'cost' ? b.cost - a.cost : a.nextRenewalDaysAway - b.nextRenewalDaysAway)
+      );
+    });
     return arr;
-  }, [sort, subs, optionalOnly]);
+  }, [sort, subs, optionalOnly, dueCommitments, dueInput.asOf]);
 
   // Monthly drain (active subscriptions only), and what pauses have already saved.
   const monthly = subs.reduce((acc, x) => acc + subscriptionAnnualCost(x) / 12, 0);
@@ -467,6 +476,57 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     );
   }
 
+  const hasOverdueBill = dueCommitments.some(
+    (item) => item.id.startsWith('subscription:') && item.date < dueInput.asOf,
+  );
+  const commitmentList = (
+    <View style={s.list}>
+      {sorted.map((sub, index) => (
+        <SubscriptionRow
+          key={sub.name}
+          sub={sub}
+          first={index === 0}
+          paused={!!paused[sub.name]}
+          t={t}
+          s={s}
+          onPauseResume={() => onPauseResume(sub)}
+          onUsedToday={() => markSubUsed(sub.name)}
+          onAskMelo={() => onAskMelo(sub)}
+          onCancel={() =>
+            Alert.alert(
+              'Remove this commitment?',
+              `This removes ${sub.name} from Melo’s forecast. It does not cancel payments with the provider.`,
+              [
+                { text: 'Keep', style: 'cancel' },
+                {
+                  text: 'Remove from Melo',
+                  style: 'destructive',
+                  onPress: () => onCancel(sub),
+                },
+              ],
+            )
+          }
+          onEdit={() => {
+            const boundary = subscriptionEditBoundary(getState(), sub.name, new Date());
+            setEditing(sub);
+            setEditName(sub.name);
+            setEditCost(String(sub.cost));
+            setEditPeriod(sub.renewalPeriodDays ?? null);
+            setEditDate(boundary.defaultDate);
+            setEditError('');
+          }}
+          today={dueInput.asOf}
+          schedule={subscriptionSchedulePresentation(sub, dueInput.asOf, dueCommitments)}
+          outstanding={dueCommitments.find((item) =>
+            item.id.startsWith(`subscription:${sub.name}:`),
+          )}
+          onResolve={(occurrence) => onResolve(sub, occurrence)}
+          onUndoConfirmation={(date) => onUndoConfirmation(sub, date)}
+        />
+      ))}
+    </View>
+  );
+
   // POPULATED BRANCH.
   return (
     <>
@@ -490,6 +550,8 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
             Everything that <Text style={s.headlineAccent}>repeats</Text>.
           </Text>
         </View>
+
+        {hasOverdueBill ? commitmentList : null}
 
         {/* TOTAL CARD — the monthly drain is the hero; "−£X from pauses" sits beneath in calm green;
           the yearly figure is the quiet right-hand counterweight. */}
@@ -609,52 +671,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
           })}
         </View>
 
-        {/* LIST — one surface card, hairline-divided rows (first row carries no top rule). */}
-        <View style={s.list}>
-          {sorted.map((sub, index) => (
-            <SubscriptionRow
-              key={sub.name}
-              sub={sub}
-              first={index === 0}
-              paused={!!paused[sub.name]}
-              t={t}
-              s={s}
-              onPauseResume={() => onPauseResume(sub)}
-              onUsedToday={() => markSubUsed(sub.name)}
-              onAskMelo={() => onAskMelo(sub)}
-              onCancel={() =>
-                Alert.alert(
-                  'Remove this commitment?',
-                  `This removes ${sub.name} from Melo’s forecast. It does not cancel payments with the provider.`,
-                  [
-                    { text: 'Keep', style: 'cancel' },
-                    {
-                      text: 'Remove from Melo',
-                      style: 'destructive',
-                      onPress: () => onCancel(sub),
-                    },
-                  ],
-                )
-              }
-              onEdit={() => {
-                const boundary = subscriptionEditBoundary(getState(), sub.name, new Date());
-                setEditing(sub);
-                setEditName(sub.name);
-                setEditCost(String(sub.cost));
-                setEditPeriod(sub.renewalPeriodDays ?? null);
-                setEditDate(boundary.defaultDate);
-                setEditError('');
-              }}
-              today={dueInput.asOf}
-              schedule={subscriptionSchedulePresentation(sub, dueInput.asOf, dueCommitments)}
-              outstanding={dueCommitments.find((item) =>
-                item.id.startsWith(`subscription:${sub.name}:`),
-              )}
-              onResolve={(occurrence) => onResolve(sub, occurrence)}
-              onUndoConfirmation={(date) => onUndoConfirmation(sub, date)}
-            />
-          ))}
-        </View>
+        {!hasOverdueBill ? commitmentList : null}
 
         {cancelledSubs.length > 0 ? (
           <View style={layout.cancelledSection}>
