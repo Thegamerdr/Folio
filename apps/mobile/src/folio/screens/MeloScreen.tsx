@@ -111,7 +111,6 @@ import { selectMeloFinancialHealth } from '@/folio/lib/melo/financialHealth';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 import { latestLivedCycle } from '@/folio/lib/historyCycles';
 import { useDayClock } from '@/folio/lib/useDayClock';
-import { MeloWeatherGlyph } from '@/folio/ui/MeloWeatherGlyph';
 import {
   deriveMeloPresence,
   derivePersonalContextAction,
@@ -459,7 +458,6 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
           {/* Live state line — weather + lens, no chip container. Locked Full lens shows a small
               lock so the paywall state is legible without opening the picker. */}
           <View style={styles.lensLine}>
-            <MeloWeatherGlyph weather={weather} size={12} />
             <Text style={[styles.lensLineText, { color: t.muted }]}>
               {hasMoneyPicture ? weatherLabel(weather) : 'Add your numbers to begin'}
             </Text>
