@@ -78,7 +78,7 @@ import Animated, {
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
-import { KeyboardSafeView } from '@/surfaces/pressureMap/Sheet';
+import { KeyboardSafeView, Sheet } from '@/surfaces/pressureMap/Sheet';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { addCalendarEvent, setSubs, type Sub } from '@/folio/store';
 import { applyMoneyKey } from '@/folio/lib/formDrafts';
@@ -118,7 +118,21 @@ const LOADING_TIMEOUT_MS = 4000;
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '←'] as const;
 
 // The "When" (day-of-month) options — identical to the web select.
-const WHEN_OPTIONS = ['1st', '3rd', '7th', '12th', '15th', '20th', '25th', 'Last day'] as const;
+const WHEN_OPTIONS = Array.from({ length: 31 }, (_, index) => {
+  const day = index + 1;
+  if (day === 31) return 'Last day';
+  const suffix =
+    day >= 11 && day <= 13
+      ? 'th'
+      : day % 10 === 1
+        ? 'st'
+        : day % 10 === 2
+          ? 'nd'
+          : day % 10 === 3
+            ? 'rd'
+            : 'th';
+  return `${day}${suffix}`;
+});
 
 // Local reduce-motion read, mirroring Melo.tsx / StartScreen.tsx exactly: read once, then subscribe.
 function useReduceMotion(): boolean {
@@ -576,27 +590,75 @@ function SelectCell({
   mutedColor: string;
   inkColor: string;
 }) {
-  function next() {
-    const i = options.indexOf(value);
-    const ni = i === -1 ? 0 : (i + 1) % options.length;
-    const chosen = options[ni];
-    if (chosen !== undefined) onCycle(chosen);
-  }
+  const [open, setOpen] = useState(false);
   return (
-    <Pressable
-      accessibilityHint="Cycles to the next option"
-      accessibilityLabel={`${label}: ${value}`}
-      accessibilityRole="button"
-      onPress={next}
-      style={({ pressed: isPressed }) => [
-        styles.selectCell,
-        { backgroundColor: surface, borderColor: hairline },
-        isPressed ? styles.pressed : undefined,
-      ]}
-    >
-      <Text style={[styles.fieldLabelSm, { color: mutedColor }]}>{label}</Text>
-      <Text style={[styles.selectValue, { color: inkColor }]}>{value}</Text>
-    </Pressable>
+    <>
+      <Pressable
+        accessibilityHint="Opens all available choices"
+        accessibilityLabel={`${label}: ${value}`}
+        accessibilityRole="button"
+        onPress={() => {
+          Keyboard.dismiss();
+          setOpen(true);
+        }}
+        style={({ pressed: isPressed }) => [
+          styles.selectCell,
+          { backgroundColor: surface, borderColor: hairline },
+          isPressed ? styles.pressed : undefined,
+        ]}
+      >
+        <Text style={[styles.fieldLabelSm, { color: mutedColor }]}>{label}</Text>
+        <Text style={[styles.selectValue, { color: inkColor }]}>{value} ▾</Text>
+      </Pressable>
+      <Sheet visible={open} onClose={() => setOpen(false)}>
+        <Text accessibilityRole="header" style={[styles.headline, { color: inkColor }]}>
+          {label === 'When' ? 'Due day each month' : 'How often?'}
+        </Text>
+        {label === 'When' ? (
+          <Text style={[styles.contextHelp, { color: mutedColor }]}>
+            Choose any day. If a month is shorter, the payment falls on its last day.
+          </Text>
+        ) : null}
+        <View
+          style={{
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: gap.sm,
+            marginTop: gap.md,
+            paddingBottom: gap.md,
+          }}
+        >
+          {options.map((option) => (
+            <Pressable
+              key={option}
+              accessibilityRole="radio"
+              accessibilityLabel={option}
+              accessibilityState={{ selected: value === option }}
+              onPress={() => {
+                onCycle(option);
+                setOpen(false);
+              }}
+              style={{
+                minHeight: 48,
+                width: label === 'When' ? '30%' : '100%',
+                padding: gap.sm,
+                borderRadius: radius.md,
+                borderWidth: 1,
+                borderColor: hairline,
+                backgroundColor: surface,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: inkColor, fontSize: 15, textAlign: 'center' }}>
+                {value === option ? '✓ ' : ''}
+                {option}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </Sheet>
+    </>
   );
 }
 

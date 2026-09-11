@@ -375,7 +375,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
               muted={t.muted}
             />
             <FootprintValue
-              label="accounts"
+              label={savedAccountCount === 1 ? 'account' : 'accounts'}
               value={savedAccountCount}
               color={t.ink}
               muted={t.muted}
@@ -579,14 +579,16 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
                 </Text>
               </Pressable>
             )}
-            <Pressable
-              accessibilityRole="button"
-              disabled={clearing}
-              onPress={closeReset}
-              style={styles.resetButton}
-            >
-              <Text style={[styles.primaryLabel, { color: t.ink }]}>Cancel</Text>
-            </Pressable>
+            {!clearing ? (
+              <Pressable
+                accessibilityRole="button"
+                disabled={clearing}
+                onPress={closeReset}
+                style={styles.resetButton}
+              >
+                <Text style={[styles.primaryLabel, { color: t.ink }]}>Cancel</Text>
+              </Pressable>
+            ) : null}
           </View>
         }
       >
@@ -599,8 +601,10 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
               All local workspaces: {workspaceNames}.
             </Text>
             <Text style={[styles.body, { color: t.ink }]}>
-              In {activeWorkspace.name}: {savedRecordCount} transactions, {savedBillCount} bills,{' '}
-              {savedDebtCount} {savedDebtCount === 1 ? 'debt' : 'debts'}, {savedSourceCount}{' '}
+              In {activeWorkspace.name}: {savedRecordCount}{' '}
+              {savedRecordCount === 1 ? 'transaction' : 'transactions'}, {savedBillCount}{' '}
+              {savedBillCount === 1 ? 'bill' : 'bills'}, {savedDebtCount}{' '}
+              {savedDebtCount === 1 ? 'debt' : 'debts'}, {savedSourceCount}{' '}
               {savedSourceCount === 1 ? 'original file' : 'original files'} and{' '}
               {savedHistory.summary}.
             </Text>

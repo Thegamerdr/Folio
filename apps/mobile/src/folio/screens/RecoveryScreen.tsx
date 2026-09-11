@@ -93,7 +93,6 @@ import {
 } from '@/folio/lib/recoveryPreviewPresentation';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { buildRecoveryRoutePreview, RECOVERY_BILL_NUDGE_DAYS } from '@/folio/lib/recoveryPreview';
-import { EmptyState } from '@/folio/ui/EmptyState';
 import type { Nav } from '@/folio/types';
 import type { MoneyMode } from '@/folio/lib/modes/types';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
@@ -512,28 +511,73 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   if (state === 'empty' || (routeReady && (!hasShortfall || !presentation.complete))) {
     const needsSetup = !presentation.complete;
     return (
-      <EmptyState
-        mood={presentation.canReassure ? 'calm' : 'concern'}
-        headline={
-          needsSetup
-            ? 'Find a way through a shortfall'
-            : presentation.overdueCount
-              ? 'Check overdue payments'
-              : 'No gap in the current plan'
-        }
-        body={
-          needsSetup
-            ? `Recovery compares changes to costs and dates when your plan has a gap. ${presentation.message}`
-            : presentation.canReassure
-              ? 'Your entered costs and buffer fit before payday. You can review the numbers at any time.'
-              : 'Review the unpaid or unconfirmed items before relying on this plan.'
-        }
-        cta={
-          needsSetup
-            ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
-            : { label: 'Back to today', onPress: () => nav.go('today') }
-        }
-      />
+      <ScrollView
+        style={{ flex: 1, backgroundColor: t.canvas }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingHorizontal: gap.xl,
+          paddingTop: insets.top + gap.md,
+          paddingBottom: insets.bottom + gap.xl,
+        }}
+      >
+        <View style={styles.header}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to Plan"
+            onPress={() => nav.go('plan')}
+            style={{ minWidth: 48, minHeight: 48, justifyContent: 'center' }}
+          >
+            <BackArrow color={t.muted} />
+          </Pressable>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>Recovery</Text>
+          <View style={{ width: 48 }} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', paddingVertical: gap.xl, gap: gap.md }}>
+          <View style={{ alignItems: 'center' }}>
+            <Melo mood={presentation.canReassure ? 'calm' : 'concern'} size={64} />
+          </View>
+          <Text
+            accessibilityRole="header"
+            style={{
+              color: t.ink,
+              fontFamily: serif.display,
+              fontSize: 28,
+              lineHeight: 34,
+              textAlign: 'center',
+            }}
+          >
+            {needsSetup
+              ? 'Find a way through a shortfall'
+              : presentation.overdueCount
+                ? 'Check overdue payments'
+                : 'No gap in the current plan'}
+          </Text>
+          <Text style={{ color: t.muted, fontSize: 15, lineHeight: 22, textAlign: 'center' }}>
+            {needsSetup
+              ? `Recovery compares changes to costs and dates when your plan has a gap. ${presentation.message}`
+              : presentation.canReassure
+                ? 'Your entered costs and buffer fit before payday. You can review the numbers at any time.'
+                : 'Review the unpaid or unconfirmed items before relying on this plan.'}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={needsSetup ? () => nav.openSheet('onboarding') : () => nav.go('today')}
+            style={{
+              minHeight: 54,
+              padding: gap.md,
+              borderRadius: radius.pill,
+              backgroundColor: t.calm,
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginTop: gap.sm,
+            }}
+          >
+            <Text style={{ color: t.inverse, fontSize: 15, textAlign: 'center' }}>
+              {needsSetup ? 'Add my numbers' : 'Back to today'}
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     );
   }
 

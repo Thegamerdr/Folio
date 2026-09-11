@@ -950,13 +950,13 @@ function OnboardingFlow({
           s.primary,
           {
             marginTop: gap.xs,
-            backgroundColor: primaryDisabled ? t.surface : t.calm,
+            backgroundColor: primaryDisabled ? t.inset : t.calm,
             borderColor: t.hairline,
             borderWidth: 1,
           },
         ]}
       >
-        <Text style={[s.primaryLabel, { color: primaryDisabled ? t.muted : t.inverse }]}>
+        <Text style={[s.primaryLabel, { color: primaryDisabled ? t.ink : t.inverse }]}>
           {showSummary
             ? isReturning
               ? 'Save changes'
@@ -1056,7 +1056,7 @@ function OnboardingFlow({
             ? `Edit · ${current.eyebrow}`
             : `Step ${step + 1} of ${visibleStepIndices.length} · ${current.eyebrow}`}
         </Text>
-        <View style={s.pips}>
+        <View style={[s.pips, keyboardOpen ? { marginBottom: gap.sm } : undefined]}>
           {visibleStepIndices.map((_, i) => (
             <ProgressPip
               key={i}
@@ -1075,7 +1075,10 @@ function OnboardingFlow({
         </View>
 
         {/* Headline — one terracotta-italic accent run carved into the Fraunces line. */}
-        <Text style={s.headline} accessibilityRole="header">
+        <Text
+          style={[s.headline, keyboardOpen ? { fontSize: 22, lineHeight: 26 } : undefined]}
+          accessibilityRole="header"
+        >
           {current.head.lead}
           <Text style={s.headlineAccent}>{current.head.accent}</Text>
           {current.head.tail}
@@ -1090,7 +1093,7 @@ function OnboardingFlow({
               onChangeText={setName}
               placeholder={copy.onb[1].placeholder}
               placeholderTextColor={t.muted}
-              style={s.nameInput}
+              style={[s.nameInput, keyboardOpen ? { marginTop: gap.sm } : undefined]}
               accessibilityLabel="Your name"
               returnKeyType="next"
             />
@@ -1099,7 +1102,7 @@ function OnboardingFlow({
           {/* Intent picker (BREAKS-PARITY fix) — the ten Money Modes, in the user's language. Choosing
             one sets `intentMode`, which `done()` persists via `setMoneyMode`. */}
           {!isReturning && activeStepIndex === 1 ? (
-            <View style={s.fieldBlock}>
+            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <Text style={s.intentIntro}>
                 Choose one to start. You can change this later — Melo reshapes around it.
               </Text>
@@ -1145,9 +1148,11 @@ function OnboardingFlow({
 
           {/* Mode-extra follow-up (BREAKS-PARITY fix) — one slider per mode, copy from MODE_EXTRA. */}
           {!isReturning && activeStepIndex === 2 ? (
-            <View style={s.fieldBlock}>
+            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <View style={s.valueRow}>
-                <Text style={s.bigValue}>
+                <Text
+                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
+                >
                   {extra.unit}
                   {modeExtra.toLocaleString()}
                 </Text>
@@ -1193,7 +1198,7 @@ function OnboardingFlow({
             week-based cadence swaps the next step's slider for a date pick; monthly/last-working-day
             keep the day-of-month slider (hidden for last-working-day, which needs no day input). */}
           {activeStepIndex === STEP_CADENCE ? (
-            <View style={s.fieldBlock}>
+            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <View style={s.intentList}>
                 {CADENCE_OPTIONS.map((opt) => {
                   const on = cadence === opt.cadence;
@@ -1222,11 +1227,18 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === STEP_PAYDAY ? (
-            <View style={s.fieldBlock}>
+            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               {cadence === 'monthly' ? (
                 <>
                   <View style={s.valueRow}>
-                    <Text style={s.bigValue}>{paydayInput || '—'}</Text>
+                    <Text
+                      style={[
+                        s.bigValue,
+                        keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined,
+                      ]}
+                    >
+                      {paydayInput || '—'}
+                    </Text>
                     <Text style={s.unit}>of the month</Text>
                   </View>
                   <TextInput
@@ -1304,9 +1316,13 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === 5 ? (
-            <View style={s.fieldBlock}>
+            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <View style={s.valueRow}>
-                <Text style={s.bigValue}>{poundsTabular(income)}</Text>
+                <Text
+                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
+                >
+                  {poundsTabular(income)}
+                </Text>
                 <Text style={s.unit}>{incomeRange.unit}</Text>
               </View>
               <TextInput
@@ -1342,9 +1358,13 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === STEP_BALANCE ? (
-            <View style={s.fieldBlock}>
+            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <View style={s.valueRow}>
-                <Text style={s.bigValue}>{poundsTabular(balance)}</Text>
+                <Text
+                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
+                >
+                  {poundsTabular(balance)}
+                </Text>
                 <Text style={s.unit}>available now</Text>
               </View>
               <TextInput
@@ -1406,9 +1426,13 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === STEP_ESSENTIALS ? (
-            <View style={s.fieldBlock}>
+            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <View style={s.valueRow}>
-                <Text style={s.bigValue}>{poundsTabular(weeklyEssentials)}</Text>
+                <Text
+                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
+                >
+                  {poundsTabular(weeklyEssentials)}
+                </Text>
                 <Text style={s.unit}>/ week essentials</Text>
               </View>
               <TextInput
@@ -1442,7 +1466,11 @@ function OnboardingFlow({
                 accessibilityLabel="Weekly essential living allowance"
               />
               <View style={[s.valueRow, { marginTop: gap.lg }]}>
-                <Text style={s.bigValue}>{poundsTabular(desiredBuffer)}</Text>
+                <Text
+                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
+                >
+                  {poundsTabular(desiredBuffer)}
+                </Text>
                 <Text style={s.unit}>protected buffer</Text>
               </View>
               <TextInput
@@ -1483,17 +1511,21 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === STEP_COMMITMENT ? (
-            <View style={s.fieldBlock}>
+            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <TextInput
                 value={bundledCommitmentName}
                 onChangeText={setBundledCommitmentName}
                 placeholder="For example, rent + bills"
                 placeholderTextColor={t.muted}
-                style={s.nameInput}
+                style={[s.nameInput, keyboardOpen ? { marginTop: gap.sm } : undefined]}
                 accessibilityLabel="Recurring commitment name"
               />
               <View style={s.valueRow}>
-                <Text style={s.bigValue}>{poundsTabular(bundledCommitmentAmount)}</Text>
+                <Text
+                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
+                >
+                  {poundsTabular(bundledCommitmentAmount)}
+                </Text>
                 <Text style={s.unit}>/ month</Text>
               </View>
               <TextInput
@@ -1569,7 +1601,7 @@ function OnboardingFlow({
           ) : null}
 
           {!isReturning && activeStepIndex === STEP_POTS ? (
-            <View style={s.fieldBlock}>
+            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <Text style={s.potsIntro}>
                 Choose optional pots, then add your own target and weekly amount. Leave all
                 unselected to save your setup without pots. You can add pots later.
@@ -1637,9 +1669,9 @@ function ProgressPip({
     return () => animation.stop();
   }, [targetWidth, reduceMotion, width]);
 
-  const backgroundColor = kind === 'active' ? t.calm : kind === 'done' ? t.ink : t.hairline;
+  const backgroundColor = kind === 'future' ? t.hairline : t.calm;
   // The completed pip reads at ink/60 (web bg-[var(--ink)]/60).
-  const opacity = kind === 'done' ? 0.6 : 1;
+  const opacity = 1;
 
   return <Animated.View style={{ height: 4, borderRadius: 2, width, backgroundColor, opacity }} />;
 }

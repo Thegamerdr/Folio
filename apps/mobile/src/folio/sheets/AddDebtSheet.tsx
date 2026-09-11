@@ -314,7 +314,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
         style={[
           s.primary,
           {
-            backgroundColor: canAdd || saving ? t.calm : t.surface,
+            backgroundColor: canAdd || saving ? t.calm : t.inset,
             borderWidth: 1,
             borderColor: t.hairline,
           },
@@ -441,7 +441,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
             }}
             selectTextOnFocus
             keyboardType="decimal-pad"
-            placeholder="Unknown"
+            placeholder=""
             placeholderTextColor={t.muted}
             style={[s.moneyInput, { color: t.ink }]}
             ref={(input) => {

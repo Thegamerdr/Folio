@@ -261,7 +261,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
     },
     {
       label: 'Pots',
-      meta: pots.length ? `${pots.length} pots` : 'no pots yet',
+      meta: pots.length ? `${pots.length} ${pots.length === 1 ? 'pot' : 'pots'}` : 'no pots yet',
       value: formatGBP(potsSaved),
       onPress: () => nav.go('pots'),
     },
@@ -270,7 +270,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
       meta: 'change when and how money lands',
       onPress: () => nav.openSheet('onboarding'),
     },
-    { label: 'Recovery', meta: 'something has to move', onPress: () => nav.go('recovery') },
+    { label: 'Recovery', meta: 'ways to manage a shortfall', onPress: () => nav.go('recovery') },
     {
       label: 'Path visualiser',
       meta: 'the day-by-day working',

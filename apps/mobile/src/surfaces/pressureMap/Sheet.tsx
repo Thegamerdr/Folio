@@ -12,7 +12,6 @@
 // the existing RN sheets in this repo (PointExplanation, WhatIfSheet, SourceSheet).
 
 import {
-  Fragment,
   createContext,
   useCallback,
   useContext,
@@ -250,9 +249,20 @@ export function SheetPortalProvider({
           </View>
           {hasLayer ? (
             <View pointerEvents="box-none" style={layout.portalHost}>
-              {Array.from(layers.entries()).map(([id, layer]) => (
-                <Fragment key={id}>{layer}</Fragment>
-              ))}
+              {Array.from(layers.entries()).map(([id, layer], index) => {
+                const covered = index < layers.size - 1;
+                return (
+                  <View
+                    key={id}
+                    pointerEvents={covered ? 'none' : 'box-none'}
+                    accessibilityElementsHidden={covered}
+                    importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'}
+                    style={[StyleSheet.absoluteFill, covered ? { opacity: 0 } : undefined]}
+                  >
+                    {layer}
+                  </View>
+                );
+              })}
             </View>
           ) : null}
         </View>

@@ -585,14 +585,14 @@ function EditTxnForm({
         style={({ pressed }) => [
           s.footerButton,
           {
-            backgroundColor: canReview ? t.calm : t.surface,
+            backgroundColor: canReview ? t.calm : t.inset,
             borderWidth: StyleSheet.hairlineWidth,
             borderColor: t.hairline,
           },
           pressed ? s.pressed : undefined,
         ]}
       >
-        <Text style={[s.footerButtonLabel, { color: canReview ? t.inverse : t.muted }]}>
+        <Text style={[s.footerButtonLabel, { color: canReview ? t.inverse : t.ink }]}>
           {reviewing
             ? 'Confirm changes'
             : !amountValid
@@ -676,14 +676,20 @@ function EditTxnForm({
           <View style={s.fields}>
             {/* Merchant — free-text correction (web SheetEditTxn.tsx's separate editable Merchant field,
             restored here; previously this name only appeared in the read-only header title). */}
-            <View style={s.fieldRow}>
+            <View
+              style={[s.fieldRow, { flexDirection: 'column', alignItems: 'stretch', gap: gap.sm }]}
+            >
               <Text style={s.fieldLabel}>{isDebtPayment(txn) ? 'Description' : 'Merchant'}</Text>
               <TextInput
                 accessibilityLabel="Merchant"
                 onChangeText={setMerchant}
                 placeholder={txn.merchant}
                 placeholderTextColor={t.muted}
-                style={s.fieldValueInput}
+                multiline
+                style={[
+                  s.fieldValueInput,
+                  { flex: undefined, marginLeft: 0, textAlign: 'left', minHeight: 48 },
+                ]}
                 value={merchant}
               />
             </View>
@@ -1292,15 +1298,15 @@ function makeStyles(t: Palette) {
     },
     // Footer row — two-step review/confirm controls.
     footerRow: {
-      flexDirection: 'row',
+      flexDirection: 'column',
       gap: gap.sm,
-      marginTop: gap.xl,
+      marginTop: gap.sm,
     },
     footerButton: {
       alignItems: 'center',
-      borderRadius: radius.xl,
-      flex: 1,
-      height: 54,
+      borderRadius: radius.pill,
+      minHeight: 48,
+      paddingVertical: gap.md,
       justifyContent: 'center',
     },
     footerButtonLabel: {

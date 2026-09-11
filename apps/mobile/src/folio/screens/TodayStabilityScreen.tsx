@@ -264,11 +264,6 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
 
       <View style={s.card}>
         <View style={[s.cardInner, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          <View style={s.modeRow}>
-            <View style={[s.modeDot, { backgroundColor: t.positive }]} />
-            <Text style={[s.modeLabel, { color: t.muted }]}>Stability Mode</Text>
-          </View>
-
           {/* The hero stays non-interactive and reads the canonical protected plan when available.
               The Safe Zone door below remains the place to inspect the dated commitments. */}
           <Text style={[s.headline, { color: t.muted }]}>
@@ -323,7 +318,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
             <View style={s.rhythmValuesRow}>
               {weeks.map((w, i) => (
                 <Text key={i} style={[s.rhythmValue, { color: t.ink }]}>
-                  {w.total > 0 ? formatGBP(w.total) : '—'}
+                  {formatGBP(w.total)}
                 </Text>
               ))}
             </View>
