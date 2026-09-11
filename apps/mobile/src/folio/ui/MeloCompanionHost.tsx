@@ -33,6 +33,7 @@ export function MeloCompanionHost({
   accessibilityLabel,
   style,
 }: MeloCompanionHostProps) {
+  if (presence === 'hidden') return null;
   const alignSelf =
     position === 'left' ? 'flex-start' : position === 'right' ? 'flex-end' : 'center';
   const label = accessibilityLabel ?? `Melo, ${presence}`;

@@ -985,8 +985,8 @@ function OnboardingFlow({
             ? showSummary && !costsConfirmed
               ? 'Confirm your costs above'
               : activeStepIndex === STEP_POTS
-                ? 'Complete the pot amounts'
-                : 'Check the highlighted field'
+                ? 'Check amounts'
+                : 'Check entry'
             : showSummary
               ? isReturning
                 ? 'Save changes'

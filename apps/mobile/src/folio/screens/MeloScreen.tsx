@@ -395,14 +395,23 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
         {/* Presence — hero Melo or the quiet-mode resting line. */}
         <View style={styles.heroWrap}>
-          <MeloCompanionHost
-            size={162}
-            mood={melo.quietMode ? 'calm' : mood}
-            pose="none"
-            position={preferredPosition}
-            presence={presence}
-            accessibilityLabel={hasMoneyPicture ? `Melo, ${mood}` : 'Melo, ready to help you start'}
-          />
+          {melo.quietMode ? (
+            <View style={styles.restingWrap}>
+              <Text style={[styles.restingLine, { color: t.muted }]}>Melo is resting.</Text>
+            </View>
+          ) : (
+            <MeloCompanionHost
+              size={162}
+              mood={mood}
+              pose="none"
+              position={preferredPosition}
+              presence={presence}
+              onPress={() => setContextOpen(true)}
+              accessibilityLabel={
+                hasMoneyPicture ? 'Melo. Tap for options.' : 'Melo, ready to help you start. Tap for options.'
+              }
+            />
+          )}
 
           <Pressable
             accessibilityRole="button"
