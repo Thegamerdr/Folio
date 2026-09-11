@@ -913,7 +913,12 @@ export function FolioShell() {
           {/* Self-hosting sheet hosts — each renders the kit Sheet internally, so it is its own host
           (never nested inside the generic one) and is visible only while it is the active sheet. */}
           {sheet === 'onboarding' && (
-            <OnboardingSheet visible onClose={closeSheet} initialField={onboardingField} />
+            <OnboardingSheet
+              visible
+              onClose={closeSheet}
+              onSaved={() => go('today')}
+              initialField={onboardingField}
+            />
           )}
           {sheet === 'appearance' && <AppearanceSheet visible onClose={closeSheet} />}
           {/* Edit-txn — the posted-transaction correction sheet. The shell threads the parked target id

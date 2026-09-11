@@ -262,7 +262,7 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
       return `${name}your money picture still needs ${snapshot.setupNeeds?.join(', ') || 'your numbers'}. You can add or confirm them in setup.`;
     }
     if (snapshot.hasMoneyPicture) {
-      return `${name}your latest money picture is ready here. what do you want to check?`;
+      return `${name}your latest money picture is ready here. What do you want to check?`;
     }
     return `${name}here when you need me. what's on your mind?`;
   }, [prefill, seedIntent, activeWorkspace, subs, subPaused, onboarding, snapshot]);

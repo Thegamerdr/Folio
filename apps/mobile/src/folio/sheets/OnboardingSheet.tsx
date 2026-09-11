@@ -67,6 +67,7 @@ import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { copy } from '@/folio/copy/copy';
+import { showToast } from '@/folio/ui/Toast';
 import { useAppStore, type IncomeSource } from '@/folio/store';
 import { parseManualMoney, normalizeManualMoneyDraft } from '@/folio/lib/manualMoney';
 import {
@@ -241,6 +242,7 @@ export type OnboardingSheetProps = {
   visible: boolean;
   initialField?: string | undefined;
   onClose: () => void;
+  onSaved?: (() => void) | undefined;
   // Defaults to the real flow. The non-`populated` values exist to satisfy the spec's STATES matrix.
   state?: OnboardingSheetState | undefined;
 };
@@ -393,6 +395,7 @@ export function OnboardingSheet({
   visible,
   onClose,
   initialField,
+  onSaved,
   state = 'populated',
 }: OnboardingSheetProps) {
   const t = useTheme();
@@ -417,6 +420,7 @@ export function OnboardingSheet({
       palette={t}
       reduceMotion={reduceMotion}
       onClose={onClose}
+      onSaved={onSaved}
     />
   );
 }
@@ -471,6 +475,7 @@ function OnboardingFlow({
   palette: t,
   reduceMotion,
   onClose,
+  onSaved,
 }: {
   visible: boolean;
   initialField?: string | undefined;
@@ -478,6 +483,7 @@ function OnboardingFlow({
   palette: Palette;
   reduceMotion: boolean;
   onClose: () => void;
+  onSaved?: (() => void) | undefined;
 }) {
   const ob = useAppStore((st) => st.onboarding);
   const existingPots = useAppStore((st) => st.pots);
@@ -510,6 +516,7 @@ function OnboardingFlow({
   const showSummary = hasEnteredSummary;
   const [costsConfirmed, setCostsConfirmed] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(Keyboard.isVisible());
+  const [focusedPot, setFocusedPot] = useState<string | null>(null);
   useEffect(() => {
     const shown = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
     const hidden = Keyboard.addListener('keyboardDidHide', () => setKeyboardOpen(false));
@@ -658,7 +665,13 @@ function OnboardingFlow({
             }
           : {}),
       });
-      onClose();
+      (onSaved ?? onClose)();
+      showToast(
+        isReturning ? 'Changes saved' : 'Setup saved',
+        isReturning
+          ? 'Your updated numbers are ready on Today.'
+          : 'Your balance, payday, costs and pots are saved on this device.',
+      );
     } catch (error) {
       savingRef.current = false;
       setSaveError(error instanceof Error ? error.message : 'Could not save these changes.');
@@ -921,7 +934,7 @@ function OnboardingFlow({
   const footer = (
     <View>
       {showSummary ? confirmation : null}
-      {!showSummary && numericError ? (
+      {!showSummary && numericError && !(keyboardOpen && activeStepIndex === STEP_POTS) ? (
         <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
           {numericError}
         </Text>
@@ -1002,13 +1015,7 @@ function OnboardingFlow({
 
   if (showSummary)
     return (
-      <Sheet
-        visible={visible}
-        onClose={onClose}
-        reduceMotion={reduceMotion}
-        scrollKey="summary"
-        footer={footer}
-      >
+      <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion} scrollKey="summary">
         <Text accessibilityRole="header" style={s.headline}>
           {isReturning ? 'Review your numbers' : 'Review my setup'}
         </Text>
@@ -1044,6 +1051,7 @@ function OnboardingFlow({
             ? 'Cancel keeps your existing data unchanged.'
             : 'Finish later leaves these entries unsaved.'}
         </Text>
+        {footer}
       </Sheet>
     );
 
@@ -1055,11 +1063,20 @@ function OnboardingFlow({
       scrollKey={step}
       footer={footer}
       header={
-        <Text style={[s.selectedGoal, { paddingBottom: gap.sm }]}>
-          {isReturning
-            ? `Edit · ${current.eyebrow}`
-            : `Step ${step + 1} of ${visibleStepIndices.length} · ${current.eyebrow}`}
-        </Text>
+        <View style={{ paddingBottom: gap.sm }}>
+          <Text maxFontSizeMultiplier={1.35} style={s.selectedGoal}>
+            {isReturning
+              ? `Edit · ${current.eyebrow}`
+              : `Step ${step + 1} of ${visibleStepIndices.length} · ${current.eyebrow}`}
+          </Text>
+          {keyboardOpen ? (
+            <Text accessibilityRole="header" maxFontSizeMultiplier={1.35} style={s.typingQuestion}>
+              {current.head.lead}
+              {current.head.accent}
+              {current.head.tail}
+            </Text>
+          ) : null}
+        </View>
       }
     >
       <View style={s.body}>
@@ -1084,7 +1101,7 @@ function OnboardingFlow({
 
         {/* Headline — one terracotta-italic accent run carved into the Fraunces line. */}
         <Text
-          style={[s.headline, keyboardOpen ? { fontSize: 22, lineHeight: 26 } : undefined]}
+          style={[s.headline, keyboardOpen ? { display: 'none' } : undefined]}
           accessibilityRole="header"
         >
           {current.head.lead}
@@ -1610,16 +1627,20 @@ function OnboardingFlow({
 
           {!isReturning && activeStepIndex === STEP_POTS ? (
             <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
-              <Text style={s.potsIntro}>
+              <Text style={[s.potsIntro, keyboardOpen ? { display: 'none' } : undefined]}>
                 Choose optional pots, then add your own target and weekly amount. Leave all
                 unselected to save your setup without pots. You can add pots later.
               </Text>
               <View style={s.potGrid}>
-                {POT_TEMPLATES.map((tpl) => (
+                {POT_TEMPLATES.filter(
+                  (tpl) => !keyboardOpen || focusedPot === null || tpl.id === focusedPot,
+                ).map((tpl) => (
                   <PotTile
                     key={tpl.id}
                     template={tpl}
                     selected={picked.has(tpl.id)}
+                    compact={keyboardOpen}
+                    onFocus={() => setFocusedPot(tpl.id)}
                     amounts={potAmounts[tpl.id] ?? { goal: '', perWeek: '' }}
                     onAmountChange={(field, value) => updatePotAmount(tpl.id, field, value)}
                     onPress={() => togglePot(tpl.id)}
@@ -1631,7 +1652,7 @@ function OnboardingFlow({
           ) : null}
         </Animated.View>
 
-        <Text style={s.footer}>
+        <Text style={[s.footer, keyboardOpen ? { display: 'none' } : undefined]}>
           {isReturning
             ? 'Cancel keeps everything you’ve already added unchanged.'
             : activeStepIndex === 0
@@ -1691,6 +1712,8 @@ function ProgressPip({
 function PotTile({
   template,
   selected,
+  compact,
+  onFocus,
   amounts,
   onPress,
   onAmountChange,
@@ -1698,13 +1721,21 @@ function PotTile({
 }: {
   template: PotTemplate;
   selected: boolean;
+  compact: boolean;
+  onFocus: () => void;
   amounts: PotAmounts;
   onPress: () => void;
   onAmountChange: (field: keyof PotAmounts, value: string) => void;
   styles: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <View style={[s.potTile, selected ? s.potTileSelected : s.potTileUnselected]}>
+    <View
+      style={[
+        s.potTile,
+        selected ? s.potTileSelected : s.potTileUnselected,
+        compact ? { padding: gap.sm } : undefined,
+      ]}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ selected }}
@@ -1712,29 +1743,39 @@ function PotTile({
         style={{ minHeight: 48, justifyContent: 'center' }}
       >
         <Text style={s.potName}>{template.name}</Text>
-        <Text style={s.potMeta}>{selected ? 'Selected · tap to remove' : 'Choose this pot'}</Text>
+        {!compact ? (
+          <Text style={s.potMeta}>{selected ? 'Selected · tap to remove' : 'Choose this pot'}</Text>
+        ) : null}
       </Pressable>
       {selected ? (
-        <>
-          <Text style={s.help}>Target (£)</Text>
-          <TextInput
-            value={amounts.goal}
-            onChangeText={(value) => onAmountChange('goal', value)}
-            selectTextOnFocus
-            keyboardType="decimal-pad"
-            style={s.amountInput}
-            accessibilityLabel={`${template.name} target in pounds`}
-          />
-          <Text style={s.help}>Set aside each week (£, can be 0)</Text>
-          <TextInput
-            value={amounts.perWeek}
-            onChangeText={(value) => onAmountChange('perWeek', value)}
-            selectTextOnFocus
-            keyboardType="decimal-pad"
-            style={s.amountInput}
-            accessibilityLabel={`${template.name} weekly amount in pounds`}
-          />
-        </>
+        <View style={compact ? s.potAmountColumns : undefined}>
+          <View style={compact ? s.potAmountColumn : undefined}>
+            <Text style={[s.help, compact ? { marginTop: 0 } : undefined]}>Target (£)</Text>
+            <TextInput
+              value={amounts.goal}
+              onChangeText={(value) => onAmountChange('goal', value)}
+              onFocus={onFocus}
+              selectTextOnFocus
+              keyboardType="decimal-pad"
+              style={s.amountInput}
+              accessibilityLabel={`${template.name} target in pounds`}
+            />
+          </View>
+          <View style={compact ? s.potAmountColumn : undefined}>
+            <Text style={[s.help, compact ? { marginTop: 0 } : undefined]}>
+              {compact ? 'Weekly (£, 0 allowed)' : 'Set aside each week (£, can be 0)'}
+            </Text>
+            <TextInput
+              value={amounts.perWeek}
+              onChangeText={(value) => onAmountChange('perWeek', value)}
+              onFocus={onFocus}
+              selectTextOnFocus
+              keyboardType="decimal-pad"
+              style={s.amountInput}
+              accessibilityLabel={`${template.name} weekly amount in pounds`}
+            />
+          </View>
+        </View>
       ) : null}
     </View>
   );
@@ -2028,6 +2069,14 @@ function makeStyles(t: Palette) {
       lineHeight: 30,
       marginTop: gap.xs,
     },
+    typingQuestion: {
+      color: t.ink,
+      fontSize: 17,
+      lineHeight: 22,
+      paddingHorizontal: gap.sm,
+    },
+    potAmountColumns: { flexDirection: 'row', alignItems: 'flex-end', gap: gap.sm },
+    potAmountColumn: { flex: 1, minWidth: 0 },
     headlineAccent: {
       color: t.calm,
       fontFamily: serif.displayItalic,

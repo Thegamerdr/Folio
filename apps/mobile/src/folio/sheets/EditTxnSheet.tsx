@@ -570,7 +570,7 @@ function EditTxnForm({
         onPress={reviewing ? () => setReviewing(false) : onClose}
         style={({ pressed }) => [
           s.footerButton,
-          { backgroundColor: t.inset },
+          { backgroundColor: 'transparent' },
           pressed ? s.pressed : undefined,
         ]}
       >
@@ -600,7 +600,7 @@ function EditTxnForm({
               : paymentPreview?.error
                 ? 'Check correction'
                 : pendingChanges.length === 0
-                  ? 'No changes'
+                  ? 'Edit a value to review'
                   : 'Review changes'}
         </Text>
       </Pressable>

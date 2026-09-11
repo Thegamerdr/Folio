@@ -82,7 +82,8 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
   // Prefill only an existing real balance. Continue confirms the displayed amount; a fresh
   // profile must never silently turn a design example into user-entered money.
   const currentBalance = useAppStore((s) => s.currentBalance);
-  const [value, setValue] = useState(() => guidedBalanceDraft(currentBalance));
+  const setupConfirmed = useAppStore((s) => s.onboarding.financialSetupConfirmed === true);
+  const [value, setValue] = useState(() => guidedBalanceDraft(currentBalance, setupConfirmed));
 
   const parsedBalance = parseManualMoney(value, { allowZero: true });
   const balanceValid = parsedBalance !== undefined;
