@@ -95,7 +95,7 @@ export function MeloContextSheet({
           </Pressable>
 
           <View style={styles.positionBlock}>
-            <Text style={[styles.controlLabel, { color: t.ink }]}>Safe position</Text>
+            <Text style={[styles.controlLabel, { color: t.ink }]}>Move companion</Text>
             <Text style={[styles.controlHint, { color: t.muted }]}>
               Choose a side when the layout has room.
             </Text>
@@ -122,7 +122,11 @@ export function MeloContextSheet({
                       { color: position === option ? t.canvas : t.ink },
                     ]}
                   >
-                    {option}
+                    {option === 'left'
+                      ? 'Left edge'
+                      : option === 'right'
+                        ? 'Right edge'
+                        : 'Back to its place'}
                   </Text>
                 </Pressable>
               ))}

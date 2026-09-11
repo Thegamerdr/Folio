@@ -5,7 +5,7 @@
 // existing one-decision Review surface mounted in place. It is not a second queue dashboard.
 
 import { memo, useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
@@ -144,6 +144,8 @@ const HistoryRow = memo(function HistoryRow({
 
 export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
   const t = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  const stackDestinations = width / fontScale < 280;
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<ReviewHubTab>('needs');
   const queueCount = useAppStore(
@@ -195,7 +197,11 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
         <View
           accessibilityLabel="Review destinations"
           accessibilityRole="tablist"
-          style={[styles.segmented, { backgroundColor: t.inset }]}
+          style={[
+            styles.segmented,
+            { backgroundColor: t.inset },
+            stackDestinations ? { flexDirection: 'column' } : undefined,
+          ]}
         >
           {TAB_LABELS.map(({ key, label }) => {
             const selected = tab === key;
@@ -207,6 +213,7 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
                 onPress={() => setTab(key)}
                 style={({ pressed }) => [
                   styles.segment,
+                  stackDestinations ? { flex: 0, alignSelf: 'stretch' } : undefined,
                   selected
                     ? {
                         backgroundColor: t.surface,
@@ -217,10 +224,7 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
                   pressed ? styles.pressed : undefined,
                 ]}
               >
-                <Text
-                  numberOfLines={1}
-                  style={[styles.segmentLabel, { color: selected ? t.ink : t.muted }]}
-                >
+                <Text style={[styles.segmentLabel, { color: selected ? t.ink : t.muted }]}>
                   {label}
                   {key === 'needs' && queueCount > 0 ? (
                     <Text style={[styles.segmentCount, { color: t.muted }]}> {queueCount}</Text>

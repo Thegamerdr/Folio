@@ -15,6 +15,7 @@ import { MeloContextSheet } from '@/folio/sheets/MeloContextSheet';
 import { setMelo, useAppStore } from '@/folio/store';
 import { useTheme } from '@/folio/theme';
 import type { Nav, ScreenId } from '@/folio/types';
+import { MeloPerchBubble } from './MeloPerchBubble';
 
 /** A measured semantic lane. The native layout reserves its whole area, so
  * dragging cannot cover headings, amounts, controls, system bars or Undo.
@@ -26,6 +27,7 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
   const preferred = useAppStore((state) => state.melo?.preferredPosition ?? 'auto');
   const [width, setWidth] = useState(0);
   const [open, setOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(Keyboard.isVisible());
   const [reduce, setReduce] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -36,7 +38,10 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduce);
     const motion = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
-    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardOpen(true);
+      setOpen(false);
+    });
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardOpen(false));
     return () => {
       motion.remove();
@@ -88,7 +93,7 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
               />
             ))
           : null}
-        {!keyboardOpen && !open && !suppressed && width >= PERCH_SIZE ? (
+        {!keyboardOpen && !optionsOpen && !suppressed && width >= PERCH_SIZE ? (
           <GestureDetector gesture={Gesture.Exclusive(drag, tap)}>
             <Animated.View
               accessible
@@ -121,9 +126,28 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
           </GestureDetector>
         ) : null}
       </View>
+      {open && !keyboardOpen && !optionsOpen && !suppressed ? (
+        <View style={styles.bubbleSlot}>
+          <MeloPerchBubble
+            {...(action ? { action } : {})}
+            position={preferred}
+            anchorX={targets[preferred] + PERCH_SIZE / 2}
+            onClose={() => setOpen(false)}
+            onMove={move}
+            onOptions={() => {
+              setOpen(false);
+              setOptionsOpen(true);
+            }}
+            onExpand={() => {
+              setOpen(false);
+              nav.openMelo(action ? { prefill: action.prompt } : undefined);
+            }}
+          />
+        </View>
+      ) : null}
       <MeloContextSheet
-        visible={open}
-        onClose={() => setOpen(false)}
+        visible={optionsOpen}
+        onClose={() => setOptionsOpen(false)}
         mood="calm"
         presence="perched"
         {...(action ? { action } : {})}
@@ -133,6 +157,7 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
         onQuietModeChange={() => {
           setMelo({ quietMode: !quiet });
           setOpen(false);
+          setOptionsOpen(false);
         }}
         onPositionChange={move}
         onTalk={() => nav.openMelo()}
@@ -141,6 +166,7 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
   );
 }
 const styles = StyleSheet.create({
+  bubbleSlot: { marginTop: -8, marginBottom: 24 },
   lane: { height: 96, marginVertical: 16, position: 'relative' },
   bird: { position: 'absolute', top: 4, width: 88, height: 88 },
   target: {

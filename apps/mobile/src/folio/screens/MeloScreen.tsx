@@ -84,6 +84,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  useWindowDimensions,
   StyleSheet,
   Text,
   View,
@@ -183,6 +184,8 @@ function useReduceMotion(): boolean {
 
 export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const t = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  const stackReading = width / fontScale < 280;
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
@@ -503,7 +506,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: t.ink }]}>What he's reading</Text>
-          <View style={styles.readingGrid}>
+          <View style={[styles.readingGrid, stackReading ? styles.readingGridStacked : undefined]}>
             <ReadingCell
               label="balance"
               value={formatWholePounds(currentBalance.amount)}
@@ -937,13 +940,18 @@ const styles = StyleSheet.create({
   sectionHeaderRow: {
     alignItems: 'baseline',
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 12,
+    rowGap: 6,
     justifyContent: 'space-between',
   },
   sectionTitle: {
+    maxWidth: '100%',
     fontFamily: serif.displayItalic,
     fontSize: 16,
   },
   sectionHint: {
+    maxWidth: '100%',
     fontSize: 11,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
@@ -993,6 +1001,7 @@ const styles = StyleSheet.create({
     gap: gap.sm,
     marginTop: gap.md,
   },
+  readingGridStacked: { flexDirection: 'column' },
   readingCell: {
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
