@@ -803,7 +803,7 @@ function OnboardingFlow({
   );
   const numericError =
     activeStepIndex === STEP_POTS && !potsValid
-      ? 'Add a target above £0 and a weekly amount for each selected pot, or deselect it.'
+      ? 'Add a target above £0 and a top-up amount for each selected pot, or deselect it.'
       : activeStepIndex === STEP_PAYDAY && cadence === 'monthly' && paydayInputValue === undefined
         ? 'Enter a day from 1 to 31.'
         : activeStepIndex === 5 && incomeInputValue === undefined
@@ -1090,6 +1090,14 @@ function OnboardingFlow({
               {current.head.tail}
             </Text>
           ) : null}
+          {keyboardOpen && activeStepIndex === STEP_PAYDAY && cadence === 'monthly' ? (
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[s.paydayTypingContext, { color: numericError ? t.repair : t.muted }]}
+            >
+              {numericError ? 'Enter a day: 1–31' : 'Day of month · 1–31'}
+            </Text>
+          ) : null}
         </View>
       }
     >
@@ -1269,7 +1277,7 @@ function OnboardingFlow({
             <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               {cadence === 'monthly' ? (
                 <>
-                  <View style={s.valueRow}>
+                  <View style={[s.valueRow, keyboardOpen ? { display: 'none' } : undefined]}>
                     <Text
                       style={[
                         s.bigValue,
@@ -2134,6 +2142,7 @@ function makeStyles(t: Palette) {
       lineHeight: 22,
       paddingHorizontal: gap.sm,
     },
+    paydayTypingContext: { fontSize: 13, lineHeight: 18, paddingHorizontal: gap.sm, marginTop: 4 },
     potAmountColumns: { flexDirection: 'row', alignItems: 'flex-end', gap: gap.sm },
     potAmountColumn: { flex: 1, minWidth: 0 },
     headlineAccent: {

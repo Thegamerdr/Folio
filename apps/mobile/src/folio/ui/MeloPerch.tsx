@@ -95,13 +95,15 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
         style={styles.lane}
       >
         {dragging
-          ? Object.entries(targets).map(([side, left]) => (
-              <View
-                key={side}
-                pointerEvents="none"
-                style={[styles.target, { left, borderColor: t.calm }]}
-              />
-            ))
+          ? Object.entries(targets)
+              .filter(([side]) => side !== 'auto')
+              .map(([side, left]) => (
+                <View
+                  key={side}
+                  pointerEvents="none"
+                  style={[styles.target, { left, borderColor: t.calm }]}
+                />
+              ))
           : null}
         {!anchor.tucked && !keyboardOpen && !optionsOpen && !suppressed && width >= PERCH_SIZE ? (
           <GestureDetector gesture={Gesture.Exclusive(drag, tap)}>

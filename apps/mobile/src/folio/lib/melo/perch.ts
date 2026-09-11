@@ -4,7 +4,7 @@ export const PERCH_SIZE = 88;
 export function perchTargets(width: number) {
   return {
     left: 0,
-    auto: Math.max(0, (width - PERCH_SIZE) / 2),
+    auto: Math.max(0, width - PERCH_SIZE),
     right: Math.max(0, width - PERCH_SIZE),
   };
 }
@@ -20,8 +20,8 @@ export function resolvePerchDrop(
 ): PerchSide {
   if (width < PERCH_SIZE || Math.abs(y) > 48) return origin;
   const targets = perchTargets(width);
-  const nearest = (Object.keys(targets) as PerchSide[]).sort(
-    (a, b) => Math.abs(targets[a] - x) - Math.abs(targets[b] - x),
-  )[0]!;
+  const nearest = (['left', 'right'] as const)
+    .slice()
+    .sort((a, b) => Math.abs(targets[a] - x) - Math.abs(targets[b] - x))[0]!;
   return Math.abs(targets[nearest] - x) <= 48 ? nearest : origin;
 }

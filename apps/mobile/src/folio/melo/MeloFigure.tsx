@@ -20,7 +20,7 @@ export function MeloFigure({
   mood = 'calm',
   onPress,
   label = 'Melo. Tap for options.',
-  hideForKeyboard = false,
+  hideForKeyboard = true,
   scrollOwner = false,
 }: {
   role: keyof typeof MELO_ROLES;
@@ -49,17 +49,16 @@ export function MeloFigure({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   };
-  if (quiet || (hideForKeyboard && keyboardOpen)) return null;
-  const content = anchor.tucked ? null : (
-    <Melo mood={mood} size={Math.ceil(dimensions.visible / 0.82)} />
-  );
+  if (quiet) return null;
+  const hidden = anchor.tucked || (hideForKeyboard && keyboardOpen);
+  const content = hidden ? null : <Melo mood={mood} size={Math.ceil(dimensions.visible / 0.82)} />;
   return onPress ? (
     <Pressable
       ref={anchor.ref}
       onLayout={anchor.onLayout}
       collapsable={false}
-      disabled={anchor.tucked}
-      importantForAccessibility={anchor.tucked ? 'no-hide-descendants' : 'auto'}
+      disabled={hidden}
+      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
       style={style}
       accessibilityRole="button"
       accessibilityLabel={label}

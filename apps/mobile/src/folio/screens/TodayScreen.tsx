@@ -1,5 +1,6 @@
 import { MeloScrollView } from '@/folio/melo/MeloScrollView';
 import { MeloFigure } from '@/folio/melo/MeloFigure';
+import Svg, { Path } from 'react-native-svg';
 import { MeloPerch } from '@/folio/ui/MeloPerch';
 /**
  * @rn-screen    TodayScreen
@@ -56,7 +57,6 @@ import {
   weightFamily,
   type Palette,
 } from '@/folio/theme';
-import { Melo } from '@/folio/melo/Melo';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import {
@@ -1197,11 +1197,16 @@ export function TodayFirstRun({ nav }: { nav: Nav }) {
               p ? pressed : undefined,
             ]}
           >
-            <Melo size={21} mood="calm" />
+            <Svg width={22} height={24} viewBox="0 0 24 28" accessibilityElementsHidden>
+              <Path
+                fill={t.calm}
+                d="M13 1c2 7-3 8-2 12 2-1 4-3 5-6 1 3 6 7 6 12a10 10 0 0 1-20 0C2 12 9 10 13 1Z"
+              />
+            </Svg>
           </Pressable>
         </View>
         <View style={[styles.firstRunMelo, { backgroundColor: t.inset }]}>
-          <Melo size={52} mood="curious" />
+          <MeloFigure scrollOwner role="inline" mood="curious" />
         </View>
         <Text style={[styles.firstRunPrimer, { color: t.ink }]}>
           Melo, here. I only speak when something shifts.
@@ -1360,9 +1365,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
-    height: 38,
+    height: 44,
     justifyContent: 'center',
-    width: 38,
+    width: 44,
   },
   firstRunMelo: {
     alignItems: 'center',
