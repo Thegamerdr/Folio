@@ -1,5 +1,16 @@
 import { useContext, useEffect, useState } from 'react';
-import { AccessibilityInfo, Keyboard, StyleSheet, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import type { FinancialPlanResult } from '@folio/finance-engine';
+import { selectFinancialPresentation } from '@/folio/lib/financialPresentation';
+import { meloAnchorContext } from '@/folio/lib/melo/anchorContext';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -21,8 +32,20 @@ import { MeloPerchBubble } from './MeloPerchBubble';
 /** A measured semantic lane. The native layout reserves its whole area, so
  * dragging cannot cover headings, amounts, controls, system bars or Undo.
  */
-export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
+export function MeloPerch({
+  screen,
+  nav,
+  plan,
+}: {
+  screen: ScreenId;
+  nav: Nav;
+  plan: FinancialPlanResult | null;
+}) {
   const t = useTheme();
+  const state = useAppStore((current) => current);
+  const { fontScale } = useWindowDimensions();
+  const context = meloAnchorContext(plan, selectFinancialPresentation(state, plan));
+  const stack = fontScale > 1.3;
   const anchor = useMeloScrollAnchor(true);
   const quiet = useAppStore((state) => state.melo?.quietMode === true);
   const suppressed = useContext(MeloSuppressedContext);
@@ -37,6 +60,12 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
   const origin = useSharedValue(0);
   const targets = perchTargets(width);
   const action = deriveShellContextAction(screen);
+  const followContext = () => {
+    if (context.destination === 'onboarding') nav.openSheet('onboarding');
+    else if (context.destination === 'melo')
+      nav.openMelo(action ? { prefill: action.prompt } : undefined);
+    else nav.go(context.destination);
+  };
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduce);
     const motion = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
@@ -82,7 +111,15 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
       if (success) runOnJS(setOpen)(true);
     });
   const birdStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
-  if (quiet) return null;
+  if (quiet)
+    return (
+      <View style={[styles.context, { marginVertical: 12 }]}>
+        <Text style={[styles.contextLine, { color: t.ink }]}>{context.sentence}</Text>
+        <Pressable accessibilityRole="button" onPress={followContext} style={styles.contextAction}>
+          <Text style={[styles.contextLabel, { color: t.calm }]}>{context.label} →</Text>
+        </Pressable>
+      </View>
+    );
   return (
     <>
       <View
@@ -92,8 +129,26 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
           setWidth(event.nativeEvent.layout.width);
           anchor.onLayout?.();
         }}
-        style={styles.lane}
+        style={[styles.lane, stack ? { paddingTop: 100 } : undefined]}
       >
+        <View
+          pointerEvents={dragging ? 'none' : 'auto'}
+          importantForAccessibility={dragging ? 'no-hide-descendants' : 'auto'}
+          style={[
+            styles.context,
+            stack ? undefined : preferred === 'left' ? { marginLeft: 100 } : { marginRight: 100 },
+            { opacity: dragging ? 0 : 1 },
+          ]}
+        >
+          <Text style={[styles.contextLine, { color: t.ink }]}>{context.sentence}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={followContext}
+            style={styles.contextAction}
+          >
+            <Text style={[styles.contextLabel, { color: t.calm }]}>{context.label} →</Text>
+          </Pressable>
+        </View>
         {dragging
           ? Object.entries(targets)
               .filter(([side]) => side !== 'auto')
@@ -141,9 +196,8 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
       {open && !anchor.tucked && !keyboardOpen && !optionsOpen && !suppressed ? (
         <View style={styles.bubbleSlot}>
           <MeloPerchBubble
-            {...(action ? { action } : {})}
+            statement={context.sentence}
             position={preferred}
-            anchorX={targets[preferred] + PERCH_SIZE / 2}
             onClose={() => setOpen(false)}
             onMove={move}
             onOptions={() => {
@@ -178,8 +232,12 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
   );
 }
 const styles = StyleSheet.create({
-  bubbleSlot: { marginTop: -8, marginBottom: 24 },
-  lane: { height: 96, marginVertical: 16, position: 'relative' },
+  bubbleSlot: { marginBottom: 24 },
+  lane: { minHeight: 96, marginVertical: 12, position: 'relative' },
+  context: { minHeight: 96, justifyContent: 'center' },
+  contextLine: { fontSize: 14, lineHeight: 20 },
+  contextAction: { minHeight: 44, justifyContent: 'center', paddingVertical: 8 },
+  contextLabel: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
   bird: { position: 'absolute', top: 4, width: 88, height: 88 },
   target: {
     position: 'absolute',

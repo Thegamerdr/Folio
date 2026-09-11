@@ -506,6 +506,8 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     return (
       <MeloScrollView
         style={{ flex: 1, backgroundColor: t.canvas }}
+        showsVerticalScrollIndicator
+        persistentScrollbar
         contentContainerStyle={{
           flexGrow: 1,
           paddingHorizontal: gap.xl,
@@ -570,7 +572,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             }}
           >
             <Text style={{ color: t.inverse, fontSize: 15, textAlign: 'center' }}>
-              {needsSetup ? 'Add my numbers' : 'Back to today'}
+              {needsSetup ? 'Add my numbers' : 'Back to Today'}
             </Text>
           </Pressable>
         </View>

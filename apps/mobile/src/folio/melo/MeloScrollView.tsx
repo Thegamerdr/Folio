@@ -25,7 +25,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useAppStore } from '@/folio/store';
 import { useTheme } from '@/folio/theme';
 import { MeloSuppressedContext } from './MeloVisibility';
-import { shouldTuckMelo, visibleMeloFraction } from '@/folio/lib/melo/scrollOwner';
+import { shouldTuckMelo, visibleMeloFraction, type Rect } from '@/folio/lib/melo/scrollOwner';
 
 type Owner = { register: (node: View | null) => void; refresh: () => void; tucked: boolean };
 const OwnerContext = createContext<Owner | null>(null);
@@ -58,6 +58,7 @@ export const MeloScrollView = forwardRef<ScrollView, ScrollViewProps>(
     const scroller = useRef<ScrollView | null>(null);
     const anchor = useRef<View | null>(null);
     const offset = useRef(0);
+    const geometry = useRef<{ slot: Rect; viewport: Rect } | null>(null);
     const active = useRef(false);
     const alive = useRef(true);
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,9 +81,14 @@ export const MeloScrollView = forwardRef<ScrollView, ScrollViewProps>(
             if (!alive.current || version !== epoch.current || active.current || blockedRef.current)
               return;
             if (vw <= 0 || vh <= 0 || aw <= 0 || ah <= 0) return;
+            const protectedViewport = { x: vx + 4, y: vy + 4, width: vw - 8, height: vh - 8 };
+            geometry.current = {
+              slot: { x: ax, y: ay + offset.current, width: aw, height: ah },
+              viewport: protectedViewport,
+            };
             const fraction = visibleMeloFraction(
               { x: ax, y: ay, width: aw, height: ah },
-              { x: vx, y: vy, width: vw, height: vh },
+              protectedViewport,
             );
             setTucked((wasTucked) => shouldTuckMelo(wasTucked, fraction));
           });
@@ -92,6 +98,7 @@ export const MeloScrollView = forwardRef<ScrollView, ScrollViewProps>(
     const register = useCallback(
       (node: View | null) => {
         anchor.current = node;
+        geometry.current = null;
         if (!node) setTucked(false);
         refresh();
       },
@@ -153,6 +160,16 @@ export const MeloScrollView = forwardRef<ScrollView, ScrollViewProps>(
               onScroll={(event) => {
                 setScrolling(true);
                 offset.current = event.nativeEvent.contentOffset.y;
+                // Hide immediately before the owned rectangle crosses the inset. Do not wait
+                // for the idle measurement while a clipped character passes through the edge.
+                const measured = geometry.current;
+                if (measured && !blockedRef.current) {
+                  const fraction = visibleMeloFraction(
+                    { ...measured.slot, y: measured.slot.y - offset.current },
+                    measured.viewport,
+                  );
+                  if (shouldTuckMelo(false, fraction)) setTucked(true);
+                }
                 props.onScroll?.(event);
                 refresh();
               }}

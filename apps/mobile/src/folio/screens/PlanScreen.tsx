@@ -335,7 +335,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
             </Text>
           </View>
 
-          <MeloPerch screen="plan" nav={nav} />
+          <MeloPerch screen="plan" nav={nav} plan={financialPlan} />
 
           {!financePresentation.complete || !financialPlan?.nextIncomeDate ? (
             <FinancialSetupNotice

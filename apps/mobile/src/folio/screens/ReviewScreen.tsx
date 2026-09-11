@@ -827,7 +827,7 @@ export function ReviewScreen({
             </Pressable>
           ) : null}
 
-          <MeloPerch screen="review" nav={nav} />
+          <MeloPerch screen="review" nav={nav} plan={cashAtReview} />
 
           <View style={sourceStyles.hero}>
             {stamped ? (

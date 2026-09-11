@@ -186,7 +186,7 @@ export function StartScreen({ nav, state = 'populated' }: StartScreenProps) {
         {/* Melo line — the quiet companion, calm mood (its breathe + blink are the only continuous
           motion on the resting screen). MeloLine adds the straight quotes; we pass the raw text. */}
         <View style={styles.meloLine}>
-          <MeloLine text="Start rough. You can correct anything later." />
+          <MeloLine editorial text="Start rough. You can correct anything later." />
         </View>
 
         {/* Spacer pins the CTA + secondary links to the bottom, mirroring the web flex-1 spacer. */}

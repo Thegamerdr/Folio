@@ -184,7 +184,7 @@ function useReduceMotion(): boolean {
 
 export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const t = useTheme();
-  const { width, fontScale } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
   const stackReading = width / fontScale < 280;
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
@@ -372,77 +372,8 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
           <View style={styles.headerSpacer} />
         </View>
 
-        {/* Presence — editorial masthead. */}
-        <View style={styles.titleBlock}>
-          <Text style={[styles.kicker, { color: t.muted }]}>
-            Companion
-            {joinLabel ? (
-              <Text style={styles.kickerJoin}>{` · with you since ${joinLabel}`}</Text>
-            ) : null}
-          </Text>
-          {melo.quietMode ? (
-            <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-              {'A '}
-              <Text style={[styles.headlineAccent, { color: t.calm }]}>quiet</Text>
-              {' lens on your money.'}
-            </Text>
-          ) : (
-            <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-              {'Reads your money. '}
-              <Text style={[styles.headlineAccent, { color: t.calm }]}>Reflects</Text>
-              {' it back.'}
-            </Text>
-          )}
-        </View>
-
-        {/* Presence — hero Melo or the quiet-mode resting line. */}
-        <View style={styles.heroWrap}>
-          {melo.quietMode ? (
-            <View style={styles.restingWrap}>
-              <Text style={[styles.restingLine, { color: t.muted }]}>Melo is resting.</Text>
-            </View>
-          ) : (
-            <MeloFigure
-              scrollOwner
-              role="home"
-              mood={mood}
-              onPress={() => setContextOpen(true)}
-              label={
-                hasMoneyPicture
-                  ? 'Melo. Tap for options.'
-                  : 'Melo, ready to help you start. Tap for options.'
-              }
-            />
-          )}
-
-          {/* Live state line — weather + lens, no chip container. Locked Full lens shows a small
-              lock so the paywall state is legible without opening the picker. */}
-          <View style={styles.lensLine}>
-            <MeloWeatherGlyph weather={weather} size={12} />
-            <Text style={[styles.lensLineText, { color: t.muted }]}>
-              {hasMoneyPicture ? weatherLabel(weather) : 'Add your numbers to begin'}
-            </Text>
-            <Text style={[styles.lensSeparator, { color: t.muted }]}>·</Text>
-            <Text style={[styles.lensLineText, { color: t.muted }]}>{lensLabel} lens</Text>
-            {modeLocked ? (
-              <Pressable
-                accessibilityLabel="This lens is Full — tap to see access options"
-                accessibilityRole="button"
-                onPress={() => nav.go('paywall')}
-                style={({ pressed: isPressed }) => [
-                  styles.lockChip,
-                  { backgroundColor: t.inset, borderColor: t.hairline },
-                  isPressed ? styles.pressed : undefined,
-                ]}
-              >
-                <Text style={[styles.lockChipLabel, { color: t.calm }]}>full</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-
         {/* Plumage — word + segmented meter + one honest whisper. */}
-        <View style={styles.section}>
+        <View style={[styles.section, { marginTop: 20 }]}>
           <View style={styles.sectionHeaderRow}>
             <Text style={[styles.sectionTitle, { color: t.ink }]}>Your money picture</Text>
             <Text style={[styles.sectionHint, { color: t.muted }]}>From your numbers</Text>
@@ -479,6 +410,95 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
                 : 'A quiet moment to look ahead, together.'}
             </Text>
           ) : null}
+        </View>
+
+        {/* Presence — editorial masthead. */}
+        <View style={styles.titleBlock}>
+          <Text style={[styles.kicker, { color: t.muted }]}>
+            Companion
+            {joinLabel ? (
+              <Text style={styles.kickerJoin}>{` · with you since ${joinLabel}`}</Text>
+            ) : null}
+          </Text>
+          {melo.quietMode ? (
+            <Text
+              accessibilityRole="header"
+              numberOfLines={fontScale >= 1.8 ? 1 : undefined}
+              style={[
+                styles.headline,
+                fontScale >= 1.8 ? { fontSize: 14, lineHeight: 18 } : undefined,
+                { color: t.ink },
+              ]}
+            >
+              {'A '}
+              <Text style={[styles.headlineAccent, { color: t.calm }]}>quiet</Text>
+              {' lens on your money.'}
+            </Text>
+          ) : (
+            <Text
+              accessibilityRole="header"
+              numberOfLines={fontScale >= 1.8 ? 1 : undefined}
+              style={[
+                styles.headline,
+                fontScale >= 1.8 ? { fontSize: 14, lineHeight: 18 } : undefined,
+                { color: t.ink },
+              ]}
+            >
+              {'Reads your money. '}
+              <Text style={[styles.headlineAccent, { color: t.calm }]}>Reflects</Text>
+              {' it back.'}
+            </Text>
+          )}
+        </View>
+
+        {/* Presence — hero Melo or the quiet-mode resting line. */}
+        <View style={styles.heroWrap}>
+          {melo.quietMode ? (
+            <View style={styles.restingWrap}>
+              <Text style={[styles.restingLine, { color: t.muted }]}>Melo is resting.</Text>
+            </View>
+          ) : (
+            <MeloFigure
+              scrollOwner
+              role="home"
+              maxBoxSize={Math.min(160, height * 0.22)}
+              mood={mood}
+              onPress={() => setContextOpen(true)}
+              label={
+                hasMoneyPicture
+                  ? 'Melo. Tap for options.'
+                  : 'Melo, ready to help you start. Tap for options.'
+              }
+            />
+          )}
+
+          {/* Live state line — weather + lens, no chip container. Locked Full lens shows a small
+              lock so the paywall state is legible without opening the picker. */}
+          <View style={styles.lensLine}>
+            <MeloWeatherGlyph weather={weather} size={12} />
+            <Text style={[styles.lensLineText, { color: t.muted }]}>
+              {hasMoneyPicture ? weatherLabel(weather) : 'Add your numbers to begin'}
+            </Text>
+            <Text style={[styles.lensSeparator, { color: t.muted }]}>·</Text>
+            <Text style={[styles.lensLineText, { color: t.muted }]}>{lensLabel} lens</Text>
+            {modeLocked ? (
+              <Pressable
+                accessibilityLabel="This lens is Full — tap to see access options"
+                accessibilityRole="button"
+                onPress={() => nav.go('paywall')}
+                style={({ pressed: isPressed }) => [
+                  styles.lockChip,
+                  { backgroundColor: t.inset, borderColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.lockChipLabel, { color: t.calm }]}>full</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.section}>
           <View style={styles.chatActions}>
             <Pressable
               accessibilityRole="button"
@@ -486,10 +506,11 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               onPress={() => nav.openMelo()}
               style={({ pressed: isPressed }) => [
                 styles.tapToTalk,
+                { backgroundColor: t.calm, borderColor: t.calm },
                 isPressed ? styles.pressed : undefined,
               ]}
             >
-              <Text style={[styles.tapToTalkLabel, { color: t.muted }]}>Chat with Melo</Text>
+              <Text style={[styles.tapToTalkLabel, { color: t.inverse }]}>Chat with Melo →</Text>
             </Pressable>
 
             <Pressable
@@ -892,11 +913,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     minHeight: 48,
     paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderRadius: radius.md,
   },
   tapToTalkLabel: {
     flexShrink: 1,
     fontSize: 14,
-    letterSpacing: 1.4,
+    fontWeight: '600',
   },
   tapToTalkMood: {
     fontSize: 11,
@@ -909,9 +933,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     columnGap: gap.sm,
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     minHeight: 48,
-    paddingHorizontal: gap.md,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignSelf: 'stretch',
   },
   holdDot: {
     borderRadius: 3,

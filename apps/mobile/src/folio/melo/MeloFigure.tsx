@@ -22,6 +22,7 @@ export function MeloFigure({
   label = 'Melo. Tap for options.',
   hideForKeyboard = true,
   scrollOwner = false,
+  maxBoxSize,
 }: {
   role: keyof typeof MELO_ROLES;
   mood?: MeloMood;
@@ -29,6 +30,7 @@ export function MeloFigure({
   label?: string;
   hideForKeyboard?: boolean;
   scrollOwner?: boolean;
+  maxBoxSize?: number;
 }) {
   const anchor = useMeloScrollAnchor(scrollOwner);
   const quiet = useAppStore((state) => state.melo?.quietMode === true);
@@ -43,15 +45,18 @@ export function MeloFigure({
     };
   }, [hideForKeyboard]);
   const dimensions = MELO_ROLES[role];
+  const scale = maxBoxSize === undefined ? 1 : Math.min(1, maxBoxSize / dimensions.box);
   const style = {
-    width: dimensions.box,
-    height: dimensions.box,
+    width: dimensions.box * scale,
+    height: dimensions.box * scale,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   };
   if (quiet) return null;
   const hidden = anchor.tucked || (hideForKeyboard && keyboardOpen);
-  const content = hidden ? null : <Melo mood={mood} size={Math.ceil(dimensions.visible / 0.82)} />;
+  const content = hidden ? null : (
+    <Melo mood={mood} size={Math.ceil((dimensions.visible * scale) / 0.82)} />
+  );
   return onPress ? (
     <Pressable
       ref={anchor.ref}

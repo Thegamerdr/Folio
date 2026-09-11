@@ -10,6 +10,7 @@ import {
 } from '../store';
 import { buildFinancialPlanFromState } from './financialPlan';
 import { suggestMode } from './modes/suggest';
+import { meloAnchorContext } from './melo/anchorContext';
 import {
   formatFinancialDate,
   formatMoney,
@@ -62,6 +63,38 @@ function fullState(): AppState {
   };
 }
 beforeEach(() => resetToEmpty());
+
+describe('Melo contextual financial guidance', () => {
+  it('sends an incomplete picture to setup without quoting a spendable amount', () => {
+    const plan = buildFinancialPlanFromState(getState(), { now });
+    const context = meloAnchorContext(plan, selectFinancialPresentation(getState(), plan));
+    expect(context.destination).toBe('onboarding');
+    expect(context.sentence).not.toContain('£');
+  });
+
+  it('prioritizes a real gap over overdue commitments without a reassurance', () => {
+    const state = fullState();
+    state.currentBalance.amount = 100;
+    const plan = buildFinancialPlanFromState(state, { now: new Date('2026-09-13T12:00:00Z') });
+    const presentation = selectFinancialPresentation(state, plan);
+    expect(presentation.overdueCount).toBeGreaterThan(0);
+    expect(plan.safeToSpendMinor).toBeLessThan(0);
+    const context = meloAnchorContext(plan, presentation);
+    expect(context.destination).toBe('recovery');
+    expect(context.sentence).toContain(formatMoney(-plan.safeToSpendMinor / 100));
+    expect(context.sentence).toContain('missing');
+  });
+
+  it('keeps a positive forecast qualified while a recorded bill is moved', () => {
+    const state = fullState();
+    state.subOverrides = { 'Rent + bills': 2 };
+    const plan = buildFinancialPlanFromState(state, { now });
+    expect(plan.safeToSpendMinor).toBeGreaterThan(0);
+    const context = meloAnchorContext(plan, selectFinancialPresentation(state, plan));
+    expect(context.sentence).toContain('checking');
+    expect(context.sentence).not.toContain('is left');
+  });
+});
 describe('financial presentation prerequisites and coherent results', () => {
   it('surfaces Shortfall for a complete known plan whose buffer creates a canonical gap', () => {
     const state = fullState();

@@ -10,20 +10,34 @@ import { StyleSheet, Text, View } from 'react-native';
 import { serif, useTheme } from '@/surfaces/pressureMap/kit';
 
 import { Melo, type MeloMood } from './Melo';
+import { MeloFigure } from './MeloFigure';
 
 export type MeloLineProps = {
   text: string;
   mood?: MeloMood;
   size?: number;
   showCompanion?: boolean;
+  editorial?: boolean;
 };
 
-export function MeloLine({ text, mood = 'calm', size = 28, showCompanion = true }: MeloLineProps) {
+export function MeloLine({
+  text,
+  mood = 'calm',
+  size = 28,
+  showCompanion = true,
+  editorial = false,
+}: MeloLineProps) {
   const t = useTheme();
 
   return (
     <View style={styles.row}>
-      {showCompanion ? <Melo mood={mood} size={size} /> : null}
+      {showCompanion ? (
+        editorial ? (
+          <MeloFigure role="inline" mood={mood} />
+        ) : (
+          <Melo mood={mood} size={size} />
+        )
+      ) : null}
       <Text style={[styles.line, { color: t.secondary }]}>{`“${text}”`}</Text>
     </View>
   );

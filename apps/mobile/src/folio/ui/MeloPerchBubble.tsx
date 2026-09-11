@@ -1,43 +1,32 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { MeloContextAction, MeloPosition } from '@/folio/lib/melo/companion';
+import type { MeloPosition } from '@/folio/lib/melo/companion';
 import { useTheme } from '@/folio/theme';
 
 /** The parent reserves the bubble's measured height in its semantic lane. It
  * never overlays the following money card, navigation or another control.
  */
 export function MeloPerchBubble({
-  action,
+  statement,
   onExpand,
   onClose,
   onOptions,
   onMove,
   position,
-  anchorX,
 }: {
-  action?: MeloContextAction;
+  statement: string;
   onExpand: () => void;
   onClose: () => void;
   onOptions: () => void;
   onMove: (side: MeloPosition) => void;
   position: MeloPosition;
-  anchorX: number;
 }) {
   const t = useTheme();
   const [moving, setMoving] = useState(false);
   return (
     <View style={[styles.bubble, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-      <View
-        pointerEvents="none"
-        style={[
-          styles.tail,
-          { left: anchorX - 6, backgroundColor: t.surface, borderColor: t.hairline },
-        ]}
-      />
       <View style={styles.heading}>
-        <Text style={[styles.title, { color: t.ink }]}>
-          {action?.label ?? 'A little help with your numbers'}
-        </Text>
+        <Text style={[styles.title, { color: t.ink }]}>{statement}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close Melo bubble"
@@ -57,7 +46,7 @@ export function MeloPerchBubble({
           onPress={() => setMoving(!moving)}
           style={styles.action}
         >
-          <Text style={[styles.actionLabel, { color: t.muted }]}>Move companion</Text>
+          <Text style={[styles.actionLabel, { color: t.calm }]}>Move companion</Text>
         </Pressable>
       </View>
       {moving ? (
@@ -97,19 +86,10 @@ export function MeloPerchBubble({
 
 const styles = StyleSheet.create({
   bubble: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
-  tail: {
-    position: 'absolute',
-    top: -7,
-    width: 12,
-    height: 12,
-    borderLeftWidth: 1,
-    borderTopWidth: 1,
-    transform: [{ rotate: '45deg' }],
-  },
   heading: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   title: { flex: 1, minWidth: 0, fontSize: 15, fontWeight: '600' },
   close: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 },
+  actions: { flexDirection: 'column', gap: 4 },
   action: { minHeight: 44, justifyContent: 'center', paddingVertical: 8 },
   actionLabel: { fontSize: 13, fontWeight: '600' },
   positions: { gap: 8, paddingTop: 8 },

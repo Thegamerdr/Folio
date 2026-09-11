@@ -47,6 +47,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -401,7 +402,8 @@ export function OnboardingSheet({
   state = 'populated',
 }: OnboardingSheetProps) {
   const t = useTheme();
-  const s = useMemo(() => makeStyles(t), [t]);
+  const { fontScale } = useWindowDimensions();
+  const s = useMemo(() => makeStyles(t, fontScale), [t, fontScale]);
   const reduceMotion = useReduceMotion();
 
   if (state !== 'populated') {
@@ -1991,7 +1993,7 @@ const sliderStyles = StyleSheet.create({
 // mb-4=lg(16) · gap-2=sm(8) · px-2/pb-2=sm(8) · px-4=lg(16) · h-12=xxxl(48) · pip gap 1.5≈xs+xxs(6).
 // ---------------------------------------------------------------------------
 
-function makeStyles(t: Palette) {
+function makeStyles(t: Palette, fontScale: number) {
   return StyleSheet.create({
     bigValue: {
       color: t.ink,
@@ -2115,8 +2117,11 @@ function makeStyles(t: Palette) {
       borderWidth: StyleSheet.hairlineWidth,
       color: t.ink,
       fontSize: 14,
+      lineHeight: 20,
+      includeFontPadding: true,
       marginTop: gap.sm,
-      minHeight: gap.xxxl,
+      minHeight: Math.max(48, 20 * fontScale + 24),
+      paddingVertical: 12,
       paddingHorizontal: gap.lg,
     },
     footer: {

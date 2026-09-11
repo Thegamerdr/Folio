@@ -857,7 +857,7 @@ export function TodayScreen({
           <OneMoveCard oneMove={oneMove} />
         ) : (
           <View style={{ marginHorizontal: 28 }}>
-            <MeloPerch screen="today" nav={nav} />
+            <MeloPerch screen="today" nav={nav} plan={financialPlan} />
           </View>
         )}
 
