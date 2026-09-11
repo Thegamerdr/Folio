@@ -1072,6 +1072,7 @@ function OnboardingFlow({
       onClose={onClose}
       reduceMotion={reduceMotion}
       scrollKey={step}
+      focusContextBefore={keyboardOpen ? 48 : 0}
       footer={footer}
       header={
         <View style={{ paddingBottom: gap.sm }}>

@@ -132,6 +132,7 @@ export function resolveSheetFocusedScroll({
   bodyTop,
   bodyHeight,
   padding = 8,
+  contextBefore = 0,
 }: Readonly<{
   scrollY: number;
   inputTop: number;
@@ -139,12 +140,18 @@ export function resolveSheetFocusedScroll({
   bodyTop: number;
   bodyHeight: number;
   padding?: number;
+  contextBefore?: number;
 }>): number {
   if (bodyHeight <= 0 || inputHeight <= 0) return scrollY;
   const visibleTop = bodyTop + padding;
   const visibleBottom = bodyTop + bodyHeight - padding;
-  if (inputTop < visibleTop || inputHeight > visibleBottom - visibleTop)
-    return Math.max(0, scrollY + inputTop - visibleTop);
+  const labelSpace = Math.min(
+    Math.max(0, contextBefore),
+    Math.max(0, bodyHeight - 2 * padding - inputHeight),
+  );
+  const contextTop = inputTop - labelSpace;
+  if (contextTop < visibleTop || inputHeight > visibleBottom - visibleTop)
+    return Math.max(0, scrollY + contextTop - visibleTop);
   if (inputTop + inputHeight > visibleBottom)
     return Math.max(0, scrollY + inputTop + inputHeight - visibleBottom);
   return scrollY;

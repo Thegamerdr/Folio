@@ -103,6 +103,8 @@ type SheetProps = {
   /** A new step starts at its heading without discarding the caller's draft. */
   scrollKey?: string | number;
   scrollRef?: RefObject<ScrollView | null>;
+  /** Keep a field's label visible when native focus scrolls its input to the top. */
+  focusContextBefore?: number;
 };
 
 type SheetPortalApi = {
@@ -284,6 +286,7 @@ export function Sheet({
   header,
   scrollKey,
   scrollRef,
+  focusContextBefore = 0,
 }: SheetProps) {
   const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -364,6 +367,7 @@ export function Sheet({
             inputHeight,
             bodyTop,
             bodyHeight,
+            contextBefore: focusContextBefore,
           });
           if (Math.abs(nextY - scrollY.current) > 1) {
             scrollY.current = nextY;
@@ -372,7 +376,7 @@ export function Sheet({
         });
       });
     });
-  }, [bodyScrollRef, scrollable, shouldReduceMotion, visible]);
+  }, [bodyScrollRef, focusContextBefore, scrollable, shouldReduceMotion, visible]);
   const measureViewport = useCallback(() => {
     measureSheetFrame(rootRef.current, usesAndroidPortal, (next) => {
       setWindowFrame((current) =>

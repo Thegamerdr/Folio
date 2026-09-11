@@ -227,6 +227,30 @@ describe('keyboard-constrained sheet viewport', () => {
 });
 
 describe('focused field visibility inside the scroll body', () => {
+  it('restores the amount label above an already visible focused field', () => {
+    expect(
+      resolveSheetFocusedScroll({
+        scrollY: 100,
+        bodyTop: 88,
+        bodyHeight: 270,
+        inputTop: 96,
+        inputHeight: 48,
+        contextBefore: 48,
+      }),
+    ).toBe(52);
+  });
+  it('limits label context so a short viewport still contains the input', () => {
+    const next = resolveSheetFocusedScroll({
+      scrollY: 100,
+      bodyTop: 88,
+      bodyHeight: 80,
+      inputTop: 110,
+      inputHeight: 48,
+      contextBefore: 48,
+    });
+    expect(next).toBe(98);
+    expect(110 - (next - 100) + 48).toBeLessThanOrEqual(88 + 80 - 8);
+  });
   it('scrolls the focused field above the footer rather than only above the keyboard', () => {
     expect(
       resolveSheetFocusedScroll({
