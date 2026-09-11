@@ -88,18 +88,24 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
     return parsed === undefined ? undefined : Math.round(parsed * 100);
   }, [extraInput]);
   const extraInputInvalid = extraInput.trim() !== '' && extraPayment === undefined;
-  let planOptions: FinancialPlanAdapterOptions = { strategy, ...(now ? { now } : {}) };
-  if (strategy === 'user-selected' && selectedDebtId !== undefined) {
-    planOptions = { ...planOptions, selectedDebtId };
-  }
-  if (extraPayment !== undefined) {
-    planOptions = {
-      ...planOptions,
-      recurringExtraDebtPaymentMinor: extraPayment,
-      extraDebtPaymentCadence: extraPaymentCadence,
-    };
-  }
-  const plan = buildFinancialPlanFromState(appState, planOptions);
+  const planOptions = useMemo<FinancialPlanAdapterOptions>(
+    () => ({
+      strategy,
+      ...(now ? { now } : {}),
+      ...(strategy === 'user-selected' && selectedDebtId !== undefined ? { selectedDebtId } : {}),
+      ...(extraPayment === undefined
+        ? {}
+        : {
+            recurringExtraDebtPaymentMinor: extraPayment,
+            extraDebtPaymentCadence: extraPaymentCadence,
+          }),
+    }),
+    [strategy, now, selectedDebtId, extraPayment, extraPaymentCadence],
+  );
+  const plan = useMemo(
+    () => buildFinancialPlanFromState(appState, planOptions),
+    [appState, planOptions],
+  );
   const presentation = selectFinancialPresentation(appState, plan);
   const targetDebt = debts.find((debt) => debt.id === plan.debtRecommendation.targetDebtId);
   const safeToSpendLabel = `${formatMinor(plan.safeToSpendMinor)}${plan.safeToSpendMinor < 0 ? ' short' : ''}`;
@@ -108,10 +114,25 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
   const previewOccurrences = extraPayment === undefined ? 0 : plan.extraPaymentCountBeforeIncome;
   const scheduledPreviewMinor =
     extraPayment === undefined ? 0 : plan.extraPaymentTotalBeforeIncomeMinor;
-  const safeAfterExtraMinor = simulateFinancialAffordability(
-    toFinancialPlanInput(appState, planOptions),
-    scheduledPreviewMinor,
-  ).safeToSpendAfterMinor;
+  // The extra-payment simulation is displayed only for an entered, expanded
+  // preview. Keep that work out of ordinary debt-list and Undo renders.
+  const safeAfterExtraMinor = useMemo(
+    () =>
+      showAdvanced && extraPayment !== undefined
+        ? simulateFinancialAffordability(
+            toFinancialPlanInput(appState, planOptions),
+            scheduledPreviewMinor,
+          ).safeToSpendAfterMinor
+        : plan.safeToSpendMinor,
+    [
+      showAdvanced,
+      extraPayment,
+      appState,
+      planOptions,
+      scheduledPreviewMinor,
+      plan.safeToSpendMinor,
+    ],
+  );
   const cadencePaymentLabel =
     extraPaymentCadence === 'once' ? 'one-off payment' : `${extraPaymentCadence} payment`;
   const previewCadenceCopy =
