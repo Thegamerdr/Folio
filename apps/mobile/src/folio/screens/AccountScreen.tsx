@@ -622,6 +622,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView
         style={[styles.viewport, { backgroundColor: t.canvas, marginTop: insets.top }]}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.content,
