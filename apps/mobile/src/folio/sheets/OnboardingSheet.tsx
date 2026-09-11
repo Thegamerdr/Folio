@@ -1064,7 +1064,7 @@ function OnboardingFlow({
     >
       <View style={s.body}>
         {/* Progress pips — three states (active w7 accent · done w5 ink/60 · future w5 hairline). */}
-        <View style={[s.pips, keyboardOpen ? { marginBottom: gap.sm } : undefined]}>
+        <View style={[s.pips, keyboardOpen ? { display: 'none' } : undefined]}>
           {visibleStepIndices.map((_, i) => (
             <ProgressPip
               key={i}
@@ -1077,7 +1077,7 @@ function OnboardingFlow({
 
         {/* Eyebrow with the documented Melo mood beside it (the web rendered no Melo; the spec asks the
           port to add the mood). */}
-        <View style={s.eyebrowRow}>
+        <View style={[s.eyebrowRow, keyboardOpen ? { display: 'none' } : undefined]}>
           <Melo mood={meloMood} size={24} grounded={false} />
           <Eyebrow tone="muted">{current.eyebrow}</Eyebrow>
         </View>
@@ -1893,6 +1893,7 @@ function makeStyles(t: Palette) {
       letterSpacing: -0.8,
     },
     body: {
+      flexShrink: 0,
       paddingBottom: gap.sm,
       paddingHorizontal: gap.sm,
     },
@@ -1912,6 +1913,7 @@ function makeStyles(t: Palette) {
       gap: gap.sm,
     },
     fieldBlock: {
+      flexShrink: 0,
       marginTop: gap.lg + gap.xs, // mt-5 ≈ 20
     },
     // Intent picker (BREAKS-PARITY fix) — mt-4, 3-line intro, then a scrollable row list.

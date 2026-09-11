@@ -338,6 +338,7 @@ export function Sheet({
   const translateY = useRef(new Animated.Value(height)).current;
   const entryHeight = useRef(height);
   const internalScrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
   const bodyScrollRef = scrollRef ?? internalScrollRef;
   const scrollY = useRef(0);
   const focusFrame = useRef<number | null>(null);
@@ -349,14 +350,17 @@ export function Sheet({
       const body = bodyScrollRef.current;
       if (!visible || !scrollable || !focused || !body) return;
       const bodyNative = body.getNativeScrollRef();
-      if (!bodyNative) return;
+      const contentNative = contentRef.current;
+      if (!bodyNative || !contentNative) return;
       bodyNative.measureInWindow((_bodyX, bodyTop, _bodyWidth, bodyHeight) => {
-        focused.measureInWindow((_inputX, inputTop, _inputWidth, inputHeight) => {
+        focused.measureLayout(contentNative, (_inputX, inputOffset, _inputWidth, inputHeight) => {
           // Focus can change while native measurements are in flight.
           if (TextInput.State.currentlyFocusedInput() !== focused) return;
           const nextY = resolveSheetFocusedScroll({
             scrollY: scrollY.current,
-            inputTop,
+            // Content-relative measurement retains the full field bounds even
+            // when Android has clipped it outside the resized scroll viewport.
+            inputTop: bodyTop + inputOffset - scrollY.current,
             inputHeight,
             bodyTop,
             bodyHeight,
@@ -579,7 +583,13 @@ export function Sheet({
                   scrollEventThrottle={16}
                   showsVerticalScrollIndicator
                 >
-                  {children}
+                  <View
+                    ref={contentRef}
+                    collapsable={false}
+                    style={{ flexShrink: 0, width: '100%' }}
+                  >
+                    {children}
+                  </View>
                 </ScrollView>
               ) : (
                 <View style={layout.sheetContent}>{children}</View>
