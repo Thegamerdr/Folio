@@ -410,51 +410,56 @@ export function Sheet({
       }
       if (!visible || !scrollable || !focused || !body) return;
       const bodyNative = body.getNativeScrollRef();
-      if (!bodyNative) return;
+      const content = contentRef.current;
+      if (!bodyNative || !content) return;
       bodyNative.measureInWindow((_bodyX, bodyTop, _bodyWidth, bodyHeight) => {
-        focused.measureInWindow((_inputX, inputTop, _inputWidth, inputHeight) => {
-          // Focus can change while native measurements are in flight.
-          if (
-            generation !== focusMeasurement.current ||
-            TextInput.State.currentlyFocusedInput() !== focused
-          )
-            return;
-          const nextY = resolveSheetFocusedScroll({
-            scrollY: scrollY.current,
-            // Fabric returns the full field frame in window coordinates, even
-            // above the clipped viewport. Compare it directly with the body;
-            // rebuilding it from an earlier JS scroll offset mixes revisions.
-            inputTop,
-            inputHeight,
-            bodyTop,
-            bodyHeight,
-            padding: Math.max(
-              8,
-              Math.min(bodyContentInset, Math.max(8, (bodyHeight - inputHeight) / 2)),
-            ),
-            contextBefore: focusContextBefore,
-            contextAfter: focusContextAfter,
-          });
-          if (captureMode && scrollKey !== undefined) {
-            console.info(
-              'MeloSheetGeometry',
-              JSON.stringify({
-                event: 'measured',
-                step: scrollKey,
-                bodyTop,
-                bodyHeight,
-                inputTop,
-                inputHeight,
-                scrollY: scrollY.current,
-                nextY,
-              }),
-            );
-          }
-          if (Math.abs(nextY - scrollY.current) > 1) {
-            scrollY.current = nextY;
-            body.scrollTo({ y: nextY, animated: !shouldReduceMotion });
-          }
-        });
+        focused.measureLayout(
+          content,
+          (_inputX, inputContentTop, _inputWidth, inputHeight) => {
+            // Focus can change while native measurements are in flight.
+            if (
+              generation !== focusMeasurement.current ||
+              TextInput.State.currentlyFocusedInput() !== focused
+            )
+              return;
+            // Content-relative geometry stays fixed while Android is still applying
+            // a previous scrollTo. Mixing a new requested offset with an old window
+            // measurement doubled the first correction on the S9 (83 -> 166dp).
+            const inputTop = bodyTop + inputContentTop - scrollY.current;
+            const nextY = resolveSheetFocusedScroll({
+              scrollY: scrollY.current,
+              inputTop,
+              inputHeight,
+              bodyTop,
+              bodyHeight,
+              padding: Math.max(
+                8,
+                Math.min(bodyContentInset, Math.max(8, (bodyHeight - inputHeight) / 2)),
+              ),
+              contextBefore: focusContextBefore,
+              contextAfter: focusContextAfter,
+            });
+            if (captureMode && scrollKey !== undefined) {
+              console.info(
+                'MeloSheetGeometry',
+                JSON.stringify({
+                  event: 'measured',
+                  step: scrollKey,
+                  bodyTop,
+                  bodyHeight,
+                  inputTop,
+                  inputHeight,
+                  scrollY: scrollY.current,
+                  nextY,
+                }),
+              );
+            }
+            if (Math.abs(nextY - scrollY.current) > 1) {
+              body.scrollTo({ y: nextY, animated: false });
+            }
+          },
+          () => undefined,
+        );
       });
     });
   }, [
@@ -682,12 +687,7 @@ export function Sheet({
                   // The footer is already a sibling below this viewport. Adding
                   // its full height again as content padding can consume the
                   // entire S9 typing area and collapse intrinsic form rows.
-                  contentContainerStyle={[
-                    layout.scrollContent,
-                    bodyContentInset > 0
-                      ? { paddingTop: bodyContentInset, paddingBottom: bodyContentInset }
-                      : undefined,
-                  ]}
+                  contentContainerStyle={layout.scrollContent}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="none"
                   automaticallyAdjustKeyboardInsets={false}
@@ -715,7 +715,7 @@ export function Sheet({
                     ref={contentRef}
                     collapsable={false}
                     onFocus={settleFocusedInput}
-                    style={{ flexShrink: 0, width: '100%' }}
+                    style={{ flexShrink: 0, width: '100%', paddingVertical: bodyContentInset }}
                   >
                     {children}
                   </View>
@@ -734,6 +734,7 @@ export function Sheet({
       header,
       dismissible,
       bodyScrollRef,
+      bodyContentInset,
       handleClose,
       insets.bottom,
       insets.top,

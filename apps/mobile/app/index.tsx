@@ -224,7 +224,7 @@ export default function FolioRoute() {
             if (getParityHarnessConfig()?.globalSurface === 'global.boot-splash') return;
             // Reapply after the Activity's splash registration, before releasing
             // the first rendered frame; early module setup may precede registration.
-            SplashScreen.setOptions({ duration: 0, fade: false });
+            SplashScreen.setOptions({ duration: 1, fade: false });
             requestAnimationFrame(() =>
               requestAnimationFrame(() => {
                 void SplashScreen.hideAsync().catch(() => undefined);
