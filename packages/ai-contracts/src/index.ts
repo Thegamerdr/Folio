@@ -1562,6 +1562,26 @@ function isUnconfirmedPaymentInstruction(prompt: string): boolean {
 }
 
 export function classifyMeloLocalIntent(prompt: string): MeloLocalIntent {
+  // These are the prompts sent by the visible help and explanation actions.
+  // Handle them before broad purchase keywords such as "can I" and "spend".
+  if (
+    /\b(?:what can i ask(?: you)?|show question types|what can you (?:do|help with))\b/i.test(
+      prompt,
+    )
+  ) {
+    return 'clarify';
+  }
+
+  if (
+    /\b(?:explain|why|how)\b/i.test(prompt) &&
+    /\b(?:safe[ -]to[ -]spend|safe zone|available amount|protected buffer|tightest point|tight point)\b/i.test(
+      prompt,
+    ) &&
+    !/\b(?:can i|if i|could i|would i|purchase|buy)\b/i.test(prompt)
+  ) {
+    return 'explain_position';
+  }
+
   if (includesAny(prompt, ['invoice', 'invoices', 'overdue', 'owed to me', 'client payment'])) {
     return 'review_business_invoices';
   }

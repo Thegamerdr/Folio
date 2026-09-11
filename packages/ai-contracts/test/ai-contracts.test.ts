@@ -274,6 +274,30 @@ describe('AI contract boundary', () => {
 });
 
 describe('local Melo AI functions', () => {
+  it.each([
+    ['Explain safe to spend', 'explain_position'],
+    ['Why is safe to spend 350?', 'explain_position'],
+    ['How is my safe-to-spend calculated?', 'explain_position'],
+    ['What can I ask you?', 'clarify'],
+    ['Show question types', 'clarify'],
+    ['Can I spend 500?', 'check_purchase'],
+    ['Explain if I can spend 500 from my safe to spend', 'check_purchase'],
+  ] as const)('routes the visible Melo prompt %s to %s', (prompt, intent) => {
+    const response = draftMeloLocalAiResponse({
+      prompt,
+      snapshot: localMeloSnapshot,
+      cloudAiEnabled: false,
+      cloudConsentGranted: false,
+      source: 'typed_prompt',
+    });
+    expect(classifyMeloLocalIntent(prompt)).toBe(intent);
+    expect(response.intent).toBe(intent);
+    if (intent === 'clarify') {
+      expect(response.answer).toContain('I can check a purchase');
+      expect(response.answer).not.toContain('Enter the amount');
+    }
+  });
+
   it('uses Business cash semantics throughout the answer, evidence and actions', () => {
     const draft = draftMeloLocalAiResponse({
       prompt: 'Explain my business cash position',
