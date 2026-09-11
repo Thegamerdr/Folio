@@ -79,7 +79,10 @@ import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { getState, nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
 import { buildRecoveryReceipt, type RecoveryAction } from '@/folio/lib/recoveryReceipt';
-import { fundedPotForShortfall } from '@/folio/lib/shortfallNavigation';
+import {
+  fundedPotForShortfall,
+  shortfallCompletionPresentation,
+} from '@/folio/lib/shortfallNavigation';
 import { recoveryEmptyPresentation } from '@/folio/lib/recoveryEmptyPresentation';
 import {
   recoveryPathCaption,
@@ -534,6 +537,13 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           <View style={{ width: 48 }} />
         </View>
         <View style={{ paddingVertical: gap.xl, gap: gap.md }}>
+          {presentation.complete ? (
+            <MeloFigure
+              scrollOwner
+              role="small"
+              mood={shortfallCompletionPresentation(presentation).mood}
+            />
+          ) : null}
           <Text
             accessibilityRole="header"
             style={{ color: t.ink, fontFamily: serif.display, fontSize: 28, lineHeight: 34 }}
