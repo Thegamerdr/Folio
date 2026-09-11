@@ -166,7 +166,7 @@ export function LogPaymentSheet({ visible, onClose, targetId }: LogPaymentSheetP
     setConfirmationOpen(true);
     Alert.alert(
       amt > selected.balance ? 'Record this overpayment?' : 'Record this payment?',
-      `This records a payment you already made. Melo does not send money.${amt > selected.balance ? ` Only ${formatMoney(selected.balance, true)} reduces the debt; the full ${formatMoney(amt, true)} reduces tracked cash.` : ''}`,
+      `${formatMoney(amt, true)} to ${selected.name}.\n\n${preview.text}\n\nThis records a payment you already made. Melo does not send money.${amt > selected.balance ? ` Only ${formatMoney(selected.balance, true)} reduces the debt; the full ${formatMoney(amt, true)} reduces tracked cash.` : ''}`,
       [
         { text: 'Back', style: 'cancel', onPress: dismissConfirmation },
         {
