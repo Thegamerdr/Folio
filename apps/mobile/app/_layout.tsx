@@ -68,6 +68,8 @@ initErrorReporting();
 
 // Editorial Ledger lives or dies on a real serif. Keep the splash up until Fraunces is loaded so
 // the first paint is already editorial — never a system-font flash that then swaps.
+// Android otherwise crossfades the launch character over the first screen's copy.
+SplashScreen.setOptions({ duration: 0, fade: false });
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 // Widget headless task registration — MUST happen at module scope (not inside a component/effect):

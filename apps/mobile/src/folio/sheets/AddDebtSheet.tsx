@@ -124,13 +124,6 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
   const [touchedFields, setTouchedFields] = useState<Partial<Record<DebtDraftField, boolean>>>({});
   const touchField = (field: DebtDraftField) =>
     setTouchedFields((previous) => ({ ...previous, [field]: true }));
-  const fieldLabels: Record<DebtDraftField, string> = {
-    name: 'debt name',
-    balance: 'outstanding balance',
-    minimum: 'minimum payment',
-    dueDay: 'due day',
-    apr: 'interest rate',
-  };
   const [name, setName] = useState('');
   const [kind, setKind] = useState<Debt['kind']>('card');
   const [balance, setBalance] = useState('');
@@ -300,9 +293,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           }}
           style={s.cancel}
         >
-          <Text style={[s.cancelLabel, { color: t.calmStrong }]}>
-            Review {fieldLabels[draftProblem.field]} ↑
-          </Text>
+          <Text style={[s.cancelLabel, { color: t.calmStrong }]}>{draftProblem.message}</Text>
         </Pressable>
       ) : null}
       <Pressable

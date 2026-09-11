@@ -181,6 +181,7 @@ function makeStyles(t: Palette) {
       borderColor: t.hairline,
       borderRadius: radius.lg,
       paddingVertical: gap.md,
+      paddingBottom: gap.lg,
       paddingHorizontal: gap.lg,
       overflow: 'hidden',
       ...elevation.card,
@@ -208,9 +209,9 @@ function makeStyles(t: Palette) {
     // The progress track — a hairline rail pinned to the toast's bottom edge.
     progressTrack: {
       position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
+      left: gap.lg,
+      right: gap.lg,
+      bottom: gap.sm,
       height: gap.xxs,
       backgroundColor: t.hairlineStrong,
     },

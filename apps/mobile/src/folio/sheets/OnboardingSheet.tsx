@@ -1079,11 +1079,18 @@ function OnboardingFlow({
               : `Step ${step + 1} of ${visibleStepIndices.length} · ${current.eyebrow}`}
           </Text>
           {keyboardOpen ? (
-            <Text accessibilityRole="header" maxFontSizeMultiplier={1.35} style={s.typingQuestion}>
-              {current.head.lead}
-              {current.head.accent}
-              {current.head.tail}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: gap.sm }}>
+              <MeloFigure role="portrait" mood={meloMood} hideForKeyboard={false} />
+              <Text
+                accessibilityRole="header"
+                maxFontSizeMultiplier={1.35}
+                style={[s.typingQuestion, { flex: 1 }]}
+              >
+                {current.head.lead}
+                <Text style={s.headlineAccent}>{current.head.accent}</Text>
+                {current.head.tail}
+              </Text>
+            </View>
           ) : null}
           {keyboardOpen && activeStepIndex === STEP_PAYDAY && cadence === 'monthly' ? (
             <Text
@@ -2139,6 +2146,7 @@ function makeStyles(t: Palette, fontScale: number) {
     },
     typingQuestion: {
       color: t.ink,
+      fontFamily: serif.display,
       fontSize: 17,
       lineHeight: 22,
       paddingHorizontal: gap.sm,

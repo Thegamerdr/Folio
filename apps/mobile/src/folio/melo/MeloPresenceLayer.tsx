@@ -19,6 +19,7 @@ import {
   View,
 } from 'react-native';
 import { useAppStore } from '@/folio/store';
+import { useTheme } from '@/folio/theme';
 import { useUndo } from '@/folio/ui/useUndo';
 import { MeloAtlas } from './MeloAtlas';
 import type { MeloMood } from './Melo';
@@ -99,6 +100,7 @@ export function MeloPresenceProvider({
   topClearance: number;
   toastHeight: number;
 }) {
+  const theme = useTheme();
   const root = useRef<View>(null);
   const rootFrame = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
   const anchors = useRef(new Map<string, PresenceAnchor>());
@@ -144,6 +146,16 @@ export function MeloPresenceProvider({
   const y = useRef(new Animated.Value(0)).current;
   const lift = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const invalidRingOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const animation = Animated.timing(invalidRingOpacity, {
+      toValue: unsafeDrag && dragging.current && !suppressed ? 0.4 : 0,
+      duration: reduce ? 0 : 120,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [unsafeDrag, phase, suppressed, reduce, screen, invalidRingOpacity]);
 
   const refresh = useCallback((followingScroll = false) => {
     const version = ++epoch.current;
@@ -619,13 +631,16 @@ export function MeloPresenceProvider({
               width: rendered.rect.width,
               height: rendered.rect.height,
               zIndex: 50,
-              opacity,
               alignItems: 'center',
               justifyContent: 'center',
               transform: [{ translateX: x }, { translateY: Animated.add(y, lift) }],
             }}
           >
-            <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
+            <Animated.View
+              pointerEvents="none"
+              importantForAccessibility="no-hide-descendants"
+              style={{ opacity }}
+            >
               <MeloAtlas
                 size={rendered.rect.width}
                 phase={phase}
@@ -635,7 +650,22 @@ export function MeloPresenceProvider({
                 paused={still || reduce}
                 contact={!unsafeDrag}
               />
-            </View>
+            </Animated.View>
+            <Animated.View
+              pointerEvents="none"
+              importantForAccessibility="no-hide-descendants"
+              style={{
+                position: 'absolute',
+                width: 64,
+                height: 64,
+                left: (rendered.rect.width - 64) / 2,
+                top: (rendered.rect.height - 64) / 2,
+                borderRadius: 32,
+                borderWidth: 1.5,
+                borderColor: theme.hairline,
+                opacity: invalidRingOpacity,
+              }}
+            />
           </Animated.View>
         ) : null}
       </View>

@@ -638,7 +638,7 @@ export function Sheet({
                   // entire S9 typing area and collapse intrinsic form rows.
                   contentContainerStyle={layout.scrollContent}
                   keyboardShouldPersistTaps="handled"
-                  keyboardDismissMode="on-drag"
+                  keyboardDismissMode="none"
                   automaticallyAdjustKeyboardInsets={false}
                   onLayout={keepFocusedInputVisible}
                   onContentSizeChange={keepFocusedInputVisible}
@@ -672,9 +672,7 @@ export function Sheet({
               ) : (
                 <View style={layout.sheetContent}>{children}</View>
               )}
-              {footer ? (
-                <View style={s.footer}>{footer}</View>
-              ) : null}
+              {footer ? <View style={s.footer}>{footer}</View> : null}
             </Animated.View>
           </View>
         </View>
