@@ -145,7 +145,11 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
                   </View>
                   <Text style={s.rowLine}>"{ONE_LINE[m]}"</Text>
                 </View>
-                {isActive ? <View style={s.activeDot} /> : <Text style={s.chevron}>→</Text>}
+                {isActive ? (
+                  <Text style={[s.badgeText, { color: t.calmStrong }]}>Current</Text>
+                ) : (
+                  <Text style={s.chevron}>→</Text>
+                )}
               </Pressable>
             );
           })}
@@ -155,7 +159,7 @@ export function LensPickerSheet({ visible, onClose, nav }: LensPickerSheetProps)
           <View style={[s.footer, { backgroundColor: t.calmSoft }]}>
             <Text style={s.footerTitle}>Trial started · one cycle</Text>
             <Text style={s.footerBody}>
-              Every Full lens unlocked for one cycle. Locks itself when the countdown on Today ends.
+              Every paid lens unlocked for one cycle. Locks itself when the countdown on Today ends.
             </Text>
           </View>
         ) : null}

@@ -429,7 +429,7 @@ export function PotsScreen({ nav, state }: PotsScreenProps) {
           </View>
           <View style={[styles.ledgerRow, { borderTopColor: t.hairline }]}>
             <View style={styles.availableCopy}>
-              <Text style={[styles.availableLabel, { color: t.muted }]}>Pot history</Text>
+              <Text style={[styles.availableLabel, { color: t.muted }]}>Contributed to pots</Text>
               <Text style={[styles.availableHint, { color: t.muted }]}>
                 contributions · borrowing · repayments
               </Text>

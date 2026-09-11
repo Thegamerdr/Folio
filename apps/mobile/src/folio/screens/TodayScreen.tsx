@@ -1702,7 +1702,7 @@ const styles = StyleSheet.create({
     fontFamily: weightFamily(400),
     fontSize: 12.5,
     lineHeight: 24,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   scrubCommit: {
     alignSelf: 'center',

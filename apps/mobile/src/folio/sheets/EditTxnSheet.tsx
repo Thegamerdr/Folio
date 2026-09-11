@@ -584,12 +584,15 @@ function EditTxnForm({
         onPress={reviewing ? handleSave : () => setReviewing(true)}
         style={({ pressed }) => [
           s.footerButton,
-          { backgroundColor: t.calm },
-          !canReview ? s.disabled : undefined,
+          {
+            backgroundColor: canReview ? t.calm : t.surface,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: t.hairline,
+          },
           pressed ? s.pressed : undefined,
         ]}
       >
-        <Text style={[s.footerButtonLabel, { color: t.inverse }]}>
+        <Text style={[s.footerButtonLabel, { color: canReview ? t.inverse : t.muted }]}>
           {reviewing
             ? 'Confirm changes'
             : !amountValid

@@ -1128,7 +1128,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
             <Text style={[s.verdict, { color: t.ink }]}>
               <Text
                 style={{
-                  color: !financePresentation.canReassure ? t.caution : heroTone,
+                  color: !financePresentation.canReassure ? t.repairInk : heroTone,
                   fontWeight: '600',
                 }}
               >

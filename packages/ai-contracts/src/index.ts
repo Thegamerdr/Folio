@@ -2873,7 +2873,7 @@ function actionsForDraft(input: {
     return [
       action(
         'review_imports',
-        'Review uncertain imports',
+        'Review the uncertain ones',
         'Confirm, edit or dismiss suggested labels one at a time.',
         true,
       ),

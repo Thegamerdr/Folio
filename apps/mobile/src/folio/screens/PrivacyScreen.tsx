@@ -141,7 +141,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       Alert.alert(
         result.complete ? 'Local data cleared' : 'Local data cleared with one warning',
         result.complete
-          ? 'Money, setup details, imports, history and app-owned export files were cleared from this device. Your sign-in, cloud backup and bank connections are separate and unchanged.'
+          ? 'Money, setup details, statements, history and app-owned export files were cleared from this device. Your sign-in, cloud backup and bank connections are separate and unchanged.'
           : `Your live Melo data is empty, but ${result.failedArtifacts.length} older app file${result.failedArtifacts.length === 1 ? '' : 's'} could not be removed. Do not treat this device as fully wiped yet.`,
         [{ text: 'OK', style: 'cancel' }],
         { cancelable: true },
@@ -603,7 +603,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
               {savedDebtCount} debts, {savedSourceCount} original files and {savedHistory.summary}.
             </Text>
             <Text style={[styles.body, { color: t.muted }]}>
-              Money, setup details, imports, history, widgets and app-owned export files will be
+              Money, setup details, statements, history, widgets and app-owned export files will be
               cleared. Sign-in, cloud backup and bank connections stay separate and unchanged.
             </Text>
             <Text style={[styles.body, { color: t.muted }]}>

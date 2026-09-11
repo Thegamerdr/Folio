@@ -36,7 +36,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
+import { MeloAlert as Alert, getMeloAlert, dismissMeloAlert } from '@/folio/ui/meloAlert';
 // Matches errorReporting.ts's own import — that module only inits Sentry, it exposes no
 // captureException helper, so componentDidCatch below imports the SDK directly.
 import * as Sentry from '@sentry/react-native';
@@ -730,6 +730,13 @@ export function FolioShell() {
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Portal updates can register this listener after the dialog's own listener.
+      // Always settle the top confirmation before considering underlying navigation.
+      const confirmation = getMeloAlert();
+      if (confirmation) {
+        dismissMeloAlert(confirmation.id);
+        return true;
+      }
       if (workspaceSheetVisible) {
         setWorkspaceSheetVisible(false);
         return true;

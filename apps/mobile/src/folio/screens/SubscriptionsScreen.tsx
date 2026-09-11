@@ -176,7 +176,7 @@ function formatArchiveDate(iso: string): string {
 // never "12.3K"). The web wrote `£${n.toFixed(2)}`; this is the same, kept local so every £ figure
 // on the screen goes through one formatter.
 function pounds(n: number): string {
-  return formatMoney(n, true);
+  return formatMoney(n);
 }
 
 function poundsWhole(n: number): string {
@@ -943,7 +943,11 @@ function SubscriptionRow({
           <Text style={s.rowMeta}>{schedule.amountLabel}</Text>
           <Text style={s.rowCost}>{pounds(sub.cost)}</Text>
           <Text style={s.rowAnnual}>{pounds(annualCost)}/yr</Text>
-          <Text style={s.rowNext}>{schedule.dateLabel}</Text>
+          {!outstanding ||
+          schedule.dateLabel !==
+            `Next scheduled ${formatFinancialDate(outstanding.id.slice(-10))}` ? (
+            <Text style={s.rowNext}>{schedule.dateLabel}</Text>
+          ) : null}
         </View>
       </View>
 
@@ -1279,9 +1283,9 @@ function makeStyles(t: Palette) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    sortChipOn: { backgroundColor: t.calm },
+    sortChipOn: { backgroundColor: t.calmSoft },
     sortChipLabel: { color: t.muted, fontSize: 11 },
-    sortChipLabelOn: { color: t.inverse },
+    sortChipLabelOn: { color: t.calmStrong },
 
     list: {
       backgroundColor: t.surface,

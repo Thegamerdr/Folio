@@ -154,6 +154,7 @@ export function KeyboardSafeView({
   const portal = useContext(SheetPortalContext);
   const insets = portal?.insets ?? localInsets;
   const rootRef = useRef<View>(null);
+  const [footerHeight, setFooterHeight] = useState(0);
   const [frame, setFrame] = useState<SheetWindowFrame>({ x: 0, y: 0, width, height });
   const metrics = useSheetKeyboardMetrics(enabled, reduceMotion);
   const keyboard = resolveSheetKeyboardFrame(
@@ -283,6 +284,7 @@ export function Sheet({
   const captureMode = process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true';
   const shouldReduceMotion = captureMode || reduceMotion === true || systemReduceMotion;
   const rootRef = useRef<View>(null);
+  const [footerHeight, setFooterHeight] = useState(0);
   const [windowFrame, setWindowFrame] = useState<SheetWindowFrame>({ x: 0, y: 0, width, height });
   const keyboardMetrics = useSheetKeyboardMetrics(visible, shouldReduceMotion);
   const screenHeight = Dimensions.get('screen').height;
@@ -532,7 +534,12 @@ export function Sheet({
                   ref={bodyScrollRef}
                   bounces={false}
                   style={layout.scrollBody}
-                  contentContainerStyle={layout.scrollContent}
+                  contentContainerStyle={[
+                    layout.scrollContent,
+                    footer && viewport.keyboardOccludesBottom
+                      ? { paddingBottom: footerHeight + gap.md }
+                      : undefined,
+                  ]}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
                   automaticallyAdjustKeyboardInsets={false}
@@ -549,7 +556,14 @@ export function Sheet({
               ) : (
                 <View style={layout.sheetContent}>{children}</View>
               )}
-              {footer ? <View style={s.footer}>{footer}</View> : null}
+              {footer ? (
+                <View
+                  style={s.footer}
+                  onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
+                >
+                  {footer}
+                </View>
+              ) : null}
             </Animated.View>
           </View>
         </View>
@@ -557,12 +571,14 @@ export function Sheet({
     [
       children,
       footer,
+      footerHeight,
       dismissible,
       bodyScrollRef,
       handleClose,
       insets.bottom,
       insets.top,
       viewport.top,
+      viewport.keyboardOccludesBottom,
       measureViewport,
       keepFocusedInputVisible,
       maxHeight,

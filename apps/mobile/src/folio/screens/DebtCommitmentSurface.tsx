@@ -118,7 +118,27 @@ export function DebtCommitmentSurface({
       </View>
       <View style={[styles.tripleRow, { borderColor: t.hairline }]}>
         <Stat label="Required / mo" value={formatGBP(summary.minSum)} t={t} />
-        <Stat label="Payoff at minimums" value={monthsAtMin} t={t} divided />
+        {interestUnknown ? (
+          <View style={[styles.stat, styles.statDivided, { borderColor: t.hairline }]}>
+            <Text style={[styles.statLabel, { color: t.muted }]}>Payoff at minimums</Text>
+            <Text style={[styles.detailText, { color: t.muted }]}>
+              Not known — an interest rate is missing.
+            </Text>
+            {onViewDebts ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onViewDebts}
+                style={styles.secondaryCta}
+              >
+                <Text style={[styles.secondaryCtaLabel, { color: t.calmStrong }]}>
+                  Add missing rates →
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <Stat label="Payoff at minimums" value={monthsAtMin} t={t} divided />
+        )}
         <Stat label="Next minimum" value={nextDueLabel} t={t} divided />
       </View>
       <Pressable

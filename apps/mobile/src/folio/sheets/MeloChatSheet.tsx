@@ -256,7 +256,7 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
       return `${name}quick one — ${soon.name} ${formatMoney(soon.cost)} leaves ${soon.nextRenewalDaysAway === 0 ? 'today' : `in ${soon.nextRenewalDaysAway} ${soon.nextRenewalDaysAway === 1 ? 'day' : 'days'}`}. All good with that?`;
     }
     if (soon && soon.nextRenewalDaysAway <= 7) {
-      return `${name}heads up — ${soon.name} (${formatMoney(soon.cost)}) renews in ${soon.nextRenewalDaysAway} day${soon.nextRenewalDaysAway === 1 ? '' : 's'}. want a look before it goes out?`;
+      return `${name}heads up — ${soon.name} (${formatMoney(soon.cost)}) renews in ${soon.nextRenewalDaysAway} day${soon.nextRenewalDaysAway === 1 ? '' : 's'}. Want a look before it goes out?`;
     }
     if (snapshot.setupComplete === false) {
       return `${name}your money picture still needs ${snapshot.setupNeeds?.join(', ') || 'your numbers'}. You can add or confirm them in setup.`;
@@ -341,6 +341,8 @@ function MeloChat({
   const savedTone = useAppStore((s) => s.melo?.tone ?? DEFAULT_MELO_TONE);
   const [showSettings, setShowSettings] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [composerHeight, setComposerHeight] = useState(0);
+  const [draftHeight, setDraftHeight] = useState(0);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
@@ -698,6 +700,12 @@ function MeloChat({
 
   // --- Stick-to-bottom transcript + scroll-to-bottom affordance. ----------------------------------
   const scrollRef = useRef<ScrollView>(null);
+  const hasDraft = input.length > 0;
+  useEffect(() => {
+    if (!keyboardVisible) return;
+    const frame = requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: false }));
+    return () => cancelAnimationFrame(frame);
+  }, [keyboardVisible, composerHeight, draftHeight, hasDraft]);
   const [atBottom, setAtBottom] = useState(true);
   const contentHeight = useRef(0);
   const viewportHeight = useRef(0);
@@ -807,7 +815,10 @@ function MeloChat({
         <ScrollView
           ref={scrollRef}
           style={s.scroll}
-          contentContainerStyle={s.scrollContent}
+          contentContainerStyle={[
+            s.scrollContent,
+            { paddingBottom: composerHeight + (hasDraft ? draftHeight : 0) + gap.md },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           scrollEventThrottle={16}
@@ -1192,7 +1203,10 @@ function MeloChat({
 
       {/* Composer */}
       {input.length > 0 ? (
-        <View style={s.draftActions}>
+        <View
+          style={s.draftActions}
+          onLayout={(event) => setDraftHeight(event.nativeEvent.layout.height)}
+        >
           <Text style={s.draftHint}>Draft · edit or clear before sending</Text>
           <PressText
             label="Clear"
@@ -1204,7 +1218,10 @@ function MeloChat({
           />
         </View>
       ) : null}
-      <View style={s.composer}>
+      <View
+        style={s.composer}
+        onLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Start voice input"
@@ -1947,18 +1964,16 @@ function makeStyles(t: Palette) {
     },
     toolConfirm: {
       alignItems: 'center',
-      backgroundColor: t.ink,
+      backgroundColor: t.calm,
       borderRadius: radius.sm,
       justifyContent: 'center',
       minHeight: 48,
       paddingHorizontal: gap.md,
     },
     toolConfirmLabel: {
-      color: t.canvas,
-      fontSize: 11,
+      color: t.inverse,
+      fontSize: 13,
       fontWeight: '600',
-      letterSpacing: 1,
-      textTransform: 'uppercase',
     },
     toolDismiss: {
       alignItems: 'center',
@@ -1971,10 +1986,8 @@ function makeStyles(t: Palette) {
     },
     toolDismissLabel: {
       color: t.muted,
-      fontSize: 11,
+      fontSize: 13,
       fontWeight: '500',
-      letterSpacing: 1,
-      textTransform: 'uppercase',
     },
     toolHint: {
       color: t.muted,
@@ -2033,6 +2046,7 @@ function makeStyles(t: Palette) {
       marginTop: 2,
     },
     transcript: {
+      overflow: 'hidden',
       flexGrow: 1,
       flexShrink: 1,
       minHeight: 0,

@@ -100,9 +100,7 @@ function DestinationLine({
     >
       <View style={styles.destinationCopy}>
         <Text style={[styles.destinationLabel, { color: t.ink }]}>{label}</Text>
-        <Text numberOfLines={1} style={[styles.destinationMeta, { color: t.muted }]}>
-          {meta}
-        </Text>
+        <Text style={[styles.destinationMeta, { color: t.muted }]}>{meta}</Text>
       </View>
       <Chevron color={t.muted} />
     </Pressable>
