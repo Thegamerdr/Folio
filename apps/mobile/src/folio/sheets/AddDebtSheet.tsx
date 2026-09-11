@@ -121,6 +121,9 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
   }
 
   const fieldInputs = useRef<Partial<Record<DebtDraftField, TextInput | null>>>({});
+  const [touchedFields, setTouchedFields] = useState<Partial<Record<DebtDraftField, boolean>>>({});
+  const touchField = (field: DebtDraftField) =>
+    setTouchedFields((previous) => ({ ...previous, [field]: true }));
   const fieldLabels: Record<DebtDraftField, string> = {
     name: 'debt name',
     balance: 'outstanding balance',
@@ -196,7 +199,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
   const dueDom = parseDayOfMonth(dueDayInput) ?? 1;
   const canAdd = draftProblem === null && !saving;
   const fieldError = (field: DebtDraftField) =>
-    draftProblem?.field === field ? (
+    touchedFields[field] && draftProblem?.field === field ? (
       <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
         {draftProblem.message}
       </Text>
@@ -204,6 +207,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
   const activeKind = KINDS.find((k) => k.id === kind);
 
   function reset() {
+    setTouchedFields({});
     setName('');
     setKind('card');
     setBalance('');
@@ -290,7 +294,10 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
       {draftProblem ? (
         <Pressable
           accessibilityRole="button"
-          onPress={() => fieldInputs.current[draftProblem.field]?.focus()}
+          onPress={() => {
+            touchField(draftProblem.field);
+            fieldInputs.current[draftProblem.field]?.focus();
+          }}
           style={s.cancel}
         >
           <Text style={[s.cancelLabel, { color: t.calmStrong }]}>
@@ -339,6 +346,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
         <TextInput
           value={name}
           onChangeText={setName}
+          onBlur={() => touchField('name')}
           placeholder="e.g. Barclaycard"
           placeholderTextColor={t.muted}
           style={[s.input, { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink }]}
@@ -356,7 +364,10 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           <TextInput
             value={balance}
             onChangeText={setBalance}
-            onBlur={() => setBalance(normalizeManualMoneyDraft(balance, { allowZero: true }))}
+            onBlur={() => {
+              setBalance(normalizeManualMoneyDraft(balance, { allowZero: true }));
+              touchField('balance');
+            }}
             selectTextOnFocus
             keyboardType="decimal-pad"
             placeholder="0"
@@ -377,7 +388,10 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           <TextInput
             value={minPayment}
             onChangeText={setMinPayment}
-            onBlur={() => setMinPayment(normalizeManualMoneyDraft(minPayment, { allowZero: true }))}
+            onBlur={() => {
+              setMinPayment(normalizeManualMoneyDraft(minPayment, { allowZero: true }));
+              touchField('minimum');
+            }}
             selectTextOnFocus
             keyboardType="decimal-pad"
             placeholder="0"
@@ -401,6 +415,7 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
         <TextInput
           value={dueDayInput}
           onChangeText={setDueDayInput}
+          onBlur={() => touchField('dueDay')}
           selectTextOnFocus
           keyboardType="number-pad"
           style={[s.input, { backgroundColor: t.inset, borderColor: t.hairline, color: t.ink }]}
@@ -420,7 +435,10 @@ export function AddDebtSheet({ visible, onClose, targetId }: AddDebtSheetProps) 
           <TextInput
             value={apr}
             onChangeText={setApr}
-            onBlur={() => setApr(normalizeManualMoneyDraft(apr, { allowZero: true }))}
+            onBlur={() => {
+              setApr(normalizeManualMoneyDraft(apr, { allowZero: true }));
+              touchField('apr');
+            }}
             selectTextOnFocus
             keyboardType="decimal-pad"
             placeholder="Unknown"

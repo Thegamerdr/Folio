@@ -600,7 +600,9 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
             </Text>
             <Text style={[styles.body, { color: t.ink }]}>
               In {activeWorkspace.name}: {savedRecordCount} transactions, {savedBillCount} bills,{' '}
-              {savedDebtCount} debts, {savedSourceCount} original files and {savedHistory.summary}.
+              {savedDebtCount} {savedDebtCount === 1 ? 'debt' : 'debts'}, {savedSourceCount}{' '}
+              {savedSourceCount === 1 ? 'original file' : 'original files'} and{' '}
+              {savedHistory.summary}.
             </Text>
             <Text style={[styles.body, { color: t.muted }]}>
               Money, setup details, statements, history, widgets and app-owned export files will be

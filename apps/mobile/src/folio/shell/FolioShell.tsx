@@ -61,6 +61,7 @@ import {
 } from '@/surfaces/pressureMap/sheetRepaint';
 import type { ProductScreen } from '@/surfaces/pressureMap/productScreen';
 import { KeyboardSafeView, Sheet, SheetPortalProvider } from '@/surfaces/pressureMap/Sheet';
+import { dismissTopSheet } from '@/surfaces/pressureMap/sheetBack';
 
 import { StartScreen } from '@/folio/screens/StartScreen';
 import { TodayScreen } from '@/folio/screens/TodayScreen';
@@ -730,6 +731,7 @@ export function FolioShell() {
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (dismissTopSheet()) return true;
       // Portal updates can register this listener after the dialog's own listener.
       // Always settle the top confirmation before considering underlying navigation.
       const confirmation = getMeloAlert();

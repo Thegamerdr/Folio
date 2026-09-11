@@ -27,6 +27,7 @@ import {
 } from 'react';
 import {
   Animated,
+  BackHandler,
   Dimensions,
   Easing,
   Keyboard,
@@ -48,6 +49,7 @@ import { useReducedMotion as useSystemReducedMotion } from 'react-native-reanima
 
 import { elevation, gap, useTheme, type Palette } from './kit';
 import { announceSurfaceRepaint } from './sheetRepaint';
+import { dismissTopSheet, registerSheetBack } from './sheetBack';
 import {
   measureSheetFrame,
   resolveSheetBottomOffset,
@@ -478,6 +480,18 @@ export function Sheet({
     translateY,
     usesAndroidPortal,
   ]);
+
+  const closeRef = useRef(handleClose);
+  closeRef.current = handleClose;
+  useEffect(() => {
+    if (!visible || !usesAndroidPortal) return;
+    const remove = registerSheetBack(portalId, () => closeRef.current());
+    const listener = BackHandler.addEventListener('hardwareBackPress', dismissTopSheet);
+    return () => {
+      listener.remove();
+      remove();
+    };
+  }, [visible, usesAndroidPortal, portalId]);
 
   const sheetLayer = useMemo(
     () =>

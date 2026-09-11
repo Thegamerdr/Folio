@@ -337,7 +337,24 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
               state={appState}
               plan={financialPlan}
               onSetup={() => nav.openSheet('onboarding')}
-            />
+            >
+              <View style={{ marginTop: gap.lg, gap: gap.md }}>
+                <View>
+                  <Text style={[styles.smallLabel, { color: t.ink }]}>Safe to spend</Text>
+                  <Text style={[styles.safeCaption, { color: t.muted }]}>Not calculated yet</Text>
+                  <Text style={[styles.safeCaption, { color: t.muted }]}>
+                    What remains after bills, essentials and your buffer until payday.
+                  </Text>
+                </View>
+                <View>
+                  <Text style={[styles.smallLabel, { color: t.ink }]}>Tight point</Text>
+                  <Text style={[styles.safeCaption, { color: t.muted }]}>Not calculated yet</Text>
+                  <Text style={[styles.safeCaption, { color: t.muted }]}>
+                    The lowest projected account balance before payday.
+                  </Text>
+                </View>
+              </View>
+            </FinancialSetupNotice>
           ) : (
             <View
               style={[styles.dominant, { backgroundColor: t.surface, borderColor: t.hairline }]}

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { ReactNode } from 'react';
 import type { AppState } from '../store';
 import type { FinancialPlanResult } from '@folio/finance-engine';
 import { selectFinancialPresentation, formatMoney } from '../lib/financialPresentation';
@@ -8,10 +9,12 @@ export function FinancialSetupNotice({
   state,
   plan,
   onSetup,
+  children,
 }: {
   state: AppState;
   plan: FinancialPlanResult | null;
   onSetup: () => void;
+  children?: ReactNode;
 }) {
   const t = useTheme();
   const presentation = selectFinancialPresentation(state, plan);
@@ -27,6 +30,7 @@ export function FinancialSetupNotice({
         </Text>
       )}
       <Text style={[styles.body, { color: t.muted }]}>{presentation.message}</Text>
+      {children}
       <Pressable
         accessibilityRole="button"
         onPress={onSetup}

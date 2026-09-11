@@ -17,7 +17,7 @@ describe('IntakeScreen — canonical acquisition parity', () => {
     expect(source).toContain('understand');
     expect(source).toContain("title: 'Statement or sheet'");
     expect(source).toContain("title: 'Photo or screenshot'");
-    expect(source).toContain("title: 'Paste rows'");
+    expect(source).toContain("title: 'Paste transactions'");
     expect(source).toContain("title: 'Type it yourself'");
     expect(source).toContain("pick: 'document'");
     expect(source).toContain("pick: 'photo'");

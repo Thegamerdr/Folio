@@ -262,14 +262,15 @@ type Step = {
 // Pot templates — byte-faithful to the web source (id/name/goal/perWeek/accent).
 // ---------------------------------------------------------------------------
 
-type PotTemplate = { id: string; name: string; goal: number; perWeek: number; accent: boolean };
+type PotTemplate = { id: string; name: string; accent: boolean };
+type PotAmounts = { goal: string; perWeek: string };
 
 const POT_TEMPLATES: readonly PotTemplate[] = [
-  { id: 'holiday', name: 'Holiday · September', goal: 1200, perWeek: 35, accent: true },
-  { id: 'buffer', name: 'Buffer', goal: 500, perWeek: 20, accent: false },
-  { id: 'christmas', name: 'Christmas', goal: 300, perWeek: 15, accent: false },
-  { id: 'pet', name: 'Vet fund', goal: 400, perWeek: 10, accent: false },
-  { id: 'home', name: 'Home things', goal: 600, perWeek: 15, accent: false },
+  { id: 'holiday', name: 'Holiday', accent: true },
+  { id: 'buffer', name: 'Buffer', accent: false },
+  { id: 'christmas', name: 'Christmas', accent: false },
+  { id: 'pet', name: 'Vet fund', accent: false },
+  { id: 'home', name: 'Home things', accent: false },
 ];
 
 // Slider ranges — exact to the web `<input type=range>` per step (spec SLIDER FIDELITY).
@@ -513,6 +514,12 @@ function OnboardingFlow({
     INTENT_OPTIONS.find((option) => option.mode === savedMode)?.label ?? INTENT_OPTIONS[0]!.label,
   );
   const [name, setName] = useState(ob.name);
+  const [potAmounts, setPotAmounts] = useState<Record<string, PotAmounts>>({});
+  const updatePotAmount = (id: string, field: keyof PotAmounts, value: string) =>
+    setPotAmounts((previous) => ({
+      ...previous,
+      [id]: { goal: '', perWeek: '', ...previous[id], [field]: value },
+    }));
   const [payday, setPayday] = useState(savedIncomeSource?.dayOfMonth ?? ob.payday);
   const [paydayInput, setPaydayInput] = useState(
     String(savedIncomeSource?.dayOfMonth ?? ob.payday),
@@ -575,12 +582,15 @@ function OnboardingFlow({
   });
   const paydayInputValue = parseDayOfMonth(paydayInput);
   const commitmentDayValue = parseDayOfMonth(commitmentDayInput);
-  // Picked pot templates — pre-select whatever the user already has so a returning user lands on
-  // their kept pots and first-timers land on the store defaults (Holiday + Buffer + Christmas).
+  // Pots are optional. First-run choices begin empty; sample pots are never user consent.
   const [picked, setPicked] = useState<Set<string>>(
     () =>
       new Set(
-        existingPots.map((p) => p.id).filter((id) => POT_TEMPLATES.some((tpl) => tpl.id === id)),
+        isFirstRun
+          ? []
+          : existingPots
+              .map((p) => p.id)
+              .filter((id) => POT_TEMPLATES.some((tpl) => tpl.id === id)),
       ),
   );
 
@@ -605,13 +615,15 @@ function OnboardingFlow({
         : cadence === 'last-working-day'
           ? lastWorkingDayOfMonthNumber()
           : dayOfMonthFromIso(anchorISO);
-    const pickedPots = POT_TEMPLATES.filter((tpl) => picked.has(tpl.id)).map((tpl) => ({
-      id: tpl.id,
-      name: tpl.name,
-      goal: tpl.goal,
-      perWeek: tpl.perWeek,
-      accent: tpl.accent,
-    }));
+    const pickedPots = POT_TEMPLATES.filter((tpl) => !isReturning && picked.has(tpl.id)).map(
+      (tpl) => ({
+        id: tpl.id,
+        name: tpl.name,
+        goal: parseManualMoney(potAmounts[tpl.id]?.goal ?? '')!,
+        perWeek: parseManualMoney(potAmounts[tpl.id]?.perWeek ?? '', { allowZero: true })!,
+        accent: tpl.accent,
+      }),
+    );
     try {
       commitOnboarding({
         name,
@@ -745,29 +757,39 @@ function OnboardingFlow({
     setCostsConfirmed(false);
   }
 
+  const potsValid =
+    isReturning ||
+    [...picked].every(
+      (id) =>
+        parseManualMoney(potAmounts[id]?.goal ?? '') !== undefined &&
+        parseManualMoney(potAmounts[id]?.perWeek ?? '', { allowZero: true }) !== undefined,
+    );
   const numericError =
-    activeStepIndex === STEP_PAYDAY && cadence === 'monthly' && paydayInputValue === undefined
-      ? 'Enter a day from 1 to 31.'
-      : activeStepIndex === 5 && incomeInputValue === undefined
-        ? 'Enter income of £0 or more.'
-        : activeStepIndex === STEP_BALANCE && balanceInputValue === undefined
-          ? 'Enter your current balance. A negative balance is allowed.'
-          : activeStepIndex === 2 &&
-              parseManualMoney(modeExtraInput, { allowZero: true }) === undefined
-            ? 'Enter an amount of £0 or more.'
-            : activeStepIndex === STEP_ESSENTIALS &&
-                (parseManualMoney(essentialsInput, { allowZero: true }) === undefined ||
-                  parseManualMoney(bufferInput, { allowZero: true }) === undefined)
-              ? 'Enter essentials and a buffer of £0 or more.'
-              : activeStepIndex === STEP_COMMITMENT &&
-                  parseManualMoney(commitmentInput, { allowZero: true }) === undefined
-                ? 'Enter a regular payment amount of £0 or more.'
+    activeStepIndex === STEP_POTS && !potsValid
+      ? 'Add a target above £0 and a weekly amount for each selected pot, or deselect it.'
+      : activeStepIndex === STEP_PAYDAY && cadence === 'monthly' && paydayInputValue === undefined
+        ? 'Enter a day from 1 to 31.'
+        : activeStepIndex === 5 && incomeInputValue === undefined
+          ? 'Enter income of £0 or more.'
+          : activeStepIndex === STEP_BALANCE && balanceInputValue === undefined
+            ? 'Enter your current balance. A negative balance is allowed.'
+            : activeStepIndex === 2 &&
+                parseManualMoney(modeExtraInput, { allowZero: true }) === undefined
+              ? 'Enter an amount of £0 or more.'
+              : activeStepIndex === STEP_ESSENTIALS &&
+                  (parseManualMoney(essentialsInput, { allowZero: true }) === undefined ||
+                    parseManualMoney(bufferInput, { allowZero: true }) === undefined)
+                ? 'Enter essentials and a buffer of £0 or more.'
                 : activeStepIndex === STEP_COMMITMENT &&
-                    bundledCommitmentAmount > 0 &&
-                    commitmentDayValue === undefined
-                  ? 'Enter a day from 1 to 31.'
-                  : null;
+                    parseManualMoney(commitmentInput, { allowZero: true }) === undefined
+                  ? 'Enter a regular payment amount of £0 or more.'
+                  : activeStepIndex === STEP_COMMITMENT &&
+                      bundledCommitmentAmount > 0 &&
+                      commitmentDayValue === undefined
+                    ? 'Enter a day from 1 to 31.'
+                    : null;
   const allNumbersValid =
+    potsValid &&
     incomeInputValue !== undefined &&
     balanceInputValue !== undefined &&
     (isReturning || parseManualMoney(modeExtraInput, { allowZero: true }) !== undefined) &&
@@ -777,41 +799,45 @@ function OnboardingFlow({
     parseManualMoney(commitmentInput, { allowZero: true }) !== undefined &&
     (bundledCommitmentAmount === 0 || commitmentDayValue !== undefined);
   const invalidReviewIndex = !allNumbersValid
-    ? !isReturning && parseManualMoney(modeExtraInput, { allowZero: true }) === undefined
-      ? 2
-      : incomeInputValue === undefined
-        ? 5
-        : balanceInputValue === undefined
-          ? STEP_BALANCE
-          : cadence === 'monthly' && paydayInputValue === undefined
-            ? STEP_PAYDAY
-            : parseManualMoney(essentialsInput, { allowZero: true }) === undefined ||
-                parseManualMoney(bufferInput, { allowZero: true }) === undefined
-              ? STEP_ESSENTIALS
-              : parseManualMoney(commitmentInput, { allowZero: true }) === undefined ||
-                  (bundledCommitmentAmount > 0 && commitmentDayValue === undefined)
-                ? STEP_COMMITMENT
-                : null
+    ? !potsValid
+      ? STEP_POTS
+      : !isReturning && parseManualMoney(modeExtraInput, { allowZero: true }) === undefined
+        ? 2
+        : incomeInputValue === undefined
+          ? 5
+          : balanceInputValue === undefined
+            ? STEP_BALANCE
+            : cadence === 'monthly' && paydayInputValue === undefined
+              ? STEP_PAYDAY
+              : parseManualMoney(essentialsInput, { allowZero: true }) === undefined ||
+                  parseManualMoney(bufferInput, { allowZero: true }) === undefined
+                ? STEP_ESSENTIALS
+                : parseManualMoney(commitmentInput, { allowZero: true }) === undefined ||
+                    (bundledCommitmentAmount > 0 && commitmentDayValue === undefined)
+                  ? STEP_COMMITMENT
+                  : null
     : null;
   const summaryValidationError =
     invalidReviewIndex === null
       ? null
-      : invalidReviewIndex === STEP_COMMITMENT &&
-          parseManualMoney(commitmentInput, { allowZero: true }) === undefined
-        ? 'Check the highlighted regular payment amount before saving.'
-        : invalidReviewIndex === STEP_PAYDAY || invalidReviewIndex === STEP_COMMITMENT
-          ? 'Check the highlighted day before saving.'
-          : invalidReviewIndex === STEP_ESSENTIALS
-            ? 'Check the highlighted essentials or buffer amount before saving.'
-            : invalidReviewIndex === STEP_BALANCE
-              ? 'Check the highlighted current balance before saving.'
-              : invalidReviewIndex === 5
-                ? 'Check the highlighted income amount before saving.'
-                : `Check the highlighted ${extra.eyebrow.toLowerCase()} amount before saving.`;
+      : invalidReviewIndex === STEP_POTS
+        ? 'Check the target and weekly amount for each selected pot.'
+        : invalidReviewIndex === STEP_COMMITMENT &&
+            parseManualMoney(commitmentInput, { allowZero: true }) === undefined
+          ? 'Check the highlighted regular payment amount before saving.'
+          : invalidReviewIndex === STEP_PAYDAY || invalidReviewIndex === STEP_COMMITMENT
+            ? 'Check the highlighted day before saving.'
+            : invalidReviewIndex === STEP_ESSENTIALS
+              ? 'Check the highlighted essentials or buffer amount before saving.'
+              : invalidReviewIndex === STEP_BALANCE
+                ? 'Check the highlighted current balance before saving.'
+                : invalidReviewIndex === 5
+                  ? 'Check the highlighted income amount before saving.'
+                  : `Check the highlighted ${extra.eyebrow.toLowerCase()} amount before saving.`;
   const selectedPotSummary = POT_TEMPLATES.filter((template) => picked.has(template.id))
     .map(
       (template) =>
-        `${template.name} (${poundsTabular(template.goal)} goal · ${poundsTabular(template.perWeek)}/wk)`,
+        `${template.name} (${poundsTabular(parseManualMoney(potAmounts[template.id]?.goal ?? '') ?? 0)} goal · ${poundsTabular(parseManualMoney(potAmounts[template.id]?.perWeek ?? '', { allowZero: true }) ?? 0)}/wk)`,
     )
     .join(', ');
   const reviewRows = [
@@ -1087,7 +1113,6 @@ function OnboardingFlow({
                     >
                       <View style={s.intentRowText}>
                         <Text style={s.intentModeLabel}>{opt.label}</Text>
-                        <Text style={s.intentLabel}>{opt.modeLabel}</Text>
                       </View>
                       <View style={[s.intentDotRing, on ? s.intentDotRingActive : null]}>
                         {on ? <View style={s.intentDot} /> : null}
@@ -1271,18 +1296,6 @@ function OnboardingFlow({
                 <Text style={s.bigValue}>{poundsTabular(income)}</Text>
                 <Text style={s.unit}>{incomeRange.unit}</Text>
               </View>
-              <FolioSlider
-                min={incomeRange.min}
-                max={incomeRange.max}
-                step={incomeRange.step}
-                value={Math.min(incomeRange.max, Math.max(incomeRange.min, income))}
-                onChange={(value) => {
-                  setIncome(value);
-                  setIncomeInput(String(value));
-                }}
-                palette={t}
-                accessibilityLabel={`Rough income${incomeRange.unit}`}
-              />
               <TextInput
                 value={incomeInput}
                 selectTextOnFocus
@@ -1298,6 +1311,18 @@ function OnboardingFlow({
                 style={s.amountInput}
                 accessibilityLabel={`Exact income${incomeRange.unit}`}
               />
+              <FolioSlider
+                min={incomeRange.min}
+                max={incomeRange.max}
+                step={incomeRange.step}
+                value={Math.min(incomeRange.max, Math.max(incomeRange.min, income))}
+                onChange={(value) => {
+                  setIncome(value);
+                  setIncomeInput(String(value));
+                }}
+                palette={t}
+                accessibilityLabel={`Rough income${incomeRange.unit}`}
+              />
               <Text style={s.help}>Doesn't need to be exact. Melo adjusts as you go.</Text>
             </View>
           ) : null}
@@ -1308,18 +1333,6 @@ function OnboardingFlow({
                 <Text style={s.bigValue}>{poundsTabular(balance)}</Text>
                 <Text style={s.unit}>available now</Text>
               </View>
-              <FolioSlider
-                min={BALANCE_MIN}
-                max={BALANCE_MAX}
-                step={BALANCE_STEP}
-                value={Math.min(BALANCE_MAX, Math.max(BALANCE_MIN, balance))}
-                onChange={(value) => {
-                  setBalance(value);
-                  setBalanceInput(String(value));
-                }}
-                palette={t}
-                accessibilityLabel="Rough current account balance"
-              />
               <TextInput
                 value={balanceInput}
                 selectTextOnFocus
@@ -1339,6 +1352,18 @@ function OnboardingFlow({
                 keyboardType="decimal-pad"
                 style={s.amountInput}
                 accessibilityLabel="Exact current account balance"
+              />
+              <FolioSlider
+                min={BALANCE_MIN}
+                max={BALANCE_MAX}
+                step={BALANCE_STEP}
+                value={Math.min(BALANCE_MAX, Math.max(BALANCE_MIN, balance))}
+                onChange={(value) => {
+                  setBalance(value);
+                  setBalanceInput(String(value));
+                }}
+                palette={t}
+                accessibilityLabel="Rough current account balance"
               />
               <Pressable
                 accessibilityRole="button"
@@ -1527,7 +1552,8 @@ function OnboardingFlow({
           {!isReturning && activeStepIndex === STEP_POTS ? (
             <View style={s.fieldBlock}>
               <Text style={s.potsIntro}>
-                Pick any. Skip with none if you'd rather start blank — you can add later.
+                Choose optional pots, then add your own target and weekly amount. Leave all
+                unselected to save your setup without pots. You can add pots later.
               </Text>
               <View style={s.potGrid}>
                 {POT_TEMPLATES.map((tpl) => (
@@ -1535,6 +1561,8 @@ function OnboardingFlow({
                     key={tpl.id}
                     template={tpl}
                     selected={picked.has(tpl.id)}
+                    amounts={potAmounts[tpl.id] ?? { goal: '', perWeek: '' }}
+                    onAmountChange={(field, value) => updatePotAmount(tpl.id, field, value)}
                     onPress={() => togglePot(tpl.id)}
                     styles={s}
                   />
@@ -1604,30 +1632,52 @@ function ProgressPip({
 function PotTile({
   template,
   selected,
+  amounts,
   onPress,
+  onAmountChange,
   styles: s,
 }: {
   template: PotTemplate;
   selected: boolean;
+  amounts: PotAmounts;
   onPress: () => void;
+  onAmountChange: (field: keyof PotAmounts, value: string) => void;
   styles: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={({ pressed: isPressed }) => [
-        s.potTile,
-        selected ? s.potTileSelected : s.potTileUnselected,
-        isPressed ? pressed : null,
-      ]}
-    >
-      <Text style={s.potName}>{template.name}</Text>
-      <Text style={s.potMeta}>
-        {poundsTabular(template.goal)} · {poundsTabular(template.perWeek)}/wk
-      </Text>
-    </Pressable>
+    <View style={[s.potTile, selected ? s.potTileSelected : s.potTileUnselected]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        onPress={onPress}
+        style={{ minHeight: 48, justifyContent: 'center' }}
+      >
+        <Text style={s.potName}>{template.name}</Text>
+        <Text style={s.potMeta}>{selected ? 'Selected · tap to remove' : 'Choose this pot'}</Text>
+      </Pressable>
+      {selected ? (
+        <>
+          <Text style={s.help}>Target (£)</Text>
+          <TextInput
+            value={amounts.goal}
+            onChangeText={(value) => onAmountChange('goal', value)}
+            selectTextOnFocus
+            keyboardType="decimal-pad"
+            style={s.amountInput}
+            accessibilityLabel={`${template.name} target in pounds`}
+          />
+          <Text style={s.help}>Set aside each week (£, can be 0)</Text>
+          <TextInput
+            value={amounts.perWeek}
+            onChangeText={(value) => onAmountChange('perWeek', value)}
+            selectTextOnFocus
+            keyboardType="decimal-pad"
+            style={s.amountInput}
+            accessibilityLabel={`${template.name} weekly amount in pounds`}
+          />
+        </>
+      ) : null}
+    </View>
   );
 }
 
@@ -1967,6 +2017,7 @@ function makeStyles(t: Palette) {
       paddingVertical: gap.md,
     },
     potTileSelected: {
+      flexBasis: '100%',
       backgroundColor: t.calmSoft,
       borderColor: t.calm,
       borderWidth: 1,

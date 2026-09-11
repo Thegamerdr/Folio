@@ -516,14 +516,14 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         mood={presentation.canReassure ? 'calm' : 'concern'}
         headline={
           needsSetup
-            ? 'We need your numbers'
+            ? 'Find a way through a shortfall'
             : presentation.overdueCount
               ? 'Check overdue payments'
               : 'No gap in the current plan'
         }
         body={
           needsSetup
-            ? presentation.message
+            ? `Recovery compares changes to costs and dates when your plan has a gap. ${presentation.message}`
             : presentation.canReassure
               ? 'Your entered costs and buffer fit before payday. You can review the numbers at any time.'
               : 'Review the unpaid or unconfirmed items before relying on this plan.'

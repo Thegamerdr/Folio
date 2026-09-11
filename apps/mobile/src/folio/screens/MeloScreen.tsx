@@ -101,7 +101,7 @@ import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentat
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
-import { useAppStore, setMelo, setMeloPrimerSeen } from '@/folio/store';
+import { useAppStore, setMelo, setMeloPrimerSeen, hasConfiguredMoneyPicture } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
 import { canShowUpsell } from '@/folio/lib/lensPaywall';
 import { deriveModeState, MODE_LABEL, type MeloWeather, type MoneyMode } from '@/folio/lib/modes';
@@ -191,6 +191,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
   const now = useDayClock();
   const melo = useAppStore((s) => s.melo ?? { quietMode: false, wardrobe: [] });
   const moneyMode = useAppStore((s) => s.moneyMode ?? 'survival') as MoneyMode;
+  const hasMoneyPicture = useAppStore(hasConfiguredMoneyPicture);
   const onboarding = useAppStore((s) => s.onboarding);
   const subs = useAppStore((s) => s.subs);
   const subPaused = useAppStore((s) => s.subPaused);
@@ -400,22 +401,19 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
             pose="none"
             position={preferredPosition}
             presence={presence}
-            accessibilityLabel={`Melo, ${mood}`}
+            accessibilityLabel={hasMoneyPicture ? `Melo, ${mood}` : 'Melo, ready to help you start'}
           />
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Chat with Melo, ${melo.quietMode ? 'quiet' : mood}`}
+            accessibilityLabel="Chat with Melo"
             onPress={() => nav.openMelo()}
             style={({ pressed: isPressed }) => [
               styles.tapToTalk,
               isPressed ? styles.pressed : undefined,
             ]}
           >
-            <Text style={[styles.tapToTalkLabel, { color: t.muted }]}>TAP TO CHAT · </Text>
-            <Text style={[styles.tapToTalkMood, { color: t.muted }]}>
-              {melo.quietMode ? 'Quiet' : mood}
-            </Text>
+            <Text style={[styles.tapToTalkLabel, { color: t.muted }]}>Chat with Melo</Text>
           </Pressable>
 
           <Pressable
@@ -439,7 +437,9 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               lock so the paywall state is legible without opening the picker. */}
           <View style={styles.lensLine}>
             <MeloWeatherGlyph weather={weather} size={12} />
-            <Text style={[styles.lensLineText, { color: t.muted }]}>{weatherLabel(weather)}</Text>
+            <Text style={[styles.lensLineText, { color: t.muted }]}>
+              {hasMoneyPicture ? weatherLabel(weather) : 'Add your numbers to begin'}
+            </Text>
             <Text style={[styles.lensSeparator, { color: t.muted }]}>·</Text>
             <Text style={[styles.lensLineText, { color: t.muted }]}>{lensLabel} lens</Text>
             {modeLocked ? (
@@ -463,8 +463,8 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         {!melo.quietMode ? (
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: t.ink }]}>Plumage</Text>
-              <Text style={[styles.sectionHint, { color: t.muted }]}>live · money health</Text>
+              <Text style={[styles.sectionTitle, { color: t.ink }]}>Your money picture</Text>
+              <Text style={[styles.sectionHint, { color: t.muted }]}>From your numbers</Text>
             </View>
             <View style={styles.plumageRow}>
               <Text style={[styles.plumageWord, { color: t.ink }]}>
@@ -856,12 +856,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     columnGap: gap.xs + gap.xxs,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    rowGap: gap.xs,
     marginTop: gap.xl,
   },
   lensLineText: {
-    fontSize: 11,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
+    fontSize: 12,
+    textAlign: 'center',
   },
   lensSeparator: {
     fontSize: 11,

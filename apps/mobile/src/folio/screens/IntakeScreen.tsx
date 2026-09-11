@@ -189,7 +189,7 @@ export const INTAKE_OPTIONS: readonly IntakeOption[] = [
     pick: 'photo',
   },
   {
-    title: 'Paste rows',
+    title: 'Paste transactions',
     hint: 'copy from a spreadsheet or anywhere else',
     icon: '❝',
     to: 'paste-success',

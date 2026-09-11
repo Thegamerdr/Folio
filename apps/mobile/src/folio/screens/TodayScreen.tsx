@@ -1115,6 +1115,7 @@ function OneMoveCard({ oneMove }: { oneMove: NonNullable<ReturnType<typeof deriv
 
 export function TodayFirstRun({ nav }: { nav: Nav }) {
   const t = useTodayTheme();
+  const { fontScale } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const screenTopInset = Math.max(gap.md, insets.top + gap.xs);
   return (
@@ -1151,7 +1152,14 @@ export function TodayFirstRun({ nav }: { nav: Nav }) {
           Melo, here. I only speak when something shifts.
         </Text>
         <Text style={[styles.firstRunKicker, { color: t.muted }]}>Your first picture</Text>
-        <Text accessibilityRole="header" style={[styles.firstRunTitle, { color: t.ink }]}>
+        <Text
+          accessibilityRole="header"
+          style={[
+            styles.firstRunTitle,
+            fontScale > 1.4 ? { fontSize: 24, lineHeight: 29 } : undefined,
+            { color: t.ink },
+          ]}
+        >
           {'See where your money gets '}
           <Text style={{ color: t.calm }}>tight</Text>
           {', before it does.'}
@@ -1338,12 +1346,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.xl,
     flexDirection: 'row',
-    height: 54,
+    minHeight: 54,
+    paddingVertical: gap.md,
     justifyContent: 'center',
     marginTop: gap.xl,
     paddingHorizontal: gap.xl,
   },
   firstRunPrimaryLabel: {
+    flexShrink: 1,
+    textAlign: 'center',
+    paddingRight: gap.lg,
     fontSize: 16,
     fontWeight: '600',
   },
