@@ -1,16 +1,34 @@
 diff --git a/android/src/main/java/expo/modules/splashscreen/SplashScreenManager.kt b/android/src/main/java/expo/modules/splashscreen/SplashScreenManager.kt
-index 0dcb89e6cf02fdbd414375e2cd0b7ac4fe2e4950..787c1177fecb2288d1cab93b417c8f146a7acb4c 100644
+index 0dcb89e6cf02fdbd414375e2cd0b7ac4fe2e4950..794b1fe5f2a600b8d6f8d5a9c5baaf33442c2cf4 100644
 --- a/android/src/main/java/expo/modules/splashscreen/SplashScreenManager.kt
 +++ b/android/src/main/java/expo/modules/splashscreen/SplashScreenManager.kt
-@@ -17,6 +17,7 @@ object SplashScreenManager {
+@@ -4,12 +4,14 @@ import android.app.Activity
+ import android.app.Application.ActivityLifecycleCallbacks
+ import android.os.Build
+ import android.os.Bundle
++import android.os.Handler
++import android.os.Looper
+ import android.view.View
+-import android.view.ViewTreeObserver.OnPreDrawListener
+ import android.view.animation.AccelerateInterpolator
+ import android.window.SplashScreenView
+ import androidx.core.splashscreen.SplashScreen
+ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
++import androidx.core.splashscreen.SplashScreenViewProvider
+ import com.facebook.react.bridge.ReactMarker
+ import com.facebook.react.bridge.ReactMarkerConstants
+ 
+@@ -17,6 +19,9 @@ object SplashScreenManager {
    private var keepSplashScreenOnScreen = true
    var preventAutoHideCalled: Boolean = false
    private lateinit var splashScreen: SplashScreen
 +  private var splashScreenOptions = SplashScreenOptions()
++  private var activeSplashView: SplashScreenViewProvider? = null
++  private val mainHandler = Handler(Looper.getMainLooper())
  
    private val contentAppearedListener = ReactMarker.MarkerListener { name, _, _ ->
      if (name == ReactMarkerConstants.CONTENT_APPEARED) {
-@@ -26,16 +27,21 @@ object SplashScreenManager {
+@@ -26,16 +31,29 @@ object SplashScreenManager {
      }
    }
  
@@ -25,17 +43,63 @@ index 0dcb89e6cf02fdbd414375e2cd0b7ac4fe2e4950..787c1177fecb2288d1cab93b417c8f14
 -    val duration = options.duration
 -
      splashScreen.setOnExitAnimationListener { splashScreenViewProvider ->
++      activeSplashView = splashScreenViewProvider
++      if (!keepSplashScreenOnScreen) finishSplashScreen(splashScreenViewProvider)
++    }
++  }
++
++  private fun finishSplashScreen(splashScreenViewProvider: SplashScreenViewProvider) {
++      if (activeSplashView !== splashScreenViewProvider) return
++      activeSplashView = null
 +      // Updating the listener creates another view on AndroidX API < 31.
 +      // Register once per Activity and read the latest options at exit instead.
 +      val duration = splashScreenOptions.duration
 +      if (duration <= 0L) {
 +        splashScreenViewProvider.remove()
-+        return@setOnExitAnimationListener
++        return
 +      }
        val splashScreenView = splashScreenViewProvider.view
        splashScreenView
          .animate()
-@@ -102,7 +108,7 @@ object SplashScreenManager {
+@@ -50,27 +68,18 @@ object SplashScreenManager {
+             (splashScreenView as SplashScreenView).remove()
+           }
+         }.start()
+-    }
+   }
+ 
+   fun registerOnActivity(mainActivity: Activity) {
++    keepSplashScreenOnScreen = true
++    activeSplashView = null
+     splashScreen = mainActivity.installSplashScreen()
+     ReactMarker.addListener(contentAppearedListener)
+ 
+-    // Using `splashScreen.setKeepOnScreenCondition()` does not work on apis below 33
+-    // so we need to implement this ourselves.
+-    val contentView = mainActivity.findViewById<View>(android.R.id.content)
+-    val observer = contentView.viewTreeObserver
+-    observer.addOnPreDrawListener(object : OnPreDrawListener {
+-      override fun onPreDraw(): Boolean {
+-        if (keepSplashScreenOnScreen) {
+-          return false
+-        }
+-        contentView.viewTreeObserver.removeOnPreDrawListener(this)
+-        return true
+-      }
+-    })
+-
++    // Paint the native splash while React hydrates. Blocking the Activity's first
++    // draw keeps Android's separate starting window alive; its later system fade
++    // then puts the launch character over the ready app. Hold our splash view
++    // instead, so that system handoff happens while both surfaces show the splash.
+     configureSplashScreen()
+ 
+     // Mitigate race where splash exit listener may fire after activity stop,
+@@ -99,10 +108,11 @@ object SplashScreenManager {
+ 
+   fun hide() {
+     keepSplashScreenOnScreen = false
++    mainHandler.post { activeSplashView?.let(::finishSplashScreen) }
    }
  
    fun setSplashScreenOptions(options: SplashScreenOptions) {
