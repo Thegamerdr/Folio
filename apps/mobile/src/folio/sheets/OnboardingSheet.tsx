@@ -50,6 +50,7 @@ import {
   useWindowDimensions,
   View,
   type LayoutChangeEvent,
+  type TextInputProps,
 } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
@@ -1676,8 +1677,8 @@ function OnboardingFlow({
 
           {activeStepIndex === STEP_COMMITMENT ? (
             <View style={[s.fieldBlock]}>
-              <TextInput
-                value={bundledCommitmentName}
+              <NameDraftInput
+                initialValue={bundledCommitmentName}
                 onChangeText={setBundledCommitmentName}
                 placeholder="For example, rent + bills"
                 placeholderTextColor={t.muted}
@@ -1854,6 +1855,18 @@ function ProgressPip({
 // ---------------------------------------------------------------------------
 // PotTile — selected = accent-soft + accent/40 ring · unselected = inset + hairline.
 // ---------------------------------------------------------------------------
+
+// Keep the native caret authoritative while typing a free-text name. Feeding
+// each character back through value can replay an older selection on Android.
+// The parent still receives every edit for validation and Save; reopening this
+// step mounts the field with that latest draft.
+function NameDraftInput({
+  initialValue,
+  ...props
+}: Omit<TextInputProps, 'value' | 'defaultValue'> & { initialValue: string }) {
+  const initial = useRef(initialValue).current;
+  return <TextInput {...props} defaultValue={initial} />;
+}
 
 function PotTile({
   template,
