@@ -294,8 +294,6 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
             Your current available balance, including payments and income already reflected.
           </Text>
         </View>
-      </ScrollView>
-      <View style={styles.controls}>
         {/* Balance card — the In-your-account label, the big £ + figure with the blinking caret, and the
           three source chips. The figure count-ups per keystroke; money never slides. */}
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.hairline }]}>
@@ -337,7 +335,8 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
             </Pressable>
           ))}
         </View>
-
+      </ScrollView>
+      <View style={styles.controls}>
         {/* Continue — the kit accent CTA shape rebuilt as a single terracotta button (the web's
           bg-accent text-white). Persists the rough figure honestly, then advances to intake. */}
         <Pressable

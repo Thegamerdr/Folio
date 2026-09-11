@@ -563,6 +563,10 @@ export function FolioShell() {
   // The onboarding gate reads the live store flag (faithful to the web index, which reads
   // `useAppStore((s) => s.onboarding.done)`). A returning, set-up user is never offered onboarding.
   const onboardingDone = useAppStore((st) => st.onboarding.done);
+  const financialSetupConfirmed = useAppStore(
+    (st) => st.onboarding.financialSetupConfirmed === true,
+  );
+  const firstRunPage = !financialSetupConfirmed && ['start', 'guided', 'intake'].includes(screen);
   const pendingReviewCount = useAppStore((st) => st.reviewQueue?.length ?? 0);
   const activeWorkspaceId = useAppStore((st) => st.activeWorkspaceId);
   const activeWorkspace = useAppStore((st) =>
@@ -873,13 +877,17 @@ export function FolioShell() {
               <BusinessWorkspaceBar label="Business" onPress={() => nav.openWorkspace?.()} />
             ) : null}
             <View onLayout={(event) => setBottomChromeHeight(event.nativeEvent.layout.height)}>
-              <BottomNav
-                key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
-                active={activeTab}
-                onChange={onTabChange}
-                reviewCount={pendingReviewCount}
-                variant={businessWorkspaceActive ? 'business' : 'personal'}
-              />
+              {firstRunPage ? (
+                <View style={{ height: systemInsets.bottom }} />
+              ) : (
+                <BottomNav
+                  key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
+                  active={activeTab}
+                  onChange={onTabChange}
+                  reviewCount={pendingReviewCount}
+                  variant={businessWorkspaceActive ? 'business' : 'personal'}
+                />
+              )}
             </View>
           </View>
           {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting

@@ -2075,6 +2075,8 @@ function makeStyles(t: Palette) {
     },
     potTileSelected: {
       flexBasis: '100%',
+      minWidth: '100%',
+      flexShrink: 0,
       backgroundColor: t.calmSoft,
       borderColor: t.calm,
       borderWidth: 1,
