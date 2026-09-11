@@ -161,7 +161,6 @@ export function KeyboardSafeView({
   const portal = useContext(SheetPortalContext);
   const insets = portal?.insets ?? localInsets;
   const rootRef = useRef<View>(null);
-  const [footerHeight, setFooterHeight] = useState(0);
   const [frame, setFrame] = useState<SheetWindowFrame>({ x: 0, y: 0, width, height });
   const metrics = useSheetKeyboardMetrics(enabled, reduceMotion);
   const keyboard = resolveSheetKeyboardFrame(
@@ -305,7 +304,6 @@ export function Sheet({
   const captureMode = process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true';
   const shouldReduceMotion = captureMode || reduceMotion === true || systemReduceMotion;
   const rootRef = useRef<View>(null);
-  const [footerHeight, setFooterHeight] = useState(0);
   const [windowFrame, setWindowFrame] = useState<SheetWindowFrame>({ x: 0, y: 0, width, height });
   const keyboardMetrics = useSheetKeyboardMetrics(visible, shouldReduceMotion);
   const screenHeight = Dimensions.get('screen').height;
@@ -635,12 +633,10 @@ export function Sheet({
                   bounces={false}
                   removeClippedSubviews={false}
                   style={layout.scrollBody}
-                  contentContainerStyle={[
-                    layout.scrollContent,
-                    footer && viewport.keyboardOccludesBottom
-                      ? { paddingBottom: footerHeight + gap.md }
-                      : undefined,
-                  ]}
+                  // The footer is already a sibling below this viewport. Adding
+                  // its full height again as content padding can consume the
+                  // entire S9 typing area and collapse intrinsic form rows.
+                  contentContainerStyle={layout.scrollContent}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
                   automaticallyAdjustKeyboardInsets={false}
@@ -677,12 +673,7 @@ export function Sheet({
                 <View style={layout.sheetContent}>{children}</View>
               )}
               {footer ? (
-                <View
-                  style={s.footer}
-                  onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
-                >
-                  {footer}
-                </View>
+                <View style={s.footer}>{footer}</View>
               ) : null}
             </Animated.View>
           </View>
@@ -692,7 +683,6 @@ export function Sheet({
       children,
       footer,
       header,
-      footerHeight,
       dismissible,
       bodyScrollRef,
       handleClose,

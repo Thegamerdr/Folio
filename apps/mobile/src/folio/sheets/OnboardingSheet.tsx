@@ -1096,7 +1096,7 @@ function OnboardingFlow({
         </View>
       }
     >
-      <View collapsable={false} collapsableChildren={false} style={s.body}>
+      <View style={s.body}>
         {/* Progress pips — three states (active w7 accent · done w5 ink/60 · future w5 hairline). */}
         <View style={[s.pips, keyboardOpen ? { display: 'none' } : undefined]}>
           {visibleStepIndices.map((_, i) => (
@@ -1127,11 +1127,7 @@ function OnboardingFlow({
         </Text>
 
         {/* The per-step body — seven mutually exclusive branches, sliding on step change. */}
-        <Animated.View
-          collapsable={false}
-          collapsableChildren={false}
-          style={{ opacity: bodyOpacity, width: '100%' }}
-        >
+        <Animated.View style={{ opacity: bodyOpacity, width: '100%' }}>
           {activeStepIndex === 0 ? (
             <TextInput
               autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
@@ -1557,11 +1553,7 @@ function OnboardingFlow({
           ) : null}
 
           {activeStepIndex === STEP_COMMITMENT ? (
-            <View
-              collapsable={false}
-              collapsableChildren={false}
-              style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}
-            >
+            <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <TextInput
                 value={bundledCommitmentName}
                 onChangeText={setBundledCommitmentName}
@@ -1570,12 +1562,8 @@ function OnboardingFlow({
                 style={[s.nameInput, keyboardOpen ? { marginTop: gap.sm } : undefined]}
                 accessibilityLabel="Recurring commitment name"
               />
-              <View
-                collapsable={false}
-                collapsableChildren={false}
-                style={keyboardOpen ? s.potAmountColumns : undefined}
-              >
-                <View collapsable={false} style={keyboardOpen ? s.potAmountColumn : undefined}>
+              <View style={keyboardOpen ? s.potAmountColumns : undefined}>
+                <View style={keyboardOpen ? s.potAmountColumn : undefined}>
                   {keyboardOpen ? (
                     <Text style={[s.help, { marginTop: gap.sm }]}>Monthly (£)</Text>
                   ) : null}
@@ -1621,7 +1609,7 @@ function OnboardingFlow({
                     accessibilityLabel="Recurring commitment amount"
                   />
                 </View>
-                <View collapsable={false} style={keyboardOpen ? s.potAmountColumn : undefined}>
+                <View style={keyboardOpen ? s.potAmountColumn : undefined}>
                   {keyboardOpen ? (
                     <Text style={[s.help, { marginTop: gap.sm }]}>Due day (1–31)</Text>
                   ) : null}
