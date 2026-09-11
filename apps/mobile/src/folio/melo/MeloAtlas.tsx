@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState, Image, View } from 'react-native';
 import { useAppStore } from '@/folio/store';
-import { Melo } from './Melo';
+import { Melo, type MeloMood } from './Melo';
 import type { PresencePhase } from '@/folio/lib/melo/presenceMotion';
 
 type Frame = {
@@ -28,12 +28,14 @@ const atlas = require('./assets/fenice-melo-atlas.webp');
 export function MeloAtlas({
   size,
   phase,
+  mood,
   faceLeft,
   shortHop,
   paused,
 }: {
   size: number;
   phase: PresencePhase;
+  mood: MeloMood;
   faceLeft: boolean;
   shortHop: boolean;
   paused: boolean;
@@ -53,7 +55,11 @@ export function MeloAtlas({
             ? `takeoff-${direction}`
             : phase === 'moving'
               ? `${shortHop ? 'move-short' : 'flight-loop'}-${direction}`
-              : 'idle-calm';
+              : mood === 'concern'
+                ? 'concern-small'
+                : mood === 'curious'
+                  ? 'idle-curious'
+                  : 'idle-calm';
   const clip = manifest.animations[name] ?? manifest.animations['idle-calm']!;
   const poster = Math.max(
     0,
@@ -108,7 +114,7 @@ export function MeloAtlas({
   }, [clip, paused, poster, backgrounded, failed, wardrobe]);
   // The reference preserves equipped static wardrobe art instead of dropping
   // the accessory when switching to the animation atlas.
-  if (failed || wardrobe?.length) return <Melo mood="calm" size={Math.ceil(size / 0.82)} frozen />;
+  if (failed || wardrobe?.length) return <Melo mood={mood} size={Math.ceil(size / 0.82)} frozen />;
   const frame = clip.frames[paused ? poster : index] ?? clip.frames[0]!;
   const scale = size / manifest.atlas.cellWidth;
   return (

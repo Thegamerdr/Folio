@@ -348,7 +348,9 @@ export function Sheet({
   const bodyScrollRef = scrollRef ?? internalScrollRef;
   const scrollY = useRef(0);
   const focusFrame = useRef<number | null>(null);
+  const focusMeasurement = useRef(0);
   const keepFocusedInputVisible = useCallback(() => {
+    const generation = ++focusMeasurement.current;
     if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
     focusFrame.current = requestAnimationFrame(() => {
       focusFrame.current = null;
@@ -356,17 +358,21 @@ export function Sheet({
       const body = bodyScrollRef.current;
       if (!visible || !scrollable || !focused || !body) return;
       const bodyNative = body.getNativeScrollRef();
-      const contentNative = contentRef.current;
-      if (!bodyNative || !contentNative) return;
+      if (!bodyNative) return;
       bodyNative.measureInWindow((_bodyX, bodyTop, _bodyWidth, bodyHeight) => {
-        focused.measureLayout(contentNative, (_inputX, inputOffset, _inputWidth, inputHeight) => {
+        focused.measureInWindow((_inputX, inputTop, _inputWidth, inputHeight) => {
           // Focus can change while native measurements are in flight.
-          if (TextInput.State.currentlyFocusedInput() !== focused) return;
+          if (
+            generation !== focusMeasurement.current ||
+            TextInput.State.currentlyFocusedInput() !== focused
+          )
+            return;
           const nextY = resolveSheetFocusedScroll({
             scrollY: scrollY.current,
-            // Content-relative measurement retains the full field bounds even
-            // when Android has clipped it outside the resized scroll viewport.
-            inputTop: bodyTop + inputOffset - scrollY.current,
+            // Fabric returns the full field frame in window coordinates, even
+            // above the clipped viewport. Compare it directly with the body;
+            // rebuilding it from an earlier JS scroll offset mixes revisions.
+            inputTop,
             inputHeight,
             bodyTop,
             bodyHeight,
@@ -594,6 +600,7 @@ export function Sheet({
               {header ? <View style={{ flexShrink: 0 }}>{header}</View> : null}
               {scrollable ? (
                 <ScrollView
+                  key={`sheet-body-${scrollKey ?? 'stable'}`}
                   ref={bodyScrollRef}
                   bounces={false}
                   removeClippedSubviews={false}
@@ -663,6 +670,7 @@ export function Sheet({
       usesAndroidPortal,
       visible,
       scrollable,
+      scrollKey,
     ],
   );
 

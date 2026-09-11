@@ -36,7 +36,13 @@ export function MeloPerch({
 }) {
   const t = useTheme();
   const state = useAppStore((current) => current);
-  const context = meloAnchorContext(plan, selectFinancialPresentation(state, plan));
+  const presentation = selectFinancialPresentation(state, plan);
+  const context = meloAnchorContext(plan, presentation);
+  const mood = !presentation.complete
+    ? 'curious'
+    : (plan?.safeToSpendMinor ?? 0) < 0
+      ? 'concern'
+      : 'calm';
   const quiet = state.melo?.quietMode === true;
   const preferred = state.melo?.preferredPosition ?? 'auto';
   const suppressed = useContext(MeloSuppressedContext);
@@ -73,6 +79,7 @@ export function MeloPerch({
         viewport: viewport?.() ?? null,
         exclusion: explanation.current,
         visible: !quiet && !keyboard && !optionsOpen && !suppressed,
+        mood,
         onPress: activate,
         onMove: move,
         onDrop: drop,
@@ -86,6 +93,7 @@ export function MeloPerch({
       keyboard,
       optionsOpen,
       suppressed,
+      mood,
       activate,
       move,
       drop,

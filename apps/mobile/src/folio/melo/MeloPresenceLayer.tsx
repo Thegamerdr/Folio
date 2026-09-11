@@ -21,6 +21,7 @@ import {
 import { useAppStore } from '@/folio/store';
 import { useUndo } from '@/folio/ui/useUndo';
 import { MeloAtlas } from './MeloAtlas';
+import type { MeloMood } from './Melo';
 import {
   motionBetween,
   PRESENCE_TIMING,
@@ -36,6 +37,7 @@ export type PresenceAnchor = {
   viewport: View | null;
   exclusion: View | null;
   visible: boolean;
+  mood: MeloMood;
   onPress: () => void;
   onMove: (side: 'left' | 'right' | 'auto') => void;
   onDrop: (dx: number, dy: number) => boolean;
@@ -48,7 +50,7 @@ type PresenceApi = {
 };
 const PresenceContext = createContext<PresenceApi | null>(null);
 export const useMeloPresenceLayer = () => useContext(PresenceContext);
-type Target = { id: string; screen: string; rect: Rect; followingScroll: boolean };
+type Target = { id: string; screen: string; rect: Rect; followingScroll: boolean; mood: MeloMood };
 const measure = (node: View | null): Promise<Rect | null> =>
   new Promise((resolve) => {
     if (!node) {
@@ -113,6 +115,7 @@ export function MeloPresenceProvider({
   };
   const previous = useRef<Target | null>(null);
   const epoch = useRef(0);
+  const unsafeWhileScrolling = useRef(false);
   const frame = useRef<number | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const stillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -169,21 +172,25 @@ export function MeloPresenceProvider({
         // These dense screens have no registered shell whitespace outside the
         // semantic slot. Unsafe means hidden, never an invented corner or rail.
         if (!rect) {
+          unsafeWhileScrolling.current = followingScroll;
           setTarget(null);
           return;
         }
+        unsafeWhileScrolling.current = false;
         const next = {
           id: owner.id,
           screen: owner.screen,
           rect: { ...rect, x: rect.x - shell.x, y: rect.y - shell.y },
           followingScroll,
+          mood: owner.mood,
         };
         setTarget((old) =>
           old &&
           old.id === next.id &&
           Math.abs(old.rect.x - next.rect.x) < 0.5 &&
           Math.abs(old.rect.y - next.rect.y) < 0.5 &&
-          old.rect.width === next.rect.width
+          old.rect.width === next.rect.width &&
+          old.mood === next.mood
             ? old
             : next,
         );
@@ -279,7 +286,7 @@ export function MeloPresenceProvider({
       return;
     }
     if (!target) {
-      if (previous.current && !reduce) {
+      if (previous.current && !reduce && !unsafeWhileScrolling.current) {
         setPhase('leaving');
         Animated.parallel([
           Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
@@ -418,7 +425,7 @@ export function MeloPresenceProvider({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_event, gestureState) =>
       phase === 'perched' &&
-      Date.now() - touchAt.current >= 180 &&
+      performance.now() - touchAt.current >= 180 &&
       Math.hypot(gestureState.dx, gestureState.dy) > 8,
     onPanResponderGrant: () => {
       dragging.current = true;
@@ -446,10 +453,10 @@ export function MeloPresenceProvider({
             accessibilityRole="button"
             accessibilityLabel="Melo. Tap for options, or hold and drag to move."
             onTouchStart={() => {
-              touchAt.current = Date.now();
+              touchAt.current = performance.now();
             }}
             onTouchEnd={() => {
-              if (!dragging.current && Date.now() - touchAt.current < 180) activate();
+              if (!dragging.current && performance.now() - touchAt.current < 180) activate();
             }}
             accessibilityActions={[
               { name: 'activate', label: 'Open Melo options' },
@@ -489,6 +496,7 @@ export function MeloPresenceProvider({
               <MeloAtlas
                 size={rendered.rect.width}
                 phase={phase}
+                mood={rendered.mood}
                 faceLeft={faceLeft}
                 shortHop={shortHop}
                 paused={still || reduce}
