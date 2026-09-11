@@ -632,15 +632,24 @@ export function Sheet({
     ],
   );
 
-  useEffect(() => {
-    if (!usesAndroidPortal || portal === null) return undefined;
+  const upsertPortalLayer = portal?.upsert;
+  const removePortalLayer = portal?.remove;
+  useLayoutEffect(() => {
+    if (!usesAndroidPortal || !upsertPortalLayer || !removePortalLayer) return;
     if (sheetLayer === null) {
-      portal.remove(portalId);
-      return undefined;
+      removePortalLayer(portalId);
+      return;
     }
-    portal.upsert(portalId, sheetLayer);
-    return () => portal.remove(portalId);
-  }, [portal, portalId, sheetLayer, usesAndroidPortal]);
+    // Update the existing host in place. Removing it on every content change can
+    // detach the focused Android input between a keystroke and the next render.
+    upsertPortalLayer(portalId, sheetLayer);
+  }, [upsertPortalLayer, removePortalLayer, portalId, sheetLayer, usesAndroidPortal]);
+  useEffect(
+    () => () => {
+      if (usesAndroidPortal) removePortalLayer?.(portalId);
+    },
+    [removePortalLayer, portalId, usesAndroidPortal],
+  );
 
   if (usesAndroidPortal) return null;
 
