@@ -11,6 +11,7 @@ import { deriveShellContextAction } from '@/folio/lib/melo/companion';
 import { perchTargets, resolvePerchDrop, PERCH_SIZE, type PerchSide } from '@/folio/lib/melo/perch';
 import { MeloFigure } from '@/folio/melo/MeloFigure';
 import { MeloSuppressedContext } from '@/folio/melo/MeloVisibility';
+import { useMeloScrollAnchor } from '@/folio/melo/MeloScrollView';
 import { MeloContextSheet } from '@/folio/sheets/MeloContextSheet';
 import { setMelo, useAppStore } from '@/folio/store';
 import { useTheme } from '@/folio/theme';
@@ -22,6 +23,7 @@ import { MeloPerchBubble } from './MeloPerchBubble';
  */
 export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
   const t = useTheme();
+  const anchor = useMeloScrollAnchor(true);
   const quiet = useAppStore((state) => state.melo?.quietMode === true);
   const suppressed = useContext(MeloSuppressedContext);
   const preferred = useAppStore((state) => state.melo?.preferredPosition ?? 'auto');
@@ -83,7 +85,15 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
   if (quiet) return null;
   return (
     <>
-      <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={styles.lane}>
+      <View
+        ref={anchor.ref}
+        collapsable={false}
+        onLayout={(event) => {
+          setWidth(event.nativeEvent.layout.width);
+          anchor.onLayout?.();
+        }}
+        style={styles.lane}
+      >
         {dragging
           ? Object.entries(targets).map(([side, left]) => (
               <View
@@ -93,7 +103,7 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
               />
             ))
           : null}
-        {!keyboardOpen && !optionsOpen && !suppressed && width >= PERCH_SIZE ? (
+        {!anchor.tucked && !keyboardOpen && !optionsOpen && !suppressed && width >= PERCH_SIZE ? (
           <GestureDetector gesture={Gesture.Exclusive(drag, tap)}>
             <Animated.View
               accessible
@@ -126,7 +136,7 @@ export function MeloPerch({ screen, nav }: { screen: ScreenId; nav: Nav }) {
           </GestureDetector>
         ) : null}
       </View>
-      {open && !keyboardOpen && !optionsOpen && !suppressed ? (
+      {open && !anchor.tucked && !keyboardOpen && !optionsOpen && !suppressed ? (
         <View style={styles.bubbleSlot}>
           <MeloPerchBubble
             {...(action ? { action } : {})}

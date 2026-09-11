@@ -1,3 +1,4 @@
+import { MeloScrollView } from '@/folio/melo/MeloScrollView';
 import { MeloFigure } from '@/folio/melo/MeloFigure';
 // @rn-engine money-path — the gap (£) + days-to-payday verdict and the tight-point recompute are the
 // real money-path engine (ENGINES §6), read through the shared `useRoute` bridge
@@ -69,7 +70,7 @@ import { MeloFigure } from '@/folio/melo/MeloFigure';
 // smart / provenance / source record / indexed) are absent.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -356,20 +357,21 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         <View style={[styles.frame, { paddingTop: insets.top + gap.md }]}>
           <ScreenHeader
             onBack={nav.back}
-            eyebrow="A quiet moment"
+            eyebrow="Shortfall"
             spacerWidth={16}
             backHitWidth={24}
             eyebrowSize={11}
             eyebrowTracking={1.54}
           />
-          <ScrollView style={styles.flexFill} contentContainerStyle={{ flexGrow: 1 }}>
+          <MeloScrollView style={styles.flexFill} contentContainerStyle={{ flexGrow: 1 }}>
             <EmptyState
               companionRole="pressured"
               mood={completion.mood}
-              headline={completion.headline}
-              body={completion.message}
+              headline="No shortfall before payday"
+              body={`This view checks for a gap before payday. ${completion.message}`}
+              cta={{ label: 'Back to Today', onPress: () => nav.go('today') }}
             />
-          </ScrollView>
+          </MeloScrollView>
         </View>
       </Animated.View>
     );
@@ -427,7 +429,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   // offline ≡ populated (local-first; renders identically, no network language).
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
-      <ScrollView
+      <MeloScrollView
         contentContainerStyle={[
           styles.content,
           { paddingTop: insets.top + gap.md, paddingBottom: insets.bottom + gap.lg },
@@ -446,7 +448,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
 
         {/* Melo — mode-honest to the gap; briefly "cheer" on the relief close (web meloMood). */}
         <View style={styles.meloHead}>
-          <MeloFigure role="pressured" mood={meloMood} />
+          <MeloFigure scrollOwner role="pressured" mood={meloMood} />
           <Text style={[styles.kicker, { color: t.muted }]}>{modeCopy.intro}</Text>
         </View>
 
@@ -616,7 +618,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         >
           <Text style={[styles.refusalLabel, { color: t.muted }]}>{modeCopy.leaveIt}</Text>
         </Pressable>
-      </ScrollView>
+      </MeloScrollView>
     </Animated.View>
   );
 }

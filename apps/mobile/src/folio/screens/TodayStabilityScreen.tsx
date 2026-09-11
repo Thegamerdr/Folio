@@ -1,3 +1,4 @@
+import { MeloScrollView } from '@/folio/melo/MeloScrollView';
 import { TodayFirstRun } from './TodayScreen';
 import { hasConfiguredMoneyPicture } from '@/folio/store';
 /**
@@ -24,12 +25,12 @@ import { hasConfiguredMoneyPicture } from '@/folio/store';
  */
 
 import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { shouldStackTextRows } from '@/folio/lib/readableLayout';
 
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
-import { Melo } from '@/folio/melo/Melo';
+import { MeloFigure } from '@/folio/melo/MeloFigure';
 import { useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { useDayClock } from '@/folio/lib/useDayClock';
@@ -42,7 +43,6 @@ import {
 } from '@/folio/lib/financialPresentation';
 import { TodaySetupPreview } from '@/folio/ui/TodaySetupPreview';
 import { presentStabilityCanonicalPlan } from '@/folio/lib/stabilityPresentation';
-import { useMeloOpener } from '@/folio/lib/useMeloOpener';
 import { useChartStyle } from '@/folio/lib/chartStyle';
 import { LensRhythm } from '@/folio/ui/LensRhythm';
 import { MoneyModeChip } from '@/folio/ui/MoneyModeChip';
@@ -187,8 +187,6 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
 
   const daysToPayday = route ? route.daysToPayday : 0;
 
-  const meloOpener = useMeloOpener('stability');
-
   if (!hasConfiguredMoneyPicture(appState)) return <TodayFirstRun nav={nav} />;
 
   if (!financePresentation.complete || !financialPlan?.nextIncomeDate) {
@@ -203,7 +201,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
     100;
 
   return (
-    <ScrollView
+    <MeloScrollView
       style={s.root}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={s.scrollContent}
@@ -296,6 +294,42 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
           {/* The strategy owns the whole caption (incl. the buffer claim) so it can never
               contradict its own accounting — see stability.ts `formula`. */}
           <Text style={[s.formula, { color: t.muted }]}>{financePresentation.message}</Text>
+
+          <View style={[s.meloPrompt, fontScale > 1.3 && { flexDirection: 'column' }]}>
+            <MeloFigure
+              scrollOwner
+              role="inline"
+              mood={financialPlan.safeToSpendMinor < 0 ? 'concern' : 'calm'}
+            />
+            <View style={[s.meloPromptBody, fontScale > 1.3 && { flex: undefined }]}>
+              <Text style={[s.meloPromptLine, { color: t.ink }]}>
+                {financialPlan.safeToSpendMinor < 0
+                  ? "Let's look at what could ease this gap."
+                  : financePresentation.overdueCount > 0
+                    ? "Let's check what's still unpaid."
+                    : 'We can look through the month together.'}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() =>
+                  financialPlan.safeToSpendMinor < 0
+                    ? nav.go('recovery')
+                    : financePresentation.overdueCount > 0
+                      ? nav.go('subs')
+                      : nav.openMelo({ prefill: "What's changing in the next month?" })
+                }
+                style={{ minHeight: 48, justifyContent: 'center' }}
+              >
+                <Text style={[s.meloPromptCta, { color: t.calm }]}>
+                  {financialPlan.safeToSpendMinor < 0
+                    ? 'Open Recovery →'
+                    : financePresentation.overdueCount > 0
+                      ? 'Review unpaid commitments →'
+                      : 'Ask Melo →'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
 
           <View style={s.rhythmBlock}>
             <View style={[s.rhythmHeaderRow, stackSummary && s.rhythmHeaderRowStacked]}>
@@ -392,31 +426,8 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
         tightestSpare={route ? tight.tightestSpare : null}
       />
       <TodayRecentTxns nav={nav} />
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => nav.openMelo({ prefill: "What's changing in the next month?" })}
-        style={[s.meloPrompt, { backgroundColor: t.inset }]}
-      >
-        <Melo size={28} mood="calm" />
-        <View style={s.meloPromptBody}>
-          <Text style={[s.meloPromptLine, { color: t.ink }]}>
-            &ldquo;{capFirst(meloOpener)}&rdquo;
-          </Text>
-          <View style={s.meloPromptMeta}>
-            <Text style={[s.meloPromptMetaText, { color: t.muted }]}>Stability · Melo</Text>
-            <Text style={[s.meloPromptCta, { color: t.calm }]}>Ask Melo →</Text>
-          </View>
-        </View>
-      </Pressable>
-    </ScrollView>
+    </MeloScrollView>
   );
-}
-
-function capFirst(str: string): string {
-  const trimmed = str.trimStart();
-  if (!trimmed) return str;
-  return trimmed[0]!.toUpperCase() + trimmed.slice(1);
 }
 
 // Locked-lens status pill — see TodayModeScreen's twin for the full rationale (PARITY_GAPS.md
@@ -597,17 +608,14 @@ function makeStyles(t: Palette) {
     },
     calendarCtaLabel: { fontSize: 10.5, letterSpacing: 0.6, textTransform: 'uppercase' },
     meloPrompt: {
-      marginHorizontal: gap.lg,
       marginTop: gap.md,
-      marginBottom: gap.xxl,
-      borderRadius: radius.md,
-      padding: gap.lg,
+      marginBottom: gap.md,
       flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: gap.md,
+      alignItems: 'center',
+      gap: 12,
     },
     meloPromptBody: { flex: 1 },
-    meloPromptLine: { fontFamily: serif.displayItalic, fontSize: 13 },
+    meloPromptLine: { fontFamily: serif.displayItalic, fontSize: 15, lineHeight: 22 },
     meloPromptMeta: {
       marginTop: 4,
       flexDirection: 'row',
@@ -615,6 +623,6 @@ function makeStyles(t: Palette) {
       justifyContent: 'space-between',
     },
     meloPromptMetaText: { fontSize: 11.5, flex: 1 },
-    meloPromptCta: { fontSize: 11.5, marginLeft: gap.sm },
+    meloPromptCta: { fontSize: 13 },
   });
 }

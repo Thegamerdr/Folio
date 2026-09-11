@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Keyboard, Pressable, View } from 'react-native';
 import { useAppStore } from '@/folio/store';
 import { Melo, type MeloMood } from './Melo';
+import { useMeloScrollAnchor } from './MeloScrollView';
 
 // Lovable's native companion specification, pass36. The immutable square master
 // has 18% transparent vertical padding; size refers to visible artwork, not PNG canvas.
@@ -20,13 +21,16 @@ export function MeloFigure({
   onPress,
   label = 'Melo. Tap for options.',
   hideForKeyboard = false,
+  scrollOwner = false,
 }: {
   role: keyof typeof MELO_ROLES;
   mood?: MeloMood;
   onPress?: () => void;
   label?: string;
   hideForKeyboard?: boolean;
+  scrollOwner?: boolean;
 }) {
+  const anchor = useMeloScrollAnchor(scrollOwner);
   const quiet = useAppStore((state) => state.melo?.quietMode === true);
   const [keyboardOpen, setKeyboardOpen] = useState(Keyboard.isVisible());
   useEffect(() => {
@@ -46,9 +50,16 @@ export function MeloFigure({
     justifyContent: 'center' as const,
   };
   if (quiet || (hideForKeyboard && keyboardOpen)) return null;
-  const content = <Melo mood={mood} size={Math.ceil(dimensions.visible / 0.82)} />;
+  const content = anchor.tucked ? null : (
+    <Melo mood={mood} size={Math.ceil(dimensions.visible / 0.82)} />
+  );
   return onPress ? (
     <Pressable
+      ref={anchor.ref}
+      onLayout={anchor.onLayout}
+      collapsable={false}
+      disabled={anchor.tucked}
+      importantForAccessibility={anchor.tucked ? 'no-hide-descendants' : 'auto'}
       style={style}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -57,6 +68,8 @@ export function MeloFigure({
       <View importantForAccessibility="no-hide-descendants">{content}</View>
     </Pressable>
   ) : (
-    <View style={style}>{content}</View>
+    <View ref={anchor.ref} onLayout={anchor.onLayout} collapsable={false} style={style}>
+      {content}
+    </View>
   );
 }

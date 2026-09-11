@@ -1,3 +1,4 @@
+import { MeloScrollView } from '@/folio/melo/MeloScrollView';
 import { MeloFigure } from '@/folio/melo/MeloFigure';
 /**
  * @rn-screen    WhatIfScreen
@@ -50,7 +51,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -593,7 +593,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
   // to fail), so it falls through to the same experiment.
   return (
     <Animated.View style={[styles.flex, { backgroundColor: t.canvas }]}>
-      <ScrollView
+      <MeloScrollView
         contentContainerStyle={[
           styles.content,
           { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxxl },
@@ -765,7 +765,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
           {/* Melo line — the quiet companion verdict, mood derived dynamically from newLow. Melo is
               grounded and non-interactive here (the web never made it tappable / never opened a sheet). */}
           <View style={styles.meloRow}>
-            <MeloFigure role="empty" mood={mood} hideForKeyboard />
+            <MeloFigure scrollOwner role="empty" mood={mood} hideForKeyboard />
             <Text style={styles.meloLine}>{meloLine}</Text>
           </View>
 
@@ -944,7 +944,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
             <Text style={styles.closeLabel}>{modeCopy.cancel}</Text>
           </Pressable>
         </Animated.View>
-      </ScrollView>
+      </MeloScrollView>
     </Animated.View>
   );
 }

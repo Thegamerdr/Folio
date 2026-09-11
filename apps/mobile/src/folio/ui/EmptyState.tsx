@@ -65,7 +65,7 @@ export function EmptyState({
   return (
     <PressureScreen centered>
       <View style={styles.column}>
-        <MeloFigure role={companionRole} mood={mood} />
+        <MeloFigure role={companionRole} mood={mood} scrollOwner />
         <Headline lead={lead} accent={accent} style={styles.headline} />
         {body !== undefined ? <Body style={styles.body}>{body}</Body> : null}
         {cta !== undefined ? (

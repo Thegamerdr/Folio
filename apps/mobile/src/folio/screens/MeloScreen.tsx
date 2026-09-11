@@ -1,3 +1,4 @@
+import { MeloScrollView } from '@/folio/melo/MeloScrollView';
 import { MeloFigure } from '@/folio/melo/MeloFigure';
 // MeloScreen — the faithful 1:1 React Native port of the web Melo companion hub
 // (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenMelo.tsx).
@@ -83,7 +84,6 @@ import {
   BackHandler,
   Platform,
   Pressable,
-  ScrollView,
   useWindowDimensions,
   StyleSheet,
   Text,
@@ -349,7 +349,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
   return (
     <Animated.View style={[styles.flex, enterStyle, { backgroundColor: t.canvas }]}>
-      <ScrollView
+      <MeloScrollView
         contentContainerStyle={[
           styles.scroll,
           { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.xxl },
@@ -403,6 +403,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
             </View>
           ) : (
             <MeloFigure
+              scrollOwner
               role="home"
               mood={mood}
               onPress={() => setContextOpen(true)}
@@ -413,37 +414,6 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               }
             />
           )}
-
-          <View style={styles.chatActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Chat with Melo"
-              onPress={() => nav.openMelo()}
-              style={({ pressed: isPressed }) => [
-                styles.tapToTalk,
-                isPressed ? styles.pressed : undefined,
-              ]}
-            >
-              <Text style={[styles.tapToTalkLabel, { color: t.muted }]}>Chat with Melo</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open chat for voice input"
-              accessibilityHint="Choose Voice in chat to speak; permission is checked before recording."
-              onPress={() => nav.openMelo()}
-              style={({ pressed: isPressed }) => [
-                styles.holdButton,
-                { backgroundColor: t.surface, borderColor: t.hairline },
-                isPressed ? styles.pressed : undefined,
-              ]}
-            >
-              <Text style={[styles.holdLabel, { color: t.muted }]}>VOICE IN CHAT</Text>
-            </Pressable>
-          </View>
-          <Text style={[styles.voiceHelper, { color: t.muted }]}>
-            Speak in chat. Review before sending.
-          </Text>
 
           {/* Live state line — weather + lens, no chip container. Locked Full lens shows a small
               lock so the paywall state is legible without opening the picker. */}
@@ -502,6 +472,43 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
             ) : null}
           </View>
           <Text style={[styles.plumageCaption, { color: t.muted }]}>{health.caption}</Text>
+          {!melo.quietMode ? (
+            <Text style={[styles.plumageCaption, { color: t.muted, fontStyle: 'italic' }]}>
+              {mood === 'concern' || mood === 'protect'
+                ? "He's holding still with you."
+                : 'A quiet moment to look ahead, together.'}
+            </Text>
+          ) : null}
+          <View style={styles.chatActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Chat with Melo"
+              onPress={() => nav.openMelo()}
+              style={({ pressed: isPressed }) => [
+                styles.tapToTalk,
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.tapToTalkLabel, { color: t.muted }]}>Chat with Melo</Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open chat for voice input"
+              accessibilityHint="Choose Voice in chat to speak; permission is checked before recording."
+              onPress={() => nav.openMelo()}
+              style={({ pressed: isPressed }) => [
+                styles.holdButton,
+                { backgroundColor: t.surface, borderColor: t.hairline },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.holdLabel, { color: t.muted }]}>VOICE IN CHAT</Text>
+            </Pressable>
+          </View>
+          <Text style={[styles.voiceHelper, { color: t.muted }]}>
+            Speak in chat. Review before sending.
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -723,7 +730,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
             </Pressable>
           </View>
         </View>
-      </ScrollView>
+      </MeloScrollView>
       <MeloContextSheet
         visible={contextOpen}
         onClose={() => setContextOpen(false)}
@@ -873,21 +880,22 @@ const styles = StyleSheet.create({
   },
   chatActions: {
     alignSelf: 'stretch',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 12,
     marginTop: 12,
   },
   tapToTalk: {
+    alignSelf: 'stretch',
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     minHeight: 48,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
   },
   tapToTalkLabel: {
-    fontSize: 11,
+    flexShrink: 1,
+    fontSize: 14,
     letterSpacing: 1.4,
   },
   tapToTalkMood: {

@@ -1,3 +1,4 @@
+import { MeloScrollView } from '@/folio/melo/MeloScrollView';
 import { MeloPerch } from '@/folio/ui/MeloPerch';
 import { MeloFigure } from '@/folio/melo/MeloFigure';
 // @rn-engine statement-reader|photo-reader|text-reader — produces CandidateMoneyItem[] into Review (see BUILD_PLAN §3)
@@ -740,13 +741,13 @@ export function ReviewScreen({
     if (state === 'empty' || !hasRealCandidate) {
       return (
         <View style={[sourceStyles.root, { backgroundColor: t.canvas }]}>
-          <ScrollView
+          <MeloScrollView
             contentContainerStyle={sourceStyles.emptyContent}
             showsVerticalScrollIndicator={false}
           >
             <View style={sourceStyles.emptyRow}>
               <View style={sourceStyles.emptyMelo}>
-                <MeloFigure role="empty" mood="calm" />
+                <MeloFigure scrollOwner role="empty" mood="calm" />
               </View>
               <View style={sourceStyles.emptyCopy}>
                 <Text style={[sourceStyles.emptyHeadline, { color: t.ink }]}>
@@ -787,7 +788,7 @@ export function ReviewScreen({
                 </Text>
               </Pressable>
             ) : null}
-          </ScrollView>
+          </MeloScrollView>
         </View>
       );
     }
@@ -800,7 +801,7 @@ export function ReviewScreen({
 
     return (
       <View style={[sourceStyles.root, { backgroundColor: t.canvas }]}>
-        <ScrollView
+        <MeloScrollView
           ref={reviewBody}
           style={sourceStyles.body}
           onLayout={keepReviewInputVisible}
@@ -941,7 +942,7 @@ export function ReviewScreen({
               </Text>
             </View>
           ) : null}
-        </ScrollView>
+        </MeloScrollView>
 
         {/* Shell owns keyboard/system insets. This footer stays inside its resized viewport. */}
         <View
@@ -1098,7 +1099,7 @@ export function ReviewScreen({
 
   return (
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
-      <ScrollView
+      <MeloScrollView
         contentContainerStyle={[
           styles.content,
           { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.lg },
@@ -1439,7 +1440,7 @@ export function ReviewScreen({
             </View>
           </>
         )}
-      </ScrollView>
+      </MeloScrollView>
     </View>
   );
 }

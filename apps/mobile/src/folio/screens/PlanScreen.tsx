@@ -1,3 +1,4 @@
+import { MeloScrollView } from '@/folio/melo/MeloScrollView';
 import { MeloPerch } from '@/folio/ui/MeloPerch';
 // Exact native presentation owner for the pinned Lovable Plan tab root:
 // private-money-pilot@ad90b4fee36c58be156e145e8663d8c6be1bf0eb
@@ -18,7 +19,7 @@ import { MeloPerch } from '@/folio/ui/MeloPerch';
 // @motion       press 0.97 only; ScreenPlanHub has no route-entry animation.
 
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
@@ -312,7 +313,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
   return (
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
       <View style={[styles.viewportSafeArea, { paddingTop: insets.top }]}>
-        <ScrollView
+        <MeloScrollView
           contentContainerStyle={[styles.content, { paddingBottom: gap.xl }]}
           showsVerticalScrollIndicator={false}
         >
@@ -424,9 +425,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                     isPressed ? styles.pressed : undefined,
                   ]}
                 >
-                  <Text style={[styles.buttonLabel, { color: t.ink }]} numberOfLines={1}>
-                    See what's coming
-                  </Text>
+                  <Text style={[styles.buttonLabel, { color: t.ink }]}>See what's coming</Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
@@ -437,9 +436,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                     isPressed ? styles.pressed : undefined,
                   ]}
                 >
-                  <Text style={[styles.buttonLabel, { color: t.calmStrong }]} numberOfLines={1}>
-                    Try a change
-                  </Text>
+                  <Text style={[styles.buttonLabel, { color: t.calmStrong }]}>Try a change</Text>
                 </Pressable>
               </View>
               {!financePresentation.canReassure && (
@@ -484,6 +481,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                   onPress={() => nav.openSheet('day-detail', { date: u.date })}
                   style={({ pressed: isPressed }) => [
                     styles.timelineRow,
+                    stackMoney && styles.timelineRowStacked,
                     i > 0 ? { borderTopWidth: 1, borderTopColor: t.hairline } : undefined,
                     isPressed ? styles.pressed : undefined,
                   ]}
@@ -502,11 +500,14 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
                       { backgroundColor: u.date === tightDate ? t.calm : t.muted },
                     ]}
                   />
-                  <View style={styles.rowBody}>
-                    <Text style={[styles.rowName, { color: t.ink }]} numberOfLines={1}>
-                      {u.name}
-                    </Text>
-                    <Text style={[styles.rowNote, { color: t.muted }]} numberOfLines={1}>
+                  <View
+                    style={[
+                      styles.rowBody,
+                      stackMoney && { flex: undefined, alignSelf: 'stretch' },
+                    ]}
+                  >
+                    <Text style={[styles.rowName, { color: t.ink }]}>{u.name}</Text>
+                    <Text style={[styles.rowNote, { color: t.muted }]}>
                       {u.note || 'spoken for'}
                     </Text>
                   </View>
@@ -634,7 +635,7 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
               Nothing lands in your plan until you say so.
             </Text>
           </View>
-        </ScrollView>
+        </MeloScrollView>
       </View>
     </View>
   );
@@ -833,6 +834,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
+  timelineRowStacked: { flexDirection: 'column', alignItems: 'flex-start', gap: 8 },
   rowBody: {
     flex: 1,
     minWidth: 0,

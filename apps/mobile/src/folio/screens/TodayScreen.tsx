@@ -1,3 +1,4 @@
+import { MeloScrollView } from '@/folio/melo/MeloScrollView';
 import { MeloFigure } from '@/folio/melo/MeloFigure';
 import { MeloPerch } from '@/folio/ui/MeloPerch';
 /**
@@ -31,7 +32,6 @@ import {
   AccessibilityInfo,
   PanResponder,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -525,7 +525,10 @@ export function TodayScreen({
 
   return (
     <Animated.View style={[styles.root, enterStyle, { paddingTop: insets.top }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <MeloScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Keep the compact status header at baseline size. Enlarged text gets separate rows
             for date, payday and state so every existing action remains readable. */}
         <View style={[styles.header, { paddingTop: gap.xs }]}>
@@ -827,7 +830,7 @@ export function TodayScreen({
               fontScale > 1.3 ? { flexDirection: 'column' } : undefined,
             ]}
           >
-            <MeloFigure role="inline" mood="concern" />
+            <MeloFigure scrollOwner role="inline" mood="concern" />
             <View
               style={[
                 styles.companionCardBody,
@@ -1003,7 +1006,7 @@ export function TodayScreen({
           tightestSpare={isLoading ? null : tightestSpare}
         />
         <TodayRecentTxns nav={nav} />
-      </ScrollView>
+      </MeloScrollView>
     </Animated.View>
   );
 }
@@ -1044,7 +1047,7 @@ function MeloPrimerCard({ onDone }: { onDone: () => void }) {
         fontScale > 1.3 ? { flexDirection: 'column' } : undefined,
       ]}
     >
-      <MeloFigure role="inline" mood="calm" />
+      <MeloFigure scrollOwner role="inline" mood="calm" />
       <View
         style={[
           styles.companionCardBody,
@@ -1110,7 +1113,7 @@ function OneMoveCard({ oneMove }: { oneMove: NonNullable<ReturnType<typeof deriv
         fontScale > 1.3 ? { flexDirection: 'column' } : undefined,
       ]}
     >
-      <MeloFigure role="inline" mood="curious" />
+      <MeloFigure scrollOwner role="inline" mood="curious" />
       <View
         style={[
           styles.companionCardBody,
@@ -1172,7 +1175,7 @@ export function TodayFirstRun({ nav }: { nav: Nav }) {
   const screenTopInset = Math.max(gap.md, insets.top + gap.xs);
   return (
     <Animated.View style={[styles.root, { backgroundColor: t.canvas }]}>
-      <ScrollView
+      <MeloScrollView
         contentContainerStyle={[styles.firstRunScroll, { paddingTop: screenTopInset }]}
         showsVerticalScrollIndicator={false}
       >
@@ -1249,7 +1252,7 @@ export function TodayFirstRun({ nav }: { nav: Nav }) {
         <Text style={[styles.firstRunFootnote, { color: t.muted }]}>
           Nothing counts until you review it.
         </Text>
-      </ScrollView>
+      </MeloScrollView>
     </Animated.View>
   );
 }

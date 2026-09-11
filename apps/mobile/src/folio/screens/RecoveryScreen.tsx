@@ -1,3 +1,4 @@
+import { MeloScrollView } from '@/folio/melo/MeloScrollView';
 import { MeloFigure } from '@/folio/melo/MeloFigure';
 // @rn-engine money-path — the overspent verdict + each move's real £ lift + the re-drawn route now
 //   come from the REAL pure route engine via the shared store→money-path bridge
@@ -64,15 +65,7 @@ import { MeloFigure } from '@/folio/melo/MeloFigure';
 // smart / provenance / source record / indexed) are absent from every visible string.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { AccessibilityInfo, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -511,7 +504,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   if (state === 'empty' || (routeReady && (!hasShortfall || !presentation.complete))) {
     const needsSetup = !presentation.complete;
     return (
-      <ScrollView
+      <MeloScrollView
         style={{ flex: 1, backgroundColor: t.canvas }}
         contentContainerStyle={{
           flexGrow: 1,
@@ -534,7 +527,11 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         </View>
         <View style={{ flex: 1, justifyContent: 'center', paddingVertical: gap.xl, gap: gap.md }}>
           <View style={{ alignItems: 'center' }}>
-            <MeloFigure role="pressured" mood={presentation.canReassure ? 'calm' : 'concern'} />
+            <MeloFigure
+              scrollOwner
+              role="pressured"
+              mood={presentation.canReassure ? 'calm' : 'concern'}
+            />
           </View>
           <Text
             accessibilityRole="header"
@@ -577,7 +574,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             </Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </MeloScrollView>
     );
   }
 
@@ -602,7 +599,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
 
   return (
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
-      <ScrollView
+      <MeloScrollView
         contentContainerStyle={[
           styles.content,
           { paddingTop: insets.top + gap.md, paddingBottom: insets.bottom + gap.xl },
@@ -658,7 +655,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         ) : null}
 
         <View style={{ alignItems: 'center', marginTop: 16, marginBottom: 16 }}>
-          <MeloFigure role="pressured" mood={previewPresentation.mood} />
+          <MeloFigure scrollOwner role="pressured" mood={previewPresentation.mood} />
         </View>
 
         {/* Title block — italic reassurance + the headline with the mode-tinted accent word
@@ -862,7 +859,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         >
           <Text style={[styles.secondaryLabel, { color: t.muted }]}>Not now</Text>
         </Pressable>
-      </ScrollView>
+      </MeloScrollView>
     </View>
   );
 }
