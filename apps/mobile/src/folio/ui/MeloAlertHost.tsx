@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Sheet } from '@/surfaces/pressureMap/Sheet';
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { dismissMeloAlert, getMeloAlert, pressMeloAlert, subscribeMeloAlert } from './meloAlert';
@@ -9,6 +9,7 @@ export function MeloAlertHost() {
   const t = useTheme();
   useEffect(() => {
     if (!current) return;
+    Keyboard.dismiss();
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
       dismissMeloAlert(current.id);
       return true;

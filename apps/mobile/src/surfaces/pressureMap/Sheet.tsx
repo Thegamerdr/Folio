@@ -462,6 +462,7 @@ export function Sheet({
   // close instantly. The Modal stays mounted (visible) for the duration of the slide-out
   // so the panel is still on screen while it animates away.
   const finishClose = useCallback(() => {
+    Keyboard.dismiss();
     onClose();
     // Let the Modal unmount commit, then ask persistent chrome to repaint. This is paint-only state;
     // it does not reset the current route or reopen/close any sheet.

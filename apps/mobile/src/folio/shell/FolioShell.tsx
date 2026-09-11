@@ -28,6 +28,7 @@ import {
 import type { ErrorInfo, ReactNode } from 'react';
 import {
   AccessibilityInfo,
+  Keyboard,
   AppState,
   BackHandler,
   Platform,
@@ -682,6 +683,7 @@ export function FolioShell() {
   }, []);
 
   const closeSheet = useCallback(() => {
+    Keyboard.dismiss();
     setSheet(null);
     setMeloIntent(undefined);
     setEditTxnTarget(undefined);

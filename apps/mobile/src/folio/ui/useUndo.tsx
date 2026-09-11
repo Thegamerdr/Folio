@@ -31,7 +31,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { AccessibilityInfo, AppState } from 'react-native';
+import { AccessibilityInfo, AppState, Keyboard } from 'react-native';
 import { useSheetOverlayActive } from '@/surfaces/pressureMap/Sheet';
 
 import { UNDO_WINDOW_MS } from '@/folio/lib/undoPolicy';
@@ -92,7 +92,17 @@ export function UndoProvider({
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [windowBlurred, setWindowBlurred] = useState(false);
   const [undoHeight, setUndoHeight] = useState(88);
-  const suspended = paused || sheetOpen || confirmationOpen || windowBlurred;
+  const [keyboardOpen, setKeyboardOpen] = useState(Keyboard.isVisible());
+  useEffect(() => {
+    const shown = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setKeyboardOpen(false));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, []);
+  // Never spend the user's undo window behind an input method covering the bottom controls.
+  const suspended = paused || sheetOpen || confirmationOpen || windowBlurred || keyboardOpen;
 
   const [active, setActive] = useState<ActiveUndo | null>(null);
 
@@ -126,6 +136,7 @@ export function UndoProvider({
 
   const showUndo = useCallback(
     (label: string, onUndo: () => void) => {
+      Keyboard.dismiss();
       // Latest wins: a new action supersedes any in-flight window. The outgoing one is dropped
       // (its onUndo is NOT run — the user chose a new action over undoing the old one) by simply
       // clearing the old timer before arming the new one.

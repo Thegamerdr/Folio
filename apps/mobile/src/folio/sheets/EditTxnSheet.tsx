@@ -53,6 +53,7 @@ import { isDebtPayment } from '@/folio/lib/debtPaymentLedger';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -581,7 +582,11 @@ function EditTxnForm({
         accessibilityLabel={reviewing ? 'Confirm changes' : 'Review changes'}
         accessibilityState={{ disabled: !canReview }}
         disabled={!canReview}
-        onPress={reviewing ? handleSave : () => setReviewing(true)}
+        onPress={() => {
+          Keyboard.dismiss();
+          if (reviewing) handleSave();
+          else setReviewing(true);
+        }}
         style={({ pressed }) => [
           s.footerButton,
           {
