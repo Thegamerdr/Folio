@@ -934,7 +934,7 @@ function OnboardingFlow({
   const footer = (
     <View>
       {showSummary ? confirmation : null}
-      {!showSummary && numericError && !(keyboardOpen && activeStepIndex === STEP_POTS) ? (
+      {!showSummary && numericError && !keyboardOpen ? (
         <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
           {numericError}
         </Text>
@@ -1651,6 +1651,12 @@ function OnboardingFlow({
             </View>
           ) : null}
         </Animated.View>
+
+        {keyboardOpen && numericError && activeStepIndex !== STEP_POTS ? (
+          <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
+            {numericError}
+          </Text>
+        ) : null}
 
         <Text style={[s.footer, keyboardOpen ? { display: 'none' } : undefined]}>
           {isReturning

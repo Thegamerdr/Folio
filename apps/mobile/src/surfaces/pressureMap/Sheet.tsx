@@ -565,6 +565,7 @@ export function Sheet({
                 <ScrollView
                   ref={bodyScrollRef}
                   bounces={false}
+                  removeClippedSubviews={false}
                   style={layout.scrollBody}
                   contentContainerStyle={[
                     layout.scrollContent,
