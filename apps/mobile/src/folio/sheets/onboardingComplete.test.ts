@@ -18,6 +18,7 @@ import {
   isEmptyForMeloImport,
   resetToEmpty,
   setIncomeSources,
+  setCurrentBalance,
   setOnboarding,
   setPots,
   setSubs,
@@ -700,6 +701,20 @@ describe('OnboardingSheet returning workspace safety', () => {
 });
 
 describe('explicit setup after clearing', () => {
+  it('keeps the first-run sequence after guided entry saves a rough balance', () => {
+    resetToEmpty();
+    setCurrentBalance({ amount: 1800, source: 'user-entered', confidence: 'rough' });
+    expect(isOnboardingFirstRun(getState())).toBe(true);
+    setOnboarding({ financialSetupConfirmed: true });
+    expect(isOnboardingFirstRun(getState())).toBe(false);
+  });
+
+  it('preserves returning treatment when a rough balance accompanies real records', () => {
+    resetToEmpty();
+    setCurrentBalance({ amount: 1800, source: 'user-entered', confidence: 'rough' });
+    addTransaction({ merchant: 'Lunch', amount: -12, category: 'food', source: 'manual' });
+    expect(isOnboardingFirstRun(getState())).toBe(false);
+  });
   it('opens the first-run sequence after clear retained the completion flag', () => {
     resetToEmpty();
     expect(getState().onboarding.done).toBe(true);

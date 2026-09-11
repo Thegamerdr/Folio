@@ -102,7 +102,13 @@ export function isOnboardingFirstRun(state: AppState): boolean {
   // financial picture and its confirmation have both been cleared.
   return (
     legacySample ||
-    (state.onboarding.financialSetupConfirmed !== true && !hasConfiguredMoneyPicture(state))
+    (state.onboarding.financialSetupConfirmed !== true &&
+      !hasConfiguredMoneyPicture({
+        ...state,
+        // The guided doorway records a rough balance before income, costs or a
+        // goal have been entered. That balance alone must not skip first setup.
+        currentBalance: { ...state.currentBalance, amount: 0 },
+      }))
   );
 }
 

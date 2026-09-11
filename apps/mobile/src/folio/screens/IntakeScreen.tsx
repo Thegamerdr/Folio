@@ -95,6 +95,7 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
+import { isOnboardingFirstRun } from '@/folio/lib/onboardingMutations';
 import {
   addEvidenceDocument,
   getState,
@@ -296,6 +297,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       'business',
   );
   const waiting = useAppStore((current) => current.reviewQueue ?? []);
+  const needsInitialSetup = useAppStore(isOnboardingFirstRun);
   const bySource = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const item of waiting) counts[item.source] = (counts[item.source] ?? 0) + 1;
@@ -599,7 +601,11 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     // log-spend entry (a real typed spend → addTransaction) rather than the candidate-review screen,
     // which has no candidate to review and would only show the empty doorway.
     if (option.sheet !== undefined) {
-      nav.openSheet(option.sheet);
+      nav.openSheet(
+        option.sheet === 'log-spend' && !isBusiness && needsInitialSetup
+          ? 'onboarding'
+          : option.sheet,
+      );
       return;
     }
     if (option.unavailable) {
