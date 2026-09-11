@@ -388,6 +388,21 @@ export function Sheet({
     shouldReduceMotion,
     visible,
   ]);
+  const focusSettleTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const settleFocusedInput = useCallback(() => {
+    focusSettleTimers.current.forEach(clearTimeout);
+    keepFocusedInputVisible();
+    // Android's native focus scroll can finish after the keyboard and compact form
+    // layout events. Re-measure that final position so the first focused field
+    // cannot remain above the resized body viewport.
+    focusSettleTimers.current = [100, 300].map((delay) =>
+      setTimeout(keepFocusedInputVisible, delay),
+    );
+  }, [keepFocusedInputVisible]);
+  useEffect(() => {
+    if (visible && keyboardMetrics) settleFocusedInput();
+    return () => focusSettleTimers.current.forEach(clearTimeout);
+  }, [visible, keyboardMetrics, settleFocusedInput]);
   const measureViewport = useCallback(() => {
     measureSheetFrame(rootRef.current, usesAndroidPortal, (next) => {
       setWindowFrame((current) =>
@@ -603,6 +618,7 @@ export function Sheet({
                   <View
                     ref={contentRef}
                     collapsable={false}
+                    onFocus={settleFocusedInput}
                     style={{ flexShrink: 0, width: '100%' }}
                   >
                     {children}
@@ -637,6 +653,7 @@ export function Sheet({
       viewport.keyboardOccludesBottom,
       measureViewport,
       keepFocusedInputVisible,
+      settleFocusedInput,
       maxHeight,
       panelBottomOffset,
       panelBottomPadding,

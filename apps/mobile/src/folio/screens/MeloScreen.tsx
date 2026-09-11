@@ -452,7 +452,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         </View>
 
         {/* Presence — hero Melo or the quiet-mode resting line. */}
-        <View style={styles.heroWrap}>
+        <View style={[styles.heroWrap, melo.quietMode ? { marginTop: 16 } : undefined]}>
           {melo.quietMode ? (
             <View style={styles.restingWrap}>
               <Text style={[styles.restingLine, { color: t.muted }]}>Melo is resting.</Text>
@@ -874,7 +874,8 @@ const styles = StyleSheet.create({
   },
   restingWrap: {
     alignItems: 'center',
-    height: 132,
+    minHeight: 48,
+    paddingVertical: 8,
     justifyContent: 'center',
   },
   restingLine: {

@@ -1691,7 +1691,10 @@ function OnboardingFlow({
           ) : null}
         </Animated.View>
 
-        {keyboardOpen && numericError && activeStepIndex !== STEP_POTS ? (
+        {keyboardOpen &&
+        numericError &&
+        activeStepIndex !== STEP_POTS &&
+        !(activeStepIndex === STEP_PAYDAY && cadence === 'monthly') ? (
           <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>
             {numericError}
           </Text>

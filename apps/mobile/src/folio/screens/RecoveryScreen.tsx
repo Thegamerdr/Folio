@@ -555,7 +555,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             {needsSetup
               ? `Recovery compares changes to costs and dates when your plan has a gap. ${presentation.message}`
               : presentation.canReassure
-                ? 'Your entered costs and buffer fit before payday. You can review the numbers at any time.'
+                ? 'There is no move to make right now. Your entered costs and buffer fit before payday.'
                 : 'Review the unpaid or unconfirmed items before relying on this plan.'}
           </Text>
           <Pressable

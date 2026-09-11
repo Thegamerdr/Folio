@@ -1293,7 +1293,9 @@ function makeStyles(t: Palette) {
       alignItems: 'center',
       backgroundColor: t.calm,
       borderRadius: radius.xl,
-      height: 54,
+      minHeight: 54,
+      paddingHorizontal: gap.md,
+      paddingVertical: gap.sm,
       justifyContent: 'center',
       marginTop: gap.xl,
     },
@@ -1301,6 +1303,8 @@ function makeStyles(t: Palette) {
       color: t.inverse,
       fontSize: 15,
       fontWeight: '500',
+      lineHeight: 22,
+      textAlign: 'center',
     },
 
     // Primary CTA — web press mt-5 mb-3 h-[54px] rounded-2xl bg-accent text-white. The literal white
@@ -1323,13 +1327,17 @@ function makeStyles(t: Palette) {
     // Quiet close — web press mb-8 h-[44px] text-[13px] muted. The honest "nothing was added" line.
     close: {
       alignItems: 'center',
-      height: 44,
+      minHeight: 44,
+      paddingHorizontal: gap.sm,
+      paddingVertical: gap.sm,
       justifyContent: 'center',
       marginBottom: gap.xl,
     },
     closeLabel: {
       color: t.muted,
       fontSize: 13,
+      lineHeight: 20,
+      textAlign: 'center',
     },
 
     // The kit press feel (web `press` util — scale 0.97 / lowered opacity).

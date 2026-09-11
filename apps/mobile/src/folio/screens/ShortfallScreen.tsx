@@ -368,8 +368,8 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
               companionRole="pressured"
               mood={completion.mood}
               headline="No shortfall before payday"
-              body={`This view checks for a gap before payday. ${completion.message}`}
-              cta={{ label: 'Back to Today', onPress: () => nav.go('today') }}
+              body={`${completion.canCelebrate ? 'Nothing is short right now.' : 'This view checks for a gap before payday.'} ${completion.message}`}
+              cta={{ label: "See what's coming", onPress: () => nav.go('calendar') }}
             />
           </MeloScrollView>
         </View>
