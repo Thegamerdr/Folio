@@ -84,6 +84,11 @@ describe('Pots progress and canonical money presentation', () => {
     expect(selectPotProgress({ ...pot, saved: -20 }).etaLabel).toBe('£1,020 left to set aside');
   });
   it('estimates weeks only for an actual weekly pace and preserves pennies', () => {
+    const { cadence: _cadence, ...undated } = pot;
+    expect(selectPotProgress({ ...undated, perWeek: 20 })).toMatchObject({
+      paceLabel: '£20 planned after payday',
+      etaLabel: '£1,000 left to set aside',
+    });
     expect(
       selectPotProgress({
         ...pot,

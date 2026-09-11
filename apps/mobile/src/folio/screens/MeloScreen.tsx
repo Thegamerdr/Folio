@@ -411,31 +411,33 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
             />
           )}
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Chat with Melo"
-            onPress={() => nav.openMelo()}
-            style={({ pressed: isPressed }) => [
-              styles.tapToTalk,
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.tapToTalkLabel, { color: t.muted }]}>Chat with Melo</Text>
-          </Pressable>
+          <View style={styles.chatActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Chat with Melo"
+              onPress={() => nav.openMelo()}
+              style={({ pressed: isPressed }) => [
+                styles.tapToTalk,
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.tapToTalkLabel, { color: t.muted }]}>Chat with Melo</Text>
+            </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open chat for voice input"
-            accessibilityHint="Choose Voice in chat to speak; permission is checked before recording."
-            onPress={() => nav.openMelo()}
-            style={({ pressed: isPressed }) => [
-              styles.holdButton,
-              { backgroundColor: t.surface, borderColor: t.hairline },
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.holdLabel, { color: t.muted }]}>VOICE IN CHAT</Text>
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open chat for voice input"
+              accessibilityHint="Choose Voice in chat to speak; permission is checked before recording."
+              onPress={() => nav.openMelo()}
+              style={({ pressed: isPressed }) => [
+                styles.holdButton,
+                { backgroundColor: t.surface, borderColor: t.hairline },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.holdLabel, { color: t.muted }]}>VOICE IN CHAT</Text>
+            </Pressable>
+          </View>
           <Text style={[styles.voiceHelper, { color: t.muted }]}>
             Speak in chat. Review before sending.
           </Text>
@@ -866,11 +868,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     opacity: 0.4,
   },
+  chatActions: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
   tapToTalk: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 20,
+    minHeight: 48,
+    paddingHorizontal: 12,
   },
   tapToTalkLabel: {
     fontSize: 11,
@@ -888,8 +899,7 @@ const styles = StyleSheet.create({
     columnGap: gap.sm,
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 19,
-    minHeight: 44,
+    minHeight: 48,
     paddingHorizontal: gap.md,
   },
   holdDot: {

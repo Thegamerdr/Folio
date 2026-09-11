@@ -8,22 +8,32 @@ import {
   selectFinancialPresentation,
 } from './financialPresentation';
 
+/** Match the calendar's default: an undated pot is planned after payday. */
+export function potTopUpTiming(pot: Pick<Pot, 'cadence'>): string {
+  switch (pot.cadence?.kind ?? 'after-payday') {
+    case 'after-payday':
+      return 'after payday';
+    case 'monthly':
+      return 'each month';
+    case 'weekly':
+      return 'each week';
+    case 'custom':
+      return pot.cadence?.kind === 'custom'
+        ? `on ${formatFinancialDate(pot.cadence.nextDate)}`
+        : 'on your chosen date';
+  }
+}
+
 /** Goal progress is recorded set-aside money. A missing pace is not a completed goal. */
 export function selectPotProgress(pot: Pick<Pot, 'goal' | 'saved' | 'perWeek' | 'cadence'>) {
   const hasGoal = pot.goal > 0;
   const goalMet = hasGoal && pot.saved >= pot.goal;
   const remaining = hasGoal ? Math.max(0, pot.goal - pot.saved) : null;
   const hasPace = pot.perWeek > 0 && Number.isFinite(pot.perWeek);
-  const cadence = pot.cadence?.kind ?? 'weekly';
+  const cadence = pot.cadence?.kind ?? 'after-payday';
   const paceLabel = !hasPace
     ? 'No top-up pace set'
-    : cadence === 'after-payday'
-      ? `${formatMoney(pot.perWeek)} planned after payday`
-      : cadence === 'monthly'
-        ? `${formatMoney(pot.perWeek)} planned each month`
-        : pot.cadence?.kind === 'custom'
-          ? `${formatMoney(pot.perWeek)} planned on ${formatFinancialDate(pot.cadence.nextDate)}`
-          : `${formatMoney(pot.perWeek)} planned each week`;
+    : `${formatMoney(pot.perWeek)} planned ${potTopUpTiming(pot)}`;
   const weeks =
     hasPace && cadence === 'weekly' && remaining !== null
       ? Math.ceil(remaining / pot.perWeek)

@@ -1,3 +1,5 @@
+import { potTopUpTiming } from '@/folio/lib/potsPresentation';
+import type { PotCadence } from '@/folio/store';
 // @rn-sheet     OnboardingSheet
 // @purpose      Progressive onboarding — identity, intent, income, current money, essentials,
 //               protected buffer, bundled commitments and optional pots.
@@ -264,7 +266,7 @@ type Step = {
 // Pot templates — byte-faithful to the web source (id/name/goal/perWeek/accent).
 // ---------------------------------------------------------------------------
 
-type PotTemplate = { id: string; name: string; accent: boolean };
+type PotTemplate = { id: string; name: string; accent: boolean; cadence?: PotCadence };
 type PotAmounts = { goal: string; perWeek: string };
 
 const POT_TEMPLATES: readonly PotTemplate[] = [
@@ -873,7 +875,7 @@ function OnboardingFlow({
     .filter((template) => picked.has(template.id))
     .map(
       (template) =>
-        `${template.name} (${poundsTabular(parseManualMoney(potAmounts[template.id]?.goal ?? '') ?? 0)} goal · ${poundsTabular(parseManualMoney(potAmounts[template.id]?.perWeek ?? '', { allowZero: true }) ?? 0)}/wk)`,
+        `${template.name} (${poundsTabular(parseManualMoney(potAmounts[template.id]?.goal ?? '') ?? 0)} goal · ${poundsTabular(parseManualMoney(potAmounts[template.id]?.perWeek ?? '', { allowZero: true }) ?? 0)} ${potTopUpTiming(template)})`,
     )
     .join(', ');
   const reviewRows = [
@@ -1661,8 +1663,8 @@ function OnboardingFlow({
             <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <Text style={[s.potsIntro, keyboardOpen ? { display: 'none' } : undefined]}>
                 {isReturning
-                  ? 'Correct a target or weekly plan here. Saved deposits stay unchanged. Add or remove pots from Pots.'
-                  : 'Choose optional pots, then add your own target and weekly amount. Leave all unselected to save your setup without pots. You can add pots later.'}
+                  ? 'Correct a target or top-up amount here. Saved deposits stay unchanged. Add or remove pots from Pots.'
+                  : 'Choose optional pots, then add your own target and top-up amount. New pots are planned after payday. Leave all unselected to save your setup without pots. You can add pots later.'}
               </Text>
               <View style={s.potGrid}>
                 {potChoices
@@ -1798,32 +1800,39 @@ function PotTile({
         </View>
       )}
       {selected ? (
-        <View style={compact ? s.potAmountColumns : undefined}>
-          <View style={compact ? s.potAmountColumn : undefined}>
-            <Text style={[s.help, compact ? { marginTop: 0 } : undefined]}>Target (£)</Text>
-            <TextInput
-              value={amounts.goal}
-              onChangeText={(value) => onAmountChange('goal', value)}
-              onFocus={onFocus}
-              selectTextOnFocus
-              keyboardType="decimal-pad"
-              style={s.amountInput}
-              accessibilityLabel={`${template.name} target in pounds`}
-            />
-          </View>
-          <View style={compact ? s.potAmountColumn : undefined}>
-            <Text style={[s.help, compact ? { marginTop: 0 } : undefined]}>
-              {compact ? 'Weekly (£, 0 allowed)' : 'Set aside each week (£, can be 0)'}
-            </Text>
-            <TextInput
-              value={amounts.perWeek}
-              onChangeText={(value) => onAmountChange('perWeek', value)}
-              onFocus={onFocus}
-              selectTextOnFocus
-              keyboardType="decimal-pad"
-              style={s.amountInput}
-              accessibilityLabel={`${template.name} weekly amount in pounds`}
-            />
+        <View>
+          {!compact ? (
+            <Text style={s.help}>Planned {potTopUpTiming(template)}. Change the date in Pots.</Text>
+          ) : null}
+          <View style={compact ? s.potAmountColumns : undefined}>
+            <View style={compact ? s.potAmountColumn : undefined}>
+              <Text style={[s.help, compact ? { marginTop: 0 } : undefined]}>Target (£)</Text>
+              <TextInput
+                value={amounts.goal}
+                onChangeText={(value) => onAmountChange('goal', value)}
+                onFocus={onFocus}
+                selectTextOnFocus
+                keyboardType="decimal-pad"
+                style={s.amountInput}
+                accessibilityLabel={`${template.name} target in pounds`}
+              />
+            </View>
+            <View style={compact ? s.potAmountColumn : undefined}>
+              <Text style={[s.help, compact ? { marginTop: 0 } : undefined]}>
+                {compact
+                  ? 'Top-up (£, 0 allowed)'
+                  : `Set aside ${potTopUpTiming(template)} (£, can be 0)`}
+              </Text>
+              <TextInput
+                value={amounts.perWeek}
+                onChangeText={(value) => onAmountChange('perWeek', value)}
+                onFocus={onFocus}
+                selectTextOnFocus
+                keyboardType="decimal-pad"
+                style={s.amountInput}
+                accessibilityLabel={`${template.name} top-up amount in pounds`}
+              />
+            </View>
           </View>
         </View>
       ) : null}

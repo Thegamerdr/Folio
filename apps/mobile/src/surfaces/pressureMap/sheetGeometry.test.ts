@@ -227,6 +227,43 @@ describe('keyboard-constrained sheet viewport', () => {
 });
 
 describe('focused field visibility inside the scroll body', () => {
+  it('keeps amount shortcuts and results after the field in the keyboard viewport', () => {
+    const next = resolveSheetFocusedScroll({
+      scrollY: 100,
+      bodyTop: 88,
+      bodyHeight: 330,
+      inputTop: 200,
+      inputHeight: 56,
+      contextBefore: 32,
+      contextAfter: 140,
+    });
+    expect(next).toBe(100);
+    const lower = resolveSheetFocusedScroll({
+      scrollY: 100,
+      bodyTop: 88,
+      bodyHeight: 330,
+      inputTop: 280,
+      inputHeight: 56,
+      contextBefore: 32,
+      contextAfter: 140,
+    });
+    expect(lower).toBe(166);
+    expect(280 - (lower - 100) - 32).toBeGreaterThanOrEqual(96);
+    expect(280 - (lower - 100) + 56 + 140).toBe(410);
+  });
+  it('keeps the input and its label when enlarged results cannot all fit', () => {
+    const next = resolveSheetFocusedScroll({
+      scrollY: 100,
+      bodyTop: 88,
+      bodyHeight: 120,
+      inputTop: 180,
+      inputHeight: 64,
+      contextBefore: 32,
+      contextAfter: 240,
+    });
+    expect(180 - (next - 100) - 32).toBe(96);
+    expect(180 - (next - 100) + 64).toBeLessThanOrEqual(200);
+  });
   it('restores the amount label above an already visible focused field', () => {
     expect(
       resolveSheetFocusedScroll({

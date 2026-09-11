@@ -208,6 +208,8 @@ export function LogPaymentSheet({ visible, onClose, targetId }: LogPaymentSheetP
     <Sheet
       visible={visible}
       onClose={onClose}
+      focusContextBefore={32}
+      focusContextAfter={240}
       footer={
         <Pressable
           accessibilityRole="button"
@@ -315,7 +317,7 @@ export function LogPaymentSheet({ visible, onClose, targetId }: LogPaymentSheetP
           <View style={s.shortcuts}>
             {[
               { label: 'Minimum', value: shortcuts.minimum },
-              { label: 'Full remaining balance', value: shortcuts.full },
+              { label: 'Full balance', value: shortcuts.full },
             ].map((shortcut) => (
               <Pressable
                 key={shortcut.label}
@@ -357,8 +359,10 @@ export function LogPaymentSheet({ visible, onClose, targetId }: LogPaymentSheetP
 
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-    shortcuts: { gap: 8, marginTop: 12 },
+    shortcuts: { flexDirection: 'row', gap: 8, marginTop: 12 },
     shortcut: {
+      flex: 1,
+      minWidth: 0,
       minHeight: 48,
       padding: 12,
       borderRadius: radius.pill,
