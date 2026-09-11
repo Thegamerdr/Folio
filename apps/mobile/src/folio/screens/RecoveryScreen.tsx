@@ -80,6 +80,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { getState, nudgeSub, setSpendHold, togglePaused, useAppStore } from '@/folio/store';
 import { buildRecoveryReceipt, type RecoveryAction } from '@/folio/lib/recoveryReceipt';
 import { fundedPotForShortfall } from '@/folio/lib/shortfallNavigation';
+import { recoveryEmptyPresentation } from '@/folio/lib/recoveryEmptyPresentation';
 import {
   recoveryPathCaption,
   selectRecoveryPreviewPresentation,
@@ -502,7 +503,12 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   // overspent verdict; with no shortfall it should not render a blank Recovery, so it offers a calm
   // doorway back to Today rather than dead-ending.
   if (state === 'empty' || (routeReady && (!hasShortfall || !presentation.complete))) {
-    const needsSetup = !presentation.complete;
+    const empty = recoveryEmptyPresentation(
+      presentation.complete,
+      presentation.canReassure,
+      presentation.message,
+      cycles,
+    );
     return (
       <MeloScrollView
         style={{ flex: 1, backgroundColor: t.canvas }}
@@ -527,52 +533,52 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           <Text style={[styles.eyebrow, { color: t.muted }]}>Recovery</Text>
           <View style={{ width: 48 }} />
         </View>
-        <View style={{ flex: 1, justifyContent: 'center', paddingVertical: gap.xl, gap: gap.md }}>
-          <View style={{ alignItems: 'center' }}>
-            <MeloFigure
-              scrollOwner
-              role="pressured"
-              mood={presentation.canReassure ? 'calm' : 'concern'}
-            />
-          </View>
+        <View style={{ paddingVertical: gap.xl, gap: gap.md }}>
           <Text
             accessibilityRole="header"
-            style={{
-              color: t.ink,
-              fontFamily: serif.display,
-              fontSize: 28,
-              lineHeight: 34,
-              textAlign: 'center',
-            }}
+            style={{ color: t.ink, fontFamily: serif.display, fontSize: 28, lineHeight: 34 }}
           >
-            {needsSetup
-              ? 'Compare your recovery options'
-              : presentation.overdueCount
-                ? 'Check overdue payments'
-                : 'No gap in the current plan'}
+            {empty.lead}
+            <Text style={{ color: t.calm, fontStyle: 'italic' }}>{empty.accent}</Text>
+            {empty.suffix}
           </Text>
-          <Text style={{ color: t.muted, fontSize: 15, lineHeight: 22, textAlign: 'center' }}>
-            {needsSetup
-              ? `Recovery compares changes to costs and dates when your plan has a gap. ${presentation.message}`
-              : presentation.canReassure
-                ? 'There is no move to make right now. Your entered costs and buffer fit before payday.'
-                : 'Review the unpaid or unconfirmed items before relying on this plan.'}
-          </Text>
+          <Text style={{ color: t.muted, fontSize: 15, lineHeight: 22 }}>{empty.body}</Text>
+          {empty.history.map((cycle, index) => (
+            <View
+              key={cycle.closedAt + '-' + index}
+              style={{
+                paddingVertical: gap.md,
+                borderBottomWidth: 1,
+                borderBottomColor: t.hairline,
+                gap: gap.xs,
+              }}
+            >
+              <Text style={{ color: t.ink, fontSize: 15, lineHeight: 22 }}>
+                {cycle.label} · recorded {formatFinancialDate(cycle.closedAt)}
+              </Text>
+              <Text style={{ color: t.muted, fontSize: 14, lineHeight: 20 }}>
+                Lowest point {formatMoney(cycle.tightPoint)} ·{' '}
+                {cycle.tightPoint < 0 ? 'Below £0 in this review' : 'At or above £0 in this review'}
+              </Text>
+            </View>
+          ))}
           <Pressable
             accessibilityRole="button"
-            onPress={needsSetup ? () => nav.openSheet('onboarding') : () => nav.go('today')}
+            onPress={empty.setup ? () => nav.openSheet('onboarding') : () => nav.go('plan')}
             style={{
               minHeight: 54,
               padding: gap.md,
               borderRadius: radius.pill,
-              backgroundColor: t.calm,
+              backgroundColor: t.surface,
+              borderWidth: 1,
+              borderColor: t.hairline,
               justifyContent: 'center',
               alignItems: 'center',
               marginTop: gap.sm,
             }}
           >
-            <Text style={{ color: t.inverse, fontSize: 15, textAlign: 'center' }}>
-              {needsSetup ? 'Add my numbers' : 'Back to Today'}
+            <Text style={{ color: t.ink, fontSize: 15, lineHeight: 22, textAlign: 'center' }}>
+              {empty.action}
             </Text>
           </Pressable>
         </View>
@@ -656,10 +662,6 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
           </View>
         ) : null}
 
-        <View style={{ alignItems: 'center', marginTop: 16, marginBottom: 16 }}>
-          <MeloFigure scrollOwner role="pressured" mood={previewPresentation.mood} />
-        </View>
-
         {/* Title block — italic reassurance + the headline with the mode-tinted accent word
             (BREAKS-PARITY fix — was fixed to survival's "Something has to move."). */}
         <View style={styles.titleBlock}>
@@ -679,6 +681,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         <View
           style={[styles.shortfallCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
         >
+          <MeloFigure scrollOwner role="inline" mood={previewPresentation.mood} />
           <View style={styles.shortfallBody} accessibilityLiveRegion="polite">
             <Text style={[styles.cardLabel, { color: t.muted }]}>
               {pickedMove ? modeCopy.afterLabel : modeCopy.shortfallLabel}

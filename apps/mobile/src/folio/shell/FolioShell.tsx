@@ -146,6 +146,7 @@ import { UndoToast } from '@/folio/ui/UndoToast';
 import { AppLockGate } from '@/folio/ui/AppLockGate';
 import { RootErrorFallback } from '@/folio/ui/RootErrorFallback';
 import { MeloSuppressedContext } from '@/folio/melo/MeloVisibility';
+import { MeloPresenceProvider } from '@/folio/melo/MeloPresenceLayer';
 import { getState, reanchorSubRenewals, subscribeStore, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { endLensTrialIfExpired, useLens } from '@/folio/lib/lens';
@@ -830,206 +831,214 @@ export function FolioShell() {
       paused={sheet !== null || workspaceSheetVisible || portalSheetOpen}
     >
       <SheetPortalProvider onOverlayChange={setPortalSheetOpen}>
-        <View
-          collapsable={false}
-          style={[shellStyles.root, { backgroundColor: t.canvas, paddingTop: systemInsets.top }]}
+        <MeloPresenceProvider
+          screen={screen}
+          blocked={sheet !== null || workspaceSheetVisible || portalSheetOpen}
+          topClearance={systemInsets.top}
+          bottomClearance={bottomChromeHeight}
+          toastHeight={toastHeight}
         >
-          {isClerkConfigured() ? <CloudSyncLifecycle /> : null}
-          {/* Data-loss visibility — when hydration recovered from the backup or found the saved blob
+          <View
+            collapsable={false}
+            style={[shellStyles.root, { backgroundColor: t.canvas, paddingTop: systemInsets.top }]}
+          >
+            {isClerkConfigured() ? <CloudSyncLifecycle /> : null}
+            {/* Data-loss visibility — when hydration recovered from the backup or found the saved blob
           unreadable, say so ONCE, visibly, instead of booting an empty app that reads as a fresh
           install (silence must never look identical to success). */}
-          <HydrationNotice />
-          <PersistenceSaveNotice
-            forceFailed={captureGlobalSurface === 'global.persistence-save-notice'}
-          />
-          {/* Every screen renders inside the error boundary so one screen throwing renders a calm
+            <HydrationNotice />
+            <PersistenceSaveNotice
+              forceFailed={captureGlobalSurface === 'global.persistence-save-notice'}
+            />
+            {/* Every screen renders inside the error boundary so one screen throwing renders a calm
           fallback instead of taking down the whole shell (faithful to the web HeroPhone, which wraps
           its screen switch in ScreenErrorBoundary). `screenLabel` resets the boundary when the screen
           changes (a fresh navigation clears a prior crash); onReset returns to Today. */}
-          {/* Replace the screen and its tab bar as one opaque native frame. Keying only the React
+            {/* Replace the screen and its tab bar as one opaque native frame. Keying only the React
           boundary (or the two native siblings independently) lets Fabric commit the canvas and nav
           on different frames, which can expose stale/black pixels during More-subtree navigation.
           This grouped host gives Android one complete frame to paint, without a page-wide animation. */}
-          <View
-            collapsable={false}
-            key={`route-frame-${screen}`}
-            style={[shellStyles.routeFrame, { backgroundColor: t.canvas }]}
-          >
-            <KeyboardSafeView
-              enabled={sheet === null && !workspaceSheetVisible && !portalSheetOpen}
-              reduceMotion={reduceMotion}
-              style={[shellStyles.screenHost, { backgroundColor: t.canvas }]}
+            <View
+              collapsable={false}
+              key={`route-frame-${screen}`}
+              style={[shellStyles.routeFrame, { backgroundColor: t.canvas }]}
             >
-              <ScreenErrorBoundary
-                key={`screen-${screen}`}
-                screenLabel={screen}
-                onReset={() => go('today')}
-                forceError={captureGlobalSurface === 'global.screen-error-boundary'}
+              <KeyboardSafeView
+                enabled={sheet === null && !workspaceSheetVisible && !portalSheetOpen}
+                reduceMotion={reduceMotion}
+                style={[shellStyles.screenHost, { backgroundColor: t.canvas }]}
               >
-                <SafeAreaInsetsContext.Provider value={screenInsets}>
-                  <MeloSuppressedContext.Provider
-                    value={sheet !== null || portalSheetOpen || workspaceSheetVisible}
-                  >
-                    <ScreenView
-                      screen={screen}
-                      nav={nav}
-                      pressure={activePressure}
-                      payload={screenPayload}
-                    />
-                  </MeloSuppressedContext.Provider>
-                </SafeAreaInsetsContext.Provider>
-              </ScreenErrorBoundary>
-            </KeyboardSafeView>
-            <FeedbackClearance toastHeight={toastHeight} />
-            {businessWorkspaceActive ? (
-              <BusinessWorkspaceBar label="Business" onPress={() => nav.openWorkspace?.()} />
-            ) : null}
-            <View onLayout={(event) => setBottomChromeHeight(event.nativeEvent.layout.height)}>
-              {firstRunPage ? (
-                <View style={{ height: systemInsets.bottom }} />
-              ) : (
-                <BottomNav
-                  key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
-                  active={activeTab}
-                  onChange={onTabChange}
-                  reviewCount={pendingReviewCount}
-                  variant={businessWorkspaceActive ? 'business' : 'personal'}
-                />
-              )}
+                <ScreenErrorBoundary
+                  key={`screen-${screen}`}
+                  screenLabel={screen}
+                  onReset={() => go('today')}
+                  forceError={captureGlobalSurface === 'global.screen-error-boundary'}
+                >
+                  <SafeAreaInsetsContext.Provider value={screenInsets}>
+                    <MeloSuppressedContext.Provider
+                      value={sheet !== null || portalSheetOpen || workspaceSheetVisible}
+                    >
+                      <ScreenView
+                        screen={screen}
+                        nav={nav}
+                        pressure={activePressure}
+                        payload={screenPayload}
+                      />
+                    </MeloSuppressedContext.Provider>
+                  </SafeAreaInsetsContext.Provider>
+                </ScreenErrorBoundary>
+              </KeyboardSafeView>
+              <FeedbackClearance toastHeight={toastHeight} />
+              {businessWorkspaceActive ? (
+                <BusinessWorkspaceBar label="Business" onPress={() => nav.openWorkspace?.()} />
+              ) : null}
+              <View onLayout={(event) => setBottomChromeHeight(event.nativeEvent.layout.height)}>
+                {firstRunPage ? (
+                  <View style={{ height: systemInsets.bottom }} />
+                ) : (
+                  <BottomNav
+                    key={`bottom-nav-screen-${screen}-${navigationPaintEpoch}-${surfaceRepaintEpoch}`}
+                    active={activeTab}
+                    onChange={onTabChange}
+                    reviewCount={pendingReviewCount}
+                    variant={businessWorkspaceActive ? 'business' : 'personal'}
+                  />
+                )}
+              </View>
             </View>
-          </View>
-          {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
+            {/* Generic single-sheet host — every sheet that does NOT own its own Sheet. The self-hosting
           sheets (onboarding, appearance, edit-txn, log-spend, sub-caught, add-event, calendar-export,
           calendar-connect, route-detail, melo-chat, share, day-detail) each wrap the kit Sheet
           internally and are mounted as sibling hosts below, so they are excluded here (via
           SELF_HOSTING_SHEETS) to avoid double-nesting. With these wired, every SheetId now resolves
           to a real component. */}
-          {sheet !== null && !SELF_HOSTING_SHEETS.has(sheet) && (
-            <Sheet visible onClose={closeSheet} reduceMotion={reduceMotion}>
-              <SheetView sheet={sheet} />
-            </Sheet>
-          )}
-          {/* Self-hosting sheet hosts — each renders the kit Sheet internally, so it is its own host
+            {sheet !== null && !SELF_HOSTING_SHEETS.has(sheet) && (
+              <Sheet visible onClose={closeSheet} reduceMotion={reduceMotion}>
+                <SheetView sheet={sheet} />
+              </Sheet>
+            )}
+            {/* Self-hosting sheet hosts — each renders the kit Sheet internally, so it is its own host
           (never nested inside the generic one) and is visible only while it is the active sheet. */}
-          {sheet === 'onboarding' && (
-            <OnboardingSheet
-              visible
-              onClose={closeSheet}
-              onSaved={() => go('today')}
-              initialField={onboardingField}
-            />
-          )}
-          {sheet === 'appearance' && <AppearanceSheet visible onClose={closeSheet} />}
-          {/* Edit-txn — the posted-transaction correction sheet. The shell threads the parked target id
+            {sheet === 'onboarding' && (
+              <OnboardingSheet
+                visible
+                onClose={closeSheet}
+                onSaved={() => go('today')}
+                initialField={onboardingField}
+              />
+            )}
+            {sheet === 'appearance' && <AppearanceSheet visible onClose={closeSheet} />}
+            {/* Edit-txn — the posted-transaction correction sheet. The shell threads the parked target id
           (the row the opener chose) so Save corrects THAT transaction via the store; with no target
           (cold open) the sheet keeps its safe inert fallback and edits nothing. */}
-          {sheet === 'edit-txn' && (
-            <EditTxnSheet visible onClose={closeSheet} target={editTxnTarget} />
-          )}
-          {sheet === 'log-spend' && (
-            <LogSpendSheet visible onClose={closeSheet} initialAmount={logSpendAmount} />
-          )}
-          {sheet === 'transfer' && <TransferSheet visible onClose={closeSheet} />}
-          {sheet === 'refund' && <RefundSheet visible onClose={closeSheet} />}
-          {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
-          {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
-          {sheet === 'bill-caught' && <BillCaughtSheet visible onClose={closeSheet} />}
-          {sheet === 'drift-caught' && <DriftCaughtSheet visible onClose={closeSheet} />}
-          {sheet === 'annual-caught' && <AnnualCaughtSheet visible onClose={closeSheet} />}
-          {sheet === 'add-event' && (
-            <AddEventSheet visible onClose={closeSheet} intent={addEventIntent} />
-          )}
-          {sheet === 'calendar-export' && <CalendarExportSheet visible onClose={closeSheet} />}
-          {sheet === 'calendar-connect' && <CalendarConnectSheet visible onClose={closeSheet} />}
-          {sheet === 'log-invoice' && <LogInvoiceSheet visible onClose={closeSheet} />}
-          {sheet === 'afford-check' && (
-            <AffordCheckSheet visible onClose={closeSheet} initialAmount={affordAmount} />
-          )}
-          {sheet === 'shelf' && <ShelfSheet visible onClose={closeSheet} />}
-          {sheet === 'chart-style' && <ChartStyleSheet visible onClose={closeSheet} />}
-          {sheet === 'hidden-review' && <HiddenReviewSheet visible onClose={closeSheet} />}
-          {sheet === 'add-plan' && <AddPlanSheet visible onClose={closeSheet} />}
-          {/* Declare-debt — the real Debt-lens record (kind/APR/min-payment/due-day), faithful port of the
+            {sheet === 'edit-txn' && (
+              <EditTxnSheet visible onClose={closeSheet} target={editTxnTarget} />
+            )}
+            {sheet === 'log-spend' && (
+              <LogSpendSheet visible onClose={closeSheet} initialAmount={logSpendAmount} />
+            )}
+            {sheet === 'transfer' && <TransferSheet visible onClose={closeSheet} />}
+            {sheet === 'refund' && <RefundSheet visible onClose={closeSheet} />}
+            {sheet === 'sub-caught' && <SubCaughtSheet visible onClose={closeSheet} />}
+            {sheet === 'income-caught' && <IncomeCaughtSheet visible onClose={closeSheet} />}
+            {sheet === 'bill-caught' && <BillCaughtSheet visible onClose={closeSheet} />}
+            {sheet === 'drift-caught' && <DriftCaughtSheet visible onClose={closeSheet} />}
+            {sheet === 'annual-caught' && <AnnualCaughtSheet visible onClose={closeSheet} />}
+            {sheet === 'add-event' && (
+              <AddEventSheet visible onClose={closeSheet} intent={addEventIntent} />
+            )}
+            {sheet === 'calendar-export' && <CalendarExportSheet visible onClose={closeSheet} />}
+            {sheet === 'calendar-connect' && <CalendarConnectSheet visible onClose={closeSheet} />}
+            {sheet === 'log-invoice' && <LogInvoiceSheet visible onClose={closeSheet} />}
+            {sheet === 'afford-check' && (
+              <AffordCheckSheet visible onClose={closeSheet} initialAmount={affordAmount} />
+            )}
+            {sheet === 'shelf' && <ShelfSheet visible onClose={closeSheet} />}
+            {sheet === 'chart-style' && <ChartStyleSheet visible onClose={closeSheet} />}
+            {sheet === 'hidden-review' && <HiddenReviewSheet visible onClose={closeSheet} />}
+            {sheet === 'add-plan' && <AddPlanSheet visible onClose={closeSheet} />}
+            {/* Declare-debt — the real Debt-lens record (kind/APR/min-payment/due-day), faithful port of the
           web's SheetAddDebt. Distinct from the ScreenId 'add-debt' (AddEntryScreen's unrelated
           recurring bill/debt-payment quick-add) — see the SheetId union's doc-comment in types.ts. */}
-          {sheet === 'declare-debt' && (
-            <AddDebtSheet visible onClose={closeSheet} targetId={debtEditTarget} />
-          )}
-          {sheet === 'log-payment' && (
-            <LogPaymentSheet visible onClose={closeSheet} targetId={debtEditTarget} />
-          )}
-          {sheet === 'household-setup' && <HouseholdSetupSheet visible onClose={closeSheet} />}
-          {/* Lens-picker and Safe-Zone need the shell's nav (paywall/Melo bridges), so they mount as
+            {sheet === 'declare-debt' && (
+              <AddDebtSheet visible onClose={closeSheet} targetId={debtEditTarget} />
+            )}
+            {sheet === 'log-payment' && (
+              <LogPaymentSheet visible onClose={closeSheet} targetId={debtEditTarget} />
+            )}
+            {sheet === 'household-setup' && <HouseholdSetupSheet visible onClose={closeSheet} />}
+            {/* Lens-picker and Safe-Zone need the shell's nav (paywall/Melo bridges), so they mount as
           sibling hosts like RouteDetailSheet/MeloChatSheet rather than through the generic host. */}
-          {sheet === 'lens-picker' && <LensPickerSheet visible onClose={closeSheet} nav={nav} />}
-          {sheet === 'safe-zone' && <SafeZoneSheet visible onClose={closeSheet} nav={nav} />}
-          {/* Route-detail — the money-path point sheet. Owns its own kit Sheet, so it is a sibling host;
+            {sheet === 'lens-picker' && <LensPickerSheet visible onClose={closeSheet} nav={nav} />}
+            {sheet === 'safe-zone' && <SafeZoneSheet visible onClose={closeSheet} nav={nav} />}
+            {/* Route-detail — the money-path point sheet. Owns its own kit Sheet, so it is a sibling host;
           it needs the shell's nav (its CTA bridges to the Calendar) and the shell's pressure default
           (the "Left after this" figure + Melo mood, threaded the same way as the screens). The tapped
           `point` is the money-path engine's job (@rn-engine), so it falls back to its own placeholder. */}
-          {sheet === 'route-detail' && (
-            <RouteDetailSheet visible onClose={closeSheet} nav={nav} pressure={activePressure} />
-          )}
-          {/* Melo-chat — the companion sheet. Self-hosting like RouteDetailSheet: it needs the shell's nav
+            {sheet === 'route-detail' && (
+              <RouteDetailSheet visible onClose={closeSheet} nav={nav} pressure={activePressure} />
+            )}
+            {/* Melo-chat — the companion sheet. Self-hosting like RouteDetailSheet: it needs the shell's nav
           (its replies bridge to screens) and the shell's pressure default (the RN Nav contract carries
           no `.pressure`, so the shell threads it alongside). The shell threads the openMelo intent
           (prefill/seed) so an "Ask Melo" CTA opens the chat with its draft. */}
-          {sheet === 'melo-chat' && (
-            <MeloChatSheet
-              visible
-              onClose={closeSheet}
-              nav={nav}
-              pressure={activePressure}
-              intent={meloIntent}
-            />
-          )}
-          {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
-          {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}
-          {/* Day-detail — the Calendar's full-detail day drill-in (Month cell / "+N" chip / Week day
+            {sheet === 'melo-chat' && (
+              <MeloChatSheet
+                visible
+                onClose={closeSheet}
+                nav={nav}
+                pressure={activePressure}
+                intent={meloIntent}
+              />
+            )}
+            {/* Share — the share sheet. Self-hosting; needs only visible / onClose. */}
+            {sheet === 'share' && <ShareSheet visible onClose={closeSheet} />}
+            {/* Day-detail — the Calendar's full-detail day drill-in (Month cell / "+N" chip / Week day
           header). The shell threads the parked ISO day; a cold open (no payload, e.g. reached via
           the generic nav rather than a Calendar tap) falls back to today so the sheet always shows a
           meaningful day rather than an inert state. */}
-          {sheet === 'day-detail' && (
-            <SheetDayDetail
-              visible
-              onClose={closeSheet}
-              nav={nav}
-              date={dayDetailDate ?? todayIsoForDayDetail()}
+            {sheet === 'day-detail' && (
+              <SheetDayDetail
+                visible
+                onClose={closeSheet}
+                nav={nav}
+                date={dayDetailDate ?? todayIsoForDayDetail()}
+              />
+            )}
+            <WorkspaceSheet
+              visible={workspaceSheetVisible}
+              onClose={() => setWorkspaceSheetVisible(false)}
+              onActivated={workspaceActivated}
             />
-          )}
-          <WorkspaceSheet
-            visible={workspaceSheetVisible}
-            onClose={() => setWorkspaceSheetVisible(false)}
-            onActivated={workspaceActivated}
-          />
-          {/* Generic toast host — the web-parity confirmation surface (sonner toast(title, {description})
+            {/* Generic toast host — the web-parity confirmation surface (sonner toast(title, {description})
           ported). Mounted once at the top-level overlay, alongside the undo snackbar it never
           disturbs. */}
-          <MeloAlertHost />
-          <ToastHost
-            bottomOffset={bottomChromeHeight}
-            paused={sheet !== null || workspaceSheetVisible}
-            onHeightChange={setToastHeight}
-            capture={
-              captureGlobalSurface === 'global.toast'
-                ? {
-                    title: 'Saved calmly',
-                    description: 'Your latest change is safe on this device.',
-                  }
-                : undefined
-            }
-          />
-          {captureGlobalSurface === 'global.undo-toast' ? (
-            <UndoToast
-              label="Removed from this plan"
-              onUndo={() => undefined}
-              onDismiss={() => undefined}
-              durationMs={30_000}
+            <MeloAlertHost />
+            <ToastHost
               bottomOffset={bottomChromeHeight}
-              reduceMotion
+              paused={sheet !== null || workspaceSheetVisible}
+              onHeightChange={setToastHeight}
+              capture={
+                captureGlobalSurface === 'global.toast'
+                  ? {
+                      title: 'Saved calmly',
+                      description: 'Your latest change is safe on this device.',
+                    }
+                  : undefined
+              }
             />
-          ) : null}
-        </View>
+            {captureGlobalSurface === 'global.undo-toast' ? (
+              <UndoToast
+                label="Removed from this plan"
+                onUndo={() => undefined}
+                onDismiss={() => undefined}
+                durationMs={30_000}
+                bottomOffset={bottomChromeHeight}
+                reduceMotion
+              />
+            ) : null}
+          </View>
+        </MeloPresenceProvider>
       </SheetPortalProvider>
     </UndoProvider>
   );

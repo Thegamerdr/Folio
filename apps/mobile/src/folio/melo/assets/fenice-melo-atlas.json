@@ -1,0 +1,6443 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-14T17:06:31.899764+00:00",
+  "canonicalReferenceSha256": "0F3103F633A93944C68092C3449C8ADD2F428A2A247AC3F9DC0EE06119BBD768",
+  "atlas": {
+    "png": "/assets/fenice/animation/fenice-melo-atlas.png",
+    "webp": "/assets/fenice/animation/fenice-melo-atlas.webp",
+    "width": 1536,
+    "height": 4992,
+    "columns": 8,
+    "rows": 24,
+    "cellWidth": 192,
+    "cellHeight": 208
+  },
+  "localClipPack": {
+    "source": "Fenice A+ semantic cutout pack",
+    "uniquePackedCells": 188,
+    "semanticStates": 42,
+    "truth": "Aliases are declared per state; 42 contracts do not imply 42 unique authored performances."
+  },
+  "animations": {
+    "idle-calm": {
+      "state": "idle-calm",
+      "frameFilenames": [
+        "a-plus/idle-calm/idle-calm-00.png",
+        "a-plus/idle-calm/idle-calm-01.png",
+        "a-plus/idle-calm/idle-calm-02.png",
+        "a-plus/idle-calm/idle-calm-03.png",
+        "a-plus/idle-calm/idle-calm-04.png",
+        "a-plus/idle-calm/idle-calm-05.png",
+        "a-plus/idle-calm/idle-calm-06.png",
+        "a-plus/idle-calm/idle-calm-07.png",
+        "a-plus/idle-calm/idle-calm-08.png",
+        "a-plus/idle-calm/idle-calm-09.png",
+        "a-plus/idle-calm/idle-calm-10.png",
+        "a-plus/idle-calm/idle-calm-11.png",
+        "a-plus/idle-calm/idle-calm-12.png",
+        "a-plus/idle-calm/idle-calm-13.png",
+        "a-plus/idle-calm/idle-calm-14.png",
+        "a-plus/idle-calm/idle-calm-15.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/idle-calm/idle-calm-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-02.png",
+          "rect": {
+            "x": 0,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-03.png",
+          "rect": {
+            "x": 192,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-04.png",
+          "rect": {
+            "x": 384,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-05.png",
+          "rect": {
+            "x": 576,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-06.png",
+          "rect": {
+            "x": 768,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-07.png",
+          "rect": {
+            "x": 960,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-08.png",
+          "rect": {
+            "x": 1152,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-09.png",
+          "rect": {
+            "x": 1344,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-10.png",
+          "rect": {
+            "x": 0,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-12.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-13.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-14.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        },
+        {
+          "filename": "a-plus/idle-calm/idle-calm-15.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 167
+        }
+      ],
+      "fps": 6,
+      "loopType": "loop",
+      "loopCount": null,
+      "entryFrame": "a-plus/idle-calm/idle-calm-00.png",
+      "exitFrame": "a-plus/idle-calm/idle-calm-15.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/idle-calm/idle-calm-00.png",
+      "sourcePack": [
+        "idle-calm"
+      ],
+      "provenance": "direct"
+    },
+    "idle-curious": {
+      "state": "idle-curious",
+      "frameFilenames": [
+        "a-plus/idle-curious/idle-curious-00.png",
+        "a-plus/idle-curious/idle-curious-01.png",
+        "a-plus/idle-curious/idle-curious-02.png",
+        "a-plus/idle-curious/idle-curious-03.png",
+        "a-plus/idle-curious/idle-curious-04.png",
+        "a-plus/idle-curious/idle-curious-05.png",
+        "a-plus/idle-curious/idle-curious-06.png",
+        "a-plus/idle-curious/idle-curious-07.png",
+        "a-plus/idle-curious/idle-curious-08.png",
+        "a-plus/idle-curious/idle-curious-09.png",
+        "a-plus/idle-curious/idle-curious-10.png",
+        "a-plus/idle-curious/idle-curious-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/idle-curious/idle-curious-00.png",
+          "rect": {
+            "x": 1344,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-01.png",
+          "rect": {
+            "x": 0,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-02.png",
+          "rect": {
+            "x": 192,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-03.png",
+          "rect": {
+            "x": 384,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-04.png",
+          "rect": {
+            "x": 576,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-05.png",
+          "rect": {
+            "x": 384,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-06.png",
+          "rect": {
+            "x": 768,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-07.png",
+          "rect": {
+            "x": 960,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-08.png",
+          "rect": {
+            "x": 1152,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-09.png",
+          "rect": {
+            "x": 1152,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-10.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/idle-curious/idle-curious-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        }
+      ],
+      "fps": 7,
+      "loopType": "loop",
+      "loopCount": null,
+      "entryFrame": "a-plus/idle-curious/idle-curious-00.png",
+      "exitFrame": "a-plus/idle-curious/idle-curious-11.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 1,
+      "reducedMotionFallbackFrame": "a-plus/idle-curious/idle-curious-00.png",
+      "sourcePack": [
+        "idle-aware"
+      ],
+      "provenance": "semantic-alias"
+    },
+    "idle-restless": {
+      "state": "idle-restless",
+      "frameFilenames": [
+        "a-plus/idle-restless/idle-restless-00.png",
+        "a-plus/idle-restless/idle-restless-01.png",
+        "a-plus/idle-restless/idle-restless-02.png",
+        "a-plus/idle-restless/idle-restless-03.png",
+        "a-plus/idle-restless/idle-restless-04.png",
+        "a-plus/idle-restless/idle-restless-05.png",
+        "a-plus/idle-restless/idle-restless-06.png",
+        "a-plus/idle-restless/idle-restless-07.png",
+        "a-plus/idle-restless/idle-restless-08.png",
+        "a-plus/idle-restless/idle-restless-09.png",
+        "a-plus/idle-restless/idle-restless-10.png",
+        "a-plus/idle-restless/idle-restless-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/idle-restless/idle-restless-00.png",
+          "rect": {
+            "x": 1344,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-01.png",
+          "rect": {
+            "x": 0,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-02.png",
+          "rect": {
+            "x": 192,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-03.png",
+          "rect": {
+            "x": 384,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-04.png",
+          "rect": {
+            "x": 576,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-05.png",
+          "rect": {
+            "x": 384,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-06.png",
+          "rect": {
+            "x": 768,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-07.png",
+          "rect": {
+            "x": 960,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-08.png",
+          "rect": {
+            "x": 1152,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-09.png",
+          "rect": {
+            "x": 1152,
+            "y": 1248,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-10.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/idle-restless/idle-restless-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        }
+      ],
+      "fps": 8,
+      "loopType": "loop",
+      "loopCount": null,
+      "entryFrame": "a-plus/idle-restless/idle-restless-00.png",
+      "exitFrame": "a-plus/idle-restless/idle-restless-11.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 1,
+      "reducedMotionFallbackFrame": "a-plus/idle-restless/idle-restless-00.png",
+      "sourcePack": [
+        "idle-aware"
+      ],
+      "provenance": "bounded-alias"
+    },
+    "blink": {
+      "state": "blink",
+      "frameFilenames": [
+        "a-plus/blink/blink-00.png",
+        "a-plus/blink/blink-01.png",
+        "a-plus/blink/blink-02.png",
+        "a-plus/blink/blink-03.png",
+        "a-plus/blink/blink-04.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/blink/blink-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/blink/blink-01.png",
+          "rect": {
+            "x": 768,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/blink/blink-02.png",
+          "rect": {
+            "x": 960,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/blink/blink-03.png",
+          "rect": {
+            "x": 1152,
+            "y": 1456,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/blink/blink-04.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        }
+      ],
+      "fps": 10,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/blink/blink-00.png",
+      "exitFrame": "a-plus/blink/blink-04.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/blink/blink-02.png",
+      "sourcePack": [
+        "idle-calm"
+      ],
+      "provenance": "curated-subsequence"
+    },
+    "notice-user": {
+      "state": "notice-user",
+      "frameFilenames": [
+        "a-plus/notice-user/notice-user-00.png",
+        "a-plus/notice-user/notice-user-01.png",
+        "a-plus/notice-user/notice-user-02.png",
+        "a-plus/notice-user/notice-user-03.png",
+        "a-plus/notice-user/notice-user-04.png",
+        "a-plus/notice-user/notice-user-05.png",
+        "a-plus/notice-user/notice-user-06.png",
+        "a-plus/notice-user/notice-user-07.png",
+        "a-plus/notice-user/notice-user-08.png",
+        "a-plus/notice-user/notice-user-09.png",
+        "a-plus/notice-user/notice-user-10.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/notice-user/notice-user-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/notice-user/notice-user-01.png",
+          "rect": {
+            "x": 960,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/notice-user/notice-user-02.png",
+          "rect": {
+            "x": 1152,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/notice-user/notice-user-03.png",
+          "rect": {
+            "x": 1344,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/notice-user/notice-user-04.png",
+          "rect": {
+            "x": 0,
+            "y": 2288,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/notice-user/notice-user-05.png",
+          "rect": {
+            "x": 192,
+            "y": 2288,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/notice-user/notice-user-06.png",
+          "rect": {
+            "x": 384,
+            "y": 2288,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/notice-user/notice-user-07.png",
+          "rect": {
+            "x": 576,
+            "y": 2288,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/notice-user/notice-user-08.png",
+          "rect": {
+            "x": 768,
+            "y": 2288,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/notice-user/notice-user-09.png",
+          "rect": {
+            "x": 960,
+            "y": 2288,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/notice-user/notice-user-10.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/notice-user/notice-user-00.png",
+      "exitFrame": "a-plus/notice-user/notice-user-10.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 1,
+      "reducedMotionFallbackFrame": "a-plus/notice-user/notice-user-05.png",
+      "sourcePack": [
+        "notice-user"
+      ],
+      "provenance": "direct"
+    },
+    "look-left": {
+      "state": "look-left",
+      "frameFilenames": [
+        "a-plus/look-left/look-left-00.png",
+        "a-plus/look-left/look-left-01.png",
+        "a-plus/look-left/look-left-02.png",
+        "a-plus/look-left/look-left-03.png",
+        "a-plus/look-left/look-left-04.png",
+        "a-plus/look-left/look-left-05.png",
+        "a-plus/look-left/look-left-06.png",
+        "a-plus/look-left/look-left-07.png",
+        "a-plus/look-left/look-left-08.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/look-left/look-left-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-left/look-left-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-left/look-left-02.png",
+          "rect": {
+            "x": 0,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-left/look-left-03.png",
+          "rect": {
+            "x": 0,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-left/look-left-04.png",
+          "rect": {
+            "x": 0,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-left/look-left-05.png",
+          "rect": {
+            "x": 0,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-left/look-left-06.png",
+          "rect": {
+            "x": 0,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-left/look-left-07.png",
+          "rect": {
+            "x": 192,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-left/look-left-08.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        }
+      ],
+      "fps": 8,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/look-left/look-left-00.png",
+      "exitFrame": "a-plus/look-left/look-left-08.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "left",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/look-left/look-left-04.png",
+      "sourcePack": [
+        "gaze-left"
+      ],
+      "provenance": "direct"
+    },
+    "look-right": {
+      "state": "look-right",
+      "frameFilenames": [
+        "a-plus/look-right/look-right-00.png",
+        "a-plus/look-right/look-right-01.png",
+        "a-plus/look-right/look-right-02.png",
+        "a-plus/look-right/look-right-03.png",
+        "a-plus/look-right/look-right-04.png",
+        "a-plus/look-right/look-right-05.png",
+        "a-plus/look-right/look-right-06.png",
+        "a-plus/look-right/look-right-07.png",
+        "a-plus/look-right/look-right-08.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/look-right/look-right-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-right/look-right-01.png",
+          "rect": {
+            "x": 384,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-right/look-right-02.png",
+          "rect": {
+            "x": 576,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-right/look-right-03.png",
+          "rect": {
+            "x": 576,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-right/look-right-04.png",
+          "rect": {
+            "x": 576,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-right/look-right-05.png",
+          "rect": {
+            "x": 576,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-right/look-right-06.png",
+          "rect": {
+            "x": 576,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-right/look-right-07.png",
+          "rect": {
+            "x": 768,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-right/look-right-08.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        }
+      ],
+      "fps": 8,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/look-right/look-right-00.png",
+      "exitFrame": "a-plus/look-right/look-right-08.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "right",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/look-right/look-right-04.png",
+      "sourcePack": [
+        "gaze-right"
+      ],
+      "provenance": "direct"
+    },
+    "look-up": {
+      "state": "look-up",
+      "frameFilenames": [
+        "a-plus/look-up/look-up-00.png",
+        "a-plus/look-up/look-up-01.png",
+        "a-plus/look-up/look-up-02.png",
+        "a-plus/look-up/look-up-03.png",
+        "a-plus/look-up/look-up-04.png",
+        "a-plus/look-up/look-up-05.png",
+        "a-plus/look-up/look-up-06.png",
+        "a-plus/look-up/look-up-07.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/look-up/look-up-00.png",
+          "rect": {
+            "x": 1152,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-up/look-up-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-up/look-up-02.png",
+          "rect": {
+            "x": 0,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-up/look-up-03.png",
+          "rect": {
+            "x": 192,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-up/look-up-04.png",
+          "rect": {
+            "x": 384,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-up/look-up-05.png",
+          "rect": {
+            "x": 192,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-up/look-up-06.png",
+          "rect": {
+            "x": 0,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-up/look-up-07.png",
+          "rect": {
+            "x": 1344,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        }
+      ],
+      "fps": 8,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/look-up/look-up-00.png",
+      "exitFrame": "a-plus/look-up/look-up-07.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/look-up/look-up-04.png",
+      "sourcePack": [
+        "thinking-calm"
+      ],
+      "provenance": "curated-subsequence"
+    },
+    "look-down": {
+      "state": "look-down",
+      "frameFilenames": [
+        "a-plus/look-down/look-down-00.png",
+        "a-plus/look-down/look-down-01.png",
+        "a-plus/look-down/look-down-02.png",
+        "a-plus/look-down/look-down-03.png",
+        "a-plus/look-down/look-down-04.png",
+        "a-plus/look-down/look-down-05.png",
+        "a-plus/look-down/look-down-06.png",
+        "a-plus/look-down/look-down-07.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/look-down/look-down-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-down/look-down-01.png",
+          "rect": {
+            "x": 192,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-down/look-down-02.png",
+          "rect": {
+            "x": 384,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-down/look-down-03.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-down/look-down-04.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-down/look-down-05.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-down/look-down-06.png",
+          "rect": {
+            "x": 384,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/look-down/look-down-07.png",
+          "rect": {
+            "x": 192,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        }
+      ],
+      "fps": 8,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/look-down/look-down-00.png",
+      "exitFrame": "a-plus/look-down/look-down-07.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/look-down/look-down-04.png",
+      "sourcePack": [
+        "concern-small"
+      ],
+      "provenance": "curated-subsequence"
+    },
+    "short-hop-left": {
+      "state": "short-hop-left",
+      "frameFilenames": [
+        "a-plus/short-hop-left/short-hop-left-00.png",
+        "a-plus/short-hop-left/short-hop-left-01.png",
+        "a-plus/short-hop-left/short-hop-left-02.png",
+        "a-plus/short-hop-left/short-hop-left-03.png",
+        "a-plus/short-hop-left/short-hop-left-04.png",
+        "a-plus/short-hop-left/short-hop-left-05.png",
+        "a-plus/short-hop-left/short-hop-left-06.png",
+        "a-plus/short-hop-left/short-hop-left-07.png",
+        "a-plus/short-hop-left/short-hop-left-08.png",
+        "a-plus/short-hop-left/short-hop-left-09.png",
+        "a-plus/short-hop-left/short-hop-left-10.png",
+        "a-plus/short-hop-left/short-hop-left-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-01.png",
+          "rect": {
+            "x": 192,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-02.png",
+          "rect": {
+            "x": 384,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-03.png",
+          "rect": {
+            "x": 576,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-04.png",
+          "rect": {
+            "x": 768,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-05.png",
+          "rect": {
+            "x": 960,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-06.png",
+          "rect": {
+            "x": 1152,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-07.png",
+          "rect": {
+            "x": 1344,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-08.png",
+          "rect": {
+            "x": 0,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-09.png",
+          "rect": {
+            "x": 192,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-10.png",
+          "rect": {
+            "x": 384,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-left/short-hop-left-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/short-hop-left/short-hop-left-00.png",
+      "exitFrame": "a-plus/short-hop-left/short-hop-left-11.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "left",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/short-hop-left/short-hop-left-06.png",
+      "sourcePack": [
+        "move-short-left"
+      ],
+      "provenance": "direct"
+    },
+    "short-hop-right": {
+      "state": "short-hop-right",
+      "frameFilenames": [
+        "a-plus/short-hop-right/short-hop-right-00.png",
+        "a-plus/short-hop-right/short-hop-right-01.png",
+        "a-plus/short-hop-right/short-hop-right-02.png",
+        "a-plus/short-hop-right/short-hop-right-03.png",
+        "a-plus/short-hop-right/short-hop-right-04.png",
+        "a-plus/short-hop-right/short-hop-right-05.png",
+        "a-plus/short-hop-right/short-hop-right-06.png",
+        "a-plus/short-hop-right/short-hop-right-07.png",
+        "a-plus/short-hop-right/short-hop-right-08.png",
+        "a-plus/short-hop-right/short-hop-right-09.png",
+        "a-plus/short-hop-right/short-hop-right-10.png",
+        "a-plus/short-hop-right/short-hop-right-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-01.png",
+          "rect": {
+            "x": 576,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-02.png",
+          "rect": {
+            "x": 768,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-03.png",
+          "rect": {
+            "x": 960,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-04.png",
+          "rect": {
+            "x": 1152,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-05.png",
+          "rect": {
+            "x": 1344,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-06.png",
+          "rect": {
+            "x": 0,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-07.png",
+          "rect": {
+            "x": 192,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-08.png",
+          "rect": {
+            "x": 384,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-09.png",
+          "rect": {
+            "x": 576,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-10.png",
+          "rect": {
+            "x": 768,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/short-hop-right/short-hop-right-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/short-hop-right/short-hop-right-00.png",
+      "exitFrame": "a-plus/short-hop-right/short-hop-right-11.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "right",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/short-hop-right/short-hop-right-06.png",
+      "sourcePack": [
+        "move-short-right"
+      ],
+      "provenance": "direct"
+    },
+    "takeoff-left": {
+      "state": "takeoff-left",
+      "frameFilenames": [
+        "a-plus/takeoff-left/takeoff-left-00.png",
+        "a-plus/takeoff-left/takeoff-left-01.png",
+        "a-plus/takeoff-left/takeoff-left-02.png",
+        "a-plus/takeoff-left/takeoff-left-03.png",
+        "a-plus/takeoff-left/takeoff-left-04.png",
+        "a-plus/takeoff-left/takeoff-left-05.png",
+        "a-plus/takeoff-left/takeoff-left-06.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/takeoff-left/takeoff-left-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-left/takeoff-left-01.png",
+          "rect": {
+            "x": 192,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-left/takeoff-left-02.png",
+          "rect": {
+            "x": 384,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-left/takeoff-left-03.png",
+          "rect": {
+            "x": 576,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-left/takeoff-left-04.png",
+          "rect": {
+            "x": 768,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-left/takeoff-left-05.png",
+          "rect": {
+            "x": 960,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-left/takeoff-left-06.png",
+          "rect": {
+            "x": 1152,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/takeoff-left/takeoff-left-00.png",
+      "exitFrame": "a-plus/takeoff-left/takeoff-left-06.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "left",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/takeoff-left/takeoff-left-03.png",
+      "sourcePack": [
+        "move-short-left"
+      ],
+      "provenance": "curated-subsequence"
+    },
+    "takeoff-right": {
+      "state": "takeoff-right",
+      "frameFilenames": [
+        "a-plus/takeoff-right/takeoff-right-00.png",
+        "a-plus/takeoff-right/takeoff-right-01.png",
+        "a-plus/takeoff-right/takeoff-right-02.png",
+        "a-plus/takeoff-right/takeoff-right-03.png",
+        "a-plus/takeoff-right/takeoff-right-04.png",
+        "a-plus/takeoff-right/takeoff-right-05.png",
+        "a-plus/takeoff-right/takeoff-right-06.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/takeoff-right/takeoff-right-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-right/takeoff-right-01.png",
+          "rect": {
+            "x": 576,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-right/takeoff-right-02.png",
+          "rect": {
+            "x": 768,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-right/takeoff-right-03.png",
+          "rect": {
+            "x": 960,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-right/takeoff-right-04.png",
+          "rect": {
+            "x": 1152,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-right/takeoff-right-05.png",
+          "rect": {
+            "x": 1344,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/takeoff-right/takeoff-right-06.png",
+          "rect": {
+            "x": 0,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/takeoff-right/takeoff-right-00.png",
+      "exitFrame": "a-plus/takeoff-right/takeoff-right-06.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "right",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/takeoff-right/takeoff-right-03.png",
+      "sourcePack": [
+        "move-short-right"
+      ],
+      "provenance": "curated-subsequence"
+    },
+    "flight-loop-left": {
+      "state": "flight-loop-left",
+      "frameFilenames": [
+        "a-plus/flight-loop-left/flight-loop-left-00.png",
+        "a-plus/flight-loop-left/flight-loop-left-01.png",
+        "a-plus/flight-loop-left/flight-loop-left-02.png",
+        "a-plus/flight-loop-left/flight-loop-left-03.png",
+        "a-plus/flight-loop-left/flight-loop-left-04.png",
+        "a-plus/flight-loop-left/flight-loop-left-05.png",
+        "a-plus/flight-loop-left/flight-loop-left-06.png",
+        "a-plus/flight-loop-left/flight-loop-left-07.png",
+        "a-plus/flight-loop-left/flight-loop-left-08.png",
+        "a-plus/flight-loop-left/flight-loop-left-09.png",
+        "a-plus/flight-loop-left/flight-loop-left-10.png",
+        "a-plus/flight-loop-left/flight-loop-left-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-00.png",
+          "rect": {
+            "x": 1344,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-01.png",
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-02.png",
+          "rect": {
+            "x": 192,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-03.png",
+          "rect": {
+            "x": 384,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-04.png",
+          "rect": {
+            "x": 576,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-05.png",
+          "rect": {
+            "x": 768,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-06.png",
+          "rect": {
+            "x": 960,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-07.png",
+          "rect": {
+            "x": 768,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-08.png",
+          "rect": {
+            "x": 576,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-09.png",
+          "rect": {
+            "x": 384,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-10.png",
+          "rect": {
+            "x": 1152,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-left/flight-loop-left-11.png",
+          "rect": {
+            "x": 1344,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "loop",
+      "loopCount": null,
+      "entryFrame": "a-plus/flight-loop-left/flight-loop-left-00.png",
+      "exitFrame": "a-plus/flight-loop-left/flight-loop-left-11.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "left",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/flight-loop-left/flight-loop-left-06.png",
+      "sourcePack": [
+        "flight-loop"
+      ],
+      "provenance": "bounded-cutout-fallback"
+    },
+    "flight-loop-right": {
+      "state": "flight-loop-right",
+      "frameFilenames": [
+        "a-plus/flight-loop-right/flight-loop-right-00.png",
+        "a-plus/flight-loop-right/flight-loop-right-01.png",
+        "a-plus/flight-loop-right/flight-loop-right-02.png",
+        "a-plus/flight-loop-right/flight-loop-right-03.png",
+        "a-plus/flight-loop-right/flight-loop-right-04.png",
+        "a-plus/flight-loop-right/flight-loop-right-05.png",
+        "a-plus/flight-loop-right/flight-loop-right-06.png",
+        "a-plus/flight-loop-right/flight-loop-right-07.png",
+        "a-plus/flight-loop-right/flight-loop-right-08.png",
+        "a-plus/flight-loop-right/flight-loop-right-09.png",
+        "a-plus/flight-loop-right/flight-loop-right-10.png",
+        "a-plus/flight-loop-right/flight-loop-right-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-00.png",
+          "rect": {
+            "x": 1344,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-01.png",
+          "rect": {
+            "x": 0,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-02.png",
+          "rect": {
+            "x": 192,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-03.png",
+          "rect": {
+            "x": 384,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-04.png",
+          "rect": {
+            "x": 576,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-05.png",
+          "rect": {
+            "x": 768,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-06.png",
+          "rect": {
+            "x": 960,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-07.png",
+          "rect": {
+            "x": 768,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-08.png",
+          "rect": {
+            "x": 576,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-09.png",
+          "rect": {
+            "x": 384,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-10.png",
+          "rect": {
+            "x": 1152,
+            "y": 416,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/flight-loop-right/flight-loop-right-11.png",
+          "rect": {
+            "x": 1344,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "loop",
+      "loopCount": null,
+      "entryFrame": "a-plus/flight-loop-right/flight-loop-right-00.png",
+      "exitFrame": "a-plus/flight-loop-right/flight-loop-right-11.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "right",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/flight-loop-right/flight-loop-right-06.png",
+      "sourcePack": [
+        "flight-loop"
+      ],
+      "provenance": "bounded-cutout-fallback"
+    },
+    "landing-left": {
+      "state": "landing-left",
+      "frameFilenames": [
+        "a-plus/landing-left/landing-left-00.png",
+        "a-plus/landing-left/landing-left-01.png",
+        "a-plus/landing-left/landing-left-02.png",
+        "a-plus/landing-left/landing-left-03.png",
+        "a-plus/landing-left/landing-left-04.png",
+        "a-plus/landing-left/landing-left-05.png",
+        "a-plus/landing-left/landing-left-06.png",
+        "a-plus/landing-left/landing-left-07.png",
+        "a-plus/landing-left/landing-left-08.png",
+        "a-plus/landing-left/landing-left-09.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/landing-left/landing-left-00.png",
+          "rect": {
+            "x": 0,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-left/landing-left-01.png",
+          "rect": {
+            "x": 192,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-left/landing-left-02.png",
+          "rect": {
+            "x": 384,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-left/landing-left-03.png",
+          "rect": {
+            "x": 576,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-left/landing-left-04.png",
+          "rect": {
+            "x": 768,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-left/landing-left-05.png",
+          "rect": {
+            "x": 960,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-left/landing-left-06.png",
+          "rect": {
+            "x": 1152,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-left/landing-left-07.png",
+          "rect": {
+            "x": 1344,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-left/landing-left-08.png",
+          "rect": {
+            "x": 0,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-left/landing-left-09.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/landing-left/landing-left-00.png",
+      "exitFrame": "a-plus/landing-left/landing-left-09.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "left",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/landing-left/landing-left-05.png",
+      "sourcePack": [
+        "settle"
+      ],
+      "provenance": "direct"
+    },
+    "landing-right": {
+      "state": "landing-right",
+      "frameFilenames": [
+        "a-plus/landing-right/landing-right-00.png",
+        "a-plus/landing-right/landing-right-01.png",
+        "a-plus/landing-right/landing-right-02.png",
+        "a-plus/landing-right/landing-right-03.png",
+        "a-plus/landing-right/landing-right-04.png",
+        "a-plus/landing-right/landing-right-05.png",
+        "a-plus/landing-right/landing-right-06.png",
+        "a-plus/landing-right/landing-right-07.png",
+        "a-plus/landing-right/landing-right-08.png",
+        "a-plus/landing-right/landing-right-09.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/landing-right/landing-right-00.png",
+          "rect": {
+            "x": 0,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-right/landing-right-01.png",
+          "rect": {
+            "x": 192,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-right/landing-right-02.png",
+          "rect": {
+            "x": 384,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-right/landing-right-03.png",
+          "rect": {
+            "x": 576,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-right/landing-right-04.png",
+          "rect": {
+            "x": 768,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-right/landing-right-05.png",
+          "rect": {
+            "x": 960,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-right/landing-right-06.png",
+          "rect": {
+            "x": 1152,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-right/landing-right-07.png",
+          "rect": {
+            "x": 1344,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-right/landing-right-08.png",
+          "rect": {
+            "x": 0,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/landing-right/landing-right-09.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/landing-right/landing-right-00.png",
+      "exitFrame": "a-plus/landing-right/landing-right-09.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "right",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/landing-right/landing-right-05.png",
+      "sourcePack": [
+        "settle"
+      ],
+      "provenance": "direct"
+    },
+    "thinking": {
+      "state": "thinking",
+      "frameFilenames": [
+        "a-plus/thinking/thinking-00.png",
+        "a-plus/thinking/thinking-01.png",
+        "a-plus/thinking/thinking-02.png",
+        "a-plus/thinking/thinking-03.png",
+        "a-plus/thinking/thinking-04.png",
+        "a-plus/thinking/thinking-05.png",
+        "a-plus/thinking/thinking-06.png",
+        "a-plus/thinking/thinking-07.png",
+        "a-plus/thinking/thinking-08.png",
+        "a-plus/thinking/thinking-09.png",
+        "a-plus/thinking/thinking-10.png",
+        "a-plus/thinking/thinking-11.png",
+        "a-plus/thinking/thinking-12.png",
+        "a-plus/thinking/thinking-13.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/thinking/thinking-00.png",
+          "rect": {
+            "x": 1152,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-02.png",
+          "rect": {
+            "x": 0,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-03.png",
+          "rect": {
+            "x": 192,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-04.png",
+          "rect": {
+            "x": 384,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-05.png",
+          "rect": {
+            "x": 576,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-06.png",
+          "rect": {
+            "x": 768,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-07.png",
+          "rect": {
+            "x": 960,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-08.png",
+          "rect": {
+            "x": 1152,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-09.png",
+          "rect": {
+            "x": 1344,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-10.png",
+          "rect": {
+            "x": 0,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-11.png",
+          "rect": {
+            "x": 192,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-12.png",
+          "rect": {
+            "x": 384,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking/thinking-13.png",
+          "rect": {
+            "x": 1152,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        }
+      ],
+      "fps": 8,
+      "loopType": "loop",
+      "loopCount": null,
+      "entryFrame": "a-plus/thinking/thinking-00.png",
+      "exitFrame": "a-plus/thinking/thinking-13.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/thinking/thinking-07.png",
+      "sourcePack": [
+        "thinking-calm"
+      ],
+      "provenance": "direct"
+    },
+    "analysing": {
+      "state": "analysing",
+      "frameFilenames": [
+        "a-plus/analysing/analysing-00.png",
+        "a-plus/analysing/analysing-01.png",
+        "a-plus/analysing/analysing-02.png",
+        "a-plus/analysing/analysing-03.png",
+        "a-plus/analysing/analysing-04.png",
+        "a-plus/analysing/analysing-05.png",
+        "a-plus/analysing/analysing-06.png",
+        "a-plus/analysing/analysing-07.png",
+        "a-plus/analysing/analysing-08.png",
+        "a-plus/analysing/analysing-09.png",
+        "a-plus/analysing/analysing-10.png",
+        "a-plus/analysing/analysing-11.png",
+        "a-plus/analysing/analysing-12.png",
+        "a-plus/analysing/analysing-13.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/analysing/analysing-00.png",
+          "rect": {
+            "x": 1152,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-02.png",
+          "rect": {
+            "x": 0,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-03.png",
+          "rect": {
+            "x": 192,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-04.png",
+          "rect": {
+            "x": 384,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-05.png",
+          "rect": {
+            "x": 576,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-06.png",
+          "rect": {
+            "x": 768,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-07.png",
+          "rect": {
+            "x": 960,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-08.png",
+          "rect": {
+            "x": 1152,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-09.png",
+          "rect": {
+            "x": 1344,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-10.png",
+          "rect": {
+            "x": 0,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-11.png",
+          "rect": {
+            "x": 192,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-12.png",
+          "rect": {
+            "x": 384,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/analysing/analysing-13.png",
+          "rect": {
+            "x": 1152,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        }
+      ],
+      "fps": 9,
+      "loopType": "loop",
+      "loopCount": null,
+      "entryFrame": "a-plus/analysing/analysing-00.png",
+      "exitFrame": "a-plus/analysing/analysing-13.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/analysing/analysing-07.png",
+      "sourcePack": [
+        "thinking-calm"
+      ],
+      "provenance": "semantic-alias"
+    },
+    "waiting-for-user": {
+      "state": "waiting-for-user",
+      "frameFilenames": [
+        "a-plus/waiting-for-user/waiting-for-user-00.png",
+        "a-plus/waiting-for-user/waiting-for-user-01.png",
+        "a-plus/waiting-for-user/waiting-for-user-02.png",
+        "a-plus/waiting-for-user/waiting-for-user-03.png",
+        "a-plus/waiting-for-user/waiting-for-user-04.png",
+        "a-plus/waiting-for-user/waiting-for-user-05.png",
+        "a-plus/waiting-for-user/waiting-for-user-06.png",
+        "a-plus/waiting-for-user/waiting-for-user-07.png",
+        "a-plus/waiting-for-user/waiting-for-user-08.png",
+        "a-plus/waiting-for-user/waiting-for-user-09.png",
+        "a-plus/waiting-for-user/waiting-for-user-10.png",
+        "a-plus/waiting-for-user/waiting-for-user-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-00.png",
+          "rect": {
+            "x": 1344,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-01.png",
+          "rect": {
+            "x": 576,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-02.png",
+          "rect": {
+            "x": 768,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-03.png",
+          "rect": {
+            "x": 960,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-04.png",
+          "rect": {
+            "x": 1152,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-05.png",
+          "rect": {
+            "x": 1344,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-06.png",
+          "rect": {
+            "x": 0,
+            "y": 4576,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-07.png",
+          "rect": {
+            "x": 192,
+            "y": 4576,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-08.png",
+          "rect": {
+            "x": 384,
+            "y": 4576,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-09.png",
+          "rect": {
+            "x": 384,
+            "y": 4576,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-10.png",
+          "rect": {
+            "x": 1344,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/waiting-for-user/waiting-for-user-11.png",
+          "rect": {
+            "x": 1344,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        }
+      ],
+      "fps": 7,
+      "loopType": "loop",
+      "loopCount": null,
+      "entryFrame": "a-plus/waiting-for-user/waiting-for-user-00.png",
+      "exitFrame": "a-plus/waiting-for-user/waiting-for-user-11.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/waiting-for-user/waiting-for-user-06.png",
+      "sourcePack": [
+        "waiting-attentive"
+      ],
+      "provenance": "direct"
+    },
+    "guiding-left": {
+      "state": "guiding-left",
+      "frameFilenames": [
+        "a-plus/guiding-left/guiding-left-00.png",
+        "a-plus/guiding-left/guiding-left-01.png",
+        "a-plus/guiding-left/guiding-left-02.png",
+        "a-plus/guiding-left/guiding-left-03.png",
+        "a-plus/guiding-left/guiding-left-04.png",
+        "a-plus/guiding-left/guiding-left-05.png",
+        "a-plus/guiding-left/guiding-left-06.png",
+        "a-plus/guiding-left/guiding-left-07.png",
+        "a-plus/guiding-left/guiding-left-08.png",
+        "a-plus/guiding-left/guiding-left-09.png",
+        "a-plus/guiding-left/guiding-left-10.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/guiding-left/guiding-left-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-left/guiding-left-01.png",
+          "rect": {
+            "x": 960,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-left/guiding-left-02.png",
+          "rect": {
+            "x": 1152,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-left/guiding-left-03.png",
+          "rect": {
+            "x": 1344,
+            "y": 624,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-left/guiding-left-04.png",
+          "rect": {
+            "x": 0,
+            "y": 832,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-left/guiding-left-05.png",
+          "rect": {
+            "x": 192,
+            "y": 832,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-left/guiding-left-06.png",
+          "rect": {
+            "x": 384,
+            "y": 832,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-left/guiding-left-07.png",
+          "rect": {
+            "x": 576,
+            "y": 832,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-left/guiding-left-08.png",
+          "rect": {
+            "x": 768,
+            "y": 832,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-left/guiding-left-09.png",
+          "rect": {
+            "x": 960,
+            "y": 832,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-left/guiding-left-10.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        }
+      ],
+      "fps": 10,
+      "loopType": "hold-last",
+      "loopCount": 1,
+      "entryFrame": "a-plus/guiding-left/guiding-left-00.png",
+      "exitFrame": "a-plus/guiding-left/guiding-left-10.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "left",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/guiding-left/guiding-left-05.png",
+      "sourcePack": [
+        "guide-left"
+      ],
+      "provenance": "direct"
+    },
+    "guiding-right": {
+      "state": "guiding-right",
+      "frameFilenames": [
+        "a-plus/guiding-right/guiding-right-00.png",
+        "a-plus/guiding-right/guiding-right-01.png",
+        "a-plus/guiding-right/guiding-right-02.png",
+        "a-plus/guiding-right/guiding-right-03.png",
+        "a-plus/guiding-right/guiding-right-04.png",
+        "a-plus/guiding-right/guiding-right-05.png",
+        "a-plus/guiding-right/guiding-right-06.png",
+        "a-plus/guiding-right/guiding-right-07.png",
+        "a-plus/guiding-right/guiding-right-08.png",
+        "a-plus/guiding-right/guiding-right-09.png",
+        "a-plus/guiding-right/guiding-right-10.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/guiding-right/guiding-right-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-right/guiding-right-01.png",
+          "rect": {
+            "x": 1152,
+            "y": 832,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-right/guiding-right-02.png",
+          "rect": {
+            "x": 1344,
+            "y": 832,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-right/guiding-right-03.png",
+          "rect": {
+            "x": 0,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-right/guiding-right-04.png",
+          "rect": {
+            "x": 192,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-right/guiding-right-05.png",
+          "rect": {
+            "x": 384,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-right/guiding-right-06.png",
+          "rect": {
+            "x": 576,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-right/guiding-right-07.png",
+          "rect": {
+            "x": 768,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-right/guiding-right-08.png",
+          "rect": {
+            "x": 960,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-right/guiding-right-09.png",
+          "rect": {
+            "x": 1152,
+            "y": 1040,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/guiding-right/guiding-right-10.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        }
+      ],
+      "fps": 10,
+      "loopType": "hold-last",
+      "loopCount": 1,
+      "entryFrame": "a-plus/guiding-right/guiding-right-00.png",
+      "exitFrame": "a-plus/guiding-right/guiding-right-10.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "right",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/guiding-right/guiding-right-05.png",
+      "sourcePack": [
+        "guide-right"
+      ],
+      "provenance": "direct"
+    },
+    "positive-small": {
+      "state": "positive-small",
+      "frameFilenames": [
+        "a-plus/positive-small/positive-small-00.png",
+        "a-plus/positive-small/positive-small-01.png",
+        "a-plus/positive-small/positive-small-02.png",
+        "a-plus/positive-small/positive-small-03.png",
+        "a-plus/positive-small/positive-small-04.png",
+        "a-plus/positive-small/positive-small-05.png",
+        "a-plus/positive-small/positive-small-06.png",
+        "a-plus/positive-small/positive-small-07.png",
+        "a-plus/positive-small/positive-small-08.png",
+        "a-plus/positive-small/positive-small-09.png",
+        "a-plus/positive-small/positive-small-10.png",
+        "a-plus/positive-small/positive-small-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/positive-small/positive-small-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-01.png",
+          "rect": {
+            "x": 960,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-02.png",
+          "rect": {
+            "x": 1152,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-03.png",
+          "rect": {
+            "x": 1344,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-04.png",
+          "rect": {
+            "x": 0,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-05.png",
+          "rect": {
+            "x": 192,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-06.png",
+          "rect": {
+            "x": 384,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-07.png",
+          "rect": {
+            "x": 576,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-08.png",
+          "rect": {
+            "x": 768,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-09.png",
+          "rect": {
+            "x": 960,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-10.png",
+          "rect": {
+            "x": 1152,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-small/positive-small-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/positive-small/positive-small-00.png",
+      "exitFrame": "a-plus/positive-small/positive-small-11.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 1,
+      "reducedMotionFallbackFrame": "a-plus/positive-small/positive-small-06.png",
+      "sourcePack": [
+        "positive-small"
+      ],
+      "provenance": "direct"
+    },
+    "positive-medium": {
+      "state": "positive-medium",
+      "frameFilenames": [
+        "a-plus/positive-medium/positive-medium-00.png",
+        "a-plus/positive-medium/positive-medium-01.png",
+        "a-plus/positive-medium/positive-medium-02.png",
+        "a-plus/positive-medium/positive-medium-03.png",
+        "a-plus/positive-medium/positive-medium-04.png",
+        "a-plus/positive-medium/positive-medium-05.png",
+        "a-plus/positive-medium/positive-medium-06.png",
+        "a-plus/positive-medium/positive-medium-07.png",
+        "a-plus/positive-medium/positive-medium-08.png",
+        "a-plus/positive-medium/positive-medium-09.png",
+        "a-plus/positive-medium/positive-medium-10.png",
+        "a-plus/positive-medium/positive-medium-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/positive-medium/positive-medium-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-01.png",
+          "rect": {
+            "x": 960,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-02.png",
+          "rect": {
+            "x": 1152,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-03.png",
+          "rect": {
+            "x": 1344,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-04.png",
+          "rect": {
+            "x": 0,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-05.png",
+          "rect": {
+            "x": 192,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-06.png",
+          "rect": {
+            "x": 384,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-07.png",
+          "rect": {
+            "x": 576,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-08.png",
+          "rect": {
+            "x": 768,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-09.png",
+          "rect": {
+            "x": 960,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-10.png",
+          "rect": {
+            "x": 1152,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        },
+        {
+          "filename": "a-plus/positive-medium/positive-medium-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 91
+        }
+      ],
+      "fps": 11,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/positive-medium/positive-medium-00.png",
+      "exitFrame": "a-plus/positive-medium/positive-medium-11.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 2,
+      "reducedMotionFallbackFrame": "a-plus/positive-medium/positive-medium-06.png",
+      "sourcePack": [
+        "positive-small"
+      ],
+      "provenance": "bounded-intensity-alias"
+    },
+    "positive-major": {
+      "state": "positive-major",
+      "frameFilenames": [
+        "a-plus/positive-major/positive-major-00.png",
+        "a-plus/positive-major/positive-major-01.png",
+        "a-plus/positive-major/positive-major-02.png",
+        "a-plus/positive-major/positive-major-03.png",
+        "a-plus/positive-major/positive-major-04.png",
+        "a-plus/positive-major/positive-major-05.png",
+        "a-plus/positive-major/positive-major-06.png",
+        "a-plus/positive-major/positive-major-07.png",
+        "a-plus/positive-major/positive-major-08.png",
+        "a-plus/positive-major/positive-major-09.png",
+        "a-plus/positive-major/positive-major-10.png",
+        "a-plus/positive-major/positive-major-11.png",
+        "a-plus/positive-major/positive-major-12.png",
+        "a-plus/positive-major/positive-major-13.png",
+        "a-plus/positive-major/positive-major-14.png",
+        "a-plus/positive-major/positive-major-15.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/positive-major/positive-major-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 2496,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-02.png",
+          "rect": {
+            "x": 0,
+            "y": 2704,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-03.png",
+          "rect": {
+            "x": 192,
+            "y": 2704,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-04.png",
+          "rect": {
+            "x": 384,
+            "y": 2704,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-05.png",
+          "rect": {
+            "x": 576,
+            "y": 2704,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-06.png",
+          "rect": {
+            "x": 768,
+            "y": 2704,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-07.png",
+          "rect": {
+            "x": 960,
+            "y": 2704,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-08.png",
+          "rect": {
+            "x": 1152,
+            "y": 2704,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-09.png",
+          "rect": {
+            "x": 1344,
+            "y": 2704,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-10.png",
+          "rect": {
+            "x": 0,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-11.png",
+          "rect": {
+            "x": 192,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-12.png",
+          "rect": {
+            "x": 384,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-13.png",
+          "rect": {
+            "x": 576,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-14.png",
+          "rect": {
+            "x": 768,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/positive-major/positive-major-15.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/positive-major/positive-major-00.png",
+      "exitFrame": "a-plus/positive-major/positive-major-15.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 3,
+      "reducedMotionFallbackFrame": "a-plus/positive-major/positive-major-08.png",
+      "sourcePack": [
+        "positive-major"
+      ],
+      "provenance": "direct-limited"
+    },
+    "concerned-small": {
+      "state": "concerned-small",
+      "frameFilenames": [
+        "a-plus/concerned-small/concerned-small-00.png",
+        "a-plus/concerned-small/concerned-small-01.png",
+        "a-plus/concerned-small/concerned-small-02.png",
+        "a-plus/concerned-small/concerned-small-03.png",
+        "a-plus/concerned-small/concerned-small-04.png",
+        "a-plus/concerned-small/concerned-small-05.png",
+        "a-plus/concerned-small/concerned-small-06.png",
+        "a-plus/concerned-small/concerned-small-07.png",
+        "a-plus/concerned-small/concerned-small-08.png",
+        "a-plus/concerned-small/concerned-small-09.png",
+        "a-plus/concerned-small/concerned-small-10.png",
+        "a-plus/concerned-small/concerned-small-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/concerned-small/concerned-small-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-01.png",
+          "rect": {
+            "x": 192,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-02.png",
+          "rect": {
+            "x": 384,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-03.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-04.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-05.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-06.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-07.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-08.png",
+          "rect": {
+            "x": 768,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-09.png",
+          "rect": {
+            "x": 960,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-10.png",
+          "rect": {
+            "x": 1152,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-small/concerned-small-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        }
+      ],
+      "fps": 9,
+      "loopType": "hold-last",
+      "loopCount": 1,
+      "entryFrame": "a-plus/concerned-small/concerned-small-00.png",
+      "exitFrame": "a-plus/concerned-small/concerned-small-11.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 1,
+      "reducedMotionFallbackFrame": "a-plus/concerned-small/concerned-small-06.png",
+      "sourcePack": [
+        "concern-small"
+      ],
+      "provenance": "direct"
+    },
+    "concerned-major": {
+      "state": "concerned-major",
+      "frameFilenames": [
+        "a-plus/concerned-major/concerned-major-00.png",
+        "a-plus/concerned-major/concerned-major-01.png",
+        "a-plus/concerned-major/concerned-major-02.png",
+        "a-plus/concerned-major/concerned-major-03.png",
+        "a-plus/concerned-major/concerned-major-04.png",
+        "a-plus/concerned-major/concerned-major-05.png",
+        "a-plus/concerned-major/concerned-major-06.png",
+        "a-plus/concerned-major/concerned-major-07.png",
+        "a-plus/concerned-major/concerned-major-08.png",
+        "a-plus/concerned-major/concerned-major-09.png",
+        "a-plus/concerned-major/concerned-major-10.png",
+        "a-plus/concerned-major/concerned-major-11.png",
+        "a-plus/concerned-major/concerned-major-12.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/concerned-major/concerned-major-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-01.png",
+          "rect": {
+            "x": 192,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-02.png",
+          "rect": {
+            "x": 384,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-03.png",
+          "rect": {
+            "x": 576,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-04.png",
+          "rect": {
+            "x": 576,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-05.png",
+          "rect": {
+            "x": 768,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-06.png",
+          "rect": {
+            "x": 768,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-07.png",
+          "rect": {
+            "x": 768,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-08.png",
+          "rect": {
+            "x": 960,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-09.png",
+          "rect": {
+            "x": 1152,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-10.png",
+          "rect": {
+            "x": 1344,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-11.png",
+          "rect": {
+            "x": 0,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concerned-major/concerned-major-12.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        }
+      ],
+      "fps": 9,
+      "loopType": "hold-last",
+      "loopCount": 1,
+      "entryFrame": "a-plus/concerned-major/concerned-major-00.png",
+      "exitFrame": "a-plus/concerned-major/concerned-major-12.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 2,
+      "reducedMotionFallbackFrame": "a-plus/concerned-major/concerned-major-06.png",
+      "sourcePack": [
+        "concern-major-blocked"
+      ],
+      "provenance": "shared-performance"
+    },
+    "reassurance": {
+      "state": "reassurance",
+      "frameFilenames": [
+        "a-plus/reassurance/reassurance-00.png",
+        "a-plus/reassurance/reassurance-01.png",
+        "a-plus/reassurance/reassurance-02.png",
+        "a-plus/reassurance/reassurance-03.png",
+        "a-plus/reassurance/reassurance-04.png",
+        "a-plus/reassurance/reassurance-05.png",
+        "a-plus/reassurance/reassurance-06.png",
+        "a-plus/reassurance/reassurance-07.png",
+        "a-plus/reassurance/reassurance-08.png",
+        "a-plus/reassurance/reassurance-09.png",
+        "a-plus/reassurance/reassurance-10.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/reassurance/reassurance-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/reassurance/reassurance-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/reassurance/reassurance-02.png",
+          "rect": {
+            "x": 0,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/reassurance/reassurance-03.png",
+          "rect": {
+            "x": 192,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/reassurance/reassurance-04.png",
+          "rect": {
+            "x": 384,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/reassurance/reassurance-05.png",
+          "rect": {
+            "x": 576,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/reassurance/reassurance-06.png",
+          "rect": {
+            "x": 768,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/reassurance/reassurance-07.png",
+          "rect": {
+            "x": 960,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/reassurance/reassurance-08.png",
+          "rect": {
+            "x": 1152,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/reassurance/reassurance-09.png",
+          "rect": {
+            "x": 1344,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/reassurance/reassurance-10.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        }
+      ],
+      "fps": 10,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/reassurance/reassurance-00.png",
+      "exitFrame": "a-plus/reassurance/reassurance-10.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 1,
+      "reducedMotionFallbackFrame": "a-plus/reassurance/reassurance-05.png",
+      "sourcePack": [
+        "reassurance-recovery"
+      ],
+      "provenance": "shared-performance"
+    },
+    "recovery": {
+      "state": "recovery",
+      "frameFilenames": [
+        "a-plus/recovery/recovery-00.png",
+        "a-plus/recovery/recovery-01.png",
+        "a-plus/recovery/recovery-02.png",
+        "a-plus/recovery/recovery-03.png",
+        "a-plus/recovery/recovery-04.png",
+        "a-plus/recovery/recovery-05.png",
+        "a-plus/recovery/recovery-06.png",
+        "a-plus/recovery/recovery-07.png",
+        "a-plus/recovery/recovery-08.png",
+        "a-plus/recovery/recovery-09.png",
+        "a-plus/recovery/recovery-10.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/recovery/recovery-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/recovery/recovery-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/recovery/recovery-02.png",
+          "rect": {
+            "x": 0,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/recovery/recovery-03.png",
+          "rect": {
+            "x": 192,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/recovery/recovery-04.png",
+          "rect": {
+            "x": 384,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/recovery/recovery-05.png",
+          "rect": {
+            "x": 576,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/recovery/recovery-06.png",
+          "rect": {
+            "x": 768,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/recovery/recovery-07.png",
+          "rect": {
+            "x": 960,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/recovery/recovery-08.png",
+          "rect": {
+            "x": 1152,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/recovery/recovery-09.png",
+          "rect": {
+            "x": 1344,
+            "y": 3328,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/recovery/recovery-10.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        }
+      ],
+      "fps": 10,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/recovery/recovery-00.png",
+      "exitFrame": "a-plus/recovery/recovery-10.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 2,
+      "reducedMotionFallbackFrame": "a-plus/recovery/recovery-05.png",
+      "sourcePack": [
+        "reassurance-recovery"
+      ],
+      "provenance": "shared-performance"
+    },
+    "blocked": {
+      "state": "blocked",
+      "frameFilenames": [
+        "a-plus/blocked/blocked-00.png",
+        "a-plus/blocked/blocked-01.png",
+        "a-plus/blocked/blocked-02.png",
+        "a-plus/blocked/blocked-03.png",
+        "a-plus/blocked/blocked-04.png",
+        "a-plus/blocked/blocked-05.png",
+        "a-plus/blocked/blocked-06.png",
+        "a-plus/blocked/blocked-07.png",
+        "a-plus/blocked/blocked-08.png",
+        "a-plus/blocked/blocked-09.png",
+        "a-plus/blocked/blocked-10.png",
+        "a-plus/blocked/blocked-11.png",
+        "a-plus/blocked/blocked-12.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/blocked/blocked-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-01.png",
+          "rect": {
+            "x": 192,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-02.png",
+          "rect": {
+            "x": 384,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-03.png",
+          "rect": {
+            "x": 576,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-04.png",
+          "rect": {
+            "x": 576,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-05.png",
+          "rect": {
+            "x": 768,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-06.png",
+          "rect": {
+            "x": 768,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-07.png",
+          "rect": {
+            "x": 768,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-08.png",
+          "rect": {
+            "x": 960,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-09.png",
+          "rect": {
+            "x": 1152,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-10.png",
+          "rect": {
+            "x": 1344,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-11.png",
+          "rect": {
+            "x": 0,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/blocked/blocked-12.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        }
+      ],
+      "fps": 8,
+      "loopType": "hold-last",
+      "loopCount": 1,
+      "entryFrame": "a-plus/blocked/blocked-00.png",
+      "exitFrame": "a-plus/blocked/blocked-12.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 2,
+      "reducedMotionFallbackFrame": "a-plus/blocked/blocked-06.png",
+      "sourcePack": [
+        "concern-major-blocked"
+      ],
+      "provenance": "shared-performance"
+    },
+    "offline": {
+      "state": "offline",
+      "frameFilenames": [
+        "a-plus/offline/offline-00.png",
+        "a-plus/offline/offline-01.png",
+        "a-plus/offline/offline-02.png",
+        "a-plus/offline/offline-03.png",
+        "a-plus/offline/offline-04.png",
+        "a-plus/offline/offline-05.png",
+        "a-plus/offline/offline-06.png",
+        "a-plus/offline/offline-07.png",
+        "a-plus/offline/offline-08.png",
+        "a-plus/offline/offline-09.png",
+        "a-plus/offline/offline-10.png",
+        "a-plus/offline/offline-11.png",
+        "a-plus/offline/offline-12.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/offline/offline-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-01.png",
+          "rect": {
+            "x": 192,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-02.png",
+          "rect": {
+            "x": 384,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-03.png",
+          "rect": {
+            "x": 576,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-04.png",
+          "rect": {
+            "x": 576,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-05.png",
+          "rect": {
+            "x": 768,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-06.png",
+          "rect": {
+            "x": 768,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-07.png",
+          "rect": {
+            "x": 768,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-08.png",
+          "rect": {
+            "x": 960,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-09.png",
+          "rect": {
+            "x": 1152,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-10.png",
+          "rect": {
+            "x": 1344,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-11.png",
+          "rect": {
+            "x": 0,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/offline/offline-12.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        }
+      ],
+      "fps": 5,
+      "loopType": "hold-last",
+      "loopCount": 1,
+      "entryFrame": "a-plus/offline/offline-00.png",
+      "exitFrame": "a-plus/offline/offline-12.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 1,
+      "reducedMotionFallbackFrame": "a-plus/offline/offline-06.png",
+      "sourcePack": [
+        "concern-major-blocked"
+      ],
+      "provenance": "bounded-fallback"
+    },
+    "tap-response": {
+      "state": "tap-response",
+      "frameFilenames": [
+        "a-plus/tap-response/tap-response-00.png",
+        "a-plus/tap-response/tap-response-01.png",
+        "a-plus/tap-response/tap-response-02.png",
+        "a-plus/tap-response/tap-response-03.png",
+        "a-plus/tap-response/tap-response-04.png",
+        "a-plus/tap-response/tap-response-05.png",
+        "a-plus/tap-response/tap-response-06.png",
+        "a-plus/tap-response/tap-response-07.png",
+        "a-plus/tap-response/tap-response-08.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/tap-response/tap-response-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/tap-response/tap-response-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/tap-response/tap-response-02.png",
+          "rect": {
+            "x": 0,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/tap-response/tap-response-03.png",
+          "rect": {
+            "x": 192,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/tap-response/tap-response-04.png",
+          "rect": {
+            "x": 384,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/tap-response/tap-response-05.png",
+          "rect": {
+            "x": 576,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/tap-response/tap-response-06.png",
+          "rect": {
+            "x": 768,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/tap-response/tap-response-07.png",
+          "rect": {
+            "x": 960,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/tap-response/tap-response-08.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/tap-response/tap-response-00.png",
+      "exitFrame": "a-plus/tap-response/tap-response-08.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 1,
+      "reducedMotionFallbackFrame": "a-plus/tap-response/tap-response-04.png",
+      "sourcePack": [
+        "tap-acknowledgement"
+      ],
+      "provenance": "direct"
+    },
+    "settle-to-sleep": {
+      "state": "settle-to-sleep",
+      "frameFilenames": [
+        "a-plus/settle-to-sleep/settle-to-sleep-00.png",
+        "a-plus/settle-to-sleep/settle-to-sleep-01.png",
+        "a-plus/settle-to-sleep/settle-to-sleep-02.png",
+        "a-plus/settle-to-sleep/settle-to-sleep-03.png",
+        "a-plus/settle-to-sleep/settle-to-sleep-04.png",
+        "a-plus/settle-to-sleep/settle-to-sleep-05.png",
+        "a-plus/settle-to-sleep/settle-to-sleep-06.png",
+        "a-plus/settle-to-sleep/settle-to-sleep-07.png",
+        "a-plus/settle-to-sleep/settle-to-sleep-08.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/settle-to-sleep/settle-to-sleep-00.png",
+          "rect": {
+            "x": 0,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/settle-to-sleep/settle-to-sleep-01.png",
+          "rect": {
+            "x": 384,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/settle-to-sleep/settle-to-sleep-02.png",
+          "rect": {
+            "x": 768,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/settle-to-sleep/settle-to-sleep-03.png",
+          "rect": {
+            "x": 1152,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/settle-to-sleep/settle-to-sleep-04.png",
+          "rect": {
+            "x": 0,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/settle-to-sleep/settle-to-sleep-05.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/settle-to-sleep/settle-to-sleep-06.png",
+          "rect": {
+            "x": 192,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/settle-to-sleep/settle-to-sleep-07.png",
+          "rect": {
+            "x": 576,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        },
+        {
+          "filename": "a-plus/settle-to-sleep/settle-to-sleep-08.png",
+          "rect": {
+            "x": 960,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 143
+        }
+      ],
+      "fps": 7,
+      "loopType": "hold-last",
+      "loopCount": 1,
+      "entryFrame": "a-plus/settle-to-sleep/settle-to-sleep-00.png",
+      "exitFrame": "a-plus/settle-to-sleep/settle-to-sleep-08.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/settle-to-sleep/settle-to-sleep-04.png",
+      "sourcePack": [
+        "settle",
+        "sleeping"
+      ],
+      "provenance": "composed"
+    },
+    "sleeping": {
+      "state": "sleeping",
+      "frameFilenames": [
+        "a-plus/sleeping/sleeping-00.png",
+        "a-plus/sleeping/sleeping-01.png",
+        "a-plus/sleeping/sleeping-02.png",
+        "a-plus/sleeping/sleeping-03.png",
+        "a-plus/sleeping/sleeping-04.png",
+        "a-plus/sleeping/sleeping-05.png",
+        "a-plus/sleeping/sleeping-06.png",
+        "a-plus/sleeping/sleeping-07.png",
+        "a-plus/sleeping/sleeping-08.png",
+        "a-plus/sleeping/sleeping-09.png",
+        "a-plus/sleeping/sleeping-10.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/sleeping/sleeping-00.png",
+          "rect": {
+            "x": 192,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/sleeping/sleeping-01.png",
+          "rect": {
+            "x": 384,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/sleeping/sleeping-02.png",
+          "rect": {
+            "x": 576,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/sleeping/sleeping-03.png",
+          "rect": {
+            "x": 768,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/sleeping/sleeping-04.png",
+          "rect": {
+            "x": 960,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/sleeping/sleeping-05.png",
+          "rect": {
+            "x": 1152,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/sleeping/sleeping-06.png",
+          "rect": {
+            "x": 960,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/sleeping/sleeping-07.png",
+          "rect": {
+            "x": 768,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/sleeping/sleeping-08.png",
+          "rect": {
+            "x": 576,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/sleeping/sleeping-09.png",
+          "rect": {
+            "x": 384,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        },
+        {
+          "filename": "a-plus/sleeping/sleeping-10.png",
+          "rect": {
+            "x": 192,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 200
+        }
+      ],
+      "fps": 5,
+      "loopType": "loop",
+      "loopCount": null,
+      "entryFrame": "a-plus/sleeping/sleeping-00.png",
+      "exitFrame": "a-plus/sleeping/sleeping-10.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/sleeping/sleeping-00.png",
+      "sourcePack": [
+        "sleeping"
+      ],
+      "provenance": "direct"
+    },
+    "wake-up": {
+      "state": "wake-up",
+      "frameFilenames": [
+        "a-plus/wake-up/wake-up-00.png",
+        "a-plus/wake-up/wake-up-01.png",
+        "a-plus/wake-up/wake-up-02.png",
+        "a-plus/wake-up/wake-up-03.png",
+        "a-plus/wake-up/wake-up-04.png",
+        "a-plus/wake-up/wake-up-05.png",
+        "a-plus/wake-up/wake-up-06.png",
+        "a-plus/wake-up/wake-up-07.png",
+        "a-plus/wake-up/wake-up-08.png",
+        "a-plus/wake-up/wake-up-09.png",
+        "a-plus/wake-up/wake-up-10.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/wake-up/wake-up-00.png",
+          "rect": {
+            "x": 192,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/wake-up/wake-up-01.png",
+          "rect": {
+            "x": 576,
+            "y": 4576,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/wake-up/wake-up-02.png",
+          "rect": {
+            "x": 768,
+            "y": 4576,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/wake-up/wake-up-03.png",
+          "rect": {
+            "x": 960,
+            "y": 4576,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/wake-up/wake-up-04.png",
+          "rect": {
+            "x": 1152,
+            "y": 4576,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/wake-up/wake-up-05.png",
+          "rect": {
+            "x": 1344,
+            "y": 4576,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/wake-up/wake-up-06.png",
+          "rect": {
+            "x": 0,
+            "y": 4784,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/wake-up/wake-up-07.png",
+          "rect": {
+            "x": 192,
+            "y": 4784,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/wake-up/wake-up-08.png",
+          "rect": {
+            "x": 384,
+            "y": 4784,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/wake-up/wake-up-09.png",
+          "rect": {
+            "x": 576,
+            "y": 4784,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        },
+        {
+          "filename": "a-plus/wake-up/wake-up-10.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 100
+        }
+      ],
+      "fps": 10,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/wake-up/wake-up-00.png",
+      "exitFrame": "a-plus/wake-up/wake-up-10.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/wake-up/wake-up-05.png",
+      "sourcePack": [
+        "wake-up"
+      ],
+      "provenance": "direct"
+    },
+    "peek": {
+      "state": "peek",
+      "frameFilenames": [
+        "a-plus/peek/peek-00.png",
+        "a-plus/peek/peek-01.png",
+        "a-plus/peek/peek-02.png",
+        "a-plus/peek/peek-03.png",
+        "a-plus/peek/peek-04.png",
+        "a-plus/peek/peek-05.png",
+        "a-plus/peek/peek-06.png",
+        "a-plus/peek/peek-07.png",
+        "a-plus/peek/peek-08.png",
+        "a-plus/peek/peek-09.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/peek/peek-00.png",
+          "rect": {
+            "x": 1152,
+            "y": 2288,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/peek/peek-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 2288,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/peek/peek-02.png",
+          "rect": {
+            "x": 0,
+            "y": 2496,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/peek/peek-03.png",
+          "rect": {
+            "x": 192,
+            "y": 2496,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/peek/peek-04.png",
+          "rect": {
+            "x": 384,
+            "y": 2496,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/peek/peek-05.png",
+          "rect": {
+            "x": 576,
+            "y": 2496,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/peek/peek-06.png",
+          "rect": {
+            "x": 768,
+            "y": 2496,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/peek/peek-07.png",
+          "rect": {
+            "x": 960,
+            "y": 2496,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/peek/peek-08.png",
+          "rect": {
+            "x": 1152,
+            "y": 2496,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/peek/peek-09.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/peek/peek-00.png",
+      "exitFrame": "a-plus/peek/peek-09.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/peek/peek-05.png",
+      "sourcePack": [
+        "peek"
+      ],
+      "provenance": "direct"
+    },
+    "settle": {
+      "state": "settle",
+      "frameFilenames": [
+        "a-plus/settle/settle-00.png",
+        "a-plus/settle/settle-01.png",
+        "a-plus/settle/settle-02.png",
+        "a-plus/settle/settle-03.png",
+        "a-plus/settle/settle-04.png",
+        "a-plus/settle/settle-05.png",
+        "a-plus/settle/settle-06.png",
+        "a-plus/settle/settle-07.png",
+        "a-plus/settle/settle-08.png",
+        "a-plus/settle/settle-09.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/settle/settle-00.png",
+          "rect": {
+            "x": 0,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/settle/settle-01.png",
+          "rect": {
+            "x": 192,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/settle/settle-02.png",
+          "rect": {
+            "x": 384,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/settle/settle-03.png",
+          "rect": {
+            "x": 576,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/settle/settle-04.png",
+          "rect": {
+            "x": 768,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/settle/settle-05.png",
+          "rect": {
+            "x": 960,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/settle/settle-06.png",
+          "rect": {
+            "x": 1152,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/settle/settle-07.png",
+          "rect": {
+            "x": 1344,
+            "y": 3536,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/settle/settle-08.png",
+          "rect": {
+            "x": 0,
+            "y": 3744,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/settle/settle-09.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/settle/settle-00.png",
+      "exitFrame": "a-plus/settle/settle-09.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/settle/settle-05.png",
+      "sourcePack": [
+        "settle"
+      ],
+      "provenance": "direct"
+    },
+    "move-short-left": {
+      "state": "move-short-left",
+      "frameFilenames": [
+        "a-plus/move-short-left/move-short-left-00.png",
+        "a-plus/move-short-left/move-short-left-01.png",
+        "a-plus/move-short-left/move-short-left-02.png",
+        "a-plus/move-short-left/move-short-left-03.png",
+        "a-plus/move-short-left/move-short-left-04.png",
+        "a-plus/move-short-left/move-short-left-05.png",
+        "a-plus/move-short-left/move-short-left-06.png",
+        "a-plus/move-short-left/move-short-left-07.png",
+        "a-plus/move-short-left/move-short-left-08.png",
+        "a-plus/move-short-left/move-short-left-09.png",
+        "a-plus/move-short-left/move-short-left-10.png",
+        "a-plus/move-short-left/move-short-left-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/move-short-left/move-short-left-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-01.png",
+          "rect": {
+            "x": 192,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-02.png",
+          "rect": {
+            "x": 384,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-03.png",
+          "rect": {
+            "x": 576,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-04.png",
+          "rect": {
+            "x": 768,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-05.png",
+          "rect": {
+            "x": 960,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-06.png",
+          "rect": {
+            "x": 1152,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-07.png",
+          "rect": {
+            "x": 1344,
+            "y": 1664,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-08.png",
+          "rect": {
+            "x": 0,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-09.png",
+          "rect": {
+            "x": 192,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-10.png",
+          "rect": {
+            "x": 384,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-left/move-short-left-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/move-short-left/move-short-left-00.png",
+      "exitFrame": "a-plus/move-short-left/move-short-left-11.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "left",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/move-short-left/move-short-left-06.png",
+      "sourcePack": [
+        "move-short-left"
+      ],
+      "provenance": "direct"
+    },
+    "move-short-right": {
+      "state": "move-short-right",
+      "frameFilenames": [
+        "a-plus/move-short-right/move-short-right-00.png",
+        "a-plus/move-short-right/move-short-right-01.png",
+        "a-plus/move-short-right/move-short-right-02.png",
+        "a-plus/move-short-right/move-short-right-03.png",
+        "a-plus/move-short-right/move-short-right-04.png",
+        "a-plus/move-short-right/move-short-right-05.png",
+        "a-plus/move-short-right/move-short-right-06.png",
+        "a-plus/move-short-right/move-short-right-07.png",
+        "a-plus/move-short-right/move-short-right-08.png",
+        "a-plus/move-short-right/move-short-right-09.png",
+        "a-plus/move-short-right/move-short-right-10.png",
+        "a-plus/move-short-right/move-short-right-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/move-short-right/move-short-right-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-01.png",
+          "rect": {
+            "x": 576,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-02.png",
+          "rect": {
+            "x": 768,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-03.png",
+          "rect": {
+            "x": 960,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-04.png",
+          "rect": {
+            "x": 1152,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-05.png",
+          "rect": {
+            "x": 1344,
+            "y": 1872,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-06.png",
+          "rect": {
+            "x": 0,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-07.png",
+          "rect": {
+            "x": 192,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-08.png",
+          "rect": {
+            "x": 384,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-09.png",
+          "rect": {
+            "x": 576,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-10.png",
+          "rect": {
+            "x": 768,
+            "y": 2080,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/move-short-right/move-short-right-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/move-short-right/move-short-right-00.png",
+      "exitFrame": "a-plus/move-short-right/move-short-right-11.png",
+      "interruptible": false,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "right",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/move-short-right/move-short-right-06.png",
+      "sourcePack": [
+        "move-short-right"
+      ],
+      "provenance": "direct"
+    },
+    "result-acknowledgement": {
+      "state": "result-acknowledgement",
+      "frameFilenames": [
+        "a-plus/result-acknowledgement/result-acknowledgement-00.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-01.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-02.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-03.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-04.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-05.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-06.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-07.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-08.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-09.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-10.png",
+        "a-plus/result-acknowledgement/result-acknowledgement-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-01.png",
+          "rect": {
+            "x": 960,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-02.png",
+          "rect": {
+            "x": 1152,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-03.png",
+          "rect": {
+            "x": 1344,
+            "y": 2912,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-04.png",
+          "rect": {
+            "x": 0,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-05.png",
+          "rect": {
+            "x": 192,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-06.png",
+          "rect": {
+            "x": 384,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-07.png",
+          "rect": {
+            "x": 576,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-08.png",
+          "rect": {
+            "x": 768,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-09.png",
+          "rect": {
+            "x": 960,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-10.png",
+          "rect": {
+            "x": 1152,
+            "y": 3120,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        },
+        {
+          "filename": "a-plus/result-acknowledgement/result-acknowledgement-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 83
+        }
+      ],
+      "fps": 12,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/result-acknowledgement/result-acknowledgement-00.png",
+      "exitFrame": "a-plus/result-acknowledgement/result-acknowledgement-11.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 1,
+      "reducedMotionFallbackFrame": "a-plus/result-acknowledgement/result-acknowledgement-06.png",
+      "sourcePack": [
+        "positive-small"
+      ],
+      "provenance": "bounded-fallback"
+    },
+    "thinking-loop": {
+      "state": "thinking-loop",
+      "frameFilenames": [
+        "a-plus/thinking-loop/thinking-loop-00.png",
+        "a-plus/thinking-loop/thinking-loop-01.png",
+        "a-plus/thinking-loop/thinking-loop-02.png",
+        "a-plus/thinking-loop/thinking-loop-03.png",
+        "a-plus/thinking-loop/thinking-loop-04.png",
+        "a-plus/thinking-loop/thinking-loop-05.png",
+        "a-plus/thinking-loop/thinking-loop-06.png",
+        "a-plus/thinking-loop/thinking-loop-07.png",
+        "a-plus/thinking-loop/thinking-loop-08.png",
+        "a-plus/thinking-loop/thinking-loop-09.png",
+        "a-plus/thinking-loop/thinking-loop-10.png",
+        "a-plus/thinking-loop/thinking-loop-11.png",
+        "a-plus/thinking-loop/thinking-loop-12.png",
+        "a-plus/thinking-loop/thinking-loop-13.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-00.png",
+          "rect": {
+            "x": 1152,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-01.png",
+          "rect": {
+            "x": 1344,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-02.png",
+          "rect": {
+            "x": 0,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-03.png",
+          "rect": {
+            "x": 192,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-04.png",
+          "rect": {
+            "x": 384,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-05.png",
+          "rect": {
+            "x": 576,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-06.png",
+          "rect": {
+            "x": 768,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-07.png",
+          "rect": {
+            "x": 960,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-08.png",
+          "rect": {
+            "x": 1152,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-09.png",
+          "rect": {
+            "x": 1344,
+            "y": 4160,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-10.png",
+          "rect": {
+            "x": 0,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-11.png",
+          "rect": {
+            "x": 192,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-12.png",
+          "rect": {
+            "x": 384,
+            "y": 4368,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        },
+        {
+          "filename": "a-plus/thinking-loop/thinking-loop-13.png",
+          "rect": {
+            "x": 1152,
+            "y": 3952,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 125
+        }
+      ],
+      "fps": 8,
+      "loopType": "loop",
+      "loopCount": null,
+      "entryFrame": "a-plus/thinking-loop/thinking-loop-00.png",
+      "exitFrame": "a-plus/thinking-loop/thinking-loop-13.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 0,
+      "reducedMotionFallbackFrame": "a-plus/thinking-loop/thinking-loop-07.png",
+      "sourcePack": [
+        "thinking-calm"
+      ],
+      "provenance": "semantic-alias"
+    },
+    "concern-small": {
+      "state": "concern-small",
+      "frameFilenames": [
+        "a-plus/concern-small/concern-small-00.png",
+        "a-plus/concern-small/concern-small-01.png",
+        "a-plus/concern-small/concern-small-02.png",
+        "a-plus/concern-small/concern-small-03.png",
+        "a-plus/concern-small/concern-small-04.png",
+        "a-plus/concern-small/concern-small-05.png",
+        "a-plus/concern-small/concern-small-06.png",
+        "a-plus/concern-small/concern-small-07.png",
+        "a-plus/concern-small/concern-small-08.png",
+        "a-plus/concern-small/concern-small-09.png",
+        "a-plus/concern-small/concern-small-10.png",
+        "a-plus/concern-small/concern-small-11.png"
+      ],
+      "frames": [
+        {
+          "filename": "a-plus/concern-small/concern-small-00.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-01.png",
+          "rect": {
+            "x": 192,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-02.png",
+          "rect": {
+            "x": 384,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-03.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-04.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-05.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-06.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-07.png",
+          "rect": {
+            "x": 576,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-08.png",
+          "rect": {
+            "x": 768,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-09.png",
+          "rect": {
+            "x": 960,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-10.png",
+          "rect": {
+            "x": 1152,
+            "y": 208,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        },
+        {
+          "filename": "a-plus/concern-small/concern-small-11.png",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 192,
+            "height": 208
+          },
+          "durationMs": 111
+        }
+      ],
+      "fps": 9,
+      "loopType": "once",
+      "loopCount": 1,
+      "entryFrame": "a-plus/concern-small/concern-small-00.png",
+      "exitFrame": "a-plus/concern-small/concern-small-11.png",
+      "interruptible": true,
+      "compatibleNextStates": [
+        "idle-calm",
+        "notice-user",
+        "thinking",
+        "waiting-for-user"
+      ],
+      "baselinePosition": {
+        "x": 96,
+        "y": 202
+      },
+      "facingDirection": "neutral",
+      "emotionIntensity": 1,
+      "reducedMotionFallbackFrame": "a-plus/concern-small/concern-small-06.png",
+      "sourcePack": [
+        "concern-small"
+      ],
+      "provenance": "direct"
+    }
+  }
+}

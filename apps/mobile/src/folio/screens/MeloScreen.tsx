@@ -421,29 +421,13 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
             ) : null}
           </Text>
           {melo.quietMode ? (
-            <Text
-              accessibilityRole="header"
-              numberOfLines={fontScale >= 1.8 ? 1 : undefined}
-              style={[
-                styles.headline,
-                fontScale >= 1.8 ? { fontSize: 14, lineHeight: 18 } : undefined,
-                { color: t.ink },
-              ]}
-            >
+            <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
               {'A '}
               <Text style={[styles.headlineAccent, { color: t.calm }]}>quiet</Text>
               {' lens on your money.'}
             </Text>
           ) : (
-            <Text
-              accessibilityRole="header"
-              numberOfLines={fontScale >= 1.8 ? 1 : undefined}
-              style={[
-                styles.headline,
-                fontScale >= 1.8 ? { fontSize: 14, lineHeight: 18 } : undefined,
-                { color: t.ink },
-              ]}
-            >
+            <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
               {'Reads your money. '}
               <Text style={[styles.headlineAccent, { color: t.calm }]}>Reflects</Text>
               {' it back.'}

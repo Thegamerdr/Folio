@@ -44,6 +44,7 @@ import {
   Keyboard,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -519,6 +520,18 @@ function OnboardingFlow({
   const showSummary = hasEnteredSummary;
   const [costsConfirmed, setCostsConfirmed] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(Keyboard.isVisible());
+  const formScrollRef = useRef<ScrollView>(null);
+  const [topFieldFocused, setTopFieldFocused] = useState(false);
+  useEffect(() => {
+    if (!keyboardOpen || !topFieldFocused) return;
+    // Name is the first field after the compact header. Android may retain
+    // the pre-keyboard focus scroll after that header collapses; restore the
+    // top of this form so its active name never sits above the viewport.
+    const frame = requestAnimationFrame(() =>
+      formScrollRef.current?.scrollTo({ y: 0, animated: false }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [keyboardOpen, topFieldFocused]);
   const [focusedPot, setFocusedPot] = useState<string | null>(null);
   useEffect(() => {
     const shown = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
@@ -1069,6 +1082,7 @@ function OnboardingFlow({
       onClose={onClose}
       reduceMotion={reduceMotion}
       scrollKey={step}
+      scrollRef={formScrollRef}
       focusContextBefore={keyboardOpen ? 48 : 0}
       footer={footer}
       header={
@@ -1137,6 +1151,12 @@ function OnboardingFlow({
               placeholderTextColor={t.muted}
               style={[s.nameInput, keyboardOpen ? { marginTop: gap.sm } : undefined]}
               accessibilityLabel="Your name"
+              onLayout={() => {
+                if (keyboardOpen && topFieldFocused)
+                  formScrollRef.current?.scrollTo({ y: 0, animated: false });
+              }}
+              onFocus={() => setTopFieldFocused(true)}
+              onBlur={() => setTopFieldFocused(false)}
               returnKeyType="next"
             />
           ) : null}
@@ -1561,6 +1581,12 @@ function OnboardingFlow({
                 placeholderTextColor={t.muted}
                 style={[s.nameInput, keyboardOpen ? { marginTop: gap.sm } : undefined]}
                 accessibilityLabel="Recurring commitment name"
+                onLayout={() => {
+                  if (keyboardOpen && topFieldFocused)
+                    formScrollRef.current?.scrollTo({ y: 0, animated: false });
+                }}
+                onFocus={() => setTopFieldFocused(true)}
+                onBlur={() => setTopFieldFocused(false)}
               />
               <View style={keyboardOpen ? s.potAmountColumns : undefined}>
                 <View style={keyboardOpen ? s.potAmountColumn : undefined}>

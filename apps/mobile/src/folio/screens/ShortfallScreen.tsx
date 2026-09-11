@@ -82,7 +82,6 @@ import Animated, {
 
 import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
-import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
@@ -98,7 +97,6 @@ import {
   selectFinancialPresentation,
   formatMoney as formatGBP,
 } from '@/folio/lib/financialPresentation';
-import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
 import { buildRecoveryRoutePreview } from '@/folio/lib/recoveryPreview';
 import { buildCalendarPresentation } from '@/folio/lib/calendarPresentation';
 import { triggerFeedback } from '@/folio/lib/feedback';
@@ -342,16 +340,9 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         <MeloLine mood="curious" text="One moment — working out the gap." />
       </View>
     );
-  if (!presentation.complete || !plan.nextIncomeDate)
-    return (
-      <FinancialSetupNotice
-        state={appState}
-        plan={plan}
-        onSetup={() => nav.openSheet('onboarding')}
-      />
-    );
-
-  if (resolvedState === 'empty' || gapNow === 0) {
+  const needsSetup = !presentation.complete || !plan.nextIncomeDate;
+  if (needsSetup || resolvedState === 'empty' || gapNow === 0) {
+    const hasAnyFigures = presentation.balanceKnown || appState.onboarding.done;
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.md }]}>
@@ -364,13 +355,66 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
             eyebrowTracking={1.54}
           />
           <MeloScrollView style={styles.flexFill} contentContainerStyle={{ flexGrow: 1 }}>
-            <EmptyState
-              companionRole="pressured"
-              mood={completion.mood}
-              headline="No shortfall before payday"
-              body={`${completion.canCelebrate ? 'Nothing is short right now.' : 'This view checks for a gap before payday.'} ${completion.message}`}
-              cta={{ label: "See what's coming", onPress: () => nav.go('calendar') }}
-            />
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingVertical: gap.xl,
+                gap: gap.md,
+              }}
+            >
+              <MeloFigure
+                scrollOwner
+                role="small"
+                mood={needsSetup ? 'curious' : completion.mood}
+              />
+              <Text
+                accessibilityRole="header"
+                style={{
+                  color: t.ink,
+                  fontFamily: serif.display,
+                  fontSize: 28,
+                  lineHeight: 34,
+                  textAlign: 'center',
+                }}
+              >
+                {needsSetup ? 'Nothing to ' : 'No gap to '}
+                <Text style={{ color: t.calm, fontStyle: 'italic' }}>
+                  {needsSetup ? 'check' : 'close'}
+                </Text>
+                {needsSetup ? ' yet.' : '.'}
+              </Text>
+              <Text style={{ color: t.muted, fontSize: 15, lineHeight: 22, textAlign: 'center' }}>
+                {needsSetup
+                  ? hasAnyFigures
+                    ? presentation.message
+                    : 'There is no recorded money to work from, so there is no gap to show.'
+                  : completion.canCelebrate
+                    ? 'The path reaches payday as things stand. Nothing to move right now.'
+                    : completion.message}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={needsSetup ? () => nav.openSheet('onboarding') : nav.back}
+                style={{
+                  alignSelf: 'stretch',
+                  minHeight: 54,
+                  padding: gap.md,
+                  borderRadius: radius.pill,
+                  borderWidth: 1,
+                  borderColor: t.hairline,
+                  backgroundColor: t.surface,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginTop: gap.sm,
+                }}
+              >
+                <Text style={{ color: t.ink, fontSize: 15, lineHeight: 22, textAlign: 'center' }}>
+                  {needsSetup ? 'Add your money' : 'Back'}
+                </Text>
+              </Pressable>
+            </View>
           </MeloScrollView>
         </View>
       </Animated.View>

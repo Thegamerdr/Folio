@@ -1,18 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useState } from 'react';
 import { Keyboard, Pressable, View } from 'react-native';
 import { useAppStore } from '@/folio/store';
 import { Melo, type MeloMood } from './Melo';
 import { useMeloScrollAnchor } from './MeloScrollView';
+import { useMeloPresenceLayer } from './MeloPresenceLayer';
 
 // Lovable's native companion specification, pass36. The immutable square master
 // has 18% transparent vertical padding; size refers to visible artwork, not PNG canvas.
 export const MELO_ROLES = {
   portrait: { visible: 32, box: 44 },
+  small: { visible: 28, box: 44 },
   inline: { visible: 56, box: 72 },
   perch: { visible: 72, box: 88 },
   empty: { visible: 96, box: 112 },
   pressured: { visible: 112, box: 128 },
-  home: { visible: 132, box: 152 },
+  home: { visible: 132, box: 156 },
 } as const;
 
 export function MeloFigure({
@@ -33,6 +35,8 @@ export function MeloFigure({
   maxBoxSize?: number;
 }) {
   const anchor = useMeloScrollAnchor(scrollOwner);
+  const presence = useMeloPresenceLayer();
+  const identity = useId();
   const quiet = useAppStore((state) => state.melo?.quietMode === true);
   const [keyboardOpen, setKeyboardOpen] = useState(Keyboard.isVisible());
   useEffect(() => {
@@ -52,10 +56,14 @@ export function MeloFigure({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   };
-  if (quiet) return null;
   const hidden = anchor.tucked || (hideForKeyboard && keyboardOpen);
+  useLayoutEffect(() => {
+    presence?.authored(identity, !quiet && !hidden);
+    return () => presence?.authored(identity, false);
+  }, [presence, identity, quiet, hidden]);
+  if (quiet) return null;
   const content = hidden ? null : (
-    <Melo mood={mood} size={Math.ceil((dimensions.visible * scale) / 0.82)} />
+    <Melo mood={mood} size={Math.ceil((dimensions.visible * scale) / 0.82)} frozen />
   );
   return onPress ? (
     <Pressable

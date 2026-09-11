@@ -66,6 +66,8 @@ export type MeloPose =
 
 export type MeloProps = {
   mood: MeloMood;
+  /** Editorial character art stays still; the persistent layer owns choreography. */
+  frozen?: boolean;
   pose?: MeloPose;
   size?: number;
   grounded?: boolean;
@@ -201,12 +203,20 @@ function useReduceMotion(): boolean {
 // Melo
 // ---------------------------------------------------------------------------
 
-export function Melo({ mood, pose = 'none', size = 28, grounded = true, onTap }: MeloProps) {
+export function Melo({
+  mood,
+  pose = 'none',
+  size = 28,
+  grounded = true,
+  onTap,
+  frozen = false,
+}: MeloProps) {
   const t = useTheme();
   const quietMode = useAppStore((state) => state.melo?.quietMode === true);
   const suppressed = useContext(MeloSuppressedContext);
   const wardrobe = useAppStore((state) => state.melo?.wardrobe);
-  const reduceMotion = useReduceMotion();
+  const systemReduceMotion = useReduceMotion();
+  const reduceMotion = systemReduceMotion || frozen;
   const spec = MOOD[mood];
 
   const vCap = mood === 'concern' ? 0.5 : 1;

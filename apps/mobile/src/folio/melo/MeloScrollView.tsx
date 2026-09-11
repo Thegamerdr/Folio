@@ -19,9 +19,16 @@ import {
 import { useAppStore } from '@/folio/store';
 import { MeloSuppressedContext } from './MeloVisibility';
 import { shouldTuckMelo, visibleMeloFraction, type Rect } from '@/folio/lib/melo/scrollOwner';
+import { useMeloPresenceLayer } from './MeloPresenceLayer';
 
-type Owner = { register: (node: View | null) => void; refresh: () => void; tucked: boolean };
+type Owner = {
+  register: (node: View | null) => void;
+  refresh: () => void;
+  tucked: boolean;
+  viewport: () => View | null;
+};
 const OwnerContext = createContext<Owner | null>(null);
+export const useMeloViewport = () => useContext(OwnerContext)?.viewport;
 
 /** Exactly one editorial/perch slot registers per screen. Its reserved box remains
  * in the scroll content while the body tucks, so scroll position never jumps.
@@ -42,6 +49,7 @@ export function useMeloScrollAnchor(enabled: boolean) {
  */
 export const MeloScrollView = forwardRef<ScrollView, ScrollViewProps>(
   function MeloScrollView(props, forwardedRef) {
+    const presence = useMeloPresenceLayer();
     const quiet = useAppStore((state) => state.melo?.quietMode === true);
     const suppressed = useContext(MeloSuppressedContext);
     const dimensions = useWindowDimensions();
@@ -111,7 +119,7 @@ export const MeloScrollView = forwardRef<ScrollView, ScrollViewProps>(
       refresh();
     }, [blocked, dimensions.width, dimensions.height, dimensions.fontScale, refresh]);
     const owner = useMemo(
-      () => ({ register, refresh, tucked: tucked && !blocked }),
+      () => ({ register, refresh, tucked: tucked && !blocked, viewport: () => viewport.current }),
       [register, refresh, tucked, blocked],
     );
     return (
@@ -129,10 +137,12 @@ export const MeloScrollView = forwardRef<ScrollView, ScrollViewProps>(
               onLayout={(event) => {
                 props.onLayout?.(event);
                 refresh();
+                presence?.refresh();
               }}
               onContentSizeChange={(width, height) => {
                 props.onContentSizeChange?.(width, height);
                 refresh();
+                presence?.refresh();
               }}
               onScroll={(event) => {
                 offset.current = event.nativeEvent.contentOffset.y;
@@ -147,6 +157,7 @@ export const MeloScrollView = forwardRef<ScrollView, ScrollViewProps>(
                   if (shouldTuckMelo(false, fraction)) setTucked(true);
                 }
                 props.onScroll?.(event);
+                presence?.refresh(true);
                 refresh();
               }}
               onScrollBeginDrag={(event) => {
