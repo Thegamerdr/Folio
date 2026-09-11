@@ -219,6 +219,8 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
               accessibilityLabel="Current available balance"
               value={value}
               onChangeText={setValue}
+              placeholder="0.00"
+              placeholderTextColor={t.muted}
               keyboardType="decimal-pad"
               // Android can defer select-all on an empty field until the first character
               // arrives, causing the second key to replace it. Keep the normal caret.

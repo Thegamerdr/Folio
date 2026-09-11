@@ -410,7 +410,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
           {!melo.quietMode ? (
             <Text style={[styles.plumageCaption, { color: t.muted, fontStyle: 'italic' }]}>
               {mood === 'concern' || mood === 'protect'
-                ? "He's holding still with you."
+                ? 'Holding still with you.'
                 : 'A quiet moment to look ahead, together.'}
             </Text>
           ) : null}

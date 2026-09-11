@@ -490,6 +490,7 @@ function OnboardingFlow({
   onSaved?: (() => void) | undefined;
 }) {
   const ob = useAppStore((st) => st.onboarding);
+  const { fontScale } = useWindowDimensions();
   const existingPots = useAppStore((st) => st.pots);
   const currentBalance = useAppStore((st) => st.currentBalance);
   const savedIncomeSource = useAppStore(
@@ -856,13 +857,14 @@ function OnboardingFlow({
     setReviewingRow(false);
     setCostsConfirmed(false);
   }
-  const potsValid = [...picked].every(
+  const invalidPotId = [...picked].find(
     (id) =>
-      parseManualMoney(potAmounts[id]?.goal ?? '') !== undefined &&
+      parseManualMoney(potAmounts[id]?.goal ?? '') === undefined ||
       parseManualMoney(potAmounts[id]?.perWeek ?? '', {
         allowZero: true,
-      }) !== undefined,
+      }) === undefined,
   );
+  const potsValid = invalidPotId === undefined;
   const numericError =
     activeStepIndex === STEP_POTS && !potsValid
       ? 'Add a target above £0 and a top-up amount for each selected pot, or deselect it.'
@@ -1072,7 +1074,7 @@ function OnboardingFlow({
   const footer = (
     <View>
       {showSummary ? confirmation : null}
-      {!showSummary && numericError ? (
+      {!showSummary && activeStepIndex !== STEP_POTS && numericError ? (
         <Text
           accessibilityRole={emptyPayday ? 'text' : 'alert'}
           accessibilityLiveRegion="polite"
@@ -1121,9 +1123,7 @@ function OnboardingFlow({
         >
           {primaryDisabled && showSummary && !costsConfirmed
             ? 'Confirm your costs above'
-            : primaryDisabled && activeStepIndex === STEP_POTS
-              ? numericError
-              : primaryAction}
+            : primaryAction}
         </Text>
       </Pressable>
       <View style={s.footerActions}>
@@ -1199,6 +1199,7 @@ function OnboardingFlow({
       reduceMotion={reduceMotion}
       scrollKey={step}
       focusContextBefore={48}
+      bodyContentInset={34 * fontScale}
       footer={footer}
       header={
         <View
@@ -1211,23 +1212,22 @@ function OnboardingFlow({
               ? `Edit · ${current.eyebrow}`
               : `Step ${step + 1} of ${visibleStepIndices.length} · ${current.eyebrow}`}
           </Text>
+          {!isReturning ? (
+            <View style={[s.pips, { marginTop: gap.sm, marginBottom: 0 }]}>
+              {visibleStepIndices.map((_, i) => (
+                <ProgressPip
+                  key={i}
+                  kind={i === step ? 'active' : i < step ? 'done' : 'future'}
+                  palette={t}
+                  reduceMotion={reduceMotion}
+                />
+              ))}
+            </View>
+          ) : null}
         </View>
       }
     >
       <View style={s.body}>
-        {/* Progress pips — three states (active w7 accent · done w5 ink/60 · future w5 hairline). */}
-        {!isReturning ? (
-          <View style={s.pips}>
-            {visibleStepIndices.map((_, i) => (
-              <ProgressPip
-                key={i}
-                kind={i === step ? 'active' : i < step ? 'done' : 'future'}
-                palette={t}
-                reduceMotion={reduceMotion}
-              />
-            ))}
-          </View>
-        ) : null}
 
         {/* Eyebrow with the documented Melo mood beside it (the web rendered no Melo; the spec asks the
           port to add the mood). */}
@@ -1789,6 +1789,7 @@ function OnboardingFlow({
                     }
                     onAmountChange={(field, value) => updatePotAmount(tpl.id, field, value)}
                     onPress={() => togglePot(tpl.id)}
+                    validationMessage={tpl.id === invalidPotId ? numericError : null}
                     styles={s}
                   />
                 ))}
@@ -1861,6 +1862,7 @@ function PotTile({
   amounts,
   onPress,
   onAmountChange,
+  validationMessage,
   styles: s,
 }: {
   template: PotTemplate;
@@ -1869,8 +1871,10 @@ function PotTile({
   amounts: PotAmounts;
   onPress: () => void;
   onAmountChange: (field: keyof PotAmounts, value: string) => void;
+  validationMessage: string | null;
   styles: ReturnType<typeof makeStyles>;
 }) {
+  const invalidGoal = parseManualMoney(amounts.goal) === undefined;
   return (
     <View style={[s.potTile, selected ? s.potTileSelected : s.potTileUnselected]}>
       {editableSelection ? (
@@ -1916,6 +1920,11 @@ function PotTile({
                 style={s.amountInput}
                 accessibilityLabel={`${template.name} target in pounds`}
               />
+              {validationMessage && invalidGoal ? (
+                <Text accessibilityLiveRegion="polite" style={s.help}>
+                  {validationMessage}
+                </Text>
+              ) : null}
             </View>
             <View>
               <Text style={[s.help]}>{`Set aside ${potTopUpTiming(template)} (£, can be 0)`}</Text>
@@ -1927,6 +1936,11 @@ function PotTile({
                 style={s.amountInput}
                 accessibilityLabel={`${template.name} top-up amount in pounds`}
               />
+              {validationMessage && !invalidGoal ? (
+                <Text accessibilityLiveRegion="polite" style={s.help}>
+                  {validationMessage}
+                </Text>
+              ) : null}
             </View>
           </View>
         </View>

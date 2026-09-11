@@ -107,6 +107,8 @@ type SheetProps = {
   focusContextBefore?: number;
   /** Keep dependent shortcuts/results visible after a focused field, as space allows. */
   focusContextAfter?: number;
+  /** Authored line-box breathing room around a long form's scroll content. */
+  bodyContentInset?: number;
 };
 
 type SheetPortalApi = {
@@ -327,6 +329,7 @@ export function Sheet({
   scrollRef,
   focusContextBefore = 0,
   focusContextAfter = 0,
+  bodyContentInset = 0,
 }: SheetProps) {
   const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -674,7 +677,12 @@ export function Sheet({
                   // The footer is already a sibling below this viewport. Adding
                   // its full height again as content padding can consume the
                   // entire S9 typing area and collapse intrinsic form rows.
-                  contentContainerStyle={layout.scrollContent}
+                  contentContainerStyle={[
+                    layout.scrollContent,
+                    bodyContentInset > 0
+                      ? { paddingTop: bodyContentInset, paddingBottom: bodyContentInset }
+                      : undefined,
+                  ]}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="none"
                   automaticallyAdjustKeyboardInsets={false}
