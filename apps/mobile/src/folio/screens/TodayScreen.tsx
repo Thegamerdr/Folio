@@ -1113,7 +1113,7 @@ function OneMoveCard({ oneMove }: { oneMove: NonNullable<ReturnType<typeof deriv
   );
 }
 
-function TodayFirstRun({ nav }: { nav: Nav }) {
+export function TodayFirstRun({ nav }: { nav: Nav }) {
   const t = useTodayTheme();
   const insets = useSafeAreaInsets();
   const screenTopInset = Math.max(gap.md, insets.top + gap.xs);
