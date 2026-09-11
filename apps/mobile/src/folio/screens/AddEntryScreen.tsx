@@ -531,13 +531,21 @@ export function AddEntryScreen({ nav, kind, state = 'populated' }: AddEntryScree
               style={({ pressed: isPressed }) => [
                 styles.primaryCta,
                 {
-                  backgroundColor: t.calm,
-                  opacity: !name.trim() || !(parseAmount(amount) > 0) ? 0.45 : 1,
+                  backgroundColor: !name.trim() || !(parseAmount(amount) > 0) ? t.surface : t.calm,
+                  borderWidth: 1,
+                  borderColor: t.hairline,
                 },
                 isPressed ? styles.pressed : undefined,
               ]}
             >
-              <Text style={[styles.primaryLabel, { color: t.inverse }]}>Add it to plans</Text>
+              <Text
+                style={[
+                  styles.primaryLabel,
+                  { color: !name.trim() || !(parseAmount(amount) > 0) ? t.muted : t.inverse },
+                ]}
+              >
+                Add it to plans
+              </Text>
             </Pressable>
           </Animated.View>
         </View>

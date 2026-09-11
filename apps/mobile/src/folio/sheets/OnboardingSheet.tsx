@@ -509,6 +509,16 @@ function OnboardingFlow({
   const [reviewingRow, setReviewingRow] = useState(false);
   const showSummary = hasEnteredSummary;
   const [costsConfirmed, setCostsConfirmed] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(Keyboard.isVisible());
+  useEffect(() => {
+    const shown = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setKeyboardOpen(false));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, []);
+
   const [showMoreGoals, setShowMoreGoals] = useState(false);
   const [intentLabel, setIntentLabel] = useState(
     INTENT_OPTIONS.find((option) => option.mode === savedMode)?.label ?? INTENT_OPTIONS[0]!.label,
@@ -907,6 +917,7 @@ function OnboardingFlow({
       </View>
     </Pressable>
   );
+  const primaryDisabled = showSummary ? !costsConfirmed || !allNumbersValid : numericError !== null;
   const footer = (
     <View>
       {showSummary ? confirmation : null}
@@ -931,21 +942,21 @@ function OnboardingFlow({
       <Pressable
         accessibilityRole="button"
         accessibilityState={{
-          disabled: showSummary ? !costsConfirmed || !allNumbersValid : numericError !== null,
+          disabled: primaryDisabled,
         }}
-        disabled={showSummary ? !costsConfirmed || !allNumbersValid : numericError !== null}
+        disabled={primaryDisabled}
         onPress={showSummary ? done : handlePrimary}
         style={[
           s.primary,
           {
             marginTop: gap.xs,
-            opacity: (showSummary ? !costsConfirmed || !allNumbersValid : numericError !== null)
-              ? 0.45
-              : 1,
+            backgroundColor: primaryDisabled ? t.surface : t.calm,
+            borderColor: t.hairline,
+            borderWidth: 1,
           },
         ]}
       >
-        <Text style={s.primaryLabel}>
+        <Text style={[s.primaryLabel, { color: primaryDisabled ? t.muted : t.inverse }]}>
           {showSummary
             ? isReturning
               ? 'Save changes'
@@ -1161,6 +1172,7 @@ function OnboardingFlow({
                 accessibilityLabel={`Exact ${extra.eyebrow.toLowerCase()} amount`}
               />
               <FolioSlider
+                hidden={keyboardOpen}
                 min={extra.min}
                 max={extra.max}
                 step={extra.step}
@@ -1231,6 +1243,7 @@ function OnboardingFlow({
                   />
                   {paydayInputValue === undefined ? null : (
                     <FolioSlider
+                      hidden={keyboardOpen}
                       min={PAYDAY_MIN}
                       max={PAYDAY_MAX}
                       step={PAYDAY_STEP}
@@ -1312,6 +1325,7 @@ function OnboardingFlow({
                 accessibilityLabel={`Exact income${incomeRange.unit}`}
               />
               <FolioSlider
+                hidden={keyboardOpen}
                 min={incomeRange.min}
                 max={incomeRange.max}
                 step={incomeRange.step}
@@ -1354,6 +1368,7 @@ function OnboardingFlow({
                 accessibilityLabel="Exact current account balance"
               />
               <FolioSlider
+                hidden={keyboardOpen}
                 min={BALANCE_MIN}
                 max={BALANCE_MAX}
                 step={BALANCE_STEP}
@@ -1414,6 +1429,7 @@ function OnboardingFlow({
                 accessibilityLabel="Exact weekly essential living allowance"
               />
               <FolioSlider
+                hidden={keyboardOpen}
                 min={0}
                 max={500}
                 step={5}
@@ -1449,6 +1465,7 @@ function OnboardingFlow({
                 accessibilityLabel="Exact protected cash buffer"
               />
               <FolioSlider
+                hidden={keyboardOpen}
                 min={0}
                 max={1000}
                 step={10}
@@ -1497,6 +1514,7 @@ function OnboardingFlow({
                 accessibilityLabel="Exact recurring commitment amount"
               />
               <FolioSlider
+                hidden={keyboardOpen}
                 min={0}
                 max={COMMITMENT_MAX}
                 step={COMMITMENT_STEP}
@@ -1527,6 +1545,7 @@ function OnboardingFlow({
               />
               {commitmentDayValue === undefined ? null : (
                 <FolioSlider
+                  hidden={keyboardOpen}
                   min={1}
                   max={31}
                   step={1}
@@ -1690,6 +1709,7 @@ function PotTile({
 // ---------------------------------------------------------------------------
 
 function FolioSlider({
+  hidden = false,
   min,
   max,
   step,
@@ -1698,6 +1718,7 @@ function FolioSlider({
   palette: t,
   accessibilityLabel,
 }: {
+  hidden?: boolean;
   min: number;
   max: number;
   step: number;
@@ -1742,6 +1763,10 @@ function FolioSlider({
   });
 
   const thumbLeft = ratio * usable;
+
+  // The exact field owns input while the keyboard is open. Restore the rough
+  // adjustment slider after typing so it cannot crowd the helper or primary action.
+  if (hidden) return null;
 
   return (
     <View

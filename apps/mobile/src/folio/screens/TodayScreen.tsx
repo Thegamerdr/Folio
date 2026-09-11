@@ -92,7 +92,7 @@ import {
   formatMoney,
   financialAmountLabel,
 } from '@/folio/lib/financialPresentation';
-import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
+import { TodaySetupPreview } from '@/folio/ui/TodaySetupPreview';
 import { shouldStackTextRows } from '@/folio/lib/readableLayout';
 
 import { derivePressure } from './today/pressure';
@@ -518,18 +518,7 @@ export function TodayScreen({
     return <TodayFirstRun nav={nav} />;
   }
   if (!financePresentation.complete || !financialPlan?.nextIncomeDate) {
-    return (
-      <View style={[styles.root, { padding: gap.lg, paddingTop: insets.top + gap.lg }]}>
-        <ScrollView>
-          <FinancialSetupNotice
-            state={appState}
-            plan={financialPlan}
-            onSetup={() => nav.openSheet('onboarding')}
-          />
-          <TodayRecentTxns nav={nav} />
-        </ScrollView>
-      </View>
-    );
+    return <TodaySetupPreview state={appState} plan={financialPlan} nav={nav} />;
   }
 
   return (

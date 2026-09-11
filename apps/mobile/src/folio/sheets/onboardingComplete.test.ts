@@ -23,7 +23,11 @@ import {
   setSubs,
 } from '../store';
 import { monthlyEquivalent } from '../lib/driftSignals';
-import { commitOnboarding, skipOnboardingForNow } from '../lib/onboardingMutations';
+import {
+  commitOnboarding,
+  isOnboardingFirstRun,
+  skipOnboardingForNow,
+} from '../lib/onboardingMutations';
 import { PERSONAL_WORKSPACE_ID } from '../lib/workspaceRoot';
 
 // Reset to the demo seed before each test so we always start in the PRE-ONBOARDING regime that
@@ -692,5 +696,19 @@ describe('OnboardingSheet returning workspace safety', () => {
     skipOnboardingForNow();
     expect(getState().transactions).toEqual(before.transactions);
     expect(getState().onboarding).toEqual(before.onboarding);
+  });
+});
+
+describe('explicit setup after clearing', () => {
+  it('opens the first-run sequence after clear retained the completion flag', () => {
+    resetToEmpty();
+    expect(getState().onboarding.done).toBe(true);
+    expect(isOnboardingFirstRun(getState())).toBe(true);
+  });
+
+  it('keeps a confirmed zero-income setup in the returning editor', () => {
+    resetToEmpty();
+    setOnboarding({ done: true, financialSetupConfirmed: true, monthlyIncome: 0 });
+    expect(isOnboardingFirstRun(getState())).toBe(false);
   });
 });

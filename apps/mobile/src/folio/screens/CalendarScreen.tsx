@@ -1437,9 +1437,16 @@ function MonthView({
       {/* Spare-line sparkline — where the dip is. Only with more than one point. */}
       {spareLine.length > 1 ? (
         <View style={layout.sparkBlock}>
-          <View style={layout.trendHead}>
+          <View
+            style={[
+              layout.trendHead,
+              { flexDirection: 'column', alignItems: 'flex-start', gap: 4 },
+            ]}
+          >
             <Text style={s.trendLabel}>Projected balance</Text>
-            <Text style={s.trendRange}>low {formatGBP(minS)}</Text>
+            <Text style={s.trendRange}>
+              Lowest in {monthLabel}: {formatGBP(minS)}
+            </Text>
           </View>
           <Sparkline values={spareLine} height={20} strokeWidth={1.2} color={t.calm} />
         </View>

@@ -1056,7 +1056,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             <Stat n={transactionsCount} label="transactions" />
             {/* Honest label — imports can be pdf/photo/paste/csv, not only "statements" in the
                 narrow sense (task: coherence-fix stopgap ahead of the full accounts model). */}
-            <Stat n={statementImportsCount} label="Imports" />
+            <Stat n={statementImportsCount} label="statements added" />
             {isBusiness ? <Stat n={accounts.length} label="accounts" /> : null}
             {!isBusiness ? <Stat n={subsCount} label="Bills" /> : null}
             {!isBusiness ? <Stat n={potsCount} label="pots" /> : null}

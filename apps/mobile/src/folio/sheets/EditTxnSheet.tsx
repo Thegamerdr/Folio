@@ -913,8 +913,8 @@ function EditTxnForm({
               </Pressable>
             </View>
             <Text style={s.evidencePrivacy}>
-              Attachments are encrypted separately from the transaction. Selecting one never changes
-              the money record.
+              Keep a receipt or statement with this entry. Selecting a file does not change the
+              money record.
             </Text>
           </View>
 

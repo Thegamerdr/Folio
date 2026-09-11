@@ -39,7 +39,7 @@ import {
   formatMoney,
   financialAmountLabel,
 } from '@/folio/lib/financialPresentation';
-import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
+import { TodaySetupPreview } from '@/folio/ui/TodaySetupPreview';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { useMeloOpener } from '@/folio/lib/useMeloOpener';
 import { useChartStyle, type ChartStyle } from '@/folio/lib/chartStyle';
@@ -1005,31 +1005,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
   if (!hasConfiguredMoneyPicture(appState)) return <TodayFirstRun nav={nav} />;
 
   if (!financePresentation.complete || !canonicalPlan?.nextIncomeDate) {
-    return (
-      <ScrollView
-        style={s.root}
-        contentContainerStyle={[s.scrollContent, { paddingHorizontal: gap.lg, paddingTop: gap.md }]}
-      >
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => nav.openSheet('lens-picker')}
-          style={{ minHeight: 48, justifyContent: 'center' }}
-        >
-          <Text style={{ color: t.ink, fontFamily: serif.displayItalic, fontSize: 17 }}>
-            Today · change {moneyMode} lens
-          </Text>
-        </Pressable>
-        <View style={{ marginTop: gap.lg }}>
-          <Melo size={52} mood="curious" />
-        </View>
-        <FinancialSetupNotice
-          state={appState}
-          plan={canonicalPlan}
-          onSetup={() => nav.openSheet('onboarding')}
-        />
-        <TodayRecentTxns nav={nav} />
-      </ScrollView>
-    );
+    return <TodaySetupPreview state={appState} plan={canonicalPlan} nav={nav} />;
   }
 
   return (

@@ -97,7 +97,13 @@ export type OnboardingCommitInput = Readonly<{
 /** Shared first-run/returning classifier for the sheet and its mutations. */
 export function isOnboardingFirstRun(state: AppState): boolean {
   const legacySample = state.currentBalance.source === 'sample' && !isRealUser(state);
-  return legacySample || (!state.onboarding.done && !hasConfiguredMoneyPicture(state));
+  // Clearing preserves the completion flag to avoid reopening setup automatically.
+  // An explicit Add my numbers action must still start a fresh setup when the
+  // financial picture and its confirmation have both been cleared.
+  return (
+    legacySample ||
+    (state.onboarding.financialSetupConfirmed !== true && !hasConfiguredMoneyPicture(state))
+  );
 }
 
 /**
