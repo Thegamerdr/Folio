@@ -378,7 +378,12 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
             <Text style={[styles.sectionHint, { color: t.muted }]}>From your numbers</Text>
           </View>
           <View style={styles.plumageRow}>
-            <Text style={[styles.plumageWord, { color: t.ink }]}>
+            <Text
+              style={[
+                styles.plumageWord,
+                { color: t.ink, textTransform: health.scored ? 'capitalize' : 'none' },
+              ]}
+            >
               {health.scored ? plumage : health.presentation.label}
             </Text>
             {health.scored ? (
