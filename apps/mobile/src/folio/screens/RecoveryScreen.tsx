@@ -546,7 +546,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             }}
           >
             {needsSetup
-              ? 'Find a way through a shortfall'
+              ? 'Compare your recovery options'
               : presentation.overdueCount
                 ? 'Check overdue payments'
                 : 'No gap in the current plan'}
