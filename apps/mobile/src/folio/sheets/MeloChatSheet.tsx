@@ -727,6 +727,11 @@ function MeloChat({
   }
 
   const showEmpty = messages.length === 0 && !isLoading;
+  // The opening money question remains readable while its first reply is being typed.
+  const typingContext =
+    keyboardVisible && messages.length === 1 && messages[0]?.id.startsWith('seed-')
+      ? partsToText(messages[0])
+      : null;
 
   return (
     <View style={s.body}>
@@ -810,15 +815,22 @@ function MeloChat({
         </View>
       ) : null}
 
+      {typingContext ? (
+        <View style={{ flexShrink: 0, paddingVertical: gap.sm }}>
+          <Text style={{ color: t.ink, fontSize: 14, lineHeight: 20 }}>{typingContext}</Text>
+        </View>
+      ) : null}
       {/* Transcript */}
-      <View style={[s.transcript, showEmpty && keyboardVisible ? { flex: 0 } : undefined]}>
+      <View
+        style={[
+          s.transcript,
+          (showEmpty && keyboardVisible) || typingContext ? { flex: 0 } : undefined,
+        ]}
+      >
         <ScrollView
           ref={scrollRef}
           style={s.scroll}
-          contentContainerStyle={[
-            s.scrollContent,
-            { paddingBottom: composerHeight + (hasDraft ? draftHeight : 0) + gap.md },
-          ]}
+          contentContainerStyle={[s.scrollContent, { paddingBottom: gap.md }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           scrollEventThrottle={16}
@@ -849,7 +861,7 @@ function MeloChat({
             </View>
           ) : null}
 
-          {messages.map((m) => {
+          {(typingContext ? [] : messages).map((m) => {
             const text = partsToText(m);
             const followUpChips = filterMeloFollowUpChips(m.actions ?? [], m.followUpChips ?? []);
             if (m.role === 'user') {

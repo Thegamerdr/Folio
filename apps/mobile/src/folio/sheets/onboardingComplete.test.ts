@@ -76,6 +76,51 @@ function completeOnboarding(input: {
   });
 }
 
+describe('returning setup pot corrections', () => {
+  const input = {
+    name: 'Ada',
+    payday: 28,
+    monthlyIncome: 1800,
+    balance: 1800,
+    pickedPots: [],
+    cadence: 'monthly' as const,
+    anchorISO: '2026-09-01',
+    legacyPayday: 28,
+    intentMode: 'survival' as const,
+    modeExtra: 200,
+  };
+  beforeEach(() => {
+    setCurrentBalance({ amount: 1800, source: 'user-entered', confidence: 'rough' });
+    setOnboarding({ name: 'Ada', done: true, financialSetupConfirmed: true });
+    setPots([
+      { id: 'custom-holiday', name: 'Holiday', goal: 600, perWeek: 10, saved: 125, accent: true },
+      { id: 'repairs', name: 'Repairs', goal: 300, perWeek: 5, saved: 40, accent: false },
+    ]);
+  });
+  it('edits a custom pot without moving cash, resetting deposits or replacing other pots/history', () => {
+    const before = getState();
+    commitOnboarding({ ...input, potEdits: [{ id: 'custom-holiday', goal: 800, perWeek: 0 }] });
+    const after = getState();
+    expect(after.pots).toEqual([{ ...before.pots[0], goal: 800, perWeek: 0 }, before.pots[1]]);
+    expect(after.currentBalance).toEqual(before.currentBalance);
+    expect(after.transactions).toEqual(before.transactions);
+  });
+  it('leaves existing pots untouched when the editor did not submit pot changes', () => {
+    const before = getState().pots;
+    commitOnboarding(input);
+    expect(getState().pots).toEqual(before);
+  });
+  it.each([
+    { id: 'custom-holiday', goal: 0, perWeek: 10 },
+    { id: 'custom-holiday', goal: 800, perWeek: -1 },
+    { id: 'removed-pot', goal: 800, perWeek: 10 },
+  ])('rejects an invalid or removed pot before saving other fields: %j', (edit) => {
+    const before = getState();
+    expect(() => commitOnboarding({ ...input, name: 'Must not save', potEdits: [edit] })).toThrow();
+    expect(getState()).toEqual(before);
+  });
+});
+
 describe('OnboardingSheet complete → clean app (demo is pre-onboarding only)', () => {
   it('starts from the demo regime before onboarding completes', () => {
     // Sanity: the pre-onboarding state IS the demo — seeded data + a sample balance + not-done.

@@ -80,6 +80,8 @@ export type OnboardingCommitInput = Readonly<{
   monthlyIncome: number;
   balance: number;
   pickedPots: ReadonlyArray<Omit<Pot, 'saved'>>;
+  /** Explicit returning edits; deposits, identity and every other pot field are preserved. */
+  potEdits?: ReadonlyArray<Pick<Pot, 'id' | 'goal' | 'perWeek'>>;
   cadence: IncomeSource['cadence'];
   anchorISO: string;
   legacyPayday: number;
@@ -124,6 +126,22 @@ export function commitOnboarding(input: OnboardingCommitInput): void {
   const before = getState();
   const firstRun = isOnboardingFirstRun(before);
   const legacySample = before.currentBalance.source === 'sample' && !isRealUser(before);
+
+  if (!firstRun && input.potEdits !== undefined) {
+    for (const edit of input.potEdits) {
+      if (!before.pots.some((pot) => pot.id === edit.id)) {
+        throw new Error('A pot changed while this sheet was open. Reopen setup to review it.');
+      }
+      if (
+        !Number.isFinite(edit.goal) ||
+        edit.goal <= 0 ||
+        !Number.isFinite(edit.perWeek) ||
+        edit.perWeek < 0
+      ) {
+        throw new Error('Each pot needs a target above £0 and a weekly amount of £0 or more.');
+      }
+    }
+  }
 
   // Validate and prepare a returning bill edit before any other setter runs. This keeps a name
   // collision or an invalid future boundary from partially saving the editor's other fields.
@@ -214,6 +232,14 @@ export function commitOnboarding(input: OnboardingCommitInput): void {
   // untouched, while the explicit essentials/buffer/bundled-bill controls are durable corrections
   // to the same financial context used by Today and Plan.
   if (!firstRun) {
+    if (input.potEdits !== undefined) {
+      setPots((pots) =>
+        pots.map((pot) => {
+          const edit = input.potEdits?.find((item) => item.id === pot.id);
+          return edit ? { ...pot, goal: edit.goal, perWeek: edit.perWeek } : pot;
+        }),
+      );
+    }
     if (input.desiredBuffer !== undefined) setBufferAmount(input.desiredBuffer);
     if (input.weeklyEssentials !== undefined) setEssentialsWeeklyAmount(input.weeklyEssentials);
     if (input.balance !== before.currentBalance.amount) {

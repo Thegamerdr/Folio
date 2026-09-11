@@ -492,8 +492,7 @@ function OnboardingFlow({
     (st) => st.incomeSources?.find((source) => source.id === 'income-onboarding-pay') ?? null,
   );
   const isFirstRun = useAppStore(isOnboardingFirstRun);
-  // Returning users enter this sheet from "Payday and income". Keep only its owned fields in the
-  // step sequence; mode, balance and pots belong to other surfaces and are not silently discarded.
+  // Returning users review the same saved values, including existing pot targets and plans.
   const isReturning = !isFirstRun;
   const savedMode = useAppStore((st) => st.moneyMode ?? 'survival');
   const isDark = useIsDark();
@@ -531,7 +530,20 @@ function OnboardingFlow({
     INTENT_OPTIONS.find((option) => option.mode === savedMode)?.label ?? INTENT_OPTIONS[0]!.label,
   );
   const [name, setName] = useState(ob.name);
-  const [potAmounts, setPotAmounts] = useState<Record<string, PotAmounts>>({});
+  const potChoices: readonly PotTemplate[] = isReturning ? existingPots : POT_TEMPLATES;
+  const [potAmounts, setPotAmounts] = useState<Record<string, PotAmounts>>(() =>
+    isReturning
+      ? Object.fromEntries(
+          existingPots.map((pot) => [
+            pot.id,
+            {
+              goal: String(pot.goal),
+              perWeek: String(pot.perWeek),
+            },
+          ]),
+        )
+      : {},
+  );
   const updatePotAmount = (id: string, field: keyof PotAmounts, value: string) =>
     setPotAmounts((previous) => ({
       ...previous,
@@ -601,14 +613,7 @@ function OnboardingFlow({
   const commitmentDayValue = parseDayOfMonth(commitmentDayInput);
   // Pots are optional. First-run choices begin empty; sample pots are never user consent.
   const [picked, setPicked] = useState<Set<string>>(
-    () =>
-      new Set(
-        isFirstRun
-          ? []
-          : existingPots
-              .map((p) => p.id)
-              .filter((id) => POT_TEMPLATES.some((tpl) => tpl.id === id)),
-      ),
+    () => new Set(isFirstRun ? [] : existingPots.map((p) => p.id)),
   );
 
   function togglePot(id: string) {
@@ -648,6 +653,15 @@ function OnboardingFlow({
         monthlyIncome: income,
         balance,
         pickedPots,
+        ...(isReturning
+          ? {
+              potEdits: existingPots.map((pot) => ({
+                id: pot.id,
+                goal: parseManualMoney(potAmounts[pot.id]?.goal ?? '')!,
+                perWeek: parseManualMoney(potAmounts[pot.id]?.perWeek ?? '', { allowZero: true })!,
+              })),
+            }
+          : {}),
         cadence,
         anchorISO,
         legacyPayday,
@@ -721,7 +735,7 @@ function OnboardingFlow({
   // Returning users keep the payday/income editor and can also correct the essentials, buffer and
   // bundled bill values that feed the shared plan. The first-run flow keeps all setup steps.
   const visibleStepIndices = isReturning
-    ? [0, STEP_CADENCE, STEP_PAYDAY, 5, STEP_BALANCE, STEP_ESSENTIALS, STEP_COMMITMENT]
+    ? [0, STEP_CADENCE, STEP_PAYDAY, 5, STEP_BALANCE, STEP_ESSENTIALS, STEP_COMMITMENT, STEP_POTS]
     : steps.map((_, i) => i);
   const activeStepIndex = visibleStepIndices[step] ?? 0;
   const current = steps[activeStepIndex] ?? steps[0];
@@ -780,13 +794,11 @@ function OnboardingFlow({
     setCostsConfirmed(false);
   }
 
-  const potsValid =
-    isReturning ||
-    [...picked].every(
-      (id) =>
-        parseManualMoney(potAmounts[id]?.goal ?? '') !== undefined &&
-        parseManualMoney(potAmounts[id]?.perWeek ?? '', { allowZero: true }) !== undefined,
-    );
+  const potsValid = [...picked].every(
+    (id) =>
+      parseManualMoney(potAmounts[id]?.goal ?? '') !== undefined &&
+      parseManualMoney(potAmounts[id]?.perWeek ?? '', { allowZero: true }) !== undefined,
+  );
   const numericError =
     activeStepIndex === STEP_POTS && !potsValid
       ? 'Add a target above £0 and a weekly amount for each selected pot, or deselect it.'
@@ -857,7 +869,8 @@ function OnboardingFlow({
                 : invalidReviewIndex === 5
                   ? 'Check the highlighted income amount before saving.'
                   : `Check the highlighted ${extra.eyebrow.toLowerCase()} amount before saving.`;
-  const selectedPotSummary = POT_TEMPLATES.filter((template) => picked.has(template.id))
+  const selectedPotSummary = potChoices
+    .filter((template) => picked.has(template.id))
     .map(
       (template) =>
         `${template.name} (${poundsTabular(parseManualMoney(potAmounts[template.id]?.goal ?? '') ?? 0)} goal · ${poundsTabular(parseManualMoney(potAmounts[template.id]?.perWeek ?? '', { allowZero: true }) ?? 0)}/wk)`,
@@ -905,9 +918,7 @@ function OnboardingFlow({
       value: `${money(Math.round(bundledCommitmentAmount * 100))} / month${bundledCommitmentAmount > 0 ? ` · due day ${commitmentDayInput}` : ' · none included'}`,
       index: STEP_COMMITMENT,
     },
-    ...(!isReturning
-      ? [{ label: 'Pots', value: selectedPotSummary || 'None selected', index: STEP_POTS }]
-      : []),
+    { label: 'Pots', value: selectedPotSummary || 'None selected', index: STEP_POTS },
   ];
   const confirmation = (
     <Pressable
@@ -1545,108 +1556,130 @@ function OnboardingFlow({
                 style={[s.nameInput, keyboardOpen ? { marginTop: gap.sm } : undefined]}
                 accessibilityLabel="Recurring commitment name"
               />
-              <View style={s.valueRow}>
-                <Text
-                  style={[s.bigValue, keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined]}
-                >
-                  {poundsTabular(bundledCommitmentAmount)}
+              <View style={keyboardOpen ? s.potAmountColumns : undefined}>
+                <View style={keyboardOpen ? s.potAmountColumn : undefined}>
+                  {keyboardOpen ? (
+                    <Text style={[s.help, { marginTop: gap.sm }]}>Monthly (£)</Text>
+                  ) : null}
+                  <View style={[s.valueRow, keyboardOpen ? { display: 'none' } : undefined]}>
+                    <Text
+                      style={[
+                        s.bigValue,
+                        keyboardOpen ? { fontSize: 24, lineHeight: 28 } : undefined,
+                      ]}
+                    >
+                      {poundsTabular(bundledCommitmentAmount)}
+                    </Text>
+                    <Text style={s.unit}>/ month</Text>
+                  </View>
+                  <TextInput
+                    value={commitmentInput}
+                    onBlur={() =>
+                      setCommitmentInput(
+                        normalizeManualMoneyDraft(commitmentInput, { allowZero: true }),
+                      )
+                    }
+                    selectTextOnFocus
+                    onChangeText={(value) => {
+                      setCommitmentInput(value);
+                      const parsed = parseManualMoney(value, { allowZero: true });
+                      if (parsed !== undefined) setBundledCommitmentAmount(parsed);
+                    }}
+                    keyboardType="decimal-pad"
+                    style={s.amountInput}
+                    accessibilityLabel="Exact recurring commitment amount"
+                  />
+                  <FolioSlider
+                    hidden={keyboardOpen}
+                    min={0}
+                    max={COMMITMENT_MAX}
+                    step={COMMITMENT_STEP}
+                    value={bundledCommitmentAmount}
+                    onChange={(value) => {
+                      setBundledCommitmentAmount(value);
+                      setCommitmentInput(String(value));
+                    }}
+                    palette={t}
+                    accessibilityLabel="Recurring commitment amount"
+                  />
+                </View>
+                <View style={keyboardOpen ? s.potAmountColumn : undefined}>
+                  {keyboardOpen ? (
+                    <Text style={[s.help, { marginTop: gap.sm }]}>Due day (1–31)</Text>
+                  ) : null}
+                  <View style={[s.valueRow, keyboardOpen ? { display: 'none' } : undefined]}>
+                    <Text style={s.dueLabel}>Due on day</Text>
+                    <Text style={s.dueValue}>{commitmentDayInput || '—'}</Text>
+                    <Text style={s.unit}>of each month</Text>
+                  </View>
+                  <TextInput
+                    value={commitmentDayInput}
+                    selectTextOnFocus
+                    onChangeText={(raw) => {
+                      setCommitmentDayInput(raw);
+                      const parsed = parseDayOfMonth(raw);
+                      if (parsed !== undefined) setBundledCommitmentDueDay(parsed);
+                    }}
+                    keyboardType="number-pad"
+                    style={s.amountInput}
+                    accessibilityLabel="Exact regular payment due day"
+                  />
+                  {commitmentDayValue === undefined ? null : (
+                    <FolioSlider
+                      hidden={keyboardOpen}
+                      min={1}
+                      max={31}
+                      step={1}
+                      value={bundledCommitmentDueDay}
+                      onChange={(value) => {
+                        setBundledCommitmentDueDay(value);
+                        setCommitmentDayInput(String(value));
+                      }}
+                      palette={t}
+                      accessibilityLabel="Recurring commitment day"
+                    />
+                  )}
+                </View>
+              </View>
+              {keyboardOpen ? (
+                <Text style={[s.help, { marginTop: gap.sm }]}>
+                  Monthly; shorter months use their last day. Not marked paid.
                 </Text>
-                <Text style={s.unit}>/ month</Text>
-              </View>
-              <TextInput
-                value={commitmentInput}
-                onBlur={() =>
-                  setCommitmentInput(
-                    normalizeManualMoneyDraft(commitmentInput, { allowZero: true }),
-                  )
-                }
-                selectTextOnFocus
-                onChangeText={(value) => {
-                  setCommitmentInput(value);
-                  const parsed = parseManualMoney(value, { allowZero: true });
-                  if (parsed !== undefined) setBundledCommitmentAmount(parsed);
-                }}
-                keyboardType="decimal-pad"
-                style={s.amountInput}
-                accessibilityLabel="Exact recurring commitment amount"
-              />
-              <FolioSlider
-                hidden={keyboardOpen}
-                min={0}
-                max={COMMITMENT_MAX}
-                step={COMMITMENT_STEP}
-                value={bundledCommitmentAmount}
-                onChange={(value) => {
-                  setBundledCommitmentAmount(value);
-                  setCommitmentInput(String(value));
-                }}
-                palette={t}
-                accessibilityLabel="Recurring commitment amount"
-              />
-              <View style={s.valueRow}>
-                <Text style={s.dueLabel}>Due on day</Text>
-                <Text style={s.dueValue}>{commitmentDayInput || '—'}</Text>
-                <Text style={s.unit}>of each month</Text>
-              </View>
-              <TextInput
-                value={commitmentDayInput}
-                selectTextOnFocus
-                onChangeText={(raw) => {
-                  setCommitmentDayInput(raw);
-                  const parsed = parseDayOfMonth(raw);
-                  if (parsed !== undefined) setBundledCommitmentDueDay(parsed);
-                }}
-                keyboardType="number-pad"
-                style={s.amountInput}
-                accessibilityLabel="Exact regular payment due day"
-              />
-              {commitmentDayValue === undefined ? null : (
-                <FolioSlider
-                  hidden={keyboardOpen}
-                  min={1}
-                  max={31}
-                  step={1}
-                  value={bundledCommitmentDueDay}
-                  onChange={(value) => {
-                    setBundledCommitmentDueDay(value);
-                    setCommitmentDayInput(String(value));
-                  }}
-                  palette={t}
-                  accessibilityLabel="Recurring commitment day"
-                />
-              )}
-              <Text style={s.help}>
+              ) : null}
+              <Text style={[s.help, keyboardOpen ? { display: 'none' } : undefined]}>
                 In shorter months, use the last day. This records when it is due; it does not mark a
                 payment as paid.
               </Text>
-              <Text style={s.help}>
+              <Text style={[s.help, keyboardOpen ? { display: 'none' } : undefined]}>
                 One bundled payment is fine. Add separate bills later from Plan.
               </Text>
             </View>
           ) : null}
 
-          {!isReturning && activeStepIndex === STEP_POTS ? (
+          {activeStepIndex === STEP_POTS ? (
             <View style={[s.fieldBlock, keyboardOpen ? { marginTop: gap.sm } : undefined]}>
               <Text style={[s.potsIntro, keyboardOpen ? { display: 'none' } : undefined]}>
-                Choose optional pots, then add your own target and weekly amount. Leave all
-                unselected to save your setup without pots. You can add pots later.
+                {isReturning
+                  ? 'Correct a target or weekly plan here. Saved deposits stay unchanged. Add or remove pots from Pots.'
+                  : 'Choose optional pots, then add your own target and weekly amount. Leave all unselected to save your setup without pots. You can add pots later.'}
               </Text>
               <View style={s.potGrid}>
-                {POT_TEMPLATES.filter(
-                  (tpl) => !keyboardOpen || focusedPot === null || tpl.id === focusedPot,
-                ).map((tpl) => (
-                  <PotTile
-                    key={tpl.id}
-                    template={tpl}
-                    selected={picked.has(tpl.id)}
-                    compact={keyboardOpen}
-                    onFocus={() => setFocusedPot(tpl.id)}
-                    amounts={potAmounts[tpl.id] ?? { goal: '', perWeek: '' }}
-                    onAmountChange={(field, value) => updatePotAmount(tpl.id, field, value)}
-                    onPress={() => togglePot(tpl.id)}
-                    styles={s}
-                  />
-                ))}
+                {potChoices
+                  .filter((tpl) => !keyboardOpen || focusedPot === null || tpl.id === focusedPot)
+                  .map((tpl) => (
+                    <PotTile
+                      key={tpl.id}
+                      template={tpl}
+                      selected={picked.has(tpl.id)}
+                      editableSelection={!isReturning}
+                      compact={keyboardOpen}
+                      onFocus={() => setFocusedPot(tpl.id)}
+                      amounts={potAmounts[tpl.id] ?? { goal: '', perWeek: '' }}
+                      onAmountChange={(field, value) => updatePotAmount(tpl.id, field, value)}
+                      onPress={() => togglePot(tpl.id)}
+                      styles={s}
+                    />
+                  ))}
               </View>
             </View>
           ) : null}
@@ -1718,6 +1751,7 @@ function ProgressPip({
 function PotTile({
   template,
   selected,
+  editableSelection = true,
   compact,
   onFocus,
   amounts,
@@ -1727,6 +1761,7 @@ function PotTile({
 }: {
   template: PotTemplate;
   selected: boolean;
+  editableSelection?: boolean;
   compact: boolean;
   onFocus: () => void;
   amounts: PotAmounts;
@@ -1742,17 +1777,25 @@ function PotTile({
         compact ? { padding: gap.sm } : undefined,
       ]}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ selected }}
-        onPress={onPress}
-        style={{ minHeight: 48, justifyContent: 'center' }}
-      >
-        <Text style={s.potName}>{template.name}</Text>
-        {!compact ? (
-          <Text style={s.potMeta}>{selected ? 'Selected · tap to remove' : 'Choose this pot'}</Text>
-        ) : null}
-      </Pressable>
+      {editableSelection ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected }}
+          onPress={onPress}
+          style={{ minHeight: 48, justifyContent: 'center' }}
+        >
+          <Text style={s.potName}>{template.name}</Text>
+          {!compact ? (
+            <Text style={s.potMeta}>
+              {selected ? 'Selected · tap to remove' : 'Choose this pot'}
+            </Text>
+          ) : null}
+        </Pressable>
+      ) : (
+        <View style={{ minHeight: 48, justifyContent: 'center' }}>
+          <Text style={s.potName}>{template.name}</Text>
+        </View>
+      )}
       {selected ? (
         <View style={compact ? s.potAmountColumns : undefined}>
           <View style={compact ? s.potAmountColumn : undefined}>

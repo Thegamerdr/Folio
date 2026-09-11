@@ -220,7 +220,8 @@ export function GuidedCheckInScreen({ nav, state = 'populated' }: GuidedCheckInS
               value={value}
               onChangeText={setValue}
               keyboardType="decimal-pad"
-              selectTextOnFocus
+              // Android can defer select-all on an empty field until the first character
+              // arrives, causing the second key to replace it. Keep the normal caret.
               maxFontSizeMultiplier={1.35}
               style={[styles.amount, { color: t.ink, flex: 1, minHeight: 56, paddingVertical: 8 }]}
             />
