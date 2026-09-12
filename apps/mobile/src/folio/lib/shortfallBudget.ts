@@ -52,14 +52,12 @@ export function selectShortfallCause(args: {
         const decisiveEvents = protectedEvents.filter(
           (candidate) => Math.abs(candidate.amount ?? 0) >= args.gap,
         );
-        const lowDateDecisiveEvents = decisiveEvents.filter((candidate) => candidate.date === date);
         // A row is explanatory only when removing its recorded outflow could close the current
         // protected gap. This preserves a single decisive payment when smaller rows also exist,
         // while refusing to name a small payment as the cause of a larger buffer gap or choosing
-        // between several decisive payments.
-        return decisiveEvents.length === 1 && lowDateDecisiveEvents.length === 1
-          ? (lowDateDecisiveEvents[0] ?? null)
-          : null;
+        // between several decisive payments. The decisive event may be overdue or land on the
+        // preceding day; WHEN remains the canonical low date independently.
+        return decisiveEvents.length === 1 ? (decisiveEvents[0] ?? null) : null;
       })()
     : null;
   return { date, event };

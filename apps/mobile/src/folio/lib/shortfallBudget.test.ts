@@ -175,7 +175,7 @@ describe('shortfall cause projection', () => {
       calendarEvents: [
         {
           id: 'gap-before-payday',
-          date: '2026-09-14',
+          date: '2026-09-13',
           kind: 'out',
           title: 'Recovery Gap2',
           amount: -1500,
