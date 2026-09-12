@@ -691,8 +691,33 @@ export function Sheet({
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="none"
                   automaticallyAdjustKeyboardInsets={false}
-                  onLayout={keepFocusedInputVisible}
-                  onContentSizeChange={keepFocusedInputVisible}
+                  onLayout={(event) => {
+                    keepFocusedInputVisible();
+                    if (captureMode && scrollKey !== undefined) {
+                      console.info(
+                        'MeloSheetGeometry',
+                        JSON.stringify({
+                          event: 'body-layout',
+                          step: scrollKey,
+                          ...event.nativeEvent.layout,
+                        }),
+                      );
+                    }
+                  }}
+                  onContentSizeChange={(widthValue, heightValue) => {
+                    keepFocusedInputVisible();
+                    if (captureMode && scrollKey !== undefined) {
+                      console.info(
+                        'MeloSheetGeometry',
+                        JSON.stringify({
+                          event: 'content-size',
+                          step: scrollKey,
+                          width: widthValue,
+                          height: heightValue,
+                        }),
+                      );
+                    }
+                  }}
                   onScroll={(event) => {
                     scrollY.current = event.nativeEvent.contentOffset.y;
                     if (captureMode && scrollKey !== undefined) {
@@ -715,6 +740,18 @@ export function Sheet({
                     ref={contentRef}
                     collapsable={false}
                     onFocus={settleFocusedInput}
+                    onLayout={(event) => {
+                      if (captureMode && scrollKey !== undefined) {
+                        console.info(
+                          'MeloSheetGeometry',
+                          JSON.stringify({
+                            event: 'content-layout',
+                            step: scrollKey,
+                            ...event.nativeEvent.layout,
+                          }),
+                        );
+                      }
+                    }}
                     style={{ flexShrink: 0, width: '100%' }}
                   >
                     {bodyContentInset > 0 ? (

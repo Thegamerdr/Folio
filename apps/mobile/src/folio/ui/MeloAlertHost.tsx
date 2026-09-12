@@ -7,6 +7,22 @@ import { dismissMeloAlert, getMeloAlert, pressMeloAlert, subscribeMeloAlert } fr
 export function MeloAlertHost() {
   const current = useSyncExternalStore(subscribeMeloAlert, getMeloAlert, getMeloAlert);
   const t = useTheme();
+  const captureMode = process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true';
+  const logTextLayout = (
+    role: 'title' | 'message',
+    event: { nativeEvent: { layout: { x: number; y: number; width: number; height: number } } },
+  ) => {
+    if (!captureMode) return;
+    console.info(
+      'MeloSheetGeometry',
+      JSON.stringify({
+        event: 'alert-text-layout',
+        step: 'melo-alert',
+        role,
+        ...event.nativeEvent.layout,
+      }),
+    );
+  };
   useEffect(() => {
     if (!current) return;
     Keyboard.dismiss();
@@ -25,6 +41,7 @@ export function MeloAlertHost() {
       dismissible={current.options?.cancelable !== false}
       onClose={() => dismissMeloAlert(current.id)}
       bodyContentInset={gap.lg}
+      {...(captureMode ? { scrollKey: 'melo-alert' } : {})}
       footer={
         <View style={styles.actions}>
           {current.buttons.map((button, index) => (
@@ -49,11 +66,20 @@ export function MeloAlertHost() {
         </View>
       }
     >
-      <Text accessibilityRole="header" style={[styles.title, { color: t.ink }]}>
+      <Text
+        accessibilityRole="header"
+        onLayout={captureMode ? (event) => logTextLayout('title', event) : undefined}
+        style={[styles.title, { color: t.ink }]}
+      >
         {current.title}
       </Text>
       {current.message ? (
-        <Text style={[styles.message, { color: t.muted }]}>{current.message}</Text>
+        <Text
+          onLayout={captureMode ? (event) => logTextLayout('message', event) : undefined}
+          style={[styles.message, { color: t.muted }]}
+        >
+          {current.message}
+        </Text>
       ) : null}
     </Sheet>
   );
