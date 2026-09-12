@@ -1,6 +1,13 @@
 import type { RouteResult } from './moneyPath';
 import type { DerivedEvent } from './calendarEvents';
 
+const REAL_OUTGOING_SOURCES: readonly DerivedEvent['source'][] = [
+  'bill',
+  'sub',
+  'manual',
+  'history',
+];
+
 /** Recovery uses current cash after obligations, living costs and the protected buffer.
  * `spare` is forecast closing cash ON payday, including that future receipt, so it cannot fund
  * discretionary spending before payday. Keep the gap exact; only the approximate daily guide rounds down.
@@ -30,7 +37,8 @@ export function selectShortfallCause(args: {
         (candidate) =>
           candidate.date === date &&
           candidate.amount !== undefined &&
-          candidate.amount < 0,
+          candidate.amount < 0 &&
+          REAL_OUTGOING_SOURCES.includes(candidate.source),
       )
       .sort((left, right) => Math.abs(right.amount ?? 0) - Math.abs(left.amount ?? 0))[0] ?? null;
   return { date, event };

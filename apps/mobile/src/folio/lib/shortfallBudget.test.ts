@@ -155,9 +155,18 @@ describe('shortfall cause projection', () => {
     const state: AppState = {
       ...base,
       accounts: [],
-      currentBalance: { ...base.currentBalance, amount: 1000 },
-      onboarding: { ...base.onboarding, done: true, monthlyIncome: 1000, payday: 15 },
-      incomeSources: [],
+      currentBalance: { ...base.currentBalance, amount: 1680 },
+      onboarding: { ...base.onboarding, done: true, monthlyIncome: 400, payday: 15 },
+      incomeSources: [
+        {
+          id: 'payday',
+          label: 'Income',
+          amount: 400,
+          cadence: 'monthly',
+          dayOfMonth: 15,
+          source: 'manual',
+        },
+      ],
       transactions: [],
       calendarEvents: [
         {
@@ -168,28 +177,42 @@ describe('shortfall cause projection', () => {
           amount: -1500,
         },
         {
-          id: 'later-bill',
+          id: 'gap-bill',
           date: '2026-09-24',
           kind: 'out',
-          title: 'Later bill',
-          amount: -160,
+          title: 'GapBill',
+          amount: -1800,
         },
       ],
       subs: [],
       subPaused: {},
       subOverrides: {},
-      pots: [],
+      pots: [
+        {
+          id: 'protected-buffer',
+          name: 'Protected buffer',
+          saved: 340,
+          goal: 340,
+          perWeek: 0,
+          accent: false,
+          cadence: { kind: 'after-payday' },
+        },
+      ],
       debts: [],
       bufferAmount: 0,
       whatIfHolds: [],
       spendHold: null,
     };
-    const model = buildCalendarPresentation(state, new Date('2026-09-12T12:00:00Z'));
+    const now = new Date('2026-09-12T12:00:00Z');
+    const model = buildCalendarPresentation(state, now);
+    const route = routeFromStore(state, now);
     const selected = selectShortfallCause({
-      routeDate: '2026-09-24',
+      routeDate: route.tightPoint.date,
       lowestBeforeIncomeDate: model.lowestBeforeIncome.date,
       events: model.events,
     });
+    expect(route.safeToSpend).toBe(-160);
+    expect(route.tightPoint.date).toBe('2026-09-24');
     expect(model.lowestBeforeIncome.date).toBe('2026-09-14');
     expect(selected).toMatchObject({ date: '2026-09-14' });
     expect(selected.event).toMatchObject({ title: 'Recovery Gap 2', amount: -1500 });
@@ -225,7 +248,7 @@ describe('shortfall cause projection', () => {
     ).toEqual({ date: '2026-09-14', event: null });
   });
 
-  it('selects an overdue matching outflow while keeping unrelated and non-outflow events out', () => {
+  it('selects a real overdue bill outflow while keeping unrelated and non-outgoing events out', () => {
     const overdue = {
       id: 'overdue',
       date: '2026-09-14',
@@ -233,6 +256,7 @@ describe('shortfall cause projection', () => {
       source: 'bill' as const,
       title: 'Overdue bill',
       amount: -200,
+      note: 'Overdue · still reserved until confirmed paid',
     };
     const selected = selectShortfallCause({
       routeDate: '2026-09-24',
@@ -250,5 +274,17 @@ describe('shortfall cause projection', () => {
       ],
     });
     expect(selected.event).toEqual(overdue);
+  });
+
+  it('does not call protected pot or hold deductions an outgoing cause', () => {
+    const selected = selectShortfallCause({
+      routeDate: '2026-09-14',
+      lowestBeforeIncomeDate: '2026-09-14',
+      events: [
+        { id: 'pot', date: '2026-09-14', kind: 'out', source: 'pot', title: 'Buffer', amount: -340 },
+        { id: 'hold', date: '2026-09-14', kind: 'out', source: 'hold', title: 'Protected costs', amount: -20 },
+      ],
+    });
+    expect(selected).toEqual({ date: '2026-09-14', event: null });
   });
 });
