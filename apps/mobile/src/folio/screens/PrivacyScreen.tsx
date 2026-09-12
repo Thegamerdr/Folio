@@ -704,11 +704,13 @@ const styles = StyleSheet.create({
   headlineBlock: {
     marginTop: gap.xl + gap.lg,
   },
-  // Fraunces headline, 36px, tight line-height (web font-display text-[36px] leading-[1.05]).
+  // Privacy heading: preserve the single native heading node while allowing the
+  // full 36/44 glyph box (including descenders) to participate in intrinsic layout.
   headline: {
     fontFamily: serif.display,
     fontSize: 36,
-    lineHeight: 38,
+    lineHeight: 44,
+    includeFontPadding: true,
   },
   // The accent word "your call." stays UPRIGHT (web em.not-italic) — same display face, terracotta.
   headlineAccent: {
