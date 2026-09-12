@@ -524,6 +524,18 @@ function OnboardingFlow({
     INTENT_OPTIONS.find((option) => option.mode === savedMode)?.label ?? INTENT_OPTIONS[0]!.label,
   );
   const [name, setName] = useState(ob.name);
+  const [nameQuestionHeight, setNameQuestionHeight] = useState(0);
+  const [nameHelperHeight, setNameHelperHeight] = useState(0);
+  const [nameFocused, setNameFocused] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
+  useEffect(() => {
+    const shown = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, []);
   const potChoices: readonly PotTemplate[] = isReturning ? existingPots : POT_TEMPLATES;
   const [potAmounts, setPotAmounts] = useState<Record<string, PotAmounts>>(() =>
     isReturning
@@ -801,6 +813,8 @@ function OnboardingFlow({
   // Both reviews expose every saved setting. Returning edits still go straight back to summary.
   const visibleStepIndices = steps.map((_, i) => i);
   const activeStepIndex = visibleStepIndices[step] ?? 0;
+  const isNameStep = activeStepIndex === 0;
+  const compactName = isNameStep && nameFocused && keyboardVisible;
   const current = steps[activeStepIndex] ?? steps[0];
   const isLast = step === visibleStepIndices.length - 1;
   // MELO_MOODS.md: the middle steps read calm; the pot picker reads curious; a completed onboarding
@@ -1106,6 +1120,7 @@ function OnboardingFlow({
         onPress={showSummary ? done : handlePrimary}
         style={[
           s.primary,
+          compactName ? s.namePrimary : null,
           {
             marginTop: gap.xs,
             backgroundColor: primaryDisabled ? t.inset : t.calm,
@@ -1199,8 +1214,13 @@ function OnboardingFlow({
       onClose={onClose}
       reduceMotion={reduceMotion}
       scrollKey={step}
-      focusContextBefore={48}
-      bodyContentInset={34 * fontScale}
+      // Name is the only pictured text-IME state. Keep the complete question in the
+      // compact viewport while the fixed footer reserves the action area above the IME.
+      focusContextBefore={compactName && nameQuestionHeight > 0 ? nameQuestionHeight + gap.xl : 48}
+      focusContextAfter={
+        compactName && nameHelperHeight > 0 ? nameHelperHeight + gap.sm + gap.md : 0
+      }
+      bodyContentInset={compactName ? 0 : 34 * fontScale}
       footer={footer}
       header={
         <View
@@ -1238,7 +1258,15 @@ function OnboardingFlow({
         </View>
 
         {/* Headline — one terracotta-italic accent run carved into the Fraunces line. */}
-        <Text style={[s.headline]} accessibilityRole="header">
+        <Text
+          style={[s.headline]}
+          accessibilityRole="header"
+          onLayout={(event) => {
+            if (!isNameStep) return;
+            const height = event.nativeEvent.layout.height;
+            setNameQuestionHeight((previous) => (previous === height ? previous : height));
+          }}
+        >
           {current.head.lead}
           <Text style={s.headlineAccent}>{current.head.accent}</Text>
           {current.head.tail}
@@ -1258,9 +1286,11 @@ function OnboardingFlow({
               onChangeText={setName}
               placeholder={copy.onb[1].placeholder}
               placeholderTextColor={t.muted}
-              style={[s.nameInput]}
+              style={[s.nameInput, compactName ? s.nameImeInput : null]}
               accessibilityLabel="Your name"
               returnKeyType="next"
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => setNameFocused(false)}
             />
           ) : null}
 
@@ -1799,7 +1829,14 @@ function OnboardingFlow({
           ) : null}
         </Animated.View>
 
-        <Text style={[s.footer]}>
+        <Text
+          style={[s.footer, compactName ? s.nameHelper : null]}
+          onLayout={(event) => {
+            if (!isNameStep) return;
+            const height = event.nativeEvent.layout.height;
+            setNameHelperHeight((previous) => (previous === height ? previous : height));
+          }}
+        >
           {isReturning
             ? 'Cancel keeps everything you’ve already added unchanged.'
             : activeStepIndex === 0
@@ -2288,6 +2325,13 @@ function makeStyles(t: Palette, fontScale: number) {
       marginTop: gap.lg + gap.xs,
       paddingHorizontal: gap.lg,
     },
+    nameImeInput: {
+      minHeight: gap.xxxl + gap.xxs, // 52 — grows with text
+      marginTop: gap.xl, // question bottom → field top: 24dp
+    },
+    nameHelper: {
+      marginTop: gap.sm, // field bottom → helper top: 8dp
+    },
     pips: {
       flexDirection: 'row',
       gap: gap.xs + gap.xxs, // 6 — web gap-1.5
@@ -2343,6 +2387,9 @@ function makeStyles(t: Palette, fontScale: number) {
       minHeight: gap.xxxl, // 48 — grows with text
       justifyContent: 'center',
       marginTop: gap.xl,
+    },
+    namePrimary: {
+      minHeight: gap.xxxl + gap.xxs, // 52dp minimum while the name IME is open
     },
     primaryLabel: {
       // The web uses literal text-white on the accent fill; t.inverse is the kit's canonical
