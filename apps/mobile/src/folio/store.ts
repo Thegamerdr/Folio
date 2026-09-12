@@ -32,6 +32,14 @@ import {
 import { dedupeKey } from '../local/statementReaderDedup';
 import { readCacheEvictions, READ_CACHE_MAX_CANDIDATES } from './lib/billing/readAllowance';
 import { anchorIsoFor, reanchorRenewals } from './lib/renewalMath';
+import {
+  createSubscriptionIdentity,
+  ensureSubscriptionIds,
+  migrateLegacySubscriptionState,
+  subscriptionKey,
+  subscriptionOverride,
+  subscriptionPaused,
+} from './lib/subscriptionIdentity';
 import { localDayKey } from './lib/dayClock';
 import { retainTimelineEvents } from './lib/timelineRetention';
 import { applyTxnEdit, type TxnEdit, type TxnEditPatch } from './lib/editTxn';
@@ -152,6 +160,8 @@ export type Pot = {
 };
 
 export type Sub = {
+  /** Immutable native identity. Optional only for legacy in-memory fixtures/blobs. */
+  id?: string;
   /** Canonical display name — also the key used in `subPaused`. */
   name: string;
   workspaceId?: WorkspaceId;
@@ -192,6 +202,7 @@ export type Sub = {
 };
 
 export type CancelledSub = {
+  id?: string;
   name: string;
   workspaceId?: WorkspaceId;
   monthlyAmount: number;
@@ -1016,7 +1027,7 @@ export type MeloState = {
 const KEY = 'folio.state.v1';
 /** Current schema version. Bump on every breaking shape change and add
  *  a new entry to `MIGRATIONS` below. Never silently re-key existing data. */
-const CURRENT_SCHEMA_VERSION = 13;
+const CURRENT_SCHEMA_VERSION = 14;
 
 /** Non-optional fallback for `AppState.timelineEvents` — same widening issue as `DEFAULT_LENS`. */
 const DEFAULT_TIMELINE_EVENTS: TimelineEvent[] = [];
@@ -1312,6 +1323,11 @@ const MIGRATIONS: Record<number, (prev: Record<string, unknown>) => Record<strin
       prev['business'] as Partial<BusinessOperationsState> | null | undefined,
     ),
   }),
+  // v13 → v14: subscription rows now carry an immutable native identity when
+  // hydrated or created. ID assignment and legacy name-map migration happen
+  // after shipped seed cleanup in load(), so this marker never turns a demo
+  // row into durable user data and never guesses between duplicate names.
+  14: (prev) => ({ ...prev, schemaVersion: 14 }),
 };
 
 function migrate(parsed: Record<string, unknown>): Record<string, unknown> {
@@ -1652,11 +1668,9 @@ function load(): AppState {
       pots: Array.isArray(migrated.pots) ? migrated.pots : DEFAULTS.pots,
       // Date-anchor re-derivation (lib/renewalMath.ts): every hydration recomputes each sub's
       // relative day count from its persisted date anchor (synthesizing anchors for legacy
-      // subs), so `nextRenewalDaysAway` can never rot between sessions.
-      subs: reanchorRenewals(
-        Array.isArray(migrated.subs) ? migrated.subs : DEFAULTS.subs,
-        new Date().toISOString().slice(0, 10),
-      ).items,
+      // subs), so `nextRenewalDaysAway` can never rot between sessions. IDs are assigned after
+      // shipped-seed cleanup below; otherwise a removed demo row could become durable user data.
+      subs: Array.isArray(migrated.subs) ? migrated.subs : DEFAULTS.subs,
       subPaused: migrated.subPaused ?? {},
       subOverrides: migrated.subOverrides ?? {},
       cycles: Array.isArray(migrated.cycles) ? migrated.cycles : DEFAULTS.cycles,
@@ -1762,12 +1776,30 @@ function load(): AppState {
     // Remove recognized legacy sample rows on every load, including untouched old prototypes.
     // A real profile never doubles as a demo namespace. The cleanup preserves explicit user rows.
     const cleaned = stripSeedData(normaliseWorkspaceRows(loaded, workspaceRoot.dataWorkspaceId));
-    const resumed = sweepAutoResume(cleaned.subs, cleaned.subPaused);
-    return {
+    // Re-anchor only after seed cleanup so derived dates cannot change a shipped fingerprint.
+    // Persisted relative day counts are stale across relaunch; the ISO anchor is the durable truth.
+    const anchoredSubs = reanchorRenewals(
+      cleaned.subs,
+      new Date().toISOString().slice(0, 10),
+    ).items;
+    const identifiedSubs = ensureSubscriptionIds(anchoredSubs);
+    const migratedSubscriptionState = migrateLegacySubscriptionState(
+      identifiedSubs,
+      cleaned.subPaused,
+      cleaned.subOverrides,
+    );
+    const identified = {
       ...cleaned,
+      subs: identifiedSubs,
+      subPaused: migratedSubscriptionState.paused,
+      subOverrides: migratedSubscriptionState.overrides,
+    };
+    const resumed = sweepAutoResume(identified.subs, identified.subPaused);
+    return {
+      ...identified,
       subs: resumed.subs,
       subPaused: resumed.paused,
-      subOverrides: sweepStaleOverrides(resumed.subs, cleaned.subOverrides),
+      subOverrides: sweepStaleOverrides(resumed.subs, identified.subOverrides),
     };
   } catch {
     loadDegraded = true;
@@ -1782,13 +1814,22 @@ function sweepStaleOverrides(
   subs: Sub[],
   overrides: Record<string, number>,
 ): Record<string, number> {
-  const byName = new Map(subs.map((s) => [s.name, s] as const));
+  const byId = new Map(subs.map((subscription) => [subscriptionKey(subscription), subscription] as const));
+  const byName = new Map<string, Sub[]>();
+  for (const subscription of subs) {
+    const rows = byName.get(subscription.name) ?? [];
+    rows.push(subscription);
+    byName.set(subscription.name, rows);
+  }
   const next: Record<string, number> = {};
-  for (const [name, delta] of Object.entries(overrides)) {
-    const sub = byName.get(name);
-    if (!sub) continue;
-    if (sub.nextRenewalDaysAway + delta < 0) continue;
-    next[name] = delta;
+  for (const [key, delta] of Object.entries(overrides)) {
+    const exact = byId.get(key);
+    const candidates = exact === undefined ? byName.get(key) ?? [] : [exact];
+    if (candidates.length === 0) continue;
+    // A legacy name key is shared by every duplicate-name row. Retain it when
+    // any candidate is still valid; drop it only when all candidates are stale.
+    if (!candidates.some((sub) => sub.nextRenewalDaysAway + delta >= 0)) continue;
+    next[key] = delta;
   }
   return next;
 }
@@ -1804,8 +1845,9 @@ function sweepAutoResume(
   const pausedNext = { ...paused };
   const subsNext = subs.map((subscription) => {
     if (!subscription.pausedUntil || subscription.pausedUntil > today) return subscription;
-    resumedNames.push(subscription.name);
-    pausedNext[subscription.name] = false;
+    const key = subscriptionKey(subscription);
+    resumedNames.push(key);
+    pausedNext[key] = false;
     const {
       pausedUntil: _pausedUntil,
       pauseReason: _pauseReason,
@@ -2117,17 +2159,34 @@ export function setPots(pots: Pot[] | ((prev: Pot[]) => Pot[])) {
 }
 
 export function setSubs(subs: Sub[] | ((prev: Sub[]) => Sub[])) {
-  const next = typeof subs === 'function' ? subs(state.subs) : subs;
-  if (structurallyEqual(state.subs, next)) {
+  const requested = typeof subs === 'function' ? subs(state.subs) : subs;
+  const next = ensureSubscriptionIds(requested);
+  const migratedSubscriptionState = migrateLegacySubscriptionState(
+    next,
+    state.subPaused,
+    state.subOverrides,
+  );
+  const mapsChanged =
+    !structurallyEqual(state.subPaused, migratedSubscriptionState.paused) ||
+    !structurallyEqual(state.subOverrides, migratedSubscriptionState.overrides);
+  if (structurallyEqual(state.subs, next) && !mapsChanged) {
     setPartial({ subs: next });
     return;
   }
   const refs = uniqueOpaqueContainerEntityRefs(
     'subscription',
-    [...state.subs, ...next].map((subscription) => subscription.name),
+    [...state.subs, ...next].map((subscription) => subscriptionKey(subscription)),
   );
   setPartialWithTypedCommand(
-    { subs: next },
+    {
+      subs: next,
+      ...(mapsChanged
+        ? {
+            subPaused: migratedSubscriptionState.paused,
+            subOverrides: migratedSubscriptionState.overrides,
+          }
+        : {}),
+    },
     {
       commandType: 'folio.subscriptions.replace.v1',
       actorKind: 'user',
@@ -2140,25 +2199,42 @@ export function setSubs(subs: Sub[] | ((prev: Sub[]) => Sub[])) {
 }
 
 export function removeSub(name: string): TinyWin | null {
-  const removed = state.subs.find((subscription) => subscription.name === name);
-  const { [name]: _gone, ...restPaused } = state.subPaused;
-  const { [name]: _gone2, ...restOverrides } = state.subOverrides;
-  const subscriptions = state.subs.filter((s) => s.name !== name);
+  const exact = state.subs.some((subscription) => subscription.id === name);
+  const matches = state.subs.filter((subscription) =>
+    exact ? subscription.id === name : subscription.name === name,
+  );
+  const removed = matches[0];
+  const removedKeys = new Set(matches.map((subscription) => subscriptionKey(subscription)));
+  if (!exact) removedKeys.add(name);
+  const restPaused = Object.fromEntries(
+    Object.entries(state.subPaused).filter(([key]) => !removedKeys.has(key)),
+  );
+  const restOverrides = Object.fromEntries(
+    Object.entries(state.subOverrides).filter(([key]) => !removedKeys.has(key)),
+  );
+  const subscriptions = state.subs.filter((s) => !matches.includes(s));
   const cancelledSubs: CancelledSub[] = removed
     ? [
-        {
-          name: removed.name,
-          workspaceId: removed.workspaceId ?? state.activeWorkspaceId,
-          monthlyAmount: removed.cost,
+        ...matches.map((subscription) => ({
+          ...(subscription.id === undefined ? {} : { id: subscription.id }),
+          name: subscription.name,
+          workspaceId: subscription.workspaceId ?? state.activeWorkspaceId,
+          monthlyAmount: subscription.cost,
           cancelledAt: new Date().toISOString().slice(0, 10),
-        },
-        ...(state.cancelledSubs ?? []).filter((subscription) => subscription.name !== removed.name),
+        })),
+        ...(state.cancelledSubs ?? []).filter((subscription) =>
+          exact
+            ? !matches.some(
+                (active) => active.id !== undefined && subscription.id === active.id,
+              )
+            : true,
+        ),
       ].slice(0, 60)
     : (state.cancelledSubs ?? []);
   const changed =
     subscriptions.length !== state.subs.length ||
-    Object.prototype.hasOwnProperty.call(state.subPaused, name) ||
-    Object.prototype.hasOwnProperty.call(state.subOverrides, name);
+    Object.keys(restPaused).length !== Object.keys(state.subPaused).length ||
+    Object.keys(restOverrides).length !== Object.keys(state.subOverrides).length;
   const patch = {
     subs: subscriptions,
     subPaused: restPaused,
@@ -2172,14 +2248,22 @@ export function removeSub(name: string): TinyWin | null {
   setPartialWithTypedCommand(patch, {
     commandType: 'folio.subscription.remove.v1',
     actorKind: 'user',
-    entityRefs: [opaqueContainerEntityRef('subscription', name)],
+    entityRefs: [...removedKeys].map((key) => opaqueContainerEntityRef('subscription', key)),
     before: {
-      subscription: state.subs.filter((subscription) => subscription.name === name),
-      paused: state.subPaused[name] ?? null,
-      overrideDays: state.subOverrides[name] ?? null,
+      subscription: matches,
+      paused: Object.fromEntries(
+        [...removedKeys]
+          .filter((key) => state.subPaused[key] !== undefined)
+          .map((key) => [key, state.subPaused[key]]),
+      ),
+      overrideDays: Object.fromEntries(
+        [...removedKeys]
+          .filter((key) => state.subOverrides[key] !== undefined)
+          .map((key) => [key, state.subOverrides[key]]),
+      ),
     },
     after: {
-      archived: cancelledSubs.find((subscription) => subscription.name === name) ?? null,
+      archived: removed ?? null,
     },
     invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
   });
@@ -2189,17 +2273,27 @@ export function removeSub(name: string): TinyWin | null {
 /** Restore a recoverably cancelled subscription using its last-known cost.
  *  The renewal date is deliberately marked as an editable 30-day estimate. */
 export function restoreSub(name: string): boolean {
-  const archived = (state.cancelledSubs ?? []).find((subscription) => subscription.name === name);
-  if (!archived) return false;
-  const cancelledSubs = (state.cancelledSubs ?? []).filter(
-    (subscription) => subscription.name !== name,
+  const archivedIndex = (state.cancelledSubs ?? []).findIndex(
+    (subscription) =>
+      subscription.id === name || (subscription.id === undefined && subscription.name === name),
   );
-  if (state.subs.some((subscription) => subscription.name === archived.name)) {
-    setPartial({ cancelledSubs });
+  if (archivedIndex < 0) return false;
+  const archived = state.cancelledSubs![archivedIndex]!;
+  const cancelledSubs = (state.cancelledSubs ?? []).filter((_, index) => index !== archivedIndex);
+  if (
+    state.subs.some((subscription) =>
+      archived.id !== undefined
+        ? subscription.id === archived.id
+        : subscription.name === archived.name,
+    )
+  ) {
+    // An id-less archive can be ambiguous with a currently tracked duplicate.
+    // Keep the archive intact until the caller identifies the intended row.
     return false;
   }
   const today = new Date().toISOString().slice(0, 10);
   const restored: Sub = {
+    id: archived.id ?? createSubscriptionIdentity(),
     name: archived.name,
     workspaceId: archived.workspaceId ?? state.activeWorkspaceId,
     cost: archived.monthlyAmount,
@@ -2213,7 +2307,7 @@ export function restoreSub(name: string): boolean {
     {
       commandType: 'folio.subscription.restore.v1',
       actorKind: 'user',
-      entityRefs: [opaqueContainerEntityRef('subscription', restored.name)],
+      entityRefs: [opaqueContainerEntityRef('subscription', subscriptionKey(restored))],
       before: { archived },
       after: { subscription: restored },
       invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
@@ -2429,10 +2523,13 @@ export function revokeTinyWin(kind: TinyWinKind) {
 /** Mark a sub as "just used" — resets lastUsedDaysAgo to 0 and nudges
  *  the monthly count up by one, so the Subs screen pulse turns green. */
 export function markSubUsed(name: string) {
-  const before = state.subs.find((subscription) => subscription.name === name);
+  const exact = state.subs.some((subscription) => subscription.id === name);
+  const before = state.subs.find((subscription) =>
+    exact ? subscription.id === name : subscription.name === name,
+  );
   if (before === undefined) return;
   const subs = state.subs.map((subscription) =>
-    subscription.name === name
+    (exact ? subscription.id === name : subscription.name === name)
       ? {
           ...subscription,
           lastUsedDaysAgo: 0,
@@ -2445,9 +2542,13 @@ export function markSubUsed(name: string) {
     {
       commandType: 'folio.subscription.mark_used.v1',
       actorKind: 'user',
-      entityRefs: [opaqueContainerEntityRef('subscription', name)],
+      entityRefs: [opaqueContainerEntityRef('subscription', subscriptionKey(before))],
       before: { subscription: before },
-      after: { subscription: subs.find((subscription) => subscription.name === name) },
+      after: {
+        subscription: subs.find((subscription) =>
+          exact ? subscription.id === name : subscription.name === name,
+        ),
+      },
       invalidatedProjectionKinds: ['subscriptions'],
     },
   );
@@ -2537,16 +2638,23 @@ export function subscriptionWithPause(subscription: Sub, paused: boolean, today:
 }
 
 export function togglePaused(name: string, value?: boolean) {
-  const current = !!state.subPaused[name];
+  const exact = state.subs.some((subscription) => subscription.id === name);
+  const targets = state.subs.filter((subscription) =>
+    exact ? subscription.id === name : subscription.name === name,
+  );
+  const current = exact
+    ? subscriptionPaused(state.subPaused, targets[0] ?? { name })
+    : !!state.subPaused[name];
   const next = value ?? !current;
-  const hadStoredValue = Object.prototype.hasOwnProperty.call(state.subPaused, name);
-  const subPaused = { ...state.subPaused, [name]: next };
+  const targetKey = exact ? subscriptionKey(targets[0]!) : name;
+  const hadStoredValue = Object.prototype.hasOwnProperty.call(state.subPaused, targetKey);
+  const subPaused = { ...state.subPaused, [targetKey]: next };
   const today = localDayKey(new Date());
   const subs =
     current === next
       ? state.subs
       : state.subs.map((subscription) =>
-          subscription.name === name
+          (exact ? subscription.id === name : subscription.name === name)
             ? subscriptionWithPause(subscription, next, today)
             : subscription,
         );
@@ -2564,14 +2672,14 @@ export function togglePaused(name: string, value?: boolean) {
       {
         commandType: next ? 'folio.subscription.pause.v1' : 'folio.subscription.resume.v1',
         actorKind: 'user',
-        entityRefs: [opaqueContainerEntityRef('subscription', name)],
+        entityRefs: [opaqueContainerEntityRef('subscription', targetKey)],
         before: {
-          paused: hadStoredValue ? state.subPaused[name] : null,
-          subscription: state.subs.find((subscription) => subscription.name === name) ?? null,
+          paused: hadStoredValue ? state.subPaused[targetKey] : null,
+          subscription: targets[0] ?? null,
         },
         after: {
           paused: next,
-          subscription: subs.find((subscription) => subscription.name === name) ?? null,
+          subscription: subs.find((subscription) => subscription === targets[0]) ?? null,
         },
         invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
       },
@@ -2600,11 +2708,20 @@ export function pauseMany(names: string[], value: boolean) {
   const uniqueNames = [...new Set(names)];
   if (uniqueNames.length === 0) return;
   const next = { ...state.subPaused };
-  for (const n of uniqueNames) next[n] = value;
+  const exactTargets = state.subs.filter((subscription) =>
+    uniqueNames.includes(subscription.id ?? ''),
+  );
+  const exactIds = new Set(exactTargets.map((subscription) => subscription.id));
   const targetNames = new Set(uniqueNames);
+  const targets = state.subs.filter((subscription) =>
+    exactTargets.length > 0
+      ? subscription.id !== undefined && exactIds.has(subscription.id)
+      : targetNames.has(subscription.name),
+  );
+  for (const subscription of targets) next[subscriptionKey(subscription)] = value;
   const today = localDayKey(new Date());
   const subs = state.subs.map((subscription) =>
-    targetNames.has(subscription.name) && !!state.subPaused[subscription.name] !== value
+    targets.includes(subscription) && subscriptionPaused(state.subPaused, subscription) !== value
       ? subscriptionWithPause(subscription, value, today)
       : subscription,
   );
@@ -2619,15 +2736,25 @@ export function pauseMany(names: string[], value: boolean) {
         ? 'folio.subscriptions.pause_many.v1'
         : 'folio.subscriptions.resume_many.v1',
       actorKind: 'user',
-      entityRefs: uniqueOpaqueContainerEntityRefs('subscription', uniqueNames),
+      entityRefs: uniqueOpaqueContainerEntityRefs(
+        'subscription',
+        targets.map((subscription) => subscriptionKey(subscription)),
+      ),
       before: {
         paused: Object.fromEntries(
-          uniqueNames.map((name) => [name, state.subPaused[name] ?? null]),
+          targets.map((subscription) => [
+            subscriptionKey(subscription),
+            state.subPaused[subscriptionKey(subscription)] ??
+              state.subPaused[subscription.name] ??
+              null,
+          ]),
         ),
       },
       after: {
-        paused: Object.fromEntries(uniqueNames.map((name) => [name, value])),
-        subscriptions: subs.filter((subscription) => targetNames.has(subscription.name)),
+        paused: Object.fromEntries(
+          targets.map((subscription) => [subscriptionKey(subscription), value]),
+        ),
+        subscriptions: subs.filter((subscription) => targets.includes(subscription)),
       },
       invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
     },
@@ -6466,10 +6593,16 @@ export function sweepReviewQueue() {
  *  the "what if I move this?" affordance — additive so repeated taps stack,
  *  clamped to ±7 days so we don't pretend bills are fully discretionary. */
 export function nudgeSub(name: string, deltaDays: number) {
-  const current = state.subOverrides[name] ?? 0;
+  const target =
+    state.subs.find((subscription) => subscription.id === name) ??
+    state.subs.find((subscription) => subscription.name === name);
+  const key = target ? subscriptionKey(target) : name;
+  const current = target
+    ? subscriptionOverride(state.subOverrides, target)
+    : (state.subOverrides[name] ?? 0);
   const next = Math.max(-7, Math.min(7, current + deltaDays));
-  const hadStoredValue = Object.prototype.hasOwnProperty.call(state.subOverrides, name);
-  const subOverrides = { ...state.subOverrides, [name]: next };
+  const hadStoredValue = Object.prototype.hasOwnProperty.call(state.subOverrides, key);
+  const subOverrides = { ...state.subOverrides, [key]: next };
   if (hadStoredValue && current === next) {
     setPartial({ subOverrides });
     return;
@@ -6479,7 +6612,7 @@ export function nudgeSub(name: string, deltaDays: number) {
     {
       commandType: 'folio.subscription.nudge.v1',
       actorKind: 'user',
-      entityRefs: [opaqueContainerEntityRef('subscription', name)],
+      entityRefs: [opaqueContainerEntityRef('subscription', key)],
       before: { overrideDays: hadStoredValue ? current : null },
       after: { overrideDays: next },
       invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
@@ -6490,15 +6623,35 @@ export function nudgeSub(name: string, deltaDays: number) {
 /** Reset all "what if" nudges on flexible bills. */
 export function resetSubOverrides(name?: string) {
   if (name) {
-    if (!Object.prototype.hasOwnProperty.call(state.subOverrides, name)) return;
-    const { [name]: _gone, ...rest } = state.subOverrides;
+    const target =
+      state.subs.find((subscription) => subscription.id === name) ??
+      state.subs.find((subscription) => subscription.name === name);
+    const idKey = target ? subscriptionKey(target) : name;
+    const ambiguousLegacyName =
+      target !== undefined &&
+      target.id === name &&
+      state.subs.filter((subscription) => subscription.name === target.name).length > 1 &&
+      !Object.prototype.hasOwnProperty.call(state.subOverrides, idKey) &&
+      Object.prototype.hasOwnProperty.call(state.subOverrides, target.name);
+    // An old name key shared by duplicate rows has no safe per-row reset
+    // target. Leave it intact until a user-facing name-level reset is chosen.
+    if (ambiguousLegacyName) return;
+    // A direct legacy fixture may still have only its name key. Prefer an
+    // existing id entry, then fall back to that name entry for compatibility.
+    const key = Object.prototype.hasOwnProperty.call(state.subOverrides, idKey)
+      ? idKey
+      : target && Object.prototype.hasOwnProperty.call(state.subOverrides, target.name)
+        ? target.name
+        : idKey;
+    if (!Object.prototype.hasOwnProperty.call(state.subOverrides, key)) return;
+    const { [key]: _gone, ...rest } = state.subOverrides;
     setPartialWithTypedCommand(
       { subOverrides: rest },
       {
         commandType: 'folio.subscription.nudge_reset.v1',
         actorKind: 'user',
-        entityRefs: [opaqueContainerEntityRef('subscription', name)],
-        before: { overrideDays: state.subOverrides[name] },
+        entityRefs: [opaqueContainerEntityRef('subscription', key)],
+        before: { overrideDays: state.subOverrides[key] },
         after: {},
         invalidatedProjectionKinds: ['subscriptions', 'cashflow', 'calendar'],
       },

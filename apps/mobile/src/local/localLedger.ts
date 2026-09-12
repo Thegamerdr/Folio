@@ -22,6 +22,7 @@ import {
   type Subscription,
 } from '@folio/domain';
 import type { MeloLocalFinancialSnapshot } from '@folio/ai-contracts';
+import { localSubscriptionKey, localSubscriptionOverride } from './subscriptionIdentity';
 
 export type LocalTransactionSource = 'seed' | 'manual' | 'melo' | 'import' | 'open_banking';
 export type LocalTransactionStatus = 'confirmed' | 'needs_review';
@@ -257,10 +258,10 @@ export type LocalLedgerState = Readonly<{
   pots: readonly Pot[];
   subscriptions: readonly Subscription[];
   cycles: readonly CycleRecord[];
-  // Per-subscription day-delta nudge keyed by sub NAME (e.g. { "Netflix": 3 } slides Netflix's next
-  // renewal 3 days later when deriving calendar events). Clamped to ±MAX_SUB_OVERRIDE_DAYS. A name
-  // with delta 0 is removed (the default is "no nudge"). Durable: round-trips through the snapshot
-  // blob like pots/subscriptions/cycles, not the normalized relational tables.
+  // Per-subscription day-delta nudge keyed by immutable subscription id for new writes, with a name
+  // fallback for old blobs (e.g. { "Netflix": 3 }). Clamped to ±MAX_SUB_OVERRIDE_DAYS. A key with
+  // delta 0 is removed (the default is "no nudge"). Durable: round-trips through the snapshot blob
+  // like pots/subscriptions/cycles, not the normalized relational tables.
   subOverrides: Readonly<Record<string, number>>;
   // User-ADDED calendar events only. Derived events are computed on read, never stored. Newest
   // first, capped at MAX_USER_CALENDAR_EVENTS. Durable: same snapshot-blob round-trip as above.
@@ -1664,7 +1665,8 @@ function clampSubOverrideDays(deltaDays: number): number {
   return rounded;
 }
 
-// Slide a subscription's next renewal by a day delta, keyed by sub NAME (the Calendar offers
+// Slide a subscription's next renewal by a day delta, keyed by immutable id for new callers with a
+// name fallback for old snapshot/UI callers. The Calendar offers
 // −3d/−1d/+1d/+3d on a sub row). The delta is the ABSOLUTE override, clamped to ±MAX_SUB_OVERRIDE_DAYS
 // — not additive — so repeated taps converge instead of drifting past the clamp. A delta that clamps
 // to 0 removes the override entirely (back to "no nudge"). The override is applied in
@@ -1677,17 +1679,19 @@ export function nudgeSub(
   const name = subName.trim();
   if (name.length === 0) return state;
   const clamped = clampSubOverrideDays(deltaDays);
-  const current = state.subOverrides[name] ?? 0;
+  const target =
+    state.subscriptions.find((subscription) => localSubscriptionKey(subscription) === name) ??
+    state.subscriptions.find((subscription) => subscription.name === name);
+  const key = target === undefined || target.name === name ? name : localSubscriptionKey(target);
+  const current =
+    target === undefined
+      ? (state.subOverrides[name] ?? 0)
+      : localSubscriptionOverride(state.subOverrides, target);
   if (clamped === current) return state;
 
   if (clamped === 0) {
-    if (!(name in state.subOverrides)) return state;
-    const nextOverrides: Record<string, number> = {};
-    for (const key of Object.keys(state.subOverrides)) {
-      if (key === name) continue;
-      const value = state.subOverrides[key];
-      if (value !== undefined) nextOverrides[key] = value;
-    }
+    if (!(key in state.subOverrides)) return state;
+    const { [key]: _gone, ...nextOverrides } = state.subOverrides;
     return prependHistory(
       { ...state, subOverrides: nextOverrides },
       'sub_nudged',
@@ -1696,7 +1700,7 @@ export function nudgeSub(
   }
 
   return prependHistory(
-    { ...state, subOverrides: { ...state.subOverrides, [name]: clamped } },
+    { ...state, subOverrides: { ...state.subOverrides, [key]: clamped } },
     'sub_nudged',
     `${name} renewal nudged ${clamped > 0 ? '+' : ''}${clamped}d.`,
   );

@@ -37,6 +37,7 @@ import { resolvePayday } from '@/folio/lib/payday';
 import { latestLivedCycle } from '@/folio/lib/historyCycles';
 import { suggestMode } from '@/folio/lib/modes/suggest';
 import { selectMeloTodayMoneyNudge } from '@/folio/lib/meloToneGuidance';
+import { subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 import {
   qualifyModeSuggestion,
   selectFinancialPresentation,
@@ -151,7 +152,10 @@ export function TodayNudges({
 
   const nextSub = subs
     .filter(
-      (sub) => !subPaused[sub.name] && sub.nextRenewalDaysAway >= 0 && sub.nextRenewalDaysAway <= 7,
+      (sub) =>
+        !subscriptionPaused(subPaused, sub) &&
+        sub.nextRenewalDaysAway >= 0 &&
+        sub.nextRenewalDaysAway <= 7,
     )
     .sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway)[0];
 

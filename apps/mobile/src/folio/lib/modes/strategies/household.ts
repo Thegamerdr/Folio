@@ -14,6 +14,7 @@
  */
 import type { ModeInputs, ModeState, ModeStrategy, MeloVoiceTint, MeloWeather } from '../types';
 import type { Sub, Household } from '../../../store';
+import { subscriptionPaused } from '../../subscriptionIdentity';
 import type { MeloMood, MeloPose } from '../../../melo/Melo';
 
 const DEFAULT_BUFFER = 100;
@@ -46,7 +47,12 @@ export function computeBillSplits(
   household: Household,
 ): BillSplit[] {
   return subs
-    .filter((s) => !subPaused[s.name] && s.nextRenewalDaysAway >= 0 && s.nextRenewalDaysAway <= 30)
+    .filter(
+      (s) =>
+        !subscriptionPaused(subPaused, s) &&
+        s.nextRenewalDaysAway >= 0 &&
+        s.nextRenewalDaysAway <= 30,
+    )
     .map<BillSplit>((s) => {
       const override = household.subShareOverrides[s.name];
       const overridden = typeof override === 'number';

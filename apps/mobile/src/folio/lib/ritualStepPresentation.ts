@@ -2,6 +2,7 @@ import type { AppState, Sub } from '../store';
 import { subscriptionCadence } from '../screens/commitmentHelpers';
 import { MODE_LABEL, type MoneyMode } from './modes/types';
 import { formatFinancialDate, formatMoney } from './financialPresentation';
+import { subscriptionPaused } from './subscriptionIdentity';
 
 /** Every mode visits the same recorded-pot and forecast controls. Their labels name those actions. */
 export function ritualStepFrames(
@@ -42,7 +43,7 @@ export function ritualOptionalSteps(
 ) {
   const resumePrompts = state.subs.filter(
     (subscription) =>
-      state.subPaused[subscription.name] &&
+      subscriptionPaused(state.subPaused, subscription) &&
       subscription.pausedUntil &&
       (subscription.autoResume ?? 'prompt') === 'prompt',
   );

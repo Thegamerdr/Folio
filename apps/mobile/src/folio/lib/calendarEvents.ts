@@ -21,6 +21,7 @@ import type {
   SpendHold,
   WhatIfHold,
 } from '../store';
+import { subscriptionKey, subscriptionOverride, subscriptionPaused } from './subscriptionIdentity';
 import { resolvePayday } from './payday';
 import { resolveNextTopUp } from './potCadence';
 import { projectIncomeEvents } from './income';
@@ -251,8 +252,8 @@ export function deriveCalendarEvents({
   // Sub renewals — from existing store data. Skip paused. Apply any
   // user-set "what if I move this?" override.
   for (const s of subs) {
-    if (subPaused[s.name]) continue;
-    const delta = subOverrides[s.name] ?? 0;
+    if (subscriptionPaused(subPaused, s)) continue;
+    const delta = subscriptionOverride(subOverrides, s);
     const effectiveDays = s.nextRenewalDaysAway + delta;
     if (effectiveDays < 0 || effectiveDays > windowDays) continue;
     const when = addDays(now, effectiveDays);
@@ -264,7 +265,7 @@ export function deriveCalendarEvents({
           ? 'Trial converts — first charge'
           : 'Subscription renews';
     out.push({
-      id: `sub-${s.name}-${isoDay(when)}`,
+      id: `sub-${subscriptionKey(s)}-${isoDay(when)}`,
       date: isoDay(when),
       kind: 'out',
       source: 'sub',
@@ -280,7 +281,7 @@ export function deriveCalendarEvents({
   // trial flips into a paying charge. Highest-regret category, so we surface
   // it loudly and early. Skip if the sub is already paused.
   for (const s of subs) {
-    if (subPaused[s.name]) continue;
+    if (subscriptionPaused(subPaused, s)) continue;
     if (typeof s.trialEndsInDays !== 'number') continue;
     const nudge = Math.max(0, s.trialEndsInDays - 2);
     if (nudge > windowDays) continue;

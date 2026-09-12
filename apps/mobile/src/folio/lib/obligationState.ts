@@ -65,7 +65,14 @@ export function setSubscriptionOccurrenceResolution(
   resolution: ObligationResolution,
 ): void {
   const state = getState();
-  const sub = state.subs.find((item) => item.name === name);
+  const exact = state.subs.find((item) => item.id === name);
+  const legacyMatches = state.subs.filter((item) => item.name === name);
+  // A pre-identity blob can contain duplicate name-only rows. There is no
+  // lossless way to decide which row owns an occurrence resolution, so leave
+  // that legacy path unchanged until hydration assigns IDs or the caller
+  // supplies an exact identity.
+  if (exact === undefined && legacyMatches.length > 1) return;
+  const sub = exact ?? legacyMatches[0];
   const priorAmount =
     sub?.obligationOccurrences?.[date]?.amountMinor ??
     (sub === undefined ? undefined : Math.round(sub.cost * 100));

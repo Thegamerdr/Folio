@@ -106,6 +106,7 @@ import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 import { selectRitualFinancialReview } from '@/folio/lib/ritualFinancialReview';
 import { previewRitualCompletion } from '@/folio/lib/ritualCompletion';
 import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentation';
+import { subscriptionKey } from '@/folio/lib/subscriptionIdentity';
 import type { Nav } from '@/folio/types';
 import {
   ritualOptionalSteps,
@@ -454,7 +455,7 @@ export function PaydayRitualScreen({ nav, state = 'populated' }: PaydayRitualScr
             onConfirm: () => {
               for (const subscription of resumePrompts) {
                 if (resumeDecisions[subscription.name] === 'resume') {
-                  togglePaused(subscription.name, false);
+                  togglePaused(subscriptionKey(subscription), false);
                 }
               }
             },

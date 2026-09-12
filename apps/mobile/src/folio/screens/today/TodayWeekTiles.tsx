@@ -18,6 +18,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { gap, pressed, radius, serif, useTheme } from '@/folio/theme';
 import { useAppStore } from '@/folio/store';
+import { subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 import type { Nav } from '@/folio/types';
 import { formatDayProse } from './format';
 
@@ -55,7 +56,7 @@ export function TodayWeekTiles({
   const deltaColor = delta <= 0 ? t.positive : t.repair;
 
   const nextRenewal = useMemo(() => {
-    const live = subs.filter((sub) => !subPaused[sub.name]);
+    const live = subs.filter((sub) => !subscriptionPaused(subPaused, sub));
     if (live.length === 0) return null;
     return [...live].sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway)[0];
   }, [subs, subPaused]);

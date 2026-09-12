@@ -1835,7 +1835,7 @@ describe('editTransaction', () => {
 describe('schema migration v3', () => {
   it('defaults DEFAULTS/state to the current schema version with an empty edit history', () => {
     resetAll();
-    expect(getState().schemaVersion).toBe(13);
+    expect(getState().schemaVersion).toBe(14);
     expect(getState().edits).toEqual([]);
   });
 });
@@ -1852,7 +1852,7 @@ describe('schema migration v6', () => {
     hydrateFromBlob(JSON.stringify(v5Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(13);
+    expect(s.schemaVersion).toBe(14);
     expect(s.timelineEvents).toEqual([]);
   });
 
@@ -1962,7 +1962,7 @@ describe('persist blob round-trip', () => {
     hydrateFromBlob(blob);
 
     const s = getState();
-    expect(s.schemaVersion).toBe(13);
+    expect(s.schemaVersion).toBe(14);
     expect((s.edits ?? []).length).toBe(1);
     expect(s.transactions.find((t) => t.id === row.id)?.amount).toBe(-50);
   });
@@ -2432,7 +2432,7 @@ describe('schema migration v7', () => {
     hydrateFromBlob(JSON.stringify(v6Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(13);
+    expect(s.schemaVersion).toBe(14);
     expect(s.reviewQueue).toEqual([]);
   });
 
@@ -2640,7 +2640,7 @@ describe('schema migration v8', () => {
     hydrateFromBlob(JSON.stringify(v7Blob));
 
     const s = getState();
-    expect(s.schemaVersion).toBe(13);
+    expect(s.schemaVersion).toBe(14);
     expect(s.incomeSources).toEqual([
       {
         id: 'income-migrated-pay',
@@ -2729,7 +2729,7 @@ describe('schema migration v9 workspace root', () => {
     hydrateFromBlob(JSON.stringify(v8Blob));
 
     const after = getState();
-    expect(after.schemaVersion).toBe(13);
+    expect(after.schemaVersion).toBe(14);
     expect(after.activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
     expect(after.dataWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
     expect(after.workspaces).toEqual([
@@ -2817,7 +2817,7 @@ describe('schema v11 isolated workspace partitions', () => {
       '2026-07-15T20:00:00.000Z',
     );
 
-    expect(partition.schemaVersion).toBe(13);
+    expect(partition.schemaVersion).toBe(14);
     expect(partition.accounts).toEqual([]);
     expect(partition.transactions).toEqual([]);
     expect(partition.pots).toEqual([]);
@@ -3007,7 +3007,7 @@ describe('schema migration v10 workspace-owned rows', () => {
     hydrateFromBlob(JSON.stringify(v9Blob));
 
     const after = getState();
-    expect(after.schemaVersion).toBe(13);
+    expect(after.schemaVersion).toBe(14);
     expect(after.transactions[0]).toMatchObject({
       id: 'legacy-transaction',
       merchant: 'Real shop',

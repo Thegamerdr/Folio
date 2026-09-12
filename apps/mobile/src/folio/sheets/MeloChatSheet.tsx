@@ -70,6 +70,7 @@ import { UNDO_WINDOW_MS } from '@/folio/lib/undoPolicy';
 import { formatMoney } from '@/folio/lib/financialPresentation';
 import { buildMeloSnapshot } from '@/folio/lib/meloSnapshot';
 import { buildMeloLocalCalculation } from '@/folio/lib/meloCalculations';
+import { subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 import { buildMeloSourceFigures, meloChatStarters } from '@/folio/lib/meloSourceFigures';
 import { resolveMeloAccountSelection } from '@/folio/lib/meloAccountSelection';
 import { resolveMeloSubscriptionRequest } from '@/folio/lib/meloSubscriptionRequest';
@@ -243,7 +244,7 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
     if (activeWorkspace.kind === 'business') {
       return `I'm looking only at ${activeWorkspace.name}. What would you like to check?`;
     }
-    const liveSubs = subs.filter((s) => !subPaused[s.name]);
+    const liveSubs = subs.filter((s) => !subscriptionPaused(subPaused, s));
     const soon = [...liveSubs].sort((a, b) => a.nextRenewalDaysAway - b.nextRenewalDaysAway)[0] as
       | Sub
       | undefined;

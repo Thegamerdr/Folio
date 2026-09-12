@@ -31,6 +31,7 @@ import { elevation, gap, radius, serif, useTheme, weightFamily, type Palette } f
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { useAppStore } from '@/folio/store';
+import { subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { selectPaydayTightPoint, tightPointDayLabel } from '@/folio/lib/moneyPath';
 import { useDayClock } from '@/folio/lib/useDayClock';
@@ -173,7 +174,10 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
       )
     : null;
   const potsSaved = useMemo(() => pots.reduce((sum, pot) => sum + pot.saved, 0), [pots]);
-  const liveSubs = useMemo(() => subs.filter((sub) => !subPaused[sub.name]), [subs, subPaused]);
+  const liveSubs = useMemo(
+    () => subs.filter((sub) => !subscriptionPaused(subPaused, sub)),
+    [subs, subPaused],
+  );
   const showSampleMarker = !onboarding.done;
   const [showAdd, setShowAdd] = useState(false);
 

@@ -258,6 +258,7 @@ describe('canonical AppState projection', () => {
     setPartial({
       subs: [
         {
+          id: 'sub-music',
           name: 'Music',
           cost: 15,
           nextRenewalDaysAway: 12,
@@ -282,7 +283,7 @@ describe('canonical AppState projection', () => {
       tinyWins: [],
     });
 
-    removeSub('Music');
+    removeSub('sub-music');
     addToPot('tiny-buffer', 20, 'manual');
     const after = getState();
     const cancelledAt = after.cancelledSubs?.[0]?.cancelledAt;

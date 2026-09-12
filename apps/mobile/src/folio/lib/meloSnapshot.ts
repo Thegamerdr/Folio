@@ -31,6 +31,7 @@ import { requireWorkspaceData } from './workspaceRoot';
 import { buildBusinessCashPosition } from './businessCashPosition';
 import { buildFinancialPlanFromState } from './financialPlan';
 import { selectFinancialPresentation } from './financialPresentation';
+import { subscriptionPaused } from './subscriptionIdentity';
 
 const PENCE_PER_POUND = 100;
 
@@ -51,7 +52,7 @@ function formatDay(iso: string): string {
 
 function protectedItemLabels(state: AppState): readonly string[] {
   const labels: string[] = [];
-  if (state.subs.some((subscription) => !state.subPaused[subscription.name])) {
+  if (state.subs.some((subscription) => !subscriptionPaused(state.subPaused, subscription))) {
     labels.push('active bills and subscriptions');
   }
   if (state.pots.some((pot) => pot.saved > 0 || pot.perWeek > 0)) {
@@ -89,7 +90,7 @@ export function buildMeloSnapshot(
   const widget = buildWidgetSnapshot(localState, nowDate);
   const hasMoneyPicture = hasRealMoneyPicture(localState);
   const activeSubscriptions = localState.subs.filter(
-    (subscription) => !localState.subPaused[subscription.name],
+    (subscription) => !subscriptionPaused(localState.subPaused, subscription),
   );
   const activeDebts = (localState.debts ?? []).filter((debt) => debt.balance > 0);
   const activePots = localState.pots.filter((pot) => pot.goal > 0);

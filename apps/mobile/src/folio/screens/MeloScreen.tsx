@@ -109,6 +109,7 @@ import { deriveModeState, MODE_LABEL, type MeloWeather, type MoneyMode } from '@
 import { deriveMeloMemory, formatMeloMemoryTime } from '@/folio/lib/melo/memory';
 import { selectMeloFinancialHealth } from '@/folio/lib/melo/financialHealth';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 import { latestLivedCycle } from '@/folio/lib/historyCycles';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import {
@@ -282,7 +283,9 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
   const lastCycle = lastReview?.closedAt;
   const memory = useMemo(() => deriveMeloMemory(tinyWins, cycles, 10), [tinyWins, cycles]);
-  const activeSubs = subs.filter((subscription) => !subPaused[subscription.name]).length;
+  const activeSubs = subs.filter(
+    (subscription) => !subscriptionPaused(subPaused, subscription),
+  ).length;
   const fundedPots = pots.filter((pot) => pot.saved > 0).length;
   const lensLabel =
     moneyMode === 'survival' ? 'Make it to payday' : MODE_LABEL[moneyMode].toLowerCase();

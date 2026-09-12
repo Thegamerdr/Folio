@@ -1,5 +1,6 @@
 import type { FinancialPlanResult } from '@folio/finance-engine';
 import type { AppState } from '../store';
+import { subscriptionOverride, subscriptionPaused } from './subscriptionIdentity';
 
 /** Presentation prerequisites only. Every monetary result remains owned by finance-engine. */
 export function selectFinancialPresentation(state: AppState, plan: FinancialPlanResult | null) {
@@ -29,13 +30,13 @@ export function selectFinancialPresentation(state: AppState, plan: FinancialPlan
   // still owns the amount; this gate only keeps shared copy from calling the resulting estimate
   // unconditionally safe until the user confirms the changed date/occurrence.
   const pausedForecastCount = state.subs.filter((subscription) => {
-    if (!state.subPaused[subscription.name]) return false;
+    if (!subscriptionPaused(state.subPaused, subscription)) return false;
     return plan?.asOf === undefined || subscription.pausedUntil === undefined
       ? true
       : subscription.pausedUntil > plan.asOf;
   }).length;
   const nudgedForecastCount = state.subs.filter((subscription) => {
-    const delta = state.subOverrides[subscription.name];
+    const delta = subscriptionOverride(state.subOverrides, subscription);
     return typeof delta === 'number' && Number.isFinite(delta) && delta !== 0;
   }).length;
   const forecastAssumptionCount = pausedForecastCount + nudgedForecastCount;
@@ -101,9 +102,7 @@ export function shouldShowShortfall(
   plan: Pick<FinancialPlanResult, 'safeToSpendMinor' | 'nextIncomeDate'> | null,
   presentation: Pick<ReturnType<typeof selectFinancialPresentation>, 'complete'>,
 ): boolean {
-  return Boolean(
-    presentation.complete && plan?.nextIncomeDate && plan.safeToSpendMinor < 0,
-  );
+  return Boolean(presentation.complete && plan?.nextIncomeDate && plan.safeToSpendMinor < 0);
 }
 
 export function formatFinancialDate(iso: string | null | undefined): string {

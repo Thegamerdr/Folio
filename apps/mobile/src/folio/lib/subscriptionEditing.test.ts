@@ -82,24 +82,39 @@ describe('bill details edit', () => {
       amountMinor: 3500,
     });
   });
-  it('does not alter schedule for a name-only edit and rejects duplicate bill names', () => {
+  it('allows same-name rows and edits only the exact identified row', () => {
     const state = fixture();
+    state.subs[0]!.id = 'sub-phone';
     const boundary = subscriptionEditBoundary(state, 'Phone', NOW);
     const patch = buildSubscriptionEditPatch(
       state,
-      'Phone',
+      'sub-phone',
       { name: 'Mobile', cost: 35, periodDays: null, futureDate: boundary.defaultDate },
       NOW,
     );
     expect(patch.subs?.[0]?.obligationAnchorISO).toBe('2026-08-12');
-    state.subs.push({ ...state.subs[0]!, name: 'Mobile' });
-    expect(() =>
-      buildSubscriptionEditPatch(
-        state,
-        'Phone',
-        { name: 'Mobile', cost: 35, periodDays: null, futureDate: boundary.defaultDate },
-        NOW,
-      ),
-    ).toThrow('already');
+    state.subs.push({
+      ...state.subs[0]!,
+      id: 'sub-existing-mobile',
+      name: 'Mobile',
+      cost: 99,
+      nextRenewalISO: '2026-09-20',
+      obligationAnchorISO: '2026-09-20',
+      nextRenewalDaysAway: 11,
+    });
+    const edited = buildSubscriptionEditPatch(
+      state,
+      'sub-phone',
+      { name: 'Mobile', cost: 35, periodDays: null, futureDate: boundary.defaultDate },
+      NOW,
+    );
+    expect(edited.subs).toHaveLength(2);
+    expect(edited.subs?.[0]).toMatchObject({ id: 'sub-phone', name: 'Mobile', cost: 35 });
+    expect(edited.subs?.[1]).toMatchObject({
+      id: 'sub-existing-mobile',
+      name: 'Mobile',
+      cost: 99,
+      nextRenewalISO: '2026-09-20',
+    });
   });
 });

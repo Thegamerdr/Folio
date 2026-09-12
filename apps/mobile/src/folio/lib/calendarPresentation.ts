@@ -1,4 +1,5 @@
 import type { AppState } from '../store';
+import { subscriptionKey, subscriptionOverride } from './subscriptionIdentity';
 import { buildFinancialPlanFromState, toFinancialPlanInput } from './financialPlan';
 import { formatFinancialDate } from './financialPresentation';
 import {
@@ -56,7 +57,9 @@ export function buildCalendarPresentation(state: AppState, now: Date, windowDays
   }
   for (const item of plan.events) {
     const date = item.originalDate ?? item.date;
-    const sub = state.subs.find((row) => item.id.startsWith(`subscription:${row.name}:`));
+    const sub = state.subs.find((row) =>
+      item.id.startsWith(`subscription:${subscriptionKey(row)}:`),
+    );
     const manual = state.calendarEvents.find((row) => item.id === `calendar:${row.id}`);
     const debt =
       item.source === 'debt-minimum'
@@ -122,9 +125,9 @@ export function buildCalendarPresentation(state: AppState, now: Date, windowDays
   for (const sub of state.subs)
     for (const [date, resolution] of Object.entries(sub.obligationOccurrences ?? {})) {
       if (resolution.status !== 'paid') continue;
-      const due = shift(date, state.subOverrides[sub.name] ?? 0);
+      const due = shift(date, subscriptionOverride(state.subOverrides, sub));
       add({
-        id: `paid:${sub.name}:${date}`,
+        id: `paid:${subscriptionKey(sub)}:${date}`,
         date: due,
         kind: 'review',
         source: 'bill',

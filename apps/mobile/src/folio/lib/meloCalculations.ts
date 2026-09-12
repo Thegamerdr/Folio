@@ -18,6 +18,7 @@ import { planProgress, summarisePlans } from './modes/planEngine';
 import { buildRecoveryRoutePreview } from './recoveryPreview';
 import { reviewMatch } from './reviewDedupe';
 import { requireWorkspaceData } from './workspaceRoot';
+import { subscriptionPaused } from './subscriptionIdentity';
 
 const PENCE_PER_POUND = 100;
 const MIN_IRREGULAR_HISTORY_MONTHS = 3;
@@ -576,7 +577,7 @@ function buildRecoveryCalculation(state: AppState, now: Date): MeloLocalCalculat
   const preview = buildRecoveryRoutePreview(state, now);
   const monthlyIncome = selectMonthlyIncome(state);
   const monthlyBills = state.subs
-    .filter((subscription) => !state.subPaused[subscription.name])
+    .filter((subscription) => !subscriptionPaused(state.subPaused, subscription))
     .reduce((total, subscription) => total + subscription.cost, 0);
   let hardCyclesInARow = 0;
   for (const cycle of state.cycles) {

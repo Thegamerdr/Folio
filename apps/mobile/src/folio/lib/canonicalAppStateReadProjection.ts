@@ -29,6 +29,7 @@ import {
   type Transaction,
 } from '../store';
 import { reanchorRenewals } from './renewalMath';
+import { subscriptionKey } from './subscriptionIdentity';
 
 export type CanonicalAppStateMoneyProjection = Readonly<{
   currentBalance: CurrentBalance;
@@ -235,6 +236,9 @@ export function readCanonicalAppStateMoneyProjection(
   const subscriptions = canonicalSubscriptions
     .filter((subscription) => subscription.cancelledAt === undefined)
     .map((subscription) => ({
+      ...(subscription.sourceSubscriptionId === undefined
+        ? {}
+        : { id: subscription.sourceSubscriptionId }),
       name: requiredText(subscription.sourceName, 'canonical source subscription name'),
       workspaceId: subscription.workspaceId,
       cost: minorToMajor(subscription.cost.minorUnits),
@@ -265,6 +269,9 @@ export function readCanonicalAppStateMoneyProjection(
   const cancelledSubs = canonicalSubscriptions
     .filter((subscription) => subscription.cancelledAt !== undefined)
     .map((subscription) => ({
+      ...(subscription.sourceSubscriptionId === undefined
+        ? {}
+        : { id: subscription.sourceSubscriptionId }),
       name: requiredText(subscription.sourceName, 'canonical cancelled subscription name'),
       workspaceId: subscription.workspaceId,
       monthlyAmount: minorToMajor(subscription.cost.minorUnits),
@@ -273,20 +280,27 @@ export function readCanonicalAppStateMoneyProjection(
   const preferences = [
     ...uniqueBy(
       workspaceRows(snapshot.collections.subscriptionPreferences, workspaceId),
-      (preference) => preference.sourceName,
+      (preference) => preference.sourceSubscriptionId ?? preference.sourceName,
       'canonical subscription preference',
     ).values(),
   ];
   const subPaused = Object.fromEntries(
     preferences.flatMap((preference) =>
-      preference.paused === undefined ? [] : [[preference.sourceName, preference.paused] as const],
+      preference.paused === undefined
+        ? []
+        : [[preference.sourceSubscriptionId ?? preference.sourceName, preference.paused] as const],
     ),
   );
   const unsweptOverrides = Object.fromEntries(
     preferences.flatMap((preference) =>
       preference.overrideDays === undefined
         ? []
-        : [[preference.sourceName, preference.overrideDays] as const],
+        : [
+            [
+              preference.sourceSubscriptionId ?? preference.sourceName,
+              preference.overrideDays,
+            ] as const,
+          ],
     ),
   );
   const subOverrides = sweepCanonicalSubscriptionOverrides(subs, unsweptOverrides);
@@ -921,11 +935,23 @@ function sweepCanonicalSubscriptionOverrides(
   subscriptions: readonly Sub[],
   overrides: Readonly<Record<string, number>>,
 ): Record<string, number> {
-  const byName = new Map(subscriptions.map((subscription) => [subscription.name, subscription]));
+  const byId = new Map(
+    subscriptions.map((subscription) => [subscriptionKey(subscription), subscription] as const),
+  );
+  const byName = new Map<string, Sub[]>();
+  for (const subscription of subscriptions) {
+    const rows = byName.get(subscription.name) ?? [];
+    rows.push(subscription);
+    byName.set(subscription.name, rows);
+  }
   return Object.fromEntries(
-    Object.entries(overrides).filter(([name, delta]) => {
-      const subscription = byName.get(name);
-      return subscription !== undefined && subscription.nextRenewalDaysAway + delta >= 0;
+    Object.entries(overrides).filter(([key, delta]) => {
+      const exact = byId.get(key);
+      const candidates = exact === undefined ? byName.get(key) ?? [] : [exact];
+      return (
+        candidates.length > 0 &&
+        candidates.some((subscription) => subscription.nextRenewalDaysAway + delta >= 0)
+      );
     }),
   );
 }
@@ -1079,6 +1105,7 @@ function normalizedSourceMoneyProjection(
     }));
   const subs = reanchorRenewals(
     state.subs.map((subscription) => ({
+      ...(subscription.id === undefined ? {} : { id: subscription.id }),
       name: subscription.name,
       workspaceId: subscription.workspaceId ?? state.dataWorkspaceId,
       cost: subscription.cost,

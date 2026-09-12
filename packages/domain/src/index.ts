@@ -770,6 +770,8 @@ export type ObligationResolution = Readonly<{
 export type Subscription = Readonly<{
   id: SubscriptionId;
   workspaceId: WorkspaceId;
+  /** Native immutable id carried through the AppState projection. */
+  sourceSubscriptionId?: string;
   sourceName?: string;
   sourceOrdinal?: number;
   name: string;
@@ -797,6 +799,8 @@ export type Subscription = Readonly<{
 export type SubscriptionPreference = Readonly<{
   id: SubscriptionPreferenceId;
   workspaceId: WorkspaceId;
+  /** Native immutable id; absent on legacy name-keyed preferences. */
+  sourceSubscriptionId?: string;
   sourceName: string;
   paused?: boolean;
   overrideDays?: number;

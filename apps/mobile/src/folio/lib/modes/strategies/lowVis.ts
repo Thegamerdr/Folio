@@ -16,6 +16,7 @@
  */
 import type { ModeInputs, ModeState, ModeStrategy, MeloVoiceTint, MeloWeather } from '../types';
 import type { MeloMood, MeloPose } from '../../../melo/Melo';
+import { subscriptionPaused } from '../../subscriptionIdentity';
 
 const VOICE: MeloVoiceTint = {
   archetype: 'curious',
@@ -25,7 +26,7 @@ const VOICE: MeloVoiceTint = {
 
 function derive(inputs: ModeInputs): ModeState {
   const { currentBalance, subs, subPaused, pots, onboarding, hour } = inputs;
-  const activeSubs = subs.filter((s) => !subPaused[s.name]).length;
+  const activeSubs = subs.filter((s) => !subscriptionPaused(subPaused, s)).length;
   let coverage = 0;
   if (currentBalance.source !== 'sample') coverage += 40;
   coverage += Math.min(30, activeSubs * 20);

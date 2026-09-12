@@ -22,6 +22,7 @@ import { pickOpener } from '@/folio/lib/modes';
 import { useAppStore } from '@/folio/store';
 import type { MoneyMode } from '@/folio/store';
 import { isDiscretionarySubscription } from './discretionarySubscription';
+import { subscriptionPaused } from './subscriptionIdentity';
 
 const DAY_MS = 86_400_000;
 const RECENT_WINDOW_DAYS = 14;
@@ -41,7 +42,7 @@ export function useMeloOpener(overrideMode?: MoneyMode): string {
   const currentBalance = useAppStore((s) => s.currentBalance);
 
   return useMemo(() => {
-    const liveSubs = subs.filter((s) => !subPaused[s.name]);
+    const liveSubs = subs.filter((s) => !subscriptionPaused(subPaused, s));
     const quiet = liveSubs.find(
       (s) =>
         isDiscretionarySubscription(s) &&
