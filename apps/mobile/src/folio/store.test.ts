@@ -94,6 +94,7 @@ import {
   setReaderClosingBalance,
   setTightPointGoal,
   sweepReviewQueue,
+  sweepAutoResumeNow,
   syncHistoryCycles,
   togglePaused,
   totalDebtMinor,
@@ -217,6 +218,25 @@ describe('pauseMany / togglePaused', () => {
 // addIgnoredReviewSig logs review-ignored (only when given a subject). Newest first, capped at 200.
 // ---------------------------------------------------------------------------
 describe('timelineEvents log', () => {
+  it('stores a readable subject with the immutable ID for an exact-ID pause', () => {
+    const target = getState().subs.find((subscription) => subscription.name === 'Spotify');
+    expect(target).toBeTruthy();
+    setPartial({
+      subs: getState().subs.map((subscription) =>
+        subscription.name === 'Spotify' ? { ...subscription, id: 'sub-spotify' } : subscription,
+      ),
+    });
+    const identifiedTarget = getState().subs.find(
+      (subscription) => subscription.name === 'Spotify',
+    );
+    expect(identifiedTarget?.id).toBe('sub-spotify');
+    togglePaused(identifiedTarget!.id!, true);
+    const event = getState().timelineEvents?.[0];
+    expect(event?.kind).toBe('sub-paused');
+    expect(event?.subject).toBe('Spotify');
+    expect(event?.entityId).toBe(identifiedTarget!.id);
+  });
+
   it('togglePaused logs a sub-paused event when a sub is paused', () => {
     togglePaused('Spotify', true);
     const events = getState().timelineEvents ?? [];
@@ -249,6 +269,21 @@ describe('timelineEvents log', () => {
     expect(events.length).toBe(1);
     expect(events[0]!.kind).toBe('review-ignored');
     expect(events[0]!.subject).toBe('Tesco');
+  });
+
+  it('auto-resume stores the readable subject and immutable ID', () => {
+    const target = getState().subs.find((subscription) => subscription.name === 'Spotify');
+    expect(target).toBeTruthy();
+    const identifiedTarget = { ...target!, id: 'sub-spotify' };
+    setPartial({
+      subs: [{ ...identifiedTarget, pausedUntil: '2026-01-02', pausedAt: '2026-01-01' }],
+      subPaused: { [identifiedTarget.id]: true },
+    });
+    expect(sweepAutoResumeNow('2026-01-03')).toEqual([identifiedTarget.id]);
+    const event = getState().timelineEvents?.[0];
+    expect(event?.kind).toBe('sub-resumed');
+    expect(event?.subject).toBe('Spotify');
+    expect(event?.entityId).toBe(identifiedTarget.id);
   });
 
   it('addIgnoredReviewSig logs nothing when no subject is given', () => {
@@ -340,6 +375,24 @@ describe('Melo reaction emission', () => {
     expect(box.payload?.mood).toBe('calm');
     expect(box.payload?.pose).toBe('safe');
     expect(box.payload?.key).toBe('Spotify');
+    expect(box.payload?.line).toBe("Spotify paused for one cycle. I'll resume it after.");
+  });
+
+  it('togglePaused exact-ID reaction keeps the ID key but uses the readable subject', async () => {
+    const target = getState().subs.find((subscription) => subscription.name === 'Spotify');
+    expect(target).toBeTruthy();
+    const identifiedTarget = { ...target!, id: 'sub-spotify' };
+    setPartial({
+      subs: getState().subs.map((subscription) =>
+        subscription.name === 'Spotify' ? identifiedTarget : subscription,
+      ),
+    });
+    const box = captureOnce('subs-inline');
+
+    togglePaused(identifiedTarget.id, true);
+    await flushReactionImport();
+
+    expect(box.payload?.key).toBe(identifiedTarget.id);
     expect(box.payload?.line).toBe("Spotify paused for one cycle. I'll resume it after.");
   });
 

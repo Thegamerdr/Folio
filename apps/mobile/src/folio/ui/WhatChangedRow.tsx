@@ -28,6 +28,7 @@ export function WhatChangedRow({ nav }: { nav: Nav }) {
   const s = useMemo(() => makeStyles(t), [t]);
 
   const transactions = useAppStore((st) => st.transactions);
+  const subscriptions = useAppStore((st) => st.subs);
   const debts = useAppStore((st) => st.debts ?? []);
   const edits = useAppStore((st) => st.edits ?? []);
   const events = useAppStore((st) => st.timelineEvents ?? []);
@@ -44,14 +45,14 @@ export function WhatChangedRow({ nav }: { nav: Nav }) {
   const summary = useMemo(
     () =>
       summarizeWhatChanged({
-        rows: buildTimelineRows({ transactions, edits, events }),
+        rows: buildTimelineRows({ transactions, edits, events, subscriptions }),
         imports,
         seenISO,
         transactions,
         edits,
         debts,
       }),
-    [transactions, edits, events, imports, seenISO, debts],
+    [transactions, edits, events, imports, seenISO, debts, subscriptions],
   );
 
   if (summary === null) return null;

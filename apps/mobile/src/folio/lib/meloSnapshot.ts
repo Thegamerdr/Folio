@@ -114,6 +114,7 @@ export function buildMeloSnapshot(
       transactions: localState.transactions,
       edits: localState.edits ?? [],
       events: localState.timelineEvents ?? [],
+      subscriptions: localState.subs,
     }),
     imports: localState.statementImports ?? [],
     seenISO: localState.whatChangedSeenISO ?? null,

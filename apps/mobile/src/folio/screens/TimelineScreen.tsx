@@ -280,6 +280,7 @@ export function TimelineScreen({
   // both capped at 200). `edits` classifies a transaction as "Edited"; `timelineEvents` is the
   // `// @rn-engine timeline-verbs` log for sub-pause/resume + review-ignore moments.
   const transactions = useAppStore((st) => st.transactions);
+  const subscriptions = useAppStore((st) => st.subs);
   const edits = useAppStore((st) => st.edits ?? []);
   const events = useAppStore((st) => st.timelineEvents ?? []);
   // DATA_INTELLIGENCE.md phase ④(A) — `droppedTransactionCount` is the running total of rows the
@@ -301,7 +302,7 @@ export function TimelineScreen({
   const rows = useMemo(() => {
     const now = new Date();
     const txnById = new Map(transactions.map((txn) => [txn.id, txn] as const));
-    const merged = buildTimelineRows({ transactions, edits, events });
+    const merged = buildTimelineRows({ transactions, edits, events, subscriptions });
     return merged.map(
       (row): DisplayRow => ({
         id: row.id,
@@ -313,7 +314,7 @@ export function TimelineScreen({
         editable: txnById.has(row.id),
       }),
     );
-  }, [transactions, edits, events]);
+  }, [transactions, edits, events, subscriptions]);
   const transactionRows = useMemo(
     () => (isBusiness ? rows : rows.filter((row) => row.editable)),
     [rows, isBusiness],
@@ -324,10 +325,10 @@ export function TimelineScreen({
   );
   const decisions = useMemo(
     () =>
-      buildDecisionHistoryRows({ transactions, edits, events }).filter(
+      buildDecisionHistoryRows({ transactions, edits, events, subscriptions }).filter(
         (row) => row.kind !== 'added',
       ),
-    [transactions, edits, events],
+    [transactions, edits, events, subscriptions],
   );
   const visibleTransactions = useMemo(
     () => transactions.slice(0, visibleCount),

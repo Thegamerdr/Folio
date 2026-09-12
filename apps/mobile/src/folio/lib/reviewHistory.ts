@@ -5,7 +5,8 @@
 // entries come from transactions/edits/timelineEvents. It never infers an explanation that the
 // store does not contain.
 
-import type { ReviewItem, StoredTxnEdit, TimelineEvent, Transaction } from '../store';
+import type { ReviewItem, StoredTxnEdit, TimelineEvent, Transaction, Sub } from '../store';
+import { resolveSubscriptionDisplayName } from './timelineEvents';
 
 export const HISTORY_SCOPE = {
   activity: {
@@ -88,8 +89,9 @@ export function buildDecisionHistoryRows(args: {
   transactions: readonly Transaction[];
   edits: readonly StoredTxnEdit[];
   events: readonly TimelineEvent[];
+  subscriptions?: readonly Pick<Sub, 'id' | 'name'>[];
 }): DecisionHistoryRow[] {
-  const { transactions, edits, events } = args;
+  const { transactions, edits, events, subscriptions } = args;
   const titles = new Map(transactions.map((transaction) => [transaction.id, transaction.merchant]));
 
   const transactionRows: DecisionHistoryRow[] = transactions.map((transaction) => ({
@@ -142,7 +144,7 @@ export function buildDecisionHistoryRows(args: {
         id: event.id,
         at: event.at,
         kind: event.kind === 'sub-paused' ? ('paused' as const) : ('resumed' as const),
-        title: event.subject,
+        title: resolveSubscriptionDisplayName(event.subject, subscriptions, event.entityId),
         ...(event.note !== undefined ? { note: event.note } : {}),
       },
     ];

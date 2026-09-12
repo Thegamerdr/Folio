@@ -73,6 +73,43 @@ describe('review history projections', () => {
     expect(rows[1]?.note).toBe('for one cycle');
   });
 
+  it('resolves a persisted subscription identity to its current readable title', () => {
+    const events: TimelineEvent[] = [
+      {
+        id: 'pause-identity-1',
+        at: '2026-08-02T10:00:00.000Z',
+        kind: 'sub-paused',
+        subject: 'sub-streaming',
+        entityId: 'sub-streaming',
+      },
+    ];
+    const rows = buildDecisionHistoryRows({
+      transactions: [],
+      edits: [],
+      events,
+      subscriptions: [{ id: 'sub-streaming', name: 'Validation Streaming' }],
+    });
+    expect(rows[0]).toMatchObject({ kind: 'paused', title: 'Validation Streaming' });
+  });
+
+  it('preserves a readable subscription title after rename', () => {
+    const rows = buildDecisionHistoryRows({
+      transactions: [],
+      edits: [],
+      events: [
+        {
+          id: 'pause-renamed-1',
+          at: '2026-08-02T10:00:00.000Z',
+          kind: 'sub-paused',
+          subject: 'Validation Streaming',
+          entityId: 'sub-streaming',
+        },
+      ],
+      subscriptions: [{ id: 'sub-streaming', name: 'Renamed Streaming' }],
+    });
+    expect(rows[0]).toMatchObject({ kind: 'paused', title: 'Validation Streaming' });
+  });
+
   it('keeps pending review separate and preserves its staged values', () => {
     const queue: ReviewItem[] = [
       {

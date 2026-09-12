@@ -110,6 +110,88 @@ describe('buildTimelineRows', () => {
     expect(rows[0]!.note).toBeUndefined();
   });
 
+  it('resolves an immutable subscription ID to its current readable name', () => {
+    const rows = buildTimelineRows({
+      transactions: [],
+      edits: [],
+      events: [
+        {
+          ...event('sub-paused', 'sub-streaming', '2026-07-01T09:00:00.000Z'),
+          entityId: 'sub-streaming',
+        },
+      ],
+      subscriptions: [{ id: 'sub-streaming', name: 'Validation Streaming' }],
+    });
+    expect(rows[0]!.what).toBe('Validation Streaming');
+  });
+
+  it('preserves a readable subject when its immutable subscription is renamed', () => {
+    const rows = buildTimelineRows({
+      transactions: [],
+      edits: [],
+      events: [
+        {
+          ...event('sub-paused', 'Validation Streaming', '2026-07-01T09:00:00.000Z'),
+          entityId: 'sub-streaming',
+        },
+      ],
+      subscriptions: [{ id: 'sub-streaming', name: 'Renamed Streaming' }],
+    });
+    expect(rows[0]!.what).toBe('Validation Streaming');
+  });
+
+  it('preserves a readable subject when the subscription lookup is unavailable', () => {
+    const rows = buildTimelineRows({
+      transactions: [],
+      edits: [],
+      events: [
+        {
+          ...event('sub-resumed', 'Validation Streaming', '2026-07-01T09:00:00.000Z'),
+          entityId: 'sub-streaming',
+        },
+      ],
+    });
+    expect(rows[0]!.what).toBe('Validation Streaming');
+  });
+
+  it('does not reinterpret a readable label that equals another subscription ID', () => {
+    const rows = buildTimelineRows({
+      transactions: [],
+      edits: [],
+      events: [
+        {
+          ...event('sub-paused', 'sub-other', '2026-07-01T09:00:00.000Z'),
+          entityId: 'sub-streaming',
+        },
+      ],
+      subscriptions: [
+        { id: 'sub-other', name: 'Other Subscription' },
+        { id: 'sub-streaming', name: 'Validation Streaming' },
+      ],
+    });
+    expect(rows[0]!.what).toBe('sub-other');
+  });
+
+  it('resolves a legacy event whose subject stored the subscription ID', () => {
+    const rows = buildTimelineRows({
+      transactions: [],
+      edits: [],
+      events: [event('sub-paused', 'sub-streaming', '2026-07-01T09:00:00.000Z')],
+      subscriptions: [{ id: 'sub-streaming', name: 'Validation Streaming' }],
+    });
+    expect(rows[0]!.what).toBe('Validation Streaming');
+  });
+
+  it('keeps an unresolved historical subscription subject unchanged', () => {
+    const rows = buildTimelineRows({
+      transactions: [],
+      edits: [],
+      events: [event('sub-resumed', 'sub-removed', '2026-07-01T09:00:00.000Z')],
+      subscriptions: [{ id: 'sub-other', name: 'Other' }],
+    });
+    expect(rows[0]!.what).toBe('sub-removed');
+  });
+
   it('maps review-ignored to the durable action the user actually chose', () => {
     const rows = buildTimelineRows({
       transactions: [],

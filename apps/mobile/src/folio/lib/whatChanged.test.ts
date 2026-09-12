@@ -175,6 +175,27 @@ describe('precise payment change summaries', () => {
       }),
     ).toEqual({ count: 2, headline: 'Phone paused · 1 more' });
   });
+
+  it('resolves an already-persisted paused subscription ID for What changed', () => {
+    const summary = summarizeWhatChanged({
+      rows: buildTimelineRows({
+        transactions: [],
+        edits: [],
+        events: [
+          {
+            id: 'sub-paused-legacy',
+            at: '2026-07-11T09:00:00.000Z',
+            kind: 'sub-paused',
+            subject: 'sub-streaming',
+          },
+        ],
+        subscriptions: [{ id: 'sub-streaming', name: 'Validation Streaming' }],
+      }),
+      imports: [],
+      seenISO: SEEN,
+    });
+    expect(summary).toEqual({ count: 1, headline: 'Validation Streaming paused' });
+  });
   it('does not create a live detail target for a removed transaction', () => {
     expect(
       summarizeWhatChanged({

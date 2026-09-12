@@ -17,7 +17,7 @@
 // Both sources are merged newest-first by timestamp into one `TimelineRow[]` feed. Pure — no store
 // reads here; callers (TimelineScreen) pass in the two slices + `now`.
 
-import type { Transaction, StoredTxnEdit, TimelineEvent } from '../store';
+import type { Sub, Transaction, StoredTxnEdit, TimelineEvent } from '../store';
 
 // The verbs the web's ScreenTimeline union defines, reproduced verbatim (COPY FROZEN — no new verb
 // strings. The web demo distinguished "Left for later" and "Ignored", but the real native action is
@@ -41,6 +41,32 @@ export type TimelineRow = {
   note?: string;
   category?: string;
 };
+
+/** Resolve subscription event identities to the current readable name. Older events may carry
+ * the ID in `subject`; newer events carry it in `entityId`. Name matching is deliberately absent:
+ * duplicate subscription names must never decide identity. */
+export function resolveSubscriptionDisplayName(
+  subject: string,
+  subscriptions: readonly Pick<Sub, 'id' | 'name'>[] | undefined,
+  entityId?: string,
+): string {
+  // A present entityId marks the new event shape: subject is its persisted readable snapshot.
+  // Only resolve the old shape where subject itself carried the immutable ID. This also protects
+  // a legitimate label that happens to equal another subscription's ID.
+  if (entityId !== undefined && subject !== entityId) return subject;
+  return subscriptions?.find((subscription) => subscription.id === subject)?.name ?? subject;
+}
+
+function displaySubject(
+  event: TimelineEvent,
+  subscriptions: readonly Pick<Sub, 'id' | 'name'>[] | undefined,
+): string {
+  if (event.kind !== 'sub-paused' && event.kind !== 'sub-resumed') return event.subject;
+  // New events persist a readable subject alongside entityId. Resolve only the legacy shape where
+  // the subject itself is an immutable ID, preserving historical human-readable subjects even if
+  // the subscription was renamed or removed.
+  return resolveSubscriptionDisplayName(event.subject, subscriptions, event.entityId);
+}
 
 /** Transaction → verb. A transaction with at least one entry in `edits` (keyed by `txnId`) reads
  *  "Edited" — this covers both a user correction AND a Melo-logged nudge, since both are edits.
@@ -79,8 +105,9 @@ export function buildTimelineRows(args: {
   transactions: readonly Transaction[];
   edits: readonly StoredTxnEdit[];
   events: readonly TimelineEvent[];
+  subscriptions?: readonly Pick<Sub, 'id' | 'name'>[];
 }): TimelineRow[] {
-  const { transactions, edits, events } = args;
+  const { transactions, edits, events, subscriptions } = args;
 
   const txnRows: TimelineRow[] = transactions.map((txn) => ({
     id: txn.id,
@@ -95,7 +122,7 @@ export function buildTimelineRows(args: {
       id: evt.id,
       at: evt.at,
       verb,
-      what: evt.subject,
+      what: displaySubject(evt, subscriptions),
       ...(evt.note !== undefined ? { note: evt.note } : note !== undefined ? { note } : {}),
     };
   });

@@ -1901,9 +1901,15 @@ export function sweepAutoResumeNow(
   const swept = sweepAutoResume(state.subs, state.subPaused, today);
   if (swept.resumedNames.length === 0) return [];
   const timelineEvents = retainTimelineEvents([
-    ...swept.resumedNames.map((name) =>
-      createTimelineEvent('sub-resumed', name, 'One paused renewal has passed.'),
-    ),
+    ...swept.resumedNames.map((key) => {
+      const subscription = swept.subs.find((candidate) => subscriptionKey(candidate) === key);
+      return createTimelineEvent(
+        'sub-resumed',
+        subscription?.name ?? key,
+        'One paused renewal has passed.',
+        subscription?.id,
+      );
+    }),
     ...(state.timelineEvents ?? []),
   ]);
   setPartialWithTypedCommand(
@@ -2658,8 +2664,16 @@ export function togglePaused(name: string, value?: boolean) {
             ? subscriptionWithPause(subscription, next, today)
             : subscription,
         );
+  const displayName = targets[0]?.name ?? name;
   const timelineEvent =
-    current === next ? null : createTimelineEvent(next ? 'sub-paused' : 'sub-resumed', name);
+    current === next
+      ? null
+      : createTimelineEvent(
+          next ? 'sub-paused' : 'sub-resumed',
+          displayName,
+          undefined,
+          targets[0]?.id,
+        );
   const timelineEvents =
     timelineEvent === null
       ? undefined
@@ -2695,8 +2709,8 @@ export function togglePaused(name: string, value?: boolean) {
         mood: next ? 'calm' : 'curious',
         pose: next ? 'safe' : 'check',
         line: next
-          ? `${name} paused for one cycle. I'll resume it after.`
-          : `${name} back on. I'll watch the timing.`,
+          ? `${displayName} paused for one cycle. I'll resume it after.`
+          : `${displayName} back on. I'll watch the timing.`,
         durationMs: 4000,
         key: name,
       });
@@ -5423,12 +5437,14 @@ function createTimelineEvent(
   kind: TimelineEventKind,
   subject: string,
   note?: string,
+  entityId?: string,
 ): TimelineEvent {
   return {
     id: `tl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     at: new Date().toISOString(),
     kind,
     subject,
+    ...(entityId === undefined ? {} : { entityId }),
     ...(note !== undefined ? { note } : {}),
   };
 }
