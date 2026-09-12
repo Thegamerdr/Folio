@@ -6,14 +6,16 @@ const START = '// Melo capture isolation: begin';
 const END = '// Melo capture isolation: end';
 const BLOCK = `${START}
 def meloCaptureBuild = System.getenv('EXPO_PUBLIC_MELO_PARITY_CAPTURE') == 'true'
+def meloValidationBuild = System.getenv('MELO_RELEASE_VALIDATION') == 'true'
+if (meloCaptureBuild && meloValidationBuild) throw new GradleException('MELO_RELEASE_VALIDATION cannot be combined with EXPO_PUBLIC_MELO_PARITY_CAPTURE')
 android {
     defaultConfig {
-        applicationId (meloCaptureBuild ? 'com.folio.v2.greenfield.capture' : 'com.folio.v2.greenfield')
+        applicationId (meloCaptureBuild ? 'com.folio.v2.greenfield.capture' : (meloValidationBuild ? 'com.folio.v2.greenfield.validation' : 'com.folio.v2.greenfield'))
         manifestPlaceholders += [
-            meloUrlScheme: meloCaptureBuild ? 'folio-qa' : 'folio',
-            meloExpoUrlScheme: meloCaptureBuild ? 'exp+folio-v2-greenfield.capture' : 'exp+folio-v2-greenfield',
-            meloUpdatesEnabled: meloCaptureBuild ? 'false' : 'true',
-            meloAppName: meloCaptureBuild ? 'Melo QA' : 'Melo'
+            meloUrlScheme: meloCaptureBuild ? 'folio-qa' : (meloValidationBuild ? 'folio-validation' : 'folio'),
+            meloExpoUrlScheme: meloCaptureBuild ? 'exp+folio-v2-greenfield.capture' : (meloValidationBuild ? 'exp+folio-v2-greenfield.validation' : 'exp+folio-v2-greenfield'),
+            meloUpdatesEnabled: (meloCaptureBuild || meloValidationBuild) ? 'false' : 'true',
+            meloAppName: meloCaptureBuild ? 'Melo QA' : (meloValidationBuild ? 'Melo Validation' : 'Melo')
         ]
     }
 }
@@ -21,7 +23,7 @@ android {
 // build to production cannot reuse JS containing a baked capture flag or fixture.
 tasks.matching { it.name.startsWith('createBundle') && it.name.endsWith('JsAndAssets') }.configureEach {
     [
-        'EXPO_PUBLIC_MELO_PARITY_CAPTURE', 'EXPO_PUBLIC_MELO_PARITY_FIXTURE',
+        'EXPO_PUBLIC_MELO_PARITY_CAPTURE', 'MELO_RELEASE_VALIDATION', 'EXPO_PUBLIC_MELO_PARITY_FIXTURE',
         'EXPO_PUBLIC_MELO_PARITY_NOW', 'EXPO_PUBLIC_MELO_PARITY_SCREEN',
         'EXPO_PUBLIC_MELO_PARITY_SHEET', 'EXPO_PUBLIC_MELO_PARITY_THEME',
         'EXPO_PUBLIC_MELO_PARITY_GLOBAL'
@@ -56,11 +58,12 @@ function isolateCaptureManifest(manifest) {
     for (const filter of activity['intent-filter'] ?? []) {
       for (const data of filter.data ?? []) {
         const scheme = data.$['android:scheme'];
-        if (scheme === 'folio' || scheme === 'folio-qa') {
+        if (scheme === 'folio' || scheme === 'folio-qa' || scheme === 'folio-validation') {
           data.$['android:scheme'] = '${meloUrlScheme}';
         } else if (
           scheme === 'exp+folio-v2-greenfield' ||
-          scheme === 'exp+folio-v2-greenfield.capture'
+          scheme === 'exp+folio-v2-greenfield.capture' ||
+          scheme === 'exp+folio-v2-greenfield.validation'
         ) {
           data.$['android:scheme'] = '${meloExpoUrlScheme}';
         }

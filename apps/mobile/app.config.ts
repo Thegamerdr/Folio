@@ -67,16 +67,24 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // QA fixtures have their own OS sandbox, keychain identity and URL scheme. A capture build
   // cannot upgrade the real app or access its canonical vault, even through secondary screens.
   const capture = process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true';
-  const applicationId = capture ? 'com.folio.v2.greenfield.capture' : 'com.folio.v2.greenfield';
+  const validation = process.env.MELO_RELEASE_VALIDATION === 'true';
+  if (capture && validation) {
+    throw new Error('MELO_RELEASE_VALIDATION cannot be combined with EXPO_PUBLIC_MELO_PARITY_CAPTURE.');
+  }
+  const applicationId = capture
+    ? 'com.folio.v2.greenfield.capture'
+    : validation
+      ? 'com.folio.v2.greenfield.validation'
+      : 'com.folio.v2.greenfield';
 
   return {
     ...config,
     // The app IS Melo (owner D4; brand sweep completed 2026-07-11). The slug (EAS project),
     // scheme (existing deep links) and Android package id (com.folio.v2.greenfield — changing it
     // would orphan every installed device) deliberately keep the folio name.
-    name: capture ? 'Melo QA' : 'Melo',
+    name: capture ? 'Melo QA' : validation ? 'Melo Validation' : 'Melo',
     slug: 'folio-v2-greenfield',
-    scheme: capture ? 'folio-qa' : 'folio',
+    scheme: capture ? 'folio-qa' : validation ? 'folio-validation' : 'folio',
     version: '0.0.6',
     icon: './assets/brand/app-icon-1024.png',
     orientation: 'portrait',
@@ -94,7 +102,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // the NEXT launch. Locally-built APKs pin the 'production' channel via requestHeaders;
       // EAS-built profiles get their channel from eas.json. Native/config changes still need a
       // full rebuild — runtimeVersion (fingerprint policy) fences incompatible updates.
-      enabled: !capture,
+      enabled: !capture && !validation,
       url: 'https://u.expo.dev/ef69039d-abaf-48e9-b35a-52d80b03a96a',
       fallbackToCacheTimeout: 0,
       requestHeaders: {

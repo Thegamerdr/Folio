@@ -12,18 +12,19 @@ describe('native QA capture isolation', () => {
     expect(generated).toContain(base.trimEnd());
     expect(generated).toContain("System.getenv('EXPO_PUBLIC_MELO_PARITY_CAPTURE') == 'true'");
     expect(generated).toContain(
-      "applicationId (meloCaptureBuild ? 'com.folio.v2.greenfield.capture' : 'com.folio.v2.greenfield')",
+      "applicationId (meloCaptureBuild ? 'com.folio.v2.greenfield.capture' : (meloValidationBuild ? 'com.folio.v2.greenfield.validation' : 'com.folio.v2.greenfield'))",
     );
-    expect(generated).toContain("meloUrlScheme: meloCaptureBuild ? 'folio-qa' : 'folio'");
-    expect(generated).toContain("meloUpdatesEnabled: meloCaptureBuild ? 'false' : 'true'");
+    expect(generated).toContain("meloUrlScheme: meloCaptureBuild ? 'folio-qa' : (meloValidationBuild ? 'folio-validation' : 'folio')");
+    expect(generated).toContain("meloUpdatesEnabled: (meloCaptureBuild || meloValidationBuild) ? 'false' : 'true'");
     expect(generated).toContain("inputs.property(key, System.getenv(key) ?: '')");
+    expect(generated).toContain("'MELO_RELEASE_VALIDATION'");
     for (const suffix of ['CAPTURE', 'FIXTURE', 'NOW', 'SCREEN', 'SHEET', 'THEME', 'GLOBAL']) {
       expect(generated).toContain(`'EXPO_PUBLIC_MELO_PARITY_${suffix}'`);
     }
     expect(injectCaptureGradle(generated)).toBe(generated);
   });
 
-  it.each(['folio', 'folio-qa'])(
+  it.each(['folio', 'folio-qa', 'folio-validation'])(
     'binds the manifest from a %s prebuild to the current native build identity',
     (scheme) => {
       const manifest = {
