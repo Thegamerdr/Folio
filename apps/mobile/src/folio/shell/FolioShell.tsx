@@ -63,6 +63,8 @@ import {
 import type { ProductScreen } from '@/surfaces/pressureMap/productScreen';
 import { KeyboardSafeView, Sheet, SheetPortalProvider } from '@/surfaces/pressureMap/Sheet';
 import { dismissTopSheet } from '@/surfaces/pressureMap/sheetBack';
+import { resolveBottomNavInset } from '@/surfaces/pressureMap/bottomNavGeometry';
+import { BottomChromeProvider } from './bottomChromeContext';
 
 import { StartScreen } from '@/folio/screens/StartScreen';
 import { TodayScreen } from '@/folio/screens/TodayScreen';
@@ -447,7 +449,6 @@ export function FolioShell() {
   const t = useTheme();
   const systemInsets = useSafeAreaInsets();
   const screenInsets = useMemo(() => ({ ...systemInsets, top: 0, bottom: 0 }), [systemInsets]);
-  const [bottomChromeHeight, setBottomChromeHeight] = useState(60 + systemInsets.bottom);
   const [toastHeight, setToastHeight] = useState(0);
   const parity = useMemo(() => getParityHarnessConfig(), []);
   const parityRuntime = useSyncExternalStore(
@@ -584,6 +585,12 @@ export function FolioShell() {
     st.workspaces.find((workspace) => workspace.id === st.activeWorkspaceId),
   );
   const businessWorkspaceActive = activeWorkspace?.kind === 'business';
+  const bottomChromeSystemInset = resolveBottomNavInset({
+    reportedBottomInset: systemInsets.bottom,
+    parityCapture: process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true',
+    variant: businessWorkspaceActive ? 'business' : 'personal',
+  });
+  const [bottomChromeHeight, setBottomChromeHeight] = useState(60 + systemInsets.bottom);
   const tinyWins = useAppStore((st) => st.tinyWins);
   const milestoneSoundsEnabled = useAppStore((st) => st.melo?.soundEnabled === true);
   const feedbackQuietMode = useAppStore((st) => st.melo?.quietMode === true);
@@ -878,12 +885,17 @@ export function FolioShell() {
                     <MeloSuppressedContext.Provider
                       value={sheet !== null || portalSheetOpen || workspaceSheetVisible}
                     >
-                      <ScreenView
-                        screen={screen}
-                        nav={nav}
-                        pressure={activePressure}
-                        payload={screenPayload}
-                      />
+                      <BottomChromeProvider
+                        measuredHeight={bottomChromeHeight}
+                        systemBottomInset={bottomChromeSystemInset}
+                      >
+                        <ScreenView
+                          screen={screen}
+                          nav={nav}
+                          pressure={activePressure}
+                          payload={screenPayload}
+                        />
+                      </BottomChromeProvider>
                     </MeloSuppressedContext.Provider>
                   </SafeAreaInsetsContext.Provider>
                 </ScreenErrorBoundary>

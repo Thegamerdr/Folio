@@ -1,4 +1,5 @@
 import { MeloScrollView } from '@/folio/melo/MeloScrollView';
+import { useBottomChromeContentPadding } from '@/folio/shell/bottomChromeContext';
 import {
   MeloProtectedText as Text,
   MeloProtectedPressable as Pressable,
@@ -146,6 +147,7 @@ export function TodayScreen({
 }) {
   const t = useTodayTheme();
   const insets = useSafeAreaInsets();
+  const contentBottomPadding = useBottomChromeContentPadding();
   const reduceMotion = useReduceMotion();
   const { width, fontScale } = useWindowDimensions();
   // This four-part header has less spare width than paired financial rows.
@@ -530,7 +532,8 @@ export function TodayScreen({
     <Animated.View style={[styles.root, enterStyle, { paddingTop: insets.top }]}>
       <MeloScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: contentBottomPadding }]}
+        scrollIndicatorInsets={{ bottom: contentBottomPadding }}
       >
         {/* Keep the compact status header at baseline size. Enlarged text gets separate rows
             for date, payday and state so every existing action remains readable. */}
