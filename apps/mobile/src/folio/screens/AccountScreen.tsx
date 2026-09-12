@@ -849,7 +849,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                 onChangeText={setNewAccountName}
                 placeholder={isBusiness ? 'e.g. Business current' : 'e.g. Monzo current'}
                 placeholderTextColor={t.muted}
-                style={[styles.addAccountInput, { backgroundColor: t.inset, color: t.ink }]}
+                style={[styles.addAccountInput, styles.addAccountNameInput, { backgroundColor: t.inset, color: t.ink }]}
                 value={newAccountName}
               />
               <View style={styles.accountKindRow}>
@@ -1774,6 +1774,10 @@ const styles = StyleSheet.create({
     marginTop: gap.md,
     minHeight: 50,
     paddingHorizontal: gap.md,
+  },
+  // The Add-account name field must retain the frozen 52dp visual field height at 1x and 2x.
+  addAccountNameInput: {
+    minHeight: 52,
   },
   accountKindRow: {
     flexDirection: 'row',
