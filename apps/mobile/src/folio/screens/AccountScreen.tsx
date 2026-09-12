@@ -876,22 +876,37 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                   );
                 })}
               </View>
-              <View style={[styles.addAccountBalanceRow, { backgroundColor: t.inset }]}>
-                <Text style={[styles.addAccountCurrency, { color: t.ink }]}>£</Text>
-                <TextInput
-                  accessibilityLabel={
-                    newAccountKind === 'credit-card' ? 'Amount owed' : 'Opening balance'
-                  }
-                  keyboardType={newAccountKind === 'credit-card' ? 'decimal-pad' : 'numeric'}
-                  onChangeText={setNewAccountBalance}
-                  placeholder="0.00"
-                  placeholderTextColor={t.muted}
-                  style={[styles.addAccountBalanceInput, { color: t.ink }]}
-                  value={newAccountBalance}
-                />
-                <Text style={[styles.addAccountBalanceHint, { color: t.muted }]}>
-                  {newAccountKind === 'credit-card' ? 'owed' : 'opening balance'}
-                </Text>
+              <View
+                style={[
+                  styles.addAccountBalanceRow,
+                  stackRows && styles.addAccountBalanceStacked,
+                  { backgroundColor: t.inset },
+                ]}
+              >
+                <View style={stackRows ? styles.addAccountBalanceValueRow : undefined}>
+                  <Text style={[styles.addAccountCurrency, { color: t.ink }]}>£</Text>
+                  <TextInput
+                    accessibilityLabel={
+                      newAccountKind === 'credit-card' ? 'Amount owed' : 'Opening balance'
+                    }
+                    keyboardType={newAccountKind === 'credit-card' ? 'decimal-pad' : 'numeric'}
+                    onChangeText={setNewAccountBalance}
+                    placeholder="0.00"
+                    placeholderTextColor={t.muted}
+                    style={[styles.addAccountBalanceInput, { color: t.ink }]}
+                    value={newAccountBalance}
+                  />
+                  {!stackRows ? (
+                    <Text style={[styles.addAccountBalanceHint, { color: t.muted }]}>
+                      {newAccountKind === 'credit-card' ? 'owed' : 'opening balance'}
+                    </Text>
+                  ) : null}
+                </View>
+                {stackRows ? (
+                  <Text style={[styles.addAccountBalanceHint, styles.addAccountBalanceHintStacked, { color: t.muted }]}>
+                    {newAccountKind === 'credit-card' ? 'owed' : 'opening balance'}
+                  </Text>
+                ) : null}
               </View>
               {accountFormError ? (
                 <Text style={[styles.accountFormError, { color: t.repair }]}>
@@ -1803,6 +1818,17 @@ const styles = StyleSheet.create({
     minHeight: 50,
     paddingHorizontal: gap.md,
   },
+  addAccountBalanceStacked: {
+    alignItems: 'stretch',
+    flexDirection: 'column',
+    minHeight: 0,
+    paddingVertical: gap.sm,
+  },
+  addAccountBalanceValueRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minWidth: 0,
+  },
   addAccountCurrency: {
     fontSize: 15,
   },
@@ -1814,6 +1840,10 @@ const styles = StyleSheet.create({
   addAccountBalanceHint: {
     fontSize: 10,
     textTransform: 'uppercase',
+  },
+  addAccountBalanceHintStacked: {
+    marginTop: gap.xs,
+    width: '100%',
   },
   accountFormError: {
     fontSize: 12,
