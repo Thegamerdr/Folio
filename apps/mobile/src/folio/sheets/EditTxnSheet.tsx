@@ -1274,8 +1274,12 @@ function makeStyles(t: Palette) {
       gap: gap.sm,
     },
     catChip: {
+      alignItems: 'center',
       backgroundColor: t.inset,
       borderRadius: radius.pill,
+      justifyContent: 'center',
+      minHeight: 44,
+      minWidth: 44,
       paddingHorizontal: gap.md,
       paddingVertical: 6,
     },
@@ -1285,6 +1289,7 @@ function makeStyles(t: Palette) {
     catChipLabel: {
       color: t.ink,
       fontSize: 12,
+      textAlign: 'center',
     },
     catChipLabelOn: {
       color: t.inverse,
