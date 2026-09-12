@@ -524,8 +524,6 @@ function OnboardingFlow({
     INTENT_OPTIONS.find((option) => option.mode === savedMode)?.label ?? INTENT_OPTIONS[0]!.label,
   );
   const [name, setName] = useState(ob.name);
-  const [nameQuestionHeight, setNameQuestionHeight] = useState(0);
-  const [nameHelperHeight, setNameHelperHeight] = useState(0);
   const [nameFocused, setNameFocused] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
   useEffect(() => {
@@ -1214,14 +1212,12 @@ function OnboardingFlow({
       onClose={onClose}
       reduceMotion={reduceMotion}
       scrollKey={step}
-      // Name is the only pictured text-IME state. Keep the complete question in the
-      // compact viewport while the fixed footer reserves the action area above the IME.
-      focusContextBefore={compactName && nameQuestionHeight > 0 ? nameQuestionHeight + gap.xl : 48}
-      focusContextAfter={
-        compactName && nameHelperHeight > 0 ? nameHelperHeight + gap.sm + gap.md : 0
-      }
+      // Name is the only pictured text-IME state. Let the shared primitive keep the field and
+      // caret visible; question/helper/actions are reachable in the same continuous body scroll.
+      focusContextBefore={compactName ? 0 : 48}
+      focusContextAfter={0}
       bodyContentInset={compactName ? 0 : 34 * fontScale}
-      footer={footer}
+      footer={compactName ? undefined : footer}
       header={
         <View
           style={{
@@ -1261,11 +1257,6 @@ function OnboardingFlow({
         <Text
           style={[s.headline]}
           accessibilityRole="header"
-          onLayout={(event) => {
-            if (!isNameStep) return;
-            const height = event.nativeEvent.layout.height;
-            setNameQuestionHeight((previous) => (previous === height ? previous : height));
-          }}
         >
           {current.head.lead}
           <Text style={s.headlineAccent}>{current.head.accent}</Text>
@@ -1829,22 +1820,16 @@ function OnboardingFlow({
           ) : null}
         </Animated.View>
 
-        <Text
-          style={[s.footer, compactName ? s.nameHelper : null]}
-          onLayout={(event) => {
-            if (!isNameStep) return;
-            const height = event.nativeEvent.layout.height;
-            setNameHelperHeight((previous) => (previous === height ? previous : height));
-          }}
-        >
+        <Text style={[s.footer, compactName ? s.nameHelper : null]}>
           {isReturning
             ? 'Cancel keeps everything you’ve already added unchanged.'
             : activeStepIndex === 0
               ? 'Use a name or nickname. Nothing is saved until you finish setup.'
               : activeStepIndex === STEP_POTS
                 ? 'You can add pots later. Save my setup keeps the numbers entered in these steps.'
-                : 'Your entries are saved together when you finish setup.'}
+              : 'Your entries are saved together when you finish setup.'}
         </Text>
+        {compactName ? <View style={s.focusedFooter}>{footer}</View> : null}
       </View>
     </Sheet>
   );
@@ -2436,6 +2421,12 @@ function makeStyles(t: Palette, fontScale: number) {
     confirmationLabel: { flex: 1, flexShrink: 1 },
     footerActions: { flexDirection: 'row', justifyContent: 'space-evenly' },
     footerAction: { minHeight: 48, justifyContent: 'center', paddingHorizontal: gap.lg },
+    focusedFooter: {
+      borderTopColor: t.hairline,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      marginTop: gap.md,
+      paddingTop: gap.sm,
+    },
     summaryRow: {
       paddingVertical: gap.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
