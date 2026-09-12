@@ -70,7 +70,8 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
   const appState = useAppStore((state) => state);
   const now = useDayClock();
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showWorking, setShowWorking] = useState(false);
+  const [showPathExplanation, setShowPathExplanation] = useState(false);
+  const [showEstimateExplanation, setShowEstimateExplanation] = useState(false);
   const tracking = selectDebtTrackingPresentation({
     debts,
     transactions: appState.transactions,
@@ -248,10 +249,8 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
                     {formatMoney(debt.minPayment)} recorded monthly minimum · Due day {debt.dueDom}
                   </Text>
                   <Text style={[styles.meta, { color: t.muted }]}>
-                    {debt.aprKnown === false
-                      ? 'APR unknown'
-                      : `${debt.apr}% annual interest`}{' '}
-                    · View / edit
+                    {debt.aprKnown === false ? 'APR unknown' : `${debt.apr}% annual interest`} ·
+                    View / edit
                   </Text>
                 </Pressable>
                 <Pressable
@@ -340,18 +339,31 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
           <View style={[styles.explanation, { borderTopColor: t.hairline }]}>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ expanded: showWorking }}
-              onPress={() => setShowWorking((value) => !value)}
+              accessibilityState={{ expanded: showPathExplanation }}
+              onPress={() => setShowPathExplanation((value) => !value)}
               style={styles.explanationToggle}
             >
-              <Text style={[styles.planHeadline, { color: t.ink }]}>How repayments shape my path</Text>
-              <Text style={[styles.meta, { color: t.calmStrong }]}>{showWorking ? 'Hide explanation' : 'Show explanation'}</Text>
+              <Text style={[styles.planHeadline, { color: t.ink }]}>
+                How repayments shape my path
+              </Text>
+              <Text style={[styles.meta, { color: t.calmStrong }]}>
+                {showPathExplanation ? 'Hide explanation' : 'Show explanation'}
+              </Text>
             </Pressable>
-            {showWorking ? (
+            {showPathExplanation ? (
               <>
-                <Text style={[styles.planCopy, { color: t.muted }]}>Your recorded minimums are included in the path to payday. Interest and lender charges are not moved automatically.</Text>
-                <Pressable accessibilityRole="button" onPress={() => nav.go('plan')} style={styles.tryChange}>
-                  <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>See repayment plan</Text>
+                <Text style={[styles.planCopy, { color: t.muted }]}>
+                  Your recorded minimums are included in the path to payday. Interest and lender
+                  charges are not moved automatically.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => nav.go('plan')}
+                  style={styles.tryChange}
+                >
+                  <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
+                    See repayment plan
+                  </Text>
                 </Pressable>
               </>
             ) : null}
@@ -359,11 +371,15 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
         ) : null}
         {activeDebts.length > 0 ? (
           <>
-            <View style={[styles.planCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+            <View
+              style={[styles.planCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+            >
               <Text style={[styles.planLabel, { color: t.muted }]}>Your debt plan</Text>
               <Text style={[styles.planHeadline, { color: t.ink }]}>Explore an extra payment</Text>
               <Text style={[styles.planCopy, { color: t.muted }]}>
-                {targetDebt ? `${targetDebt.name} is the next focus for this preview.` : 'Choose an amount and see how the projected payoff changes.'}
+                {targetDebt
+                  ? `${targetDebt.name} is the next focus for this preview.`
+                  : 'Choose an amount and see how the projected payoff changes.'}
               </Text>
               {plan.debtProjection ? (
                 <Text style={[styles.planCopy, { color: t.muted }]}>
@@ -406,15 +422,15 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
               </View>
               <Pressable
                 accessibilityRole="button"
-                accessibilityState={{ expanded: showWorking }}
-                onPress={() => setShowWorking((value) => !value)}
+                accessibilityState={{ expanded: showEstimateExplanation }}
+                onPress={() => setShowEstimateExplanation((value) => !value)}
                 style={styles.tryChange}
               >
                 <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>
                   How this estimate works
                 </Text>
               </Pressable>
-              {showWorking ? (
+              {showEstimateExplanation ? (
                 <Text style={[styles.planCopy, { color: t.muted }]}>
                   Based on the balances, annual interest rates, due dates and minimum payments
                   entered. This assumes no new borrowing or changes to those terms. Unknown rates
@@ -593,7 +609,13 @@ const styles = StyleSheet.create({
   planHeadline: { fontFamily: serif.display, fontSize: 20, lineHeight: 26, marginTop: gap.xs },
   planCopy: { fontFamily: weightFamily(400), fontSize: 12.5, lineHeight: 19, marginTop: gap.sm },
   planStats: { gap: gap.md, marginTop: gap.lg },
-  summary: { borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: gap.xl, marginTop: gap.lg, paddingTop: gap.md },
+  summary: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: gap.xl,
+    marginTop: gap.lg,
+    paddingTop: gap.md,
+  },
   summaryItem: { flex: 1, minHeight: 44 },
   summaryValue: { fontFamily: serif.display, fontSize: 16, lineHeight: 22, marginTop: 2 },
   explanation: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: gap.xl, paddingTop: gap.md },
