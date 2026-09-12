@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { estimateScaleBenchmark } from '../../../../../packages/storage/src/scale';
-import { calculateFinancialPlan, type FinancialDebt } from '../../../../../packages/finance-engine/src/financialPlan';
+import { estimateScaleBenchmark } from '@folio/storage';
+import { calculateFinancialPlan, type FinancialDebt } from '@folio/finance-engine';
 import { buildDecisionHistoryRows } from './reviewHistory';
 import { buildTimelineRows } from './timelineEvents';
 import { selectDebtTrackingPresentation } from './debtTrackingPresentation';
