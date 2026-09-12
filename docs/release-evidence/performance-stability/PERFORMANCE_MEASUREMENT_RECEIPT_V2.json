@@ -1,0 +1,32 @@
+{
+  "harness": "local-performance-evidence-v2",
+  "status": "MEASURED_LOCAL_ONLY",
+  "source_sha": "e8b651368a1851c54692ddf93dbbbf6def473ab4",
+  "command": "pnpm exec vitest run --config work/performance-vitest.config.ts --reporter verbose",
+  "measurements": [
+    { "accounts": 1, "debts": 1, "planEvents": 2, "pendingObligations": 1, "selectorElapsedMs": 8.465 },
+    { "accounts": 4, "debts": 4, "planEvents": 8, "pendingObligations": 4, "selectorElapsedMs": 0.63 },
+    { "accounts": 8, "debts": 8, "planEvents": 16, "pendingObligations": 8, "selectorElapsedMs": 0.766 }
+  ],
+  "historyMeasurements": [
+    { "historyRecords": 10, "debtEvents": 1, "timelineRows": 11, "decisionRows": 11, "activeDebts": 8, "rawSamplesMs": [0.056, 0.06, 0.042, 0.048, 0.023], "medianMs": 0.048, "rangeMs": [0.023, 0.06] },
+    { "historyRecords": 100, "debtEvents": 10, "timelineRows": 110, "decisionRows": 110, "activeDebts": 8, "rawSamplesMs": [0.458, 0.438, 0.425, 0.492, 0.4], "medianMs": 0.438, "rangeMs": [0.4, 0.492] },
+    { "historyRecords": 1000, "debtEvents": 100, "timelineRows": 1100, "decisionRows": 1100, "activeDebts": 8, "rawSamplesMs": [5.599, 7.069, 4.808, 6.457, 5.11], "medianMs": 5.599, "rangeMs": [4.808, 7.069] }
+  ],
+  "scaleEstimates_separate": [
+    { "accountInput": 1, "estimatedRows": 53, "estimatedTodayQueryMs": 34, "estimatedSearchQueryMs": 55, "risk": "green" },
+    { "accountInput": 4, "estimatedRows": 104, "estimatedTodayQueryMs": 45, "estimatedSearchQueryMs": 55, "risk": "green" },
+    { "accountInput": 8, "estimatedRows": 172, "estimatedTodayQueryMs": 50, "estimatedSearchQueryMs": 55, "risk": "green" }
+  ],
+  "functional_sanity": [
+    "Distinct account balances are supplied as 2000, 2017, ... major units for each case.",
+    "Each plan case produces at least one debt-minimum event per synthetic debt and pending obligation count equals debt count.",
+    "Each history case exercises buildTimelineRows, buildDecisionHistoryRows, and selectDebtTrackingPresentation; each produces one timeline and one decision row per transaction plus each synthetic debt event, with eight active tracked debts.",
+    "History records are synthetic projections only; no device, database, backend, or live history was used."
+  ],
+  "limitations": [
+    "These history cases measure existing buildTimelineRows/buildDecisionHistoryRows/selectDebtTrackingPresentation derivation with synthetic transaction and debt-event records; they do not measure the physical device or persisted SQLite history.",
+    "No performance acceptance threshold is introduced.",
+    "The scaleEstimates_separate field is output from estimateScaleBenchmark and is not part of measured timings."
+  ]
+}

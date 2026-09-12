@@ -3,11 +3,29 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
     "strict": true,
     "skipLibCheck": true,
     "baseUrl": "..",
     "paths": {
-      "@folio/domain": ["packages/domain/src/index.ts"]
+      "@/*": ["apps/mobile/src/*"],
+      "@folio/ai-contracts": ["packages/ai-contracts/src/index.ts"],
+      "@folio/business-workspace": ["packages/business-workspace/src/index.ts"],
+      "@folio/calendar-engine": ["packages/calendar-engine/src/index.ts"],
+      "@folio/domain": ["packages/domain/src/index.ts"],
+      "@folio/finance-engine": ["packages/finance-engine/src/index.ts"],
+      "@folio/first-minute": ["packages/first-minute/src/index.ts"],
+      "@folio/import-engine": ["packages/import-engine/src/index.ts"],
+      "@folio/melo-engine": ["packages/melo-engine/src/index.ts"],
+      "@folio/melo-policy": ["packages/melo-policy/src/index.ts"],
+      "@folio/open-banking": ["packages/open-banking/src/index.ts"],
+      "@folio/plan-engine": ["packages/plan-engine/src/index.ts"],
+      "@folio/release-readiness": ["packages/release-readiness/src/index.ts"],
+      "@folio/storage": ["packages/storage/src/index.ts"],
+      "@folio/store-release": ["packages/store-release/src/index.ts"],
+      "@folio/sync": ["packages/sync/src/index.ts"],
+      "@folio/today-engine": ["packages/today-engine/src/index.ts"],
+      "@folio/ui": ["packages/ui/src/index.ts"]
     }
   },
   "files": ["../apps/mobile/src/folio/lib/performanceEvidence.test.ts"]
