@@ -10,7 +10,11 @@ import {
 import { buildFinancialPlanFromState } from './financialPlan';
 import { routeFromStore } from './storeRoute';
 import { buildCalendarPresentation } from './calendarPresentation';
-import { deriveShortfallBudget, selectShortfallCause } from './shortfallBudget';
+import {
+  deriveShortfallBudget,
+  formatShortfallCauseLine,
+  selectShortfallCause,
+} from './shortfallBudget';
 
 const now = new Date('2026-09-28T12:00:00Z');
 
@@ -173,8 +177,15 @@ describe('shortfall cause projection', () => {
           id: 'gap-before-payday',
           date: '2026-09-14',
           kind: 'out',
-          title: 'Recovery Gap 2',
+          title: 'Recovery Gap2',
           amount: -1500,
+        },
+        {
+          id: 'small-before-payday',
+          date: '2026-09-14',
+          kind: 'out',
+          title: 'Small outgoing',
+          amount: -10,
         },
         {
           id: 'gap-bill',
@@ -209,23 +220,30 @@ describe('shortfall cause projection', () => {
     const selected = selectShortfallCause({
       routeDate: route.tightPoint.date,
       lowestBeforeIncomeDate: model.lowestBeforeIncome.date,
+      nextIncomeDate: model.plan.nextIncomeDate,
+      gap: deriveShortfallBudget(route).gap,
       events: model.events,
     });
-    expect(route.safeToSpend).toBe(-160);
+    expect(route.safeToSpend).toBe(-170);
     expect(route.tightPoint.date).toBe('2026-09-24');
     expect(model.lowestBeforeIncome.date).toBe('2026-09-14');
     expect(selected).toMatchObject({ date: '2026-09-14' });
-    expect(selected.event).toMatchObject({ title: 'Recovery Gap 2', amount: -1500 });
+    expect(selected.event).toMatchObject({ title: 'Recovery Gap2', amount: -1500 });
+    expect(formatShortfallCauseLine(selected.event)).toBe(
+      'A payment to Recovery Gap2 lands in that stretch.',
+    );
   });
 
   it('falls back honestly when income is unknown or no event explains a buffer-only gap', () => {
     expect(
-      selectShortfallCause({ routeDate: '2026-09-24', events: [] }),
+      selectShortfallCause({ routeDate: '2026-09-24', gap: 0, events: [] }),
     ).toEqual({ date: '2026-09-24', event: null });
     expect(
       selectShortfallCause({
         routeDate: '2026-09-24',
         lowestBeforeIncomeDate: '2026-09-14',
+        nextIncomeDate: '2026-09-15',
+        gap: 5,
         events: [
           {
             id: 'in',
@@ -261,6 +279,8 @@ describe('shortfall cause projection', () => {
     const selected = selectShortfallCause({
       routeDate: '2026-09-24',
       lowestBeforeIncomeDate: '2026-09-14',
+      nextIncomeDate: '2026-09-15',
+      gap: 200,
       events: [
         {
           id: 'income',
@@ -276,10 +296,66 @@ describe('shortfall cause projection', () => {
     expect(selected.event).toEqual(overdue);
   });
 
+  it('uses the aggregate fallback when no single protected outgoing can close the gap', () => {
+    const selected = selectShortfallCause({
+      routeDate: '2026-09-24',
+      lowestBeforeIncomeDate: '2026-09-14',
+      nextIncomeDate: '2026-09-15',
+      gap: 170,
+      events: [
+        {
+          id: 'first',
+          date: '2026-09-13',
+          kind: 'out',
+          source: 'bill',
+          title: 'Earlier bill',
+          amount: -100,
+        },
+        {
+          id: 'second',
+          date: '2026-09-14',
+          kind: 'out',
+          source: 'manual',
+          title: 'Recovery Gap2',
+          amount: -150,
+        },
+      ],
+    });
+    expect(selected).toEqual({ date: '2026-09-14', event: null });
+    expect(formatShortfallCauseLine(selected.event)).toBe(
+      'No single payment creates this gap. It builds across this stretch.',
+    );
+  });
+
+  it('does not name a small payment when the protected buffer leaves a larger gap', () => {
+    const selected = selectShortfallCause({
+      routeDate: '2026-09-24',
+      lowestBeforeIncomeDate: '2026-09-14',
+      nextIncomeDate: '2026-09-15',
+      gap: 170,
+      events: [
+        {
+          id: 'small',
+          date: '2026-09-14',
+          kind: 'out',
+          source: 'manual',
+          title: 'Small outgoing',
+          amount: -10,
+        },
+      ],
+    });
+    expect(selected).toEqual({ date: '2026-09-14', event: null });
+    expect(formatShortfallCauseLine(selected.event)).toBe(
+      'No single payment creates this gap. It builds across this stretch.',
+    );
+  });
+
   it('does not call protected pot or hold deductions an outgoing cause', () => {
     const selected = selectShortfallCause({
       routeDate: '2026-09-14',
       lowestBeforeIncomeDate: '2026-09-14',
+      nextIncomeDate: '2026-09-15',
+      gap: 20,
       events: [
         { id: 'pot', date: '2026-09-14', kind: 'out', source: 'pot', title: 'Buffer', amount: -340 },
         { id: 'hold', date: '2026-09-14', kind: 'out', source: 'hold', title: 'Protected costs', amount: -20 },

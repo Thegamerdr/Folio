@@ -86,7 +86,11 @@ import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
-import { deriveShortfallBudget, selectShortfallCause } from '@/folio/lib/shortfallBudget';
+import {
+  deriveShortfallBudget,
+  formatShortfallCauseLine,
+  selectShortfallCause,
+} from '@/folio/lib/shortfallBudget';
 import { shortfallCompletionPresentation } from '@/folio/lib/shortfallNavigation';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { isDiscretionarySubscription } from '@/folio/lib/recoveryPreview';
@@ -225,6 +229,8 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     return selectShortfallCause({
       routeDate: route.tightPoint.date,
       lowestBeforeIncomeDate: calendarPresentation.lowestBeforeIncome.date,
+      nextIncomeDate: calendarPresentation.plan.nextIncomeDate,
+      gap: gapNow,
       events: calendarPresentation.events,
     });
   }, [calendarPresentation, route]);
@@ -233,11 +239,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   const tightDateLabel = route
     ? formatShortfallDate(shortfallCause?.date ?? route.tightPoint.date)
     : 'the next payday horizon';
-  const causeLine = tightEvent
-    ? tightEvent.source === 'sub' && tightEvent.subName
-      ? `A recurring payment from ${tightEvent.subName} lands in that stretch.`
-      : `${tightEvent.title} is one of the outgoings in that stretch.`
-    : 'Recorded costs, money in pots and your buffer leave a gap before payday.';
+  const causeLine = formatShortfallCauseLine(tightEvent);
   const dayLabel = daysLeft === 1 ? 'day' : 'days';
   const recoverabilityLine =
     lendingPot && lendingPot.saved >= gapNow && gapNow > 0
