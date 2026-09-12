@@ -883,7 +883,7 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
                   { backgroundColor: t.inset },
                 ]}
               >
-                <View style={stackRows ? styles.addAccountBalanceValueRow : undefined}>
+                <View style={styles.addAccountBalanceValueRow}>
                   <Text style={[styles.addAccountCurrency, { color: t.ink }]}>£</Text>
                   <TextInput
                     accessibilityLabel={
@@ -1828,6 +1828,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     minWidth: 0,
+    width: '100%',
   },
   addAccountCurrency: {
     fontSize: 15,
