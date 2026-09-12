@@ -79,6 +79,7 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
   const activeDebts = tracking.active;
   const clearedDebts = tracking.cleared;
   const totalOutstanding = activeDebts.reduce((total, debt) => total + debt.balance, 0);
+  const monthlyMinimums = activeDebts.reduce((total, debt) => total + debt.minPayment, 0);
   const [strategy, setStrategy] = useState<DebtStrategy>('hybrid');
   const [selectedDebtId, setSelectedDebtId] = useState<string | undefined>(debts[0]?.id);
   const [extraInput, setExtraInput] = useState('');
@@ -109,6 +110,13 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
     [appState, planOptions],
   );
   const presentation = selectFinancialPresentation(appState, plan);
+  const nextDue = activeDebts
+    .map((debt, index) => ({ debt, index, minimum: selectDebtMinimumPresentation(plan, debt.id) }))
+    .filter((item) => item.minimum !== null)
+    .sort(
+      (left, right) =>
+        left.minimum!.date.localeCompare(right.minimum!.date) || left.index - right.index,
+    )[0];
   const targetDebt = debts.find((debt) => debt.id === plan.debtRecommendation.targetDebtId);
   const safeToSpendLabel = `${formatMinor(plan.safeToSpendMinor)}${plan.safeToSpendMinor < 0 ? ' short' : ''}`;
   const appliedExtraMinor =
@@ -194,6 +202,22 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
               <Text style={[styles.meta, { color: t.muted }]}>
                 {activeDebts.length} {activeDebts.length === 1 ? 'debt' : 'debts'} tracked
               </Text>
+              <View style={[styles.summary, { borderTopColor: t.hairline }]}>
+                <View style={styles.summaryItem}>
+                  <Text style={[styles.planLabel, { color: t.muted }]}>Monthly minimums</Text>
+                  <Text style={[styles.summaryValue, { color: t.ink }]}>
+                    {formatMoney(monthlyMinimums)}
+                  </Text>
+                </View>
+                <View style={styles.summaryItem}>
+                  <Text style={[styles.planLabel, { color: t.muted }]}>Next due</Text>
+                  <Text style={[styles.summaryValue, { color: t.ink }]}>
+                    {nextDue
+                      ? `${nextDue.debt.name} · ${nextDue.minimum!.dueLabel.replace(/^Due /, '')}`
+                      : 'Not scheduled'}
+                  </Text>
+                </View>
+              </View>
             </View>
           )}
           {activeDebts.map((debt) => {
@@ -225,7 +249,7 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
                   </Text>
                   <Text style={[styles.meta, { color: t.muted }]}>
                     {debt.aprKnown === false
-                      ? 'Interest rate not entered'
+                      ? 'APR unknown'
                       : `${debt.apr}% annual interest`}{' '}
                     · View / edit
                   </Text>
@@ -313,16 +337,33 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
           </View>
         ) : null}
         {activeDebts.length > 0 ? (
-          <>
-            <View
-              style={[styles.planCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+          <View style={[styles.explanation, { borderTopColor: t.hairline }]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showWorking }}
+              onPress={() => setShowWorking((value) => !value)}
+              style={styles.explanationToggle}
             >
+              <Text style={[styles.planHeadline, { color: t.ink }]}>How repayments shape my path</Text>
+              <Text style={[styles.meta, { color: t.calmStrong }]}>{showWorking ? 'Hide explanation' : 'Show explanation'}</Text>
+            </Pressable>
+            {showWorking ? (
+              <>
+                <Text style={[styles.planCopy, { color: t.muted }]}>Your recorded minimums are included in the path to payday. Interest and lender charges are not moved automatically.</Text>
+                <Pressable accessibilityRole="button" onPress={() => nav.go('plan')} style={styles.tryChange}>
+                  <Text style={[styles.tryChangeLabel, { color: t.calmStrong }]}>See repayment plan</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+        {activeDebts.length > 0 ? (
+          <>
+            <View style={[styles.planCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
               <Text style={[styles.planLabel, { color: t.muted }]}>Your debt plan</Text>
               <Text style={[styles.planHeadline, { color: t.ink }]}>Explore an extra payment</Text>
               <Text style={[styles.planCopy, { color: t.muted }]}>
-                {targetDebt
-                  ? `${targetDebt.name} is the next focus for this preview.`
-                  : 'Choose an amount and see how the projected payoff changes.'}
+                {targetDebt ? `${targetDebt.name} is the next focus for this preview.` : 'Choose an amount and see how the projected payoff changes.'}
               </Text>
               {plan.debtProjection ? (
                 <Text style={[styles.planCopy, { color: t.muted }]}>
@@ -552,6 +593,11 @@ const styles = StyleSheet.create({
   planHeadline: { fontFamily: serif.display, fontSize: 20, lineHeight: 26, marginTop: gap.xs },
   planCopy: { fontFamily: weightFamily(400), fontSize: 12.5, lineHeight: 19, marginTop: gap.sm },
   planStats: { gap: gap.md, marginTop: gap.lg },
+  summary: { borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: gap.xl, marginTop: gap.lg, paddingTop: gap.md },
+  summaryItem: { flex: 1, minHeight: 44 },
+  summaryValue: { fontFamily: serif.display, fontSize: 16, lineHeight: 22, marginTop: 2 },
+  explanation: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: gap.xl, paddingTop: gap.md },
+  explanationToggle: { minHeight: 48, justifyContent: 'center' },
   strategyList: { gap: gap.sm, marginTop: gap.sm },
   strategyChoice: { minHeight: 48, borderRadius: radius.md, borderWidth: 1, padding: gap.md },
   debtDetails: { minHeight: 48, paddingVertical: gap.sm },
