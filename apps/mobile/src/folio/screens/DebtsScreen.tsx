@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomChromeContentPadding } from '@/folio/shell/bottomChromeContext';
 
 import { simulateFinancialAffordability, type DebtStrategy } from '@folio/finance-engine';
 import { useAppStore } from '@/folio/store';
@@ -64,6 +65,7 @@ function formatSignedMinor(minor: number): string {
 export function DebtsScreen({ nav }: { nav: Nav }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const contentBottomPadding = useBottomChromeContentPadding();
   const debts = useAppStore((state) => state.debts) ?? [];
   const appState = useAppStore((state) => state);
   const now = useDayClock();
@@ -157,8 +159,9 @@ export function DebtsScreen({ nav }: { nav: Nav }) {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: gap.lg, paddingBottom: insets.bottom + gap.xl },
+          { paddingTop: gap.lg, paddingBottom: contentBottomPadding },
         ]}
+        scrollIndicatorInsets={{ bottom: contentBottomPadding }}
         showsVerticalScrollIndicator={false}
       >
         <Pressable
