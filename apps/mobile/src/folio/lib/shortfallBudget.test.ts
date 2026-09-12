@@ -359,6 +359,15 @@ describe('shortfall cause projection', () => {
       events: [
         { id: 'pot', date: '2026-09-14', kind: 'out', source: 'pot', title: 'Buffer', amount: -340 },
         { id: 'hold', date: '2026-09-14', kind: 'out', source: 'hold', title: 'Protected costs', amount: -20 },
+        {
+          id: 'living',
+          date: '2026-09-14',
+          kind: 'out',
+          source: 'bill',
+          title: 'Essential living',
+          amount: -300,
+          showDayMarker: false,
+        },
       ],
     });
     expect(selected).toEqual({ date: '2026-09-14', event: null });

@@ -13,7 +13,7 @@ function isProtectedOutgoing(candidate: DerivedEvent): boolean {
     candidate.amount !== undefined &&
     candidate.amount < 0 &&
     REAL_OUTGOING_SOURCES.includes(candidate.source) &&
-    candidate.note !== 'Daily share of your weekly essentials'
+    candidate.showDayMarker !== false
   );
 }
 
