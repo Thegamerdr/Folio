@@ -56,6 +56,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Keyboard,
   Pressable,
   ScrollView,
   Share,
@@ -198,6 +199,37 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   const { width, fontScale } = useWindowDimensions();
   const stackRows = shouldStackTextRows(width, fontScale, gap.xl * 2);
   const reduceMotion = useReduceMotion();
+  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollOffset = useRef(0);
+  const nameInputRef = useRef<TextInput | null>(null);
+  const ensureNameVisibleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ensureNameVisible = () => {
+    if (ensureNameVisibleTimer.current) clearTimeout(ensureNameVisibleTimer.current);
+    ensureNameVisibleTimer.current = setTimeout(() => {
+      const scroll = scrollRef.current;
+      const input = nameInputRef.current;
+      if (!scroll || !input) return;
+      scroll.getNativeScrollRef()?.measureInWindow((_x, viewportTop, _width, viewportHeight) => {
+        input.measureInWindow((_inputX, inputTop, _inputWidth, inputHeight) => {
+          const keyboardTop = viewportTop + viewportHeight;
+          const requiredBottom = keyboardTop - 12;
+          const overlap = inputTop + inputHeight - requiredBottom;
+          if (overlap > 0) {
+            const nextOffset = Math.max(0, scrollOffset.current + overlap);
+            scrollOffset.current = nextOffset;
+            scroll.scrollTo({ y: nextOffset, animated: false });
+          }
+        });
+      });
+    }, 120);
+  };
+  useEffect(() => {
+    const subscription = Keyboard.addListener('keyboardDidShow', ensureNameVisible);
+    return () => {
+      subscription.remove();
+      if (ensureNameVisibleTimer.current) clearTimeout(ensureNameVisibleTimer.current);
+    };
+  }, []);
   const workspace = useAppStore(
     (s) => s.workspaces.find((candidate) => candidate.id === s.activeWorkspaceId)!,
   );
@@ -621,6 +653,11 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
   return (
     <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView
+        ref={scrollRef}
+        onScroll={(event) => {
+          scrollOffset.current = event.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
         style={[styles.viewport, { backgroundColor: t.canvas, marginTop: insets.top }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -804,8 +841,10 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             <Surface style={[styles.addAccountCard, { borderColor: t.hairline }]}>
               <Text style={[styles.addAccountTitle, { color: t.ink }]}>Name this account</Text>
               <TextInput
+                ref={nameInputRef}
                 accessibilityLabel="Account name"
                 autoCapitalize="words"
+                onFocus={ensureNameVisible}
                 onChangeText={setNewAccountName}
                 placeholder={isBusiness ? 'e.g. Business current' : 'e.g. Monzo current'}
                 placeholderTextColor={t.muted}
@@ -881,8 +920,10 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             <Surface style={[styles.addAccountCard, { borderColor: t.hairline }]}>
               <Text style={[styles.addAccountTitle, { color: t.ink }]}>Update this account</Text>
               <TextInput
+                ref={nameInputRef}
                 accessibilityLabel="Account name"
                 autoCapitalize="words"
+                onFocus={ensureNameVisible}
                 onChangeText={setEditAccountName}
                 placeholder="Account name"
                 placeholderTextColor={t.muted}
