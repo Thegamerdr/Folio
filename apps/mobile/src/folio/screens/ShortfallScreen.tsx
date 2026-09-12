@@ -86,11 +86,10 @@ import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { copy } from '@/folio/copy/copy';
 import { borrowFromPot, useAppStore } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
-import { deriveShortfallBudget } from '@/folio/lib/shortfallBudget';
+import { deriveShortfallBudget, selectShortfallCause } from '@/folio/lib/shortfallBudget';
 import { shortfallCompletionPresentation } from '@/folio/lib/shortfallNavigation';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { isDiscretionarySubscription } from '@/folio/lib/recoveryPreview';
-import { type DerivedEvent } from '@/folio/lib/calendarEvents';
 import { getShortfallCopy } from '@/folio/lib/modes/action';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
 import {
@@ -197,6 +196,11 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   // The same protected budget as Today; never count the future salary visible at the chart's payday.
   const { gap: gapNow, daysLeft, dailyCap } = deriveShortfallBudget(route);
 
+  const calendarPresentation = useMemo(
+    () => (now ? buildCalendarPresentation(appState, now) : null),
+    [appState, now],
+  );
+
   // The borrow preview→commit is a single store write; the route recompute (not a screen-local
   // counter) is what narrows the gap. Borrow AUTO-CLOSES when the recomputed tight point reaches 0
   // (the `gapNow > 0` gate on the card), so the move disappears the moment it is no longer needed.
@@ -213,28 +217,21 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
   // The highest-saved pot — the lender. The Borrow card renders only when it can cover the live gap.
   const lendingPot = useMemo(() => pots.slice().sort((a, b) => b.saved - a.saved)[0], [pots]);
 
-  // The route gives us the low date; the shared Calendar derivation gives us the honest event that
-  // created that dip. Keeping this read on the same event authority prevents Shortfall from inventing
-  // a cause or silently disagreeing with Calendar/Today.
-  const tightEvent = useMemo<DerivedEvent | null>(() => {
-    if (!route || !now) return null;
-    // routeFromStore normalises its local day to UTC midnight before asking Calendar for events. Use
-    // that same anchor here so the cause lookup cannot drift around a local/UTC midnight boundary.
-    const events = buildCalendarPresentation(appState, now).events;
-    return (
-      events
-        .filter(
-          (event) =>
-            event.date === route.tightPoint.date &&
-            typeof event.amount === 'number' &&
-            event.amount < 0,
-        )
-        .sort((left, right) => Math.abs(right.amount ?? 0) - Math.abs(left.amount ?? 0))[0] ?? null
-    );
-  }, [appState, now, route]);
+  // Calendar supplies the low date within the protected pre-income horizon; its shared event
+  // derivation gives us the honest event that created that dip. Keeping this read on the same
+  // authority prevents Shortfall from inventing a cause or silently disagreeing with Calendar/Today.
+  const shortfallCause = useMemo(() => {
+    if (!route || !calendarPresentation) return null;
+    return selectShortfallCause({
+      routeDate: route.tightPoint.date,
+      lowestBeforeIncomeDate: calendarPresentation.lowestBeforeIncome.date,
+      events: calendarPresentation.events,
+    });
+  }, [calendarPresentation, route]);
+  const tightEvent = shortfallCause?.event ?? null;
 
   const tightDateLabel = route
-    ? formatShortfallDate(route.tightPoint.date)
+    ? formatShortfallDate(shortfallCause?.date ?? route.tightPoint.date)
     : 'the next payday horizon';
   const causeLine = tightEvent
     ? tightEvent.source === 'sub' && tightEvent.subName

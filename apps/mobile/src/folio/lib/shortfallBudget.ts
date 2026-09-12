@@ -1,4 +1,5 @@
 import type { RouteResult } from './moneyPath';
+import type { DerivedEvent } from './calendarEvents';
 
 /** Recovery uses current cash after obligations, living costs and the protected buffer.
  * `spare` is forecast closing cash ON payday, including that future receipt, so it cannot fund
@@ -13,4 +14,24 @@ export function deriveShortfallBudget(route: RouteResult | null) {
     daysLeft,
     dailyCap: Math.max(0, Math.floor(headroom / Math.max(1, daysLeft))),
   };
+}
+
+/** Select the Shortfall explanation from the same pre-income date horizon as the protected gap.
+ * The route date remains a fallback for callers without Calendar presentation data. */
+export function selectShortfallCause(args: {
+  routeDate: string;
+  lowestBeforeIncomeDate?: string;
+  events: readonly DerivedEvent[];
+}): { date: string; event: DerivedEvent | null } {
+  const date = args.lowestBeforeIncomeDate ?? args.routeDate;
+  const event =
+    args.events
+      .filter(
+        (candidate) =>
+          candidate.date === date &&
+          candidate.amount !== undefined &&
+          candidate.amount < 0,
+      )
+      .sort((left, right) => Math.abs(right.amount ?? 0) - Math.abs(left.amount ?? 0))[0] ?? null;
+  return { date, event };
 }
