@@ -1,0 +1,44 @@
+{
+  "harness": "local-performance-evidence-v2",
+  "status": "MEASURED_LOCAL_ONLY",
+  "base_source_sha": "e8b651368a1851c54692ddf93dbbbf6def473ab4",
+  "runtime_source_sha": "e8b651368a1851c54692ddf93dbbbf6def473ab4",
+  "branch": "codex/melo-performance-evidence-20260912",
+  "prior_patch_commit": "0c4c903c68229b8ec6897c24064156b1caa77051",
+  "command": "pnpm exec vitest run --config work/performance-vitest.config.ts --reporter verbose",
+  "harness_file_sha256": "61000CC87AE10405874B9A93C471AE515FFC00AF7D3CE06A93C9B27DA0C2F534",
+  "config_file_sha256": "D537C51E8993812E16196222047AEFADA34EBB3241DEE302264AF42524D0D8B1",
+  "workspace_artifacts": {
+    "stdout_path": "outputs/convergence-orchestration/master-release/performance-stability/PERFORMANCE_MEASUREMENT_STDOUT_V3.txt",
+    "stdout_sha256": "6460A10380BD2F4FD01CB2EDDDA57540087FB915284C177ABFFEA60BD8A12470",
+    "receipt_path": "outputs/convergence-orchestration/master-release/performance-stability/PERFORMANCE_MEASUREMENT_RECEIPT_V3.json",
+    "t0_path": "outputs/convergence-orchestration/master-release/performance-stability/T0-performance-evidence-typecheck.txt",
+    "t0_sha256": "CB24B55D8D0B99F23C862E43C1D8D007EEC129F84B5529946EC59DF365F9589F"
+  },
+  "measurements": [
+    { "accounts": 1, "debts": 1, "planEvents": 2, "pendingObligations": 1, "selectorElapsedMs": 9.41 },
+    { "accounts": 4, "debts": 4, "planEvents": 8, "pendingObligations": 4, "selectorElapsedMs": 0.544 },
+    { "accounts": 8, "debts": 8, "planEvents": 16, "pendingObligations": 8, "selectorElapsedMs": 0.881 }
+  ],
+  "historyMeasurements": [
+    { "historyRecords": 10, "debtEvents": 1, "timelineRows": 11, "decisionRows": 11, "activeDebts": 8, "rawSamplesMs": [0.041, 0.065, 0.109, 0.066, 0.043], "medianMs": 0.065, "rangeMs": [0.041, 0.109] },
+    { "historyRecords": 100, "debtEvents": 10, "timelineRows": 110, "decisionRows": 110, "activeDebts": 8, "rawSamplesMs": [0.87, 0.46, 0.415, 0.599, 0.431], "medianMs": 0.46, "rangeMs": [0.415, 0.87] },
+    { "historyRecords": 1000, "debtEvents": 100, "timelineRows": 1100, "decisionRows": 1100, "activeDebts": 8, "rawSamplesMs": [6.19, 6.458, 5.926, 7.259, 5.308], "medianMs": 6.19, "rangeMs": [5.308, 7.259] }
+  ],
+  "scaleEstimates_separate": [
+    { "accountInput": 1, "estimatedRows": 53, "estimatedBytes": 46830, "estimatedTodayQueryMs": 34, "estimatedSearchQueryMs": 55, "risk": "green" },
+    { "accountInput": 4, "estimatedRows": 104, "estimatedBytes": 117534, "estimatedTodayQueryMs": 45, "estimatedSearchQueryMs": 55, "risk": "green" },
+    { "accountInput": 8, "estimatedRows": 172, "estimatedBytes": 211806, "estimatedTodayQueryMs": 50, "estimatedSearchQueryMs": 55, "risk": "green" }
+  ],
+  "functional_sanity": [
+    "Distinct account balances are supplied as 2000, 2017, ... major units and plan.currentBalanceMinor equals their aggregate.",
+    "Each plan case produces at least one debt-minimum event per synthetic debt and pending obligation count equals debt count.",
+    "History cases use typed Transaction and TimelineEvent fixtures and exercise buildTimelineRows, buildDecisionHistoryRows, and selectDebtTrackingPresentation.",
+    "Each history case produces one timeline and one decision row per transaction plus each synthetic debt event, with eight active tracked debts."
+  ],
+  "limitations": [
+    "History cases are synthetic in-memory derivations; they do not measure persisted SQLite history, device responsiveness, or crash stability.",
+    "No performance acceptance threshold is introduced.",
+    "The scaleEstimates_separate field is existing estimate output and is not measured timing evidence."
+  ]
+}

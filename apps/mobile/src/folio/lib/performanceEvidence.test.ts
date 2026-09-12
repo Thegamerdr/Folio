@@ -4,6 +4,7 @@ import { calculateFinancialPlan, type FinancialDebt } from '../../../../../packa
 import { buildDecisionHistoryRows } from './reviewHistory';
 import { buildTimelineRows } from './timelineEvents';
 import { selectDebtTrackingPresentation } from './debtTrackingPresentation';
+import type { Debt, TimelineEvent, Transaction } from '../store';
 
 /**
  * Local measurement only. This deliberately reports elapsed time and invariant
@@ -30,17 +31,19 @@ describe('local performance evidence harness', () => {
     const measurements = CASE_SIZES.map((size) => {
       const debts = Array.from({ length: size }, (_, index) => debt(index));
       const startedAt = performance.now();
+      const accounts = Object.fromEntries(
+        Array.from({ length: size }, (_, index) => [`account-${index}`, (2_000 + index * 17) * 100]),
+      );
       const plan = calculateFinancialPlan({
         asOf: '2026-09-12',
-        accounts: Object.fromEntries(
-          Array.from({ length: size }, (_, index) => [`account-${index}`, (2_000 + index * 17) * 100]),
-        ),
+        accounts,
         debts,
         bufferMinor: 0,
         nextIncomeDate: '2026-09-25',
         horizonEndDate: '2026-10-31',
       });
       const elapsedMs = performance.now() - startedAt;
+      expect(plan.currentBalanceMinor).toBe(Object.values(accounts).reduce((sum, amount) => sum + amount, 0));
       expect(plan.events.filter((event) => event.source === 'debt-minimum').length).toBeGreaterThanOrEqual(size);
 
       return {
@@ -53,37 +56,42 @@ describe('local performance evidence harness', () => {
     });
 
     const historyMeasurements = [10, 100, 1_000].map((size) => {
-      const transactions = Array.from({ length: size }, (_, index) => ({
+      const transactions: Transaction[] = Array.from({ length: size }, (_, index) => ({
         id: `perf-payment-${index}`,
         merchant: `Synthetic debt payment ${index}`,
         when: `2026-01-${String((index % 28) + 1).padStart(2, '0')}T12:00:00.000Z`,
+        amount: -10,
+        category: 'bills',
+        source: 'manual',
+        accountId: `account-${index % 4}`,
+        financialAction: {
+          kind: 'debt-payment',
+          debtId: `perf-debt-${index % 8}`,
+          principalAppliedMinor: 1_000,
+        },
       }));
-      const events = Array.from({ length: Math.floor(size / 10) }, (_, index) => ({
+      const events: TimelineEvent[] = Array.from({ length: Math.floor(size / 10) }, (_, index) => ({
         id: `perf-debt-event-${index}`,
         at: `2026-02-${String((index % 28) + 1).padStart(2, '0')}T12:00:00.000Z`,
         kind: index % 2 === 0 ? 'debt-removed' : 'debt-restored',
         subject: `Synthetic debt ${index}`,
       }));
-      const trackedDebts = Array.from({ length: 8 }, (_, index) => ({
+      const trackedDebts: Debt[] = Array.from({ length: 8 }, (_, index) => ({
         id: `perf-debt-${index}`,
         name: `Synthetic debt ${index}`,
+        kind: 'card',
         balance: 100 + index,
+        apr: 0,
+        minPayment: 10,
+        dueDom: (index % 20) + 1,
+        addedAt: '2026-09-01',
       }));
-      const input = { transactions, edits: [], events } as unknown as Parameters<typeof buildTimelineRows>[0];
-      const trackingInput = {
+      const input: Parameters<typeof buildTimelineRows>[0] = { transactions, edits: [], events };
+      const trackingInput: Parameters<typeof selectDebtTrackingPresentation>[0] = {
         debts: trackedDebts,
-        transactions: transactions.map((transaction, index) => ({
-          ...transaction,
-          amount: -10,
-          accountId: 'account-0',
-          financialAction: {
-            kind: 'debt-payment',
-            debtId: `perf-debt-${index % trackedDebts.length}`,
-            principalAppliedMinor: 1_000,
-          },
-        })),
+        transactions,
         timelineEvents: events,
-      } as unknown as Parameters<typeof selectDebtTrackingPresentation>[0];
+      };
       buildTimelineRows(input);
       buildDecisionHistoryRows(input);
       selectDebtTrackingPresentation(trackingInput);
