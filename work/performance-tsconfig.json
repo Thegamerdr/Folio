@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "baseUrl": "..",
+    "paths": {
+      "@folio/domain": ["packages/domain/src/index.ts"]
+    }
+  },
+  "files": ["../apps/mobile/src/folio/lib/performanceEvidence.test.ts"]
+}
