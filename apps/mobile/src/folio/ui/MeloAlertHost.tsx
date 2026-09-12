@@ -24,6 +24,7 @@ export function MeloAlertHost() {
       visible
       dismissible={current.options?.cancelable !== false}
       onClose={() => dismissMeloAlert(current.id)}
+      bodyContentInset={gap.lg}
       footer={
         <View style={styles.actions}>
           {current.buttons.map((button, index) => (
