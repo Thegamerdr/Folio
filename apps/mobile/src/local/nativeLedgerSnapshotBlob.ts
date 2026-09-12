@@ -9,6 +9,7 @@
  * "corrupt" (a blob present but malformed) so the caller can surface it instead of swallowing it.
  */
 import type { LocalLedgerState } from './localLedger';
+import { migrateLocalSubscriptionOverrides } from './subscriptionIdentity';
 
 export type DurableContainers = Readonly<{
   pots: LocalLedgerState['pots'];
@@ -50,22 +51,28 @@ export function parseDurableContainersBlob(rawJson: string | undefined): Durable
   // A container key that is PRESENT but not an array is malformed data, not a legitimately empty
   // picture — flag it as corrupt so the loss is surfaced (a warning) rather than silently coerced
   // to []. Absent keys are fine (an older blob simply had no pots/subscriptions/cycles yet).
-  // subOverrides is a plain object (name -> day-delta), so it is malformed when present-but-not-a-
-  // plain-record; calendarEvents follows the same present-but-not-an-array rule as the containers.
+  // subOverrides is a plain object (id/name -> day-delta), so it is malformed when present-but-
+  // not-a-plain-record; calendarEvents follows the same present-but-not-an-array rule as the
+  // containers.
   const malformed =
     ('pots' in parsed && !Array.isArray(parsed.pots)) ||
     ('subscriptions' in parsed && !Array.isArray(parsed.subscriptions)) ||
     ('cycles' in parsed && !Array.isArray(parsed.cycles)) ||
     ('calendarEvents' in parsed && !Array.isArray(parsed.calendarEvents)) ||
     ('subOverrides' in parsed && !isPlainRecord(parsed.subOverrides));
+  const subscriptions = Array.isArray(parsed.subscriptions)
+    ? (parsed.subscriptions as LocalLedgerState['subscriptions'])
+    : [];
+  const subOverrides = migrateLocalSubscriptionOverrides(
+    subscriptions,
+    sanitizeSubOverrides(parsed.subOverrides),
+  );
   return {
     containers: {
       pots: Array.isArray(parsed.pots) ? (parsed.pots as LocalLedgerState['pots']) : [],
-      subscriptions: Array.isArray(parsed.subscriptions)
-        ? (parsed.subscriptions as LocalLedgerState['subscriptions'])
-        : [],
+      subscriptions,
       cycles: Array.isArray(parsed.cycles) ? (parsed.cycles as LocalLedgerState['cycles']) : [],
-      subOverrides: sanitizeSubOverrides(parsed.subOverrides),
+      subOverrides,
       calendarEvents: Array.isArray(parsed.calendarEvents)
         ? (parsed.calendarEvents as LocalLedgerState['calendarEvents'])
         : [],

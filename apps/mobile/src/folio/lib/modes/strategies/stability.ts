@@ -14,6 +14,7 @@
  */
 import type { ModeInputs, ModeState, ModeStrategy, MeloVoiceTint, MeloWeather } from '../types';
 import type { MeloMood, MeloPose } from '../../../melo/Melo';
+import { subscriptionPaused } from '../../subscriptionIdentity';
 
 const DEFAULT_BUFFER = 100;
 
@@ -41,7 +42,7 @@ function derive(inputs: ModeInputs): ModeState {
   // includes bills + sub renewals for the cycle; the strategy sums active-sub
   // costs falling in the next 30 days as a proxy.
   const upcomingBills = subs
-    .filter((s) => !subPaused[s.name])
+    .filter((s) => !subscriptionPaused(subPaused, s))
     .filter((s) => s.nextRenewalDaysAway >= 0 && s.nextRenewalDaysAway <= 30)
     .reduce((sum, s) => sum + s.cost, 0);
 
@@ -51,7 +52,7 @@ function derive(inputs: ModeInputs): ModeState {
   // Bill collision detection — two or more active bills falling within any
   // 3-day window in the next 7 days.
   const near = subs
-    .filter((s) => !subPaused[s.name])
+    .filter((s) => !subscriptionPaused(subPaused, s))
     .filter((s) => s.nextRenewalDaysAway >= 0 && s.nextRenewalDaysAway <= 7)
     .map((s) => s.nextRenewalDaysAway)
     .sort((a, b) => a - b);
@@ -94,7 +95,7 @@ function derive(inputs: ModeInputs): ModeState {
     weather = 'sunny';
   }
   const soonBig = subs
-    .filter((s) => !subPaused[s.name])
+    .filter((s) => !subscriptionPaused(subPaused, s))
     .some((s) => s.nextRenewalDaysAway <= 1 && s.cost > monthSafeAmount);
   if (soonBig && weather !== 'storm') weather = 'alarm';
   if (typeof hour === 'number' && hour >= 22 && (weather === 'sunny' || weather === 'cloudy')) {

@@ -34,6 +34,7 @@ import { useAppStore, type Debt } from '@/folio/store';
 import { useRoute } from '@/folio/lib/storeRoute';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 import {
   selectFinancialPresentation,
   formatMoney,
@@ -898,7 +899,7 @@ export function TodayModeScreen({ nav }: { nav: Nav }) {
 
   const monthlyIn = monthlyIncome;
   const monthlyOut = subs
-    .filter((sub) => !subPaused[sub.name])
+    .filter((sub) => !subscriptionPaused(subPaused, sub))
     .reduce((sum, sub) => sum + sub.cost, 0);
   const potsSaved = pots.reduce((sum, p) => sum + Math.max(0, p.saved), 0);
   const potsTarget = pots.reduce((sum, p) => sum + (p.goal ?? 0), 0);

@@ -3,6 +3,7 @@ import { localDayKey } from './dayClock';
 import { routeFromStore } from './storeRoute';
 import type { RoutePoint } from './moneyPath';
 import { isDiscretionarySubscription } from './discretionarySubscription';
+import { subscriptionKey, subscriptionOverride, subscriptionPaused } from './subscriptionIdentity';
 
 export { isDiscretionarySubscription } from './discretionarySubscription';
 
@@ -40,7 +41,8 @@ function nearestActiveSubscription(
   subPaused: Readonly<Record<string, boolean>>,
 ): Sub | null {
   const active = subs.filter(
-    (subscription) => !subPaused[subscription.name] && isDiscretionarySubscription(subscription),
+    (subscription) =>
+      !subscriptionPaused(subPaused, subscription) && isDiscretionarySubscription(subscription),
   );
   if (active.length === 0) return null;
   return (
@@ -86,9 +88,9 @@ export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryR
   const pausedState: AppState = pausableSubscription
     ? {
         ...state,
-        subPaused: { ...state.subPaused, [pausableSubscription.name]: true },
+        subPaused: { ...state.subPaused, [subscriptionKey(pausableSubscription)]: true },
         subs: state.subs.map((sub) =>
-          sub.name === pausableSubscription.name
+          subscriptionKey(sub) === subscriptionKey(pausableSubscription)
             ? subscriptionWithPause(sub, true, localDayKey(now))
             : sub,
         ),
@@ -101,9 +103,12 @@ export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryR
           ...state,
           subOverrides: {
             ...state.subOverrides,
-            [flexibleBill.name]: Math.max(
+            [subscriptionKey(flexibleBill)]: Math.max(
               -7,
-              Math.min(7, (state.subOverrides[flexibleBill.name] ?? 0) + RECOVERY_BILL_NUDGE_DAYS),
+              Math.min(
+                7,
+                subscriptionOverride(state.subOverrides, flexibleBill) + RECOVERY_BILL_NUDGE_DAYS,
+              ),
             ),
           },
         },
@@ -118,9 +123,12 @@ export function buildRecoveryRoutePreview(state: AppState, now: Date): RecoveryR
         ...state,
         subOverrides: {
           ...state.subOverrides,
-          [flexibleBill.name]: Math.max(
+          [subscriptionKey(flexibleBill)]: Math.max(
             -7,
-            Math.min(7, (state.subOverrides[flexibleBill.name] ?? 0) + RECOVERY_BILL_NUDGE_DAYS),
+            Math.min(
+              7,
+              subscriptionOverride(state.subOverrides, flexibleBill) + RECOVERY_BILL_NUDGE_DAYS,
+            ),
           ),
         },
       },

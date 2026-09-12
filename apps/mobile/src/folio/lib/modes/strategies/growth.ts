@@ -14,6 +14,7 @@
  *   behind  → pace <  elapsedShare - 0.05
  */
 import type { ModeInputs, ModeState, ModeStrategy, MeloVoiceTint, MeloWeather } from '../types';
+import { subscriptionPaused } from '../../subscriptionIdentity';
 import type { MeloMood, MeloPose } from '../../../melo/Melo';
 
 const DEFAULT_BUFFER = 100;
@@ -38,7 +39,12 @@ function derive(inputs: ModeInputs): ModeState {
   const buffer = bufferAmount ?? DEFAULT_BUFFER;
 
   const upcomingBills = subs
-    .filter((s) => !subPaused[s.name] && s.nextRenewalDaysAway >= 0 && s.nextRenewalDaysAway <= 30)
+    .filter(
+      (s) =>
+        !subscriptionPaused(subPaused, s) &&
+        s.nextRenewalDaysAway >= 0 &&
+        s.nextRenewalDaysAway <= 30,
+    )
     .reduce((sum, s) => sum + s.cost, 0);
   const earmarked = pots.reduce((s, p) => s + Math.max(0, p.saved), 0);
   const freeToSave = Math.max(

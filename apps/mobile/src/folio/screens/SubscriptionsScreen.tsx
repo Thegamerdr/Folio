@@ -72,6 +72,7 @@ import { setSubscriptionOccurrenceResolution } from '@/folio/lib/obligationState
 import { createScopedFinancialUndo } from '@/folio/lib/scopedFinancialUndo';
 import { ritualPausePresentation } from '@/folio/lib/ritualStepPresentation';
 import { subscriptionSchedulePresentation } from '@/folio/lib/subscriptionSchedulePresentation';
+import { subscriptionKey, subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 
 import {
   type AppState,
@@ -207,12 +208,14 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
 
   const sorted = useMemo(() => {
     const arr = optionalOnly ? subs.filter(isDiscretionarySubscription) : [...subs];
-    const overdue = (name: string) =>
+    const overdue = (subscription: StoreSub) =>
       dueCommitments.some(
-        (item) => item.id.startsWith(`subscription:${name}:`) && item.date < dueInput.asOf,
+        (item) =>
+          item.id.startsWith(`subscription:${subscriptionKey(subscription)}:`) &&
+          item.date < dueInput.asOf,
       );
     arr.sort((a, b) => {
-      const urgency = Number(overdue(b.name)) - Number(overdue(a.name));
+      const urgency = Number(overdue(b)) - Number(overdue(a));
       return (
         urgency ||
         (sort === 'cost' ? b.cost - a.cost : a.nextRenewalDaysAway - b.nextRenewalDaysAway)
@@ -265,7 +268,9 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     const daysToTight = Math.round((tightMs - base) / 86_400_000);
     return subs.filter(
       (x) =>
-        !paused[x.name] && x.nextRenewalDaysAway <= daysToTight && isDiscretionarySubscription(x),
+        !subscriptionPaused(paused, x) &&
+        x.nextRenewalDaysAway <= daysToTight &&
+        isDiscretionarySubscription(x),
     );
   }, [subs, paused, tightWith, now]);
   const dueSave = dueBeforeTight.reduce((acc, x) => acc + x.cost, 0);
@@ -283,7 +288,9 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
       ...live,
       subPaused: hypotheticalPaused,
       subs: live.subs.map((sub) =>
-        names.includes(sub.name) ? subscriptionWithPause(sub, true, localDayKey(now)) : sub,
+        names.includes(subscriptionKey(sub))
+          ? subscriptionWithPause(sub, true, localDayKey(now))
+          : sub,
       ),
     };
     const result = routeFromStore(hypothetical, now);
@@ -293,7 +300,10 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
   // What pausing all the quiet ones BUYS — computed up front so the banner can show the lift line
   // and the press handler can show the matching toast. `null` while gated or when nothing is quiet.
   const tightIfDuePaused = useMemo(
-    () => (dueBeforeTight.length > 0 ? tightIfPaused(dueBeforeTight.map((q) => q.name)) : null),
+    () =>
+      dueBeforeTight.length > 0
+        ? tightIfPaused(dueBeforeTight.map((q) => subscriptionKey(q)))
+        : null,
     // Recompute when the gate opens or the inputs the route depends on change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [now, dueBeforeTight, subs, paused],
@@ -307,31 +317,31 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     // undo snackbar (never a blocking confirm). Pausing is a reversible Tier-1 action ("pause sub" in
     // undoPolicy), so the snackbar's Undo genuinely resumes the set; capture the names so the restore
     // reverses exactly this pause.
-    const names = dueBeforeTight.map((q) => q.name);
+    const refs = dueBeforeTight.map((q) => subscriptionKey(q));
     const before = tightWith?.spare;
     const after = tightIfDuePaused?.spare ?? before;
-    pauseMany(names, true);
+    pauseMany(refs, true);
     if (typeof before === 'number' && typeof after === 'number' && after > before) {
       // "Your low point goes from £a to £b" + room-around-{day}, folded into the single snackbar line
       // (the toast carries one label, not a title/body pair). Payment-timing framing only.
       const room = tightIfDuePaused?.date
         ? `more room around ${formatDayProse(tightIfDuePaused.date)}`
         : 'more room before payday';
-      showUndo(`Low point £${before} → £${after} · ${room}`, () => pauseMany(names, false));
+      showUndo(`Low point £${before} → £${after} · ${room}`, () => pauseMany(refs, false));
     }
   };
 
   const onPauseResume = (sub: StoreSub) => {
-    const isPaused = !!paused[sub.name];
+    const isPaused = subscriptionPaused(paused, sub);
     if (isPaused) {
       // Resume is the same reversible Tier-1 state change as pause. Keep the monthly effect
       // inspectable and give the user the same 30-second escape hatch instead of silently flipping
       // the row with no feedback.
       const beforeMonthly = monthly;
-      togglePaused(sub.name, false);
+      togglePaused(subscriptionKey(sub), false);
       showUndo(
         `Resumed ${sub.name} · recurring total ${pounds(beforeMonthly)} → ${pounds(beforeMonthly + sub.cost)}`,
-        () => togglePaused(sub.name, true),
+        () => togglePaused(subscriptionKey(sub), true),
       );
       return;
     }
@@ -343,9 +353,9 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     // acknowledgement the web also shows. While the mount-gate is closed (`tightWith === null`) only
     // the plain path runs.
     const before = tightWith?.spare;
-    const lift = tightIfPaused([sub.name]);
-    togglePaused(sub.name);
-    const resume = () => togglePaused(sub.name, false);
+    const lift = tightIfPaused([subscriptionKey(sub)]);
+    togglePaused(subscriptionKey(sub));
+    const resume = () => togglePaused(subscriptionKey(sub), false);
     if (typeof before === 'number' && lift && lift.spare > before) {
       showUndo(
         `Future forecast paused · projected low ${formatMoney(before)} → ${formatMoney(lift.spare)}`,
@@ -363,7 +373,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     // (read getState() before removeSub). The Tier-1 snackbar (30s) then carries the verbatim
     // "Cancelled {name}" line and the one-tap restore.
     const beforeRemoval = getState();
-    removeSub(sub.name);
+    removeSub(subscriptionKey(sub));
     const undo = createScopedFinancialUndo(beforeRemoval, [
       'subs',
       'cancelledSubs',
@@ -398,7 +408,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
           text: 'Already paid',
           onPress: () => {
             const before = getState();
-            setSubscriptionOccurrenceResolution(sub.name, date, { status: 'paid' });
+            setSubscriptionOccurrenceResolution(subscriptionKey(sub), date, { status: 'paid' });
             const undo = createScopedFinancialUndo(before, ['subs']);
             showUndo(`${sub.name} · ${formatArchiveDate(occurrence.date)} marked paid`, () => {
               if (!undo())
@@ -423,9 +433,9 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
           text: 'Undo confirmation',
           onPress: () => {
             const before = getState();
-            const live = before.subs.find((item) => item.name === sub.name);
+            const live = before.subs.find((item) => subscriptionKey(item) === subscriptionKey(sub));
             if (live?.obligationOccurrences?.[date]?.status !== 'paid') return;
-            setSubscriptionOccurrenceResolution(sub.name, date, { status: 'unpaid' });
+            setSubscriptionOccurrenceResolution(subscriptionKey(sub), date, { status: 'unpaid' });
             const undo = createScopedFinancialUndo(before, ['subs']);
             showUndo(`${sub.name} · ${formatFinancialDate(date)} reserved as unpaid`, () => {
               if (!undo())
@@ -483,14 +493,14 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
     <View style={s.list}>
       {sorted.map((sub, index) => (
         <SubscriptionRow
-          key={sub.name}
+          key={subscriptionKey(sub)}
           sub={sub}
           first={index === 0}
-          paused={!!paused[sub.name]}
+          paused={subscriptionPaused(paused, sub)}
           t={t}
           s={s}
           onPauseResume={() => onPauseResume(sub)}
-          onUsedToday={() => markSubUsed(sub.name)}
+          onUsedToday={() => markSubUsed(subscriptionKey(sub))}
           onAskMelo={() => onAskMelo(sub)}
           onCancel={() =>
             Alert.alert(
@@ -507,7 +517,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
             )
           }
           onEdit={() => {
-            const boundary = subscriptionEditBoundary(getState(), sub.name, new Date());
+            const boundary = subscriptionEditBoundary(getState(), subscriptionKey(sub), new Date());
             setEditing(sub);
             setEditName(sub.name);
             setEditCost(String(sub.cost));
@@ -518,7 +528,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
           today={dueInput.asOf}
           schedule={subscriptionSchedulePresentation(sub, dueInput.asOf, dueCommitments)}
           outstanding={dueCommitments.find((item) =>
-            item.id.startsWith(`subscription:${sub.name}:`),
+            item.id.startsWith(`subscription:${subscriptionKey(sub)}:`),
           )}
           onResolve={(occurrence) => onResolve(sub, occurrence)}
           onUndoConfirmation={(date) => onUndoConfirmation(sub, date)}
@@ -702,7 +712,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Restore ${subscription.name}`}
-                    onPress={() => restoreSub(subscription.name)}
+                    onPress={() => restoreSub(subscription.id ?? subscription.name)}
                     style={({ pressed: isPressed }) => [
                       s.restoreButton,
                       isPressed ? layout.pressed : undefined,
@@ -752,7 +762,7 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
                   const before = getState();
                   const patch = buildSubscriptionEditPatch(
                     before,
-                    editing.name,
+                    subscriptionKey(editing),
                     {
                       name: editName,
                       cost: Number(editCost),
@@ -857,7 +867,8 @@ export function SubscriptionsScreen({ nav }: { nav: Nav }) {
           <Text style={s.rowMeta}>
             The occurrence due{' '}
             {formatFinancialDate(
-              subscriptionEditBoundary(appState, editing.name, new Date()).protectedDate,
+              subscriptionEditBoundary(appState, subscriptionKey(editing), new Date())
+                .protectedDate,
             )}{' '}
             stays unchanged. Use Calendar to review it.
           </Text>

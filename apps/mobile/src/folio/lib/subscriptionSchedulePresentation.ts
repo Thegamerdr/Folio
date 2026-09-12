@@ -1,6 +1,7 @@
 import type { FinancialCommitment } from '@folio/finance-engine';
 import type { Sub } from '../store';
 import { formatFinancialDate } from './financialPresentation';
+import { subscriptionKey } from './subscriptionIdentity';
 
 /** Pair the recurring amount with its own schedule, not a preserved older unpaid occurrence. */
 export function subscriptionSchedulePresentation(
@@ -15,7 +16,7 @@ export function subscriptionSchedulePresentation(
     Object.keys(sub.obligationOccurrences ?? {}).some((date) => date < anchor);
   // Canonical IDs retain the recorded due date when a temporary forecast nudge changes placement.
   const nextDate = commitments
-    .filter((item) => item.id.startsWith(`subscription:${sub.name}:`))
+    .filter((item) => item.id.startsWith(`subscription:${subscriptionKey(sub)}:`))
     .map((item) => item.id.slice(-10))
     .filter((date) => date >= today && (anchor === undefined || date >= anchor))
     .sort()[0];

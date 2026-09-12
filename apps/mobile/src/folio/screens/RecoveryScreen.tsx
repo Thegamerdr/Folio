@@ -90,6 +90,7 @@ import {
 } from '@/folio/lib/recoveryPreviewPresentation';
 import { selectMonthlyIncome } from '@/folio/lib/income';
 import { buildRecoveryRoutePreview, RECOVERY_BILL_NUDGE_DAYS } from '@/folio/lib/recoveryPreview';
+import { subscriptionKey, subscriptionOverride, subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 import type { Nav } from '@/folio/types';
 import type { MoneyMode } from '@/folio/lib/modes/types';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
@@ -341,7 +342,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   const monthlyBills = useMemo(
     () =>
       appState.subs
-        .filter((sub) => !appState.subPaused[sub.name])
+        .filter((sub) => !subscriptionPaused(appState.subPaused, sub))
         .reduce((sum, sub) => sum + sub.cost, 0),
     [appState.subs, appState.subPaused],
   );
@@ -387,8 +388,8 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
     const billNudgeDays = bill
       ? Math.max(
           -7,
-          Math.min(7, (appState.subOverrides[bill.name] ?? 0) + RECOVERY_BILL_NUDGE_DAYS),
-        ) - (appState.subOverrides[bill.name] ?? 0)
+          Math.min(7, subscriptionOverride(appState.subOverrides, bill) + RECOVERY_BILL_NUDGE_DAYS),
+        ) - subscriptionOverride(appState.subOverrides, bill)
       : 0;
     const subLift = recoveryPreview.subscriptionLift;
     const holdDailyCap = recoveryPreview.holdDailyCap;
@@ -413,7 +414,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             melo: 'Quietest move. Same money, kinder timing.',
             // Slide the flexible bill later in the cycle — the real "what if I move this?" write.
             commit: () => {
-              nudgeSub(bill.name, RECOVERY_BILL_NUDGE_DAYS);
+              nudgeSub(subscriptionKey(bill), RECOVERY_BILL_NUDGE_DAYS);
             },
           }
         : null,
@@ -431,7 +432,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             subName: pausable.name,
             // Pause the chosen sub (nearest renewal) — the real store write.
             commit: () => {
-              togglePaused(pausable.name, true);
+              togglePaused(subscriptionKey(pausable), true);
             },
           }
         : null,

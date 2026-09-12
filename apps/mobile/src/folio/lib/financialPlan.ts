@@ -22,6 +22,7 @@ import type { AppState } from '../store';
 import { deriveCalendarEvents } from './calendarEvents';
 import { projectIncomeEvents } from './income';
 import { reanchorRenewals } from './renewalMath';
+import { subscriptionKey, subscriptionOverride, subscriptionPaused } from './subscriptionIdentity';
 
 const DAY_MS = 86_400_000;
 const DEFAULT_HORIZON_DAYS = 365;
@@ -169,7 +170,7 @@ function commitmentEvents(
   const anchoredSubs = reanchorRenewals(state.subs, today).items;
   for (const subscription of anchoredSubs) {
     const anchor = subscription.obligationAnchorISO ?? subscription.nextRenewalISO ?? today;
-    const dateOffset = state.subOverrides[subscription.name] ?? 0;
+    const dateOffset = subscriptionOverride(state.subOverrides, subscription);
     // Legacy persisted subscriptions can contain zero/invalid cadence values. Treat those as
     // calendar-monthly (the canonical undefined cadence) and keep a finite occurrence bound so a
     // malformed value can never turn the forecast loop into `Infinity`.
@@ -192,14 +193,14 @@ function commitmentEvents(
       // A prospective pause skips future charges. It cannot settle a bill already overdue at
       // the time of the pause. Legacy paused rows have no earlier tracked pause date.
       if (
-        state.subPaused[subscription.name] &&
+        subscriptionPaused(state.subPaused, subscription) &&
         subscription.pausedUntil !== undefined &&
         date > (subscription.pausedAt ?? today) &&
         date < subscription.pausedUntil
       )
         continue;
       commitments.push({
-        id: `subscription:${subscription.name}:${occurrence.date}`,
+        id: `subscription:${subscriptionKey(subscription)}:${occurrence.date}`,
         date,
         amountMinor,
         label: subscription.name,

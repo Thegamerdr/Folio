@@ -16,6 +16,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
 import { useAppStore } from '@/folio/store';
+import { subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { formatMoney as formatGBP, formatFinancialDate } from '@/folio/lib/financialPresentation';
 import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
@@ -129,7 +130,7 @@ export function PlansScreen({ nav, state }: PlansScreenProps) {
   const tightSpare = model?.tightPoint ? model.tightPoint.amountMinor / 100 : null;
   const daysToPayday = model?.daysToPayday ?? null;
   const potsSaved = pots.reduce((sum, pot) => sum + pot.saved, 0);
-  const liveSubs = subs.filter((sub) => !subPaused[sub.name]);
+  const liveSubs = subs.filter((sub) => !subscriptionPaused(subPaused, sub));
   const [showAdd, setShowAdd] = useState(false);
 
   const resolvedState: PlansState = state ?? (now === null ? 'loading' : 'populated');

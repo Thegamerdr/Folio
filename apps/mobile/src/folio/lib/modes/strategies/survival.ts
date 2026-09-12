@@ -7,6 +7,7 @@
  */
 import type { ModeInputs, ModeState, ModeStrategy, MeloVoiceTint, MeloWeather } from '../types';
 import type { MeloMood, MeloPose } from '../../../melo/Melo';
+import { subscriptionPaused } from '../../subscriptionIdentity';
 
 const CALM_FRACTION = 0.4;
 const CONCERN_FRACTION = 0.15;
@@ -34,7 +35,7 @@ function derive(inputs: ModeInputs): ModeState {
   const safeRatio = tightestSpare / income;
 
   const nearRenewal = subs
-    .filter((s) => !subPaused[s.name])
+    .filter((s) => !subscriptionPaused(subPaused, s))
     .some((s) => s.nextRenewalDaysAway <= 3 && s.nextRenewalDaysAway >= 0);
   const anyPotHit = pots.some((p) => p.goal > 0 && p.saved >= p.goal);
 
@@ -56,7 +57,7 @@ function derive(inputs: ModeInputs): ModeState {
   // Weather.
   let weather: MeloWeather = 'cloudy';
   const soonBill = subs
-    .filter((s) => !subPaused[s.name])
+    .filter((s) => !subscriptionPaused(subPaused, s))
     .some((s) => s.nextRenewalDaysAway <= 1 && s.cost > tightestSpare);
   if (soonBill) weather = 'alarm';
   else if (tightestSpare < 0) weather = 'storm';

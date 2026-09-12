@@ -36,6 +36,7 @@ import { useRoute } from '@/folio/lib/storeRoute';
 import { useDayClock } from '@/folio/lib/useDayClock';
 import { hasAnyUserData, selectMonthlyIncome } from '@/folio/lib/income';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 import {
   selectFinancialPresentation,
   formatMoney,
@@ -166,7 +167,7 @@ export function TodayStabilityScreen({ nav }: { nav: Nav }) {
   const weeks = useMemo(() => {
     const buckets = Array.from({ length: WEEKS }, () => ({ total: 0, count: 0 }));
     subs
-      .filter((sub) => !subPaused[sub.name])
+      .filter((sub) => !subscriptionPaused(subPaused, sub))
       .filter((sub) => sub.nextRenewalDaysAway >= 0 && sub.nextRenewalDaysAway < WEEKS * 7)
       .forEach((sub) => {
         const w = Math.min(WEEKS - 1, Math.floor(sub.nextRenewalDaysAway / 7));

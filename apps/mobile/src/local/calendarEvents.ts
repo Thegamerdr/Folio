@@ -26,6 +26,7 @@ import {
   type UserCalendarEvent,
 } from './localLedger.js';
 import type { Subscription } from '@folio/domain';
+import { localSubscriptionOverride } from './subscriptionIdentity';
 
 export type DerivedCalendarEventKind = 'in' | 'out' | 'review' | 'deadline' | 'manual';
 export type DerivedCalendarEventSource =
@@ -239,7 +240,9 @@ export function deriveCalendarEvents(
   // Sub renewals from the real subscriptions list, with the per-sub nudge applied.
   for (const subscription of ledger.subscriptions) {
     if (subscription.paused) continue;
-    const overrideDays = clampOverrideRead(ledger.subOverrides[subscription.name]);
+    const overrideDays = clampOverrideRead(
+      localSubscriptionOverride(ledger.subOverrides, subscription),
+    );
     const event = subEventFromSubscription(subscription, asOfDateIso, overrideDays);
     if (event.dateIso < asOfDateIso || event.dateIso > windowEndIso) continue;
     out.push(event);

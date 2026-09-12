@@ -3,6 +3,7 @@ import { expandObligationOccurrences } from '@folio/finance-engine';
 import type { AppState, Sub } from '../store';
 import { reanchorRenewals } from './renewalMath';
 import { localDayKey } from './dayClock';
+import { subscriptionOverride } from './subscriptionIdentity';
 
 const shift = (date: string, days: number) =>
   new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
@@ -15,9 +16,15 @@ const renameKey = <T>(map: Record<string, T>, before: string, after: string): Re
 /** The already tracked next occurrence and all accrued obligations keep their dates and amounts. */
 export function subscriptionEditBoundary(state: AppState, name: string, now: Date) {
   const today = localDayKey(now);
-  const sub = reanchorRenewals(state.subs, today).items.find((item) => item.name === name);
+  const exact = state.subs.some((item) => item.id === name);
+  const candidates = reanchorRenewals(state.subs, today).items.filter((item) =>
+    exact ? item.id === name : item.name === name,
+  );
+  if (!exact && candidates.length > 1)
+    throw new Error('This legacy bill needs a one-time identity choice before it can be edited.');
+  const sub = candidates[0];
   if (!sub) throw new Error('This bill is no longer in Melo.');
-  const offset = state.subOverrides[name] ?? 0;
+  const offset = subscriptionOverride(state.subOverrides, sub);
   const anchor = sub.obligationAnchorISO ?? sub.nextRenewalISO ?? today;
   const occurrences = expandObligationOccurrences({
     anchor,
@@ -57,12 +64,6 @@ export function buildSubscriptionEditPatch(
 ): Partial<AppState> {
   const name = edit.name.trim();
   if (!name) throw new Error('Enter a bill name.');
-  if (
-    state.subs.some(
-      (item) => item.name !== oldName && item.name.toLowerCase() === name.toLowerCase(),
-    )
-  )
-    throw new Error('Another bill already has this name.');
   if (!Number.isFinite(edit.cost) || edit.cost <= 0)
     throw new Error('Enter an amount greater than zero.');
   if (edit.periodDays !== null && ![7, 14, 365].includes(edit.periodDays))
@@ -103,15 +104,31 @@ export function buildSubscriptionEditPatch(
       ...(edit.periodDays === null ? {} : { renewalPeriodDays: edit.periodDays }),
     };
   }
+  const exact = state.subs.some((item) => item.id === oldName);
+  const matches = exact ? (item: Sub) => item.id === oldName : (item: Sub) => item.name === oldName;
+  const legacySettings = exact
+    ? {
+        subPaused: state.subPaused,
+        subOverrides: state.subOverrides,
+      }
+    : {
+        subPaused: renameKey(state.subPaused, oldName, name),
+      subOverrides: renameKey(state.subOverrides, oldName, name),
+    };
+  const householdShareOverrides = state.household
+    ? exact &&
+      state.subs.filter((subscription) => subscription.name === boundary.sub.name).length > 1
+      ? state.household.subShareOverrides
+      : renameKey(state.household.subShareOverrides, boundary.sub.name, name)
+    : undefined;
   return {
-    subs: state.subs.map((item) => (item.name === oldName ? updated : item)),
-    subPaused: renameKey(state.subPaused, oldName, name),
-    subOverrides: renameKey(state.subOverrides, oldName, name),
-    ...(state.household
+    subs: state.subs.map((item) => (matches(item) ? updated : item)),
+    ...legacySettings,
+    ...(state.household && householdShareOverrides !== undefined
       ? {
           household: {
             ...state.household,
-            subShareOverrides: renameKey(state.household.subShareOverrides, oldName, name),
+            subShareOverrides: householdShareOverrides,
           },
         }
       : {}),

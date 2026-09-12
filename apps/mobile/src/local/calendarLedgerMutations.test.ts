@@ -58,6 +58,19 @@ describe('nudgeSub', () => {
     const after = nudgeSub(ledgerWithSub(), 'Netflix', 2);
     expect(after.history[0]?.kind).toBe('sub_nudged');
   });
+
+  it('keys an id-targeted nudge independently when names are duplicated', () => {
+    const first = ledgerWithSub();
+    const second = createSubscription(first, {
+      name: 'Netflix',
+      costMinor: 1_099,
+      cadence: 'monthly',
+      nextChargeInDays: 20,
+    });
+    const firstId = String(second.subscriptions[1]!.id);
+    const after = nudgeSub(second, firstId, 3);
+    expect(after.subOverrides).toEqual({ [firstId]: 3 });
+  });
 });
 
 describe('addCalendarEvent / removeCalendarEvent / updateCalendarEvent', () => {
@@ -159,7 +172,7 @@ describe('canonical wrappers + persistence round-trip', () => {
     const blob = JSON.stringify(state);
     const load = parseDurableContainersBlob(blob);
     expect(load.corrupt).toBe(false);
-    expect(load.containers.subOverrides).toEqual({ Netflix: 5 });
+    expect(load.containers.subOverrides).toEqual({ subscription_0001: 5 });
     expect(load.containers.calendarEvents.length).toBe(1);
     expect(load.containers.calendarEvents[0]?.title).toBe('Trip');
   });

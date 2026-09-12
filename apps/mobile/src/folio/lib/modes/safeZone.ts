@@ -30,6 +30,7 @@
  * install `selectBankBalanceMinor` is byte-identical to the old scalar, so this is inert today.
  */
 import type { ModeInputs } from './types';
+import { subscriptionPaused } from '../subscriptionIdentity';
 
 /** The one shared "getting dangerous" floor (£), used anywhere a mode-agnostic ladder needs a
  *  single number to compare Safe Zone spare against. Mirrors melo-engine's own
@@ -84,7 +85,7 @@ function shieldedBills(inputs: ModeInputs): number {
   })();
   if (daysToPayday <= 0) return 0;
   return inputs.subs.reduce((sum, s) => {
-    if (inputs.subPaused[s.name]) return sum;
+    if (subscriptionPaused(inputs.subPaused, s)) return sum;
     if (s.nextRenewalDaysAway < 0 || s.nextRenewalDaysAway > daysToPayday) return sum;
     return sum + Math.max(0, s.cost);
   }, 0);

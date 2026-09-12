@@ -29,6 +29,7 @@ import type { ModeInputs, ModeState, ModeStrategy, MeloVoiceTint, MeloWeather } 
 import type { MeloMood, MeloPose } from '../../../melo/Melo';
 import type { Transaction } from '../../../store';
 import { monthlyIncomeSeries, percentile } from '../../historyStats';
+import { subscriptionPaused } from '../../subscriptionIdentity';
 
 const VOICE: MeloVoiceTint = {
   archetype: 'levelheaded',
@@ -85,7 +86,7 @@ function derive(inputs: ModeInputs): ModeState {
     transactions,
     todayISO,
   } = inputs;
-  const active = subs.filter((s) => !subPaused[s.name]);
+  const active = subs.filter((s) => !subscriptionPaused(subPaused, s));
   const upcoming = active
     .filter((s) => s.nextRenewalDaysAway >= 0 && s.nextRenewalDaysAway <= 30)
     .reduce((sum, s) => sum + s.cost, 0);

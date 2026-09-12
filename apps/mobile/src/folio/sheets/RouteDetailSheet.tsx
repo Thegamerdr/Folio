@@ -78,6 +78,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import type { MoneyMode } from '@/folio/lib/modes/types';
+import { subscriptionOverride, subscriptionPaused } from '@/folio/lib/subscriptionIdentity';
 
 // ---------------------------------------------------------------------------
 // Mode-tinted framing for the low-point moment (web `ROUTE_DETAIL_COPY`,
@@ -243,9 +244,12 @@ function shortLabel(iso: string): string {
  *  is spend (stored `amount < 0`, surfaced as a positive magnitude). Income/refunds are not bills. */
 function billsForIso(state: AppState, now: Date, iso: string): RouteBill[] {
   const subBills: RouteBill[] = state.subs
-    .filter((s) => !state.subPaused[s.name])
+    .filter((s) => !subscriptionPaused(state.subPaused, s))
     .map((s) => {
-      const when = addDays(now, s.nextRenewalDaysAway + (state.subOverrides[s.name] ?? 0));
+      const when = addDays(
+        now,
+        s.nextRenewalDaysAway + subscriptionOverride(state.subOverrides, s),
+      );
       return { name: s.name, date: toIsoDay(when), amount: s.cost };
     })
     .filter((b) => b.date === iso)

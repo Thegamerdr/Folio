@@ -1,4 +1,5 @@
 import type { Sub } from '../store';
+import { subscriptionPaused } from './subscriptionIdentity';
 
 type SubscriptionState = Readonly<{
   subs: readonly Sub[];
@@ -37,7 +38,11 @@ function poundsFromMinor(minor: number): string {
 
 function monthlyMinor(subs: readonly Sub[], paused: Readonly<Record<string, boolean>>): number {
   return subs.reduce((total, subscription) => {
-    if (paused[subscription.name] || !Number.isFinite(subscription.cost) || subscription.cost < 0) {
+    if (
+      subscriptionPaused(paused, subscription) ||
+      !Number.isFinite(subscription.cost) ||
+      subscription.cost < 0
+    ) {
       return total;
     }
     return total + Math.round(subscription.cost * 100);
@@ -101,8 +106,8 @@ export function resolveMeloSubscriptionRequest(
 
   const eligible = state.subs.filter((subscription) =>
     request.change === 'pause'
-      ? !state.subPaused[subscription.name]
-      : !!state.subPaused[subscription.name],
+      ? !subscriptionPaused(state.subPaused, subscription)
+      : subscriptionPaused(state.subPaused, subscription),
   );
 
   if (!request.target || /^(?:one|a|it|that|this)$/.test(request.target)) {
@@ -133,7 +138,7 @@ export function resolveMeloSubscriptionRequest(
   }
 
   const subscription = matches[0]!;
-  const isPaused = !!state.subPaused[subscription.name];
+  const isPaused = subscriptionPaused(state.subPaused, subscription);
   if (!Number.isFinite(subscription.cost) || subscription.cost < 0) {
     return {
       state: 'review',

@@ -18,6 +18,7 @@ import {
   createSubscriptionPreferenceId,
   createTransactionIntelligenceStateId,
 } from '@folio/domain';
+import { subscriptionKey, subscriptionPaused } from './subscriptionIdentity';
 import type { CanonicalRepository, CanonicalRepositorySnapshot } from '@folio/storage';
 import { normaliseBusinessOperationsState } from '@folio/business-workspace';
 
@@ -199,15 +200,18 @@ function projectDurableMoneyContainers(
 
   for (const [sourceOrdinal, subscription] of state.subs.entries()) {
     assertRowWorkspace(subscription, workspace, 'Subscription');
+    const sourceSubscriptionId = subscription.id;
+    const sourceIdentity = sourceSubscriptionId ?? subscription.name;
     repository.subscriptions.put({
       id: canonicalContainerId(
         'subscription',
         workspace,
-        subscription.name,
-        sourceOrdinal,
+        sourceIdentity,
+        sourceSubscriptionId === undefined ? sourceOrdinal : 0,
         createSubscriptionId,
       ),
       workspaceId: workspace.id,
+      ...(sourceSubscriptionId === undefined ? {} : { sourceSubscriptionId }),
       sourceName: subscription.name,
       sourceOrdinal,
       name: subscription.name,
@@ -263,7 +267,7 @@ function projectDurableMoneyContainers(
               `Subscription ${subscription.name} trial days`,
             ),
           }),
-      paused: state.subPaused[subscription.name] === true,
+      paused: subscriptionPaused(state.subPaused, subscription),
       ...(subscription.pausedUntil === undefined
         ? {}
         : {
@@ -296,8 +300,8 @@ function projectDurableMoneyContainers(
       version: canonicalContainerVersion(
         'subscription',
         workspace,
-        subscription.name,
-        sourceOrdinal,
+        sourceIdentity,
+        sourceSubscriptionId === undefined ? sourceOrdinal : 0,
       ),
     });
   }
@@ -305,16 +309,18 @@ function projectDurableMoneyContainers(
   for (const [archiveOrdinal, subscription] of (state.cancelledSubs ?? []).entries()) {
     assertRowWorkspace(subscription, workspace, 'Cancelled subscription');
     const sourceOrdinal = state.subs.length + archiveOrdinal;
-    const sourceId = `cancelled:${subscription.name}`;
+    const sourceSubscriptionId = subscription.id;
+    const sourceId = sourceSubscriptionId ?? `cancelled:${subscription.name}`;
     repository.subscriptions.put({
       id: canonicalContainerId(
         'subscription',
         workspace,
         sourceId,
-        sourceOrdinal,
+        sourceSubscriptionId === undefined ? sourceOrdinal : 0,
         createSubscriptionId,
       ),
       workspaceId: workspace.id,
+      ...(sourceSubscriptionId === undefined ? {} : { sourceSubscriptionId }),
       sourceName: subscription.name,
       sourceOrdinal,
       name: subscription.name,
@@ -336,7 +342,12 @@ function projectDurableMoneyContainers(
           `Cancelled subscription ${subscription.name} cancellation date`,
         ),
       ),
-      version: canonicalContainerVersion('subscription', workspace, sourceId, sourceOrdinal),
+      version: canonicalContainerVersion(
+        'subscription',
+        workspace,
+        sourceId,
+        sourceSubscriptionId === undefined ? sourceOrdinal : 0,
+      ),
     });
   }
 
@@ -345,20 +356,24 @@ function projectDurableMoneyContainers(
   ]) {
     const paused = state.subPaused[sourceName];
     const overrideDays = state.subOverrides[sourceName];
+    const subscription = state.subs.find((item) => subscriptionKey(item) === sourceName);
+    const sourceSubscriptionId = subscription?.id;
+    const persistedSourceName = subscription?.name ?? sourceName;
     repository.subscriptionPreferences.put({
-      id: canonicalPreferenceId(workspace, sourceName),
+      id: canonicalPreferenceId(workspace, persistedSourceName, sourceSubscriptionId),
       workspaceId: workspace.id,
-      sourceName,
+      ...(sourceSubscriptionId === undefined ? {} : { sourceSubscriptionId }),
+      sourceName: persistedSourceName,
       ...(paused === undefined ? {} : { paused }),
       ...(overrideDays === undefined
         ? {}
         : {
             overrideDays: requireSafeInteger(
               overrideDays,
-              `Subscription ${sourceName} override days`,
+              `Subscription ${persistedSourceName} override days`,
             ),
           }),
-      version: canonicalContainerVersion('subpref', workspace, sourceName, 0),
+      version: canonicalContainerVersion('subpref', workspace, persistedSourceName, 0),
     });
   }
 
@@ -1490,9 +1505,10 @@ function canonicalContainerId<TId>(
 function canonicalPreferenceId(
   workspace: PersistedWorkspace,
   sourceName: string,
+  sourceSubscriptionId?: string,
 ): ReturnType<typeof createSubscriptionPreferenceId> {
   return createSubscriptionPreferenceId(
-    `subpref_appstate_${stableSourceHash(`${String(workspace.id)}\u0000${sourceName}`)}`,
+    `subpref_appstate_${stableSourceHash(`${String(workspace.id)}\u0000${sourceSubscriptionId ?? sourceName}`)}`,
   );
 }
 

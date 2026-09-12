@@ -29,6 +29,7 @@ import type {
   Sub,
   Transaction,
 } from '../store';
+import { subscriptionOverride, subscriptionPaused } from './subscriptionIdentity';
 import type { MerchantCategoryMap } from './merchantMemory';
 import { requireWorkspaceData } from './workspaceRoot';
 import { requireWorkspaceRows } from './workspaceRows';
@@ -416,8 +417,8 @@ function subsCsv(
       s.lastUsedDaysAgo,
       s.usesPerMonth,
       s.trialEndsInDays ?? '',
-      subPaused[s.name] === true,
-      subOverrides[s.name] ?? 0,
+      subscriptionPaused(subPaused, s) === true,
+      subscriptionOverride(subOverrides, s),
     ]),
   );
 }

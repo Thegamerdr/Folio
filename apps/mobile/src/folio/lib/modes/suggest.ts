@@ -18,6 +18,7 @@ import type { ModeInputs, MoneyMode } from './types';
 import { MODE_LABEL } from './types';
 import { monthlyEquivalent } from '../driftSignals';
 import { isDiscretionarySubscription } from '../discretionarySubscription';
+import { subscriptionPaused } from '../subscriptionIdentity';
 
 /**
  * The cadence-correct monthly income figure, computed from `ModeInputs` alone (no full `AppState`
@@ -44,7 +45,7 @@ export function suggestMode(current: MoneyMode, inputs: ModeInputs): ModeSuggest
   const { tightestSpare, subs, subPaused, pots, currentBalance } = inputs;
   const income = monthlyIncomeFrom(inputs);
   const balance = currentBalance.amount;
-  const liveSubs = subs.filter((s) => !subPaused[s.name]);
+  const liveSubs = subs.filter((s) => !subscriptionPaused(subPaused, s));
   const leakySubs = liveSubs.filter(
     (s) => isDiscretionarySubscription(s) && (s.usesPerMonth === 0 || s.lastUsedDaysAgo > 21),
   );

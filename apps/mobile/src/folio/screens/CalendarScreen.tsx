@@ -106,6 +106,7 @@ import { useRoute } from '@/folio/lib/storeRoute';
 import { tightPointDayLabel } from '@/folio/lib/moneyPath';
 import { formatGBP } from './today/format';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
+import { subscriptionKey, subscriptionOverride } from '@/folio/lib/subscriptionIdentity';
 import {
   selectFinancialPresentation,
   formatMoney,
@@ -1650,7 +1651,18 @@ export function EventRow({
         {summary}
       </Pressable>
       {expanded && e.source === 'sub' && e.subName ? (
-        <SubRenewalActions name={e.subName} date={e.date} s={s} />
+        <SubRenewalActions
+          name={e.subName}
+          reference={
+            e.id.startsWith('subscription:')
+              ? (e.id.split(':')[1] ?? e.subName)
+              : e.id.startsWith('sub-')
+                ? e.id.slice(4, -(e.date.length + 1))
+                : e.subName
+          }
+          date={e.date}
+          s={s}
+        />
       ) : expanded && e.manual ? (
         <View style={layout.eventActions}>
           <ScrollView
@@ -1737,16 +1749,24 @@ const NUDGES: readonly { d: number; label: string }[] = [
 
 function SubRenewalActions({
   name,
+  reference,
   date,
   s,
 }: {
   name: string;
+  reference: string;
   date: string;
   s: ReturnType<typeof makeStyles>;
 }) {
   const state = useAppStore((st) => st);
   const { showUndo } = useUndo();
-  const currentDelta = state.subOverrides[name] ?? 0;
+  const target =
+    state.subs.find((subscription) => subscription.id === reference) ??
+    state.subs.find((subscription) => subscription.name === name);
+  const targetRef = target ? subscriptionKey(target) : reference;
+  const currentDelta = target
+    ? subscriptionOverride(state.subOverrides, target)
+    : (state.subOverrides[reference] ?? 0);
   return (
     <View style={layout.eventActions}>
       <Text style={s.eventNote}>
@@ -1760,10 +1780,19 @@ function SubRenewalActions({
             accessibilityRole="button"
             accessibilityLabel={`Move forecast date to ${formatFinancialDate(shiftIso(date, Math.max(-7, Math.min(7, currentDelta + n.d)) - currentDelta))}`}
             onPress={() => {
-              nudgeSub(name, n.d);
+              nudgeSub(targetRef, n.d);
               showUndo(
                 `${name} forecast moved to ${formatFinancialDate(shiftIso(date, Math.max(-7, Math.min(7, currentDelta + n.d)) - currentDelta))}`,
-                () => nudgeSub(name, currentDelta - (getState().subOverrides[name] ?? 0)),
+                () => {
+                  const latest = getState();
+                  const latestTarget = latest.subs.find(
+                    (subscription) => subscription.id === targetRef,
+                  );
+                  const latestDelta = latestTarget
+                    ? subscriptionOverride(latest.subOverrides, latestTarget)
+                    : (latest.subOverrides[targetRef] ?? 0);
+                  nudgeSub(targetRef, currentDelta - latestDelta);
+                },
               );
             }}
             style={[s.nudgePill, { height: 'auto', minHeight: 48 }]}
@@ -1780,8 +1809,8 @@ function SubRenewalActions({
       <Pressable
         accessibilityRole="button"
         onPress={() => {
-          togglePaused(name, true);
-          showUndo(`${name} future forecast paused`, () => togglePaused(name, false));
+          togglePaused(targetRef, true);
+          showUndo(`${name} future forecast paused`, () => togglePaused(targetRef, false));
         }}
         style={{ minHeight: 48, justifyContent: 'center' }}
       >
@@ -1791,8 +1820,8 @@ function SubRenewalActions({
         <Pressable
           accessibilityRole="button"
           onPress={() => {
-            resetSubOverrides(name);
-            showUndo(`${name} forecast dates restored`, () => nudgeSub(name, currentDelta));
+            resetSubOverrides(targetRef);
+            showUndo(`${name} forecast dates restored`, () => nudgeSub(targetRef, currentDelta));
           }}
           style={{ minHeight: 48, justifyContent: 'center' }}
         >
