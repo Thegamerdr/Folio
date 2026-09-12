@@ -1,0 +1,47 @@
+{
+  "harness": "local-performance-evidence-v1",
+  "status": "MEASURED_LOCAL_ONLY",
+  "source_sha": "e8b651368a1851c54692ddf93dbbbf6def473ab4",
+  "command": "pnpm exec vitest run --config work/performance-vitest.config.ts --reporter verbose",
+  "cases": [
+    {
+      "accounts": 1,
+      "debts": 1,
+      "planEvents": 2,
+      "pendingObligations": 1,
+      "selectorElapsedMs": 9.34,
+      "estimatedRows": 53,
+      "estimatedTodayQueryMs": 34,
+      "estimatedSearchQueryMs": 55,
+      "estimateRisk": "green"
+    },
+    {
+      "accounts": 4,
+      "debts": 4,
+      "planEvents": 8,
+      "pendingObligations": 4,
+      "selectorElapsedMs": 0.533,
+      "estimatedRows": 104,
+      "estimatedTodayQueryMs": 45,
+      "estimatedSearchQueryMs": 55,
+      "estimateRisk": "green"
+    },
+    {
+      "accounts": 8,
+      "debts": 8,
+      "planEvents": 16,
+      "pendingObligations": 8,
+      "selectorElapsedMs": 0.754,
+      "estimatedRows": 172,
+      "estimatedTodayQueryMs": 50,
+      "estimatedSearchQueryMs": 55,
+      "estimateRisk": "green"
+    }
+  ],
+  "functional_sanity": [
+    "Each case produced at least one debt-minimum event per synthetic debt.",
+    "Pending obligation count matched the synthetic debt count.",
+    "No application runtime, UI, finance/store, dependency, device, backend, or network code was changed."
+  ],
+  "interpretation": "Measurements are local selector/plan timings only. The estimateRisk field is the existing estimate function output, not a newly defined acceptance threshold. These cases do not establish physical-device responsiveness, crash stability, multiple-account scale acceptance, or debt-history scale acceptance."
+}
