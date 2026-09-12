@@ -208,9 +208,10 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
     ensureNameVisibleTimer.current = setTimeout(() => {
       const scroll = scrollRef.current;
       const input = nameInputRef.current;
-      if (!scroll || !input) return;
+      if (!scroll || !input || !input.isFocused()) return;
       scroll.getNativeScrollRef()?.measureInWindow((_x, viewportTop, _width, viewportHeight) => {
         input.measureInWindow((_inputX, inputTop, _inputWidth, inputHeight) => {
+          // KeyboardSafeView resizes this viewport; its bottom is the current IME boundary.
           const keyboardTop = viewportTop + viewportHeight;
           const requiredBottom = keyboardTop - 12;
           const overlap = inputTop + inputHeight - requiredBottom;
@@ -920,10 +921,8 @@ export function AccountScreen({ nav, state = 'populated' }: AccountScreenProps) 
             <Surface style={[styles.addAccountCard, { borderColor: t.hairline }]}>
               <Text style={[styles.addAccountTitle, { color: t.ink }]}>Update this account</Text>
               <TextInput
-                ref={nameInputRef}
                 accessibilityLabel="Account name"
                 autoCapitalize="words"
-                onFocus={ensureNameVisible}
                 onChangeText={setEditAccountName}
                 placeholder="Account name"
                 placeholderTextColor={t.muted}
