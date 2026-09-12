@@ -210,20 +210,6 @@ export function LogPaymentSheet({ visible, onClose, targetId }: LogPaymentSheetP
       onClose={onClose}
       focusContextBefore={32}
       focusContextAfter={240}
-      footer={
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !canLog || !preview }}
-          disabled={!canLog || !preview}
-          onPress={reviewAndLog}
-          style={[
-            s.primary,
-            { marginTop: 0, backgroundColor: canLog && preview ? t.calm : `${t.muted}66` },
-          ]}
-        >
-          <Text style={[s.primaryLabel, { color: t.inverse }]}>Review payment</Text>
-        </Pressable>
-      }
     >
       <View style={s.body}>
         <Text style={s.eyebrow}>Log a payment</Text>
@@ -352,6 +338,15 @@ export function LogPaymentSheet({ visible, onClose, targetId }: LogPaymentSheetP
             {preview.text}
           </Text>
         ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !canLog || !preview }}
+          disabled={!canLog || !preview}
+          onPress={reviewAndLog}
+          style={[s.primary, { backgroundColor: canLog && preview ? t.calm : `${t.muted}66` }]}
+        >
+          <Text style={[s.primaryLabel, { color: t.inverse }]}>Review payment</Text>
+        </Pressable>
       </View>
     </Sheet>
   );
