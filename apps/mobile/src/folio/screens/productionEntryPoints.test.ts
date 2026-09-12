@@ -11,7 +11,7 @@ describe('production sample entry-point boundaries', () => {
     const paste = source('PasteSuccessScreen.tsx');
     expect(paste).not.toMatch(/const SAMPLE_PASTE_TEXT|setDraft\(SAMPLE_|or try the sample/u);
     expect(paste).toContain("useState(pasteText ?? '')");
-    expect(paste).toContain('parseSheet(draft');
+    expect(paste).toContain("parseSheet(submittedDraft, { source: 'paste' })");
   });
 
   it('never substitutes merchant-keyed fixture dates or categories into real review candidates', () => {
