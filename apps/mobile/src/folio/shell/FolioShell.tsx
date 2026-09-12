@@ -590,7 +590,7 @@ export function FolioShell() {
     parityCapture: process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true',
     variant: businessWorkspaceActive ? 'business' : 'personal',
   });
-  const [bottomChromeHeight, setBottomChromeHeight] = useState(60 + bottomChromeSystemInset);
+  const [bottomChromeHeight, setBottomChromeHeight] = useState(60 + systemInsets.bottom);
   const tinyWins = useAppStore((st) => st.tinyWins);
   const milestoneSoundsEnabled = useAppStore((st) => st.melo?.soundEnabled === true);
   const feedbackQuietMode = useAppStore((st) => st.melo?.quietMode === true);
