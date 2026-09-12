@@ -42,6 +42,7 @@ import {
   formatMoney as formatGBP,
 } from '@/folio/lib/financialPresentation';
 import { FinancialSetupNotice } from '@/folio/ui/FinancialSetupNotice';
+import { useBottomChromeContentPadding } from '@/folio/shell/bottomChromeContext';
 
 // ---------------------------------------------------------------------------
 // formatGBP — the web's exact pure function (folio kit). Signed, Intl en-GB, no
@@ -135,6 +136,7 @@ function ChevronGlyph({
 export function PlanScreen({ nav, state }: PlanScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const contentBottomPadding = useBottomChromeContentPadding();
   const { width, fontScale } = useWindowDimensions();
   const stackMoney = width / fontScale < 280;
   const stackDominantActions = width < 380;
@@ -318,7 +320,8 @@ export function PlanScreen({ nav, state }: PlanScreenProps) {
     <View style={[styles.root, { backgroundColor: t.canvas }]}>
       <View style={[styles.viewportSafeArea, { paddingTop: insets.top }]}>
         <MeloScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: gap.xl }]}
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomPadding }]}
+          scrollIndicatorInsets={{ bottom: contentBottomPadding }}
           showsVerticalScrollIndicator={false}
         >
           {showSampleMarker ? (
