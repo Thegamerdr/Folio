@@ -153,12 +153,13 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
   );
   const hiddenCount = useAppStore((state) => state.ignoredReviewSigs?.length ?? 0);
   const transactions = useAppStore((state) => state.transactions);
+  const subscriptions = useAppStore((state) => state.subs);
   const edits = useAppStore((state) => state.edits ?? []);
   const events = useAppStore((state) => state.timelineEvents ?? []);
   const caught = useCaughtSubs()[0];
   const history = useMemo(
-    () => buildDecisionHistoryRows({ transactions, edits, events }),
-    [transactions, edits, events],
+    () => buildDecisionHistoryRows({ transactions, edits, events, subscriptions }),
+    [transactions, edits, events, subscriptions],
   );
   const visibleHistory = useMemo(
     () =>
