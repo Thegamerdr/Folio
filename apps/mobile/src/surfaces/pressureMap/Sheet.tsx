@@ -343,6 +343,14 @@ export function Sheet({
   const systemReduceMotion = useSystemReducedMotion();
   // Capture builds paint at rest; normal builds retain the user's motion preference.
   const captureMode = process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE === 'true';
+  // Alert geometry diagnostics reuse this Sheet's numeric telemetry without enabling parity
+  // fixtures, forced theme, reduced motion, or any other capture-build behavior.
+  const alertGeometryDiagnostics =
+    process.env.EXPO_PUBLIC_MELO_ALERT_GEOMETRY_DIAGNOSTIC === 'true';
+  const geometryLogging =
+    (captureMode || alertGeometryDiagnostics) &&
+    scrollKey !== undefined &&
+    (captureMode || scrollKey === 'melo-alert');
   const shouldReduceMotion = captureMode || reduceMotion === true || systemReduceMotion;
   const rootRef = useRef<View>(null);
   const [windowFrame, setWindowFrame] = useState<SheetWindowFrame>({ x: 0, y: 0, width, height });
@@ -395,7 +403,7 @@ export function Sheet({
       focusFrame.current = null;
       const focused = TextInput.State.currentlyFocusedInput();
       const body = bodyScrollRef.current;
-      if (captureMode && scrollKey !== undefined) {
+      if (geometryLogging) {
         console.info(
           'MeloSheetGeometry',
           JSON.stringify({
@@ -439,7 +447,7 @@ export function Sheet({
               contextBefore: focusContextBefore,
               contextAfter: focusContextAfter,
             });
-            if (captureMode && scrollKey !== undefined) {
+            if (geometryLogging) {
               console.info(
                 'MeloSheetGeometry',
                 JSON.stringify({
@@ -465,7 +473,7 @@ export function Sheet({
   }, [
     bodyScrollRef,
     bodyContentInset,
-    captureMode,
+    geometryLogging,
     scrollKey,
     focusContextBefore,
     focusContextAfter,
@@ -693,7 +701,7 @@ export function Sheet({
                   automaticallyAdjustKeyboardInsets={false}
                   onLayout={(event) => {
                     keepFocusedInputVisible();
-                    if (captureMode && scrollKey !== undefined) {
+                    if (geometryLogging) {
                       console.info(
                         'MeloSheetGeometry',
                         JSON.stringify({
@@ -706,7 +714,7 @@ export function Sheet({
                   }}
                   onContentSizeChange={(widthValue, heightValue) => {
                     keepFocusedInputVisible();
-                    if (captureMode && scrollKey !== undefined) {
+                    if (geometryLogging) {
                       console.info(
                         'MeloSheetGeometry',
                         JSON.stringify({
@@ -720,7 +728,7 @@ export function Sheet({
                   }}
                   onScroll={(event) => {
                     scrollY.current = event.nativeEvent.contentOffset.y;
-                    if (captureMode && scrollKey !== undefined) {
+                    if (geometryLogging) {
                       console.info(
                         'MeloSheetGeometry',
                         JSON.stringify({
@@ -741,7 +749,7 @@ export function Sheet({
                     collapsable={false}
                     onFocus={settleFocusedInput}
                     onLayout={(event) => {
-                      if (captureMode && scrollKey !== undefined) {
+                      if (geometryLogging) {
                         console.info(
                           'MeloSheetGeometry',
                           JSON.stringify({
