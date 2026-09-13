@@ -390,8 +390,8 @@ describe('InsightsScreen native branch and chart accessibility', () => {
     const renderer = await renderScreen();
     const text = textOf(renderer.root);
 
-    expect(text).toContain('Recorded money out in the past 7 days: £20.00.');
-    expect(text).not.toContain('£119.00');
+    expect(text).toContain('Recorded money out in the past 7 days: £20.');
+    expect(text).not.toContain('Recorded money out in the past 7 days: £119.');
   });
 
   it('omits the headline low average when any review low is unknown', async () => {

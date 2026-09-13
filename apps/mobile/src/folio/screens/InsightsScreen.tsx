@@ -301,8 +301,13 @@ function EmptyBranch({ nav, styles }: { nav: Nav; styles: ReturnType<typeof make
     <View style={styles.emptyContent}>
       <View style={styles.titleBlock}>
         <Text style={styles.eyebrowItalic}>No reviews recorded yet</Text>
-        <Text accessibilityRole="header" style={styles.headline}>
-          Your <Text style={styles.headlineAccent}>recorded</Text> reviews.
+        <Text
+          accessibilityRole="header"
+          android_hyphenationFrequency="none"
+          textBreakStrategy="simple"
+          style={styles.headline}
+        >
+          Your <Text style={styles.headlineAccent}>recorded</Text> reviews{`\u2060`}.
         </Text>
       </View>
       <View style={styles.emptyBlock}>
@@ -404,8 +409,13 @@ function PopulatedBranch({
         <Text
           style={styles.eyebrowItalic}
         >{`${reviews.length} recorded ${reviews.length === 1 ? 'review' : 'reviews'} · ${modeLabel}`}</Text>
-        <Text accessibilityRole="header" style={styles.headline}>
-          Your <Text style={styles.headlineAccent}>recorded</Text> reviews.
+        <Text
+          accessibilityRole="header"
+          android_hyphenationFrequency="none"
+          textBreakStrategy="simple"
+          style={styles.headline}
+        >
+          Your <Text style={styles.headlineAccent}>recorded</Text> reviews{`\u2060`}.
         </Text>
       </View>
 
@@ -881,8 +891,8 @@ function makeStyles(t: Palette) {
     headline: {
       color: t.ink,
       fontFamily: serif.display,
-      fontSize: 42,
-      lineHeight: 46,
+      fontSize: 36,
+      lineHeight: 42,
       marginTop: gap.sm,
     },
     headlineAccent: { color: t.calm, fontFamily: serif.display, fontStyle: 'normal' },
