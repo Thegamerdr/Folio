@@ -236,6 +236,18 @@ describe('statement review receipt/session transitions', () => {
     expect(remaining?.accountDraft).toEqual(session.accountDraft);
   });
 
+  it('keeps the source identity stable when only kept-aside rows remain', () => {
+    const candidates = [...buildScaleFixture(2).candidates];
+    const session: StatementReviewSession = {
+      candidates,
+      sourceKey: 'paste:source-instance-1',
+      selectedIds: [candidates[0]!.id],
+      asideIds: [candidates[1]!.id],
+      resolvedRepeatIds: [],
+    };
+    expect(acknowledgeStatementReviewSession(session)?.sourceKey).toBe(session.sourceKey);
+  });
+
   it('clears the acknowledged session when no provisional rows remain and restores its receipt exactly', () => {
     const candidates = [...buildScaleFixture(2).candidates];
     const session: StatementReviewSession = {
