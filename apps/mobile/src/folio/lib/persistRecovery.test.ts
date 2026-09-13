@@ -296,6 +296,7 @@ const manifestTmpUri = `${DOC_DIR}melo.workspace-manifest.v1.tmp.json`;
 
 const restoreReceiptFixture: RestoreResult = {
   workspaceId: String(PERSONAL_WORKSPACE_ID),
+  resultId: 'restore-fixture-1',
   status: 'degraded',
   degraded: true,
   attemptedTransactionCount: 2,
@@ -1905,6 +1906,7 @@ describe('MF10 restore receipt durability', () => {
     });
     const secondReceipt: RestoreResult = {
       ...restoreReceiptFixture,
+      resultId: 'restore-fixture-2',
       status: 'success',
       degraded: false,
       restoredTransactionCount: 2,
@@ -1962,6 +1964,7 @@ describe('MF10 restore receipt durability', () => {
     await restoreReceiptStore.save(restoreReceiptFixture);
     const newerReceipt: RestoreResult = {
       ...restoreReceiptFixture,
+      resultId: 'restore-fixture-2',
       status: 'success',
       degraded: false,
       restoredTransactionCount: 2,
@@ -1996,6 +1999,54 @@ describe('MF10 restore receipt durability', () => {
     expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(newerReceipt);
     await restoreReceiptStore.acknowledge(String(PERSONAL_WORKSPACE_ID), newerReceipt);
     expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toBeNull();
+  });
+
+  it('reseals a newer same-workspace receipt before rejecting a stale acknowledgement', async () => {
+    resetToEmpty();
+    await restoreReceiptStore.save(restoreReceiptFixture);
+    const newerReceipt: RestoreResult = {
+      ...restoreReceiptFixture,
+      resultId: 'restore-fixture-2',
+      status: 'success',
+      degraded: false,
+      restoredTransactionCount: 2,
+      restoredTransactionIds: ['txn-restored', 'txn-second'],
+      intactTransactionCount: 2,
+      notRestoredTransactionCount: 0,
+      missingTransactionIds: [],
+      missingOriginalFileCount: 0,
+      unlinkedRecordCount: 0,
+      missingOriginalTransactionIds: [],
+    };
+    const payloads: string[] = [];
+    let releaseWrite!: () => void;
+    const delayedWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    saveNativeWorkspaceStateGeneration.mockImplementation(async (...args: unknown[]) => {
+      payloads.push(String(args[1]));
+      if (payloads.length === 1) await delayedWrite;
+      return { generation: payloads.length };
+    });
+
+    const acknowledgement = restoreReceiptStore.acknowledge(
+      String(PERSONAL_WORKSPACE_ID),
+      restoreReceiptFixture,
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    setPartial({
+      restoreReceipts: {
+        [String(PERSONAL_WORKSPACE_ID)]: newerReceipt,
+      },
+    });
+    releaseWrite();
+
+    await expect(acknowledgement).rejects.toThrow(/newer receipt/i);
+    expect(payloads).toHaveLength(2);
+    expect(
+      JSON.parse(payloads.at(-1) as string).restoreReceipts[String(PERSONAL_WORKSPACE_ID)],
+    ).toMatchObject({ resultId: 'restore-fixture-2' });
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(newerReceipt);
   });
 
   it('reports a superseded acknowledgement while preserving a concurrent money edit and receipt', async () => {

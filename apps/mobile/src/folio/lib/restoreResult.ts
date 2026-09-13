@@ -6,6 +6,8 @@ export type RestoreResultStatus = 'success' | 'partial' | 'degraded';
 
 export type RestoreResult = Readonly<{
   workspaceId: string;
+  /** Stable identity for one restore attempt; absent on legacy receipts. */
+  resultId?: string;
   /** The restore succeeded, but removing this durable receipt was rejected. */
   acknowledgementFailed?: boolean;
   /** The A03 failure notice has already been announced for this durable receipt. */
@@ -43,6 +45,7 @@ type RestoreTransactionLike = Readonly<Record<string, unknown>>;
 
 export type RestoreResultInput = Readonly<{
   workspaceId: string;
+  resultId?: string;
   degraded: boolean;
   attemptedTransactions: readonly (RestoreTransactionLike | unknown)[];
   restoredTransactions: readonly (RestoreTransactionLike | unknown)[];
@@ -69,6 +72,23 @@ export type RestoreResultInput = Readonly<{
 
 export function stringId(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/** Compare one durable restore attempt without confusing identical result facts from later runs. */
+export function restoreResultIdentity(result: RestoreResult): string {
+  return result.resultId === undefined
+    ? `content:${JSON.stringify(result)}`
+    : `attempt:${result.workspaceId}:${result.resultId}`;
+}
+
+let restoreResultSequence = 0;
+
+/** Generate a non-visible identity for a newly applied restore. */
+export function createRestoreResultId(): string {
+  restoreResultSequence += 1;
+  return `restore-${Date.now().toString(36)}-${restoreResultSequence.toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
 }
 
 const MATERIAL_KEYS = [
@@ -283,6 +303,7 @@ export function createRestoreResult(input: RestoreResultInput): RestoreResult {
 
   return {
     workspaceId: input.workspaceId,
+    ...(input.resultId === undefined ? {} : { resultId: input.resultId }),
     status: input.degraded ? 'degraded' : partial ? 'partial' : 'success',
     degraded: input.degraded,
     attemptedTransactionCount: input.attemptedTransactions.length,
@@ -396,6 +417,9 @@ export function normalizeRestoreResult(
   const missingIds = receiptStringArray(row, 'missingTransactionIds');
   const changedTransactionIds = receiptStringArray(row, 'changedTransactionIds');
   const missingOriginalTransactionIds = receiptStringArray(row, 'missingOriginalTransactionIds');
+  const parsedResultId = row.resultId === undefined ? undefined : stringId(row.resultId);
+  if (parsedResultId === null) return null;
+  const resultId: string | undefined = parsedResultId;
   if (
     intact === null ||
     notRestored === null ||
@@ -444,6 +468,7 @@ export function normalizeRestoreResult(
   const status = degraded ? 'degraded' : hasLoss ? 'partial' : declaredStatus;
   const normalized: RestoreResult = {
     workspaceId,
+    ...(resultId === undefined ? {} : { resultId }),
     status,
     degraded,
     attemptedTransactionCount: attempted,

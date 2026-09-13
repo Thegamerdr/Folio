@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createRestoreResult, normalizeRestoreResult } from './restoreResult';
+import { createRestoreResult, normalizeRestoreResult, restoreResultIdentity } from './restoreResult';
 
 describe('restore result truth model', () => {
   it('marks missing original files and their affected records as partial', () => {
@@ -280,5 +280,27 @@ describe('restore result truth model', () => {
     expect(normalizeRestoreResult({ ...base, acknowledgementFailed: 'true' })).not.toHaveProperty(
       'acknowledgementFailed',
     );
+  });
+
+  it('keeps identical facts distinct when they come from separate restore attempts', () => {
+    const first = normalizeRestoreResult({
+      workspaceId: 'workspace_personal_local',
+      resultId: 'restore-1',
+      status: 'success',
+      degraded: false,
+      attemptedTransactionCount: 0,
+      restoredTransactionCount: 0,
+    });
+    const second = normalizeRestoreResult({
+      workspaceId: 'workspace_personal_local',
+      resultId: 'restore-2',
+      status: 'success',
+      degraded: false,
+      attemptedTransactionCount: 0,
+      restoredTransactionCount: 0,
+    });
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(restoreResultIdentity(first!)).not.toBe(restoreResultIdentity(second!));
   });
 });

@@ -27,7 +27,12 @@ import {
 } from '@/folio/lib/persist';
 
 import { summarizeRestore, validateRestoreJson } from './restore';
-import { createRestoreResult, stringId, type RestoreResult } from './restoreResult';
+import {
+  createRestoreResult,
+  createRestoreResultId,
+  stringId,
+  type RestoreResult,
+} from './restoreResult';
 import { PERSONAL_WORKSPACE_ID } from './workspaceRoot';
 import type { RestoreRejection, RestoreSummary } from './restore';
 
@@ -143,6 +148,7 @@ function resultFromState(
   const restored = getState();
   return createRestoreResult({
     workspaceId: String(workspaceId),
+    resultId: createRestoreResultId(),
     degraded,
     attemptedTransactions: input.attemptedTransactions,
     restoredTransactions: Array.isArray(restored.transactions) ? restored.transactions : [],

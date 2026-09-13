@@ -41,7 +41,7 @@ import {
   type AppLockCapability,
 } from '@/folio/lib/appLock';
 import type { Nav } from '@/folio/types';
-import type { RestoreResult } from '@/folio/lib/restoreResult';
+import { restoreResultIdentity, type RestoreResult } from '@/folio/lib/restoreResult';
 
 type StagedRestore = Extract<PickRestoreResult, { status: 'staged' }>;
 
@@ -235,7 +235,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     if (acknowledgingRestore || acknowledgingRestoreGuardRef.current) return;
     const operation = ++acknowledgementOperationRef.current;
     const workspaceId = String(activeWorkspaceId);
-    const receiptIdentity = JSON.stringify(receipt);
+    const receiptIdentity = restoreResultIdentity(receipt);
     const isCurrentOperation = () =>
       activeWorkspaceIdRef.current === workspaceId &&
       acknowledgementOperationRef.current === operation;
@@ -246,10 +246,12 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       .then(() => {
         if (!isCurrentOperation()) return;
         setPendingRestoreReceipt((current) =>
-          JSON.stringify(current) === receiptIdentity ? null : current,
+          current !== null && restoreResultIdentity(current) === receiptIdentity ? null : current,
         );
         setRestoreReceiptSheet((current) =>
-          JSON.stringify(current?.receipt) === receiptIdentity ? null : current,
+          current !== null && restoreResultIdentity(current.receipt) === receiptIdentity
+            ? null
+            : current,
         );
       })
       .catch(async () => {
@@ -257,7 +259,7 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
         // A newer receipt must remain authoritative. The guarded store call rejects before any
         // marker write; avoid replacing it with a failure marker for the old receipt.
         const currentReceipt = restoreReceiptStore.load(workspaceId);
-        if (currentReceipt !== null && JSON.stringify(currentReceipt) !== receiptIdentity) {
+        if (currentReceipt !== null && restoreResultIdentity(currentReceipt) !== receiptIdentity) {
           setPendingRestoreReceipt(currentReceipt);
           return;
         }
@@ -283,6 +285,11 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           console.error('[melo:restore-receipt] acknowledgement-notice-save-failed');
         }
         if (!isCurrentOperation()) return;
+        const latestReceipt = restoreReceiptStore.load(workspaceId);
+        if (latestReceipt !== null && restoreResultIdentity(latestReceipt) !== receiptIdentity) {
+          setPendingRestoreReceipt(latestReceipt);
+          return;
+        }
         setRestoreReceiptSheet({
           receipt: failedReceipt,
           acknowledgementFailed: true,
@@ -318,6 +325,15 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     setRestoreConsentStep(null);
     setPendingRestoreReceipt(receipt);
   }, [activeWorkspaceId]);
+
+  useEffect(
+    () => () => {
+      acknowledgementOperationRef.current += 1;
+      activeWorkspaceIdRef.current = '';
+      acknowledgingRestoreGuardRef.current = false;
+    },
+    [],
+  );
 
   useEffect(() => {
     let mounted = true;

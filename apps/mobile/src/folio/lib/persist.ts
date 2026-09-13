@@ -89,6 +89,7 @@ import {
 import { validateRestoreJson } from './restore';
 import {
   normalizeRestoreResult,
+  restoreResultIdentity,
   type RestoreReceiptStore,
   type RestoreResult,
 } from './restoreResult';
@@ -1065,7 +1066,7 @@ function receiptKey(workspaceId: WorkspaceId): string {
 
 function receiptIdentity(value: unknown, workspaceId: WorkspaceId): string | null {
   const normalized = normalizeRestoreResult(value, String(workspaceId));
-  return normalized === null ? null : JSON.stringify(normalized);
+  return normalized === null ? null : restoreResultIdentity(normalized);
 }
 
 /**
@@ -1136,22 +1137,24 @@ export function createRestoreReceiptStore(): RestoreReceiptStore {
         const acknowledged = JSON.stringify(parsed);
         await persistCurrentStateNow(checked, undefined, { plaintextOverride: acknowledged });
 
-        // A newer receipt may have been queued by another mounted screen while the native write
-        // was in flight. Never hydrate the receipt-free snapshot over that newer result.
-        if (
-          expectedReceipt !== undefined &&
-          receiptIdentity(getState().restoreReceipts?.[receiptKey(checked)], checked) !==
-            receiptIdentity(expectedReceipt, checked)
-        ) {
-          throw new Error('Restore receipt acknowledgement was superseded by a newer receipt.');
-        }
-
         // If a user mutation arrived while the native write was in flight, preserve that newer
         // state and its receipt instead of hydrating an old snapshot over it. The caller must see
         // a rejected acknowledgement: the receipt is still present and must remain visible.
-        if (getPersistBlob(checked) !== before) {
+        const receiptSuperseded =
+          expectedReceipt !== undefined &&
+          receiptIdentity(getState().restoreReceipts?.[receiptKey(checked)], checked) !==
+            receiptIdentity(expectedReceipt, checked);
+        const stateSuperseded = getPersistBlob(checked) !== before;
+        if (receiptSuperseded || stateSuperseded) {
+          // The receipt-free snapshot may already have reached the native generation. Reseal the
+          // latest live partition before rejecting, so a cold launch cannot lose a newer receipt
+          // or an edit that arrived while the acknowledgement write was in flight.
           await persistCurrentStateNow(checked);
-          throw new Error('Restore receipt acknowledgement was superseded by a newer local edit.');
+          throw new Error(
+            receiptSuperseded
+              ? 'Restore receipt acknowledgement was superseded by a newer receipt.'
+              : 'Restore receipt acknowledgement was superseded by a newer local edit.',
+          );
         }
         hydrateFromBlob(acknowledged, checked);
       });
