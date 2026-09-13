@@ -76,9 +76,15 @@ export function stringId(value: unknown): string | null {
 
 /** Compare one durable restore attempt without confusing identical result facts from later runs. */
 export function restoreResultIdentity(result: RestoreResult): string {
-  return result.resultId === undefined
-    ? `content:${JSON.stringify(result)}`
-    : `attempt:${result.workspaceId}:${result.resultId}`;
+  if (result.resultId !== undefined) return `attempt:${result.workspaceId}:${result.resultId}`;
+  // Acknowledgement markers describe presentation/retry state, not the restore attempt. Keep
+  // legacy receipts stable while those markers are added after a failed acknowledgement.
+  const {
+    acknowledgementFailed: _acknowledgementFailed,
+    acknowledgementNoticeAnnounced: _acknowledgementNoticeAnnounced,
+    ...durableFacts
+  } = result;
+  return `content:${JSON.stringify(durableFacts)}`;
 }
 
 let restoreResultSequence = 0;

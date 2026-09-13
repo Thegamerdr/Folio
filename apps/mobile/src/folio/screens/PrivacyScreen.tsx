@@ -245,6 +245,14 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       .acknowledge(receipt.workspaceId, receipt)
       .then(() => {
         if (!isCurrentOperation()) return;
+        const latestReceipt = restoreReceiptStore.load(workspaceId);
+        if (latestReceipt !== null && restoreResultIdentity(latestReceipt) !== receiptIdentity) {
+          // A newer attempt replaced the presented one while acknowledgement was in flight.
+          // Keep that durable result visible instead of clearing every sheet for this workspace.
+          setPendingRestoreReceipt(latestReceipt);
+          presentRestoreReceipt(latestReceipt, latestReceipt.acknowledgementFailed === true);
+          return;
+        }
         setPendingRestoreReceipt((current) =>
           current !== null && restoreResultIdentity(current) === receiptIdentity ? null : current,
         );

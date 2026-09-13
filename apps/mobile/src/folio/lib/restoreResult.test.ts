@@ -303,4 +303,26 @@ describe('restore result truth model', () => {
     expect(second).not.toBeNull();
     expect(restoreResultIdentity(first!)).not.toBe(restoreResultIdentity(second!));
   });
+
+  it('keeps legacy receipt identity stable when acknowledgement markers change', () => {
+    const base = normalizeRestoreResult({
+      workspaceId: 'workspace_personal_local',
+      status: 'success',
+      degraded: false,
+      attemptedTransactionCount: 0,
+      restoredTransactionCount: 0,
+    });
+    const marked = normalizeRestoreResult({
+      workspaceId: 'workspace_personal_local',
+      status: 'success',
+      degraded: false,
+      attemptedTransactionCount: 0,
+      restoredTransactionCount: 0,
+      acknowledgementFailed: true,
+      acknowledgementNoticeAnnounced: true,
+    });
+    expect(base).not.toBeNull();
+    expect(marked).not.toBeNull();
+    expect(restoreResultIdentity(marked!)).toBe(restoreResultIdentity(base!));
+  });
 });
