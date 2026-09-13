@@ -1,6 +1,6 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => {
   const el = (name: string) => (props: any) => React.createElement(name, props, props.children);
@@ -19,7 +19,8 @@ vi.mock('react-native-svg', () => ({
 vi.mock('react-native-reanimated', () => ({
   cancelAnimation: vi.fn(), Easing: { bezier: (...v: any[]) => v, out: (v: any) => v, cubic: (v: any) => v },
   useAnimatedProps: (fn: any) => fn(), useAnimatedStyle: (fn: any) => fn(),
-  useSharedValue: (value: number) => ({ value }), withTiming: (value: number) => value,
+  useSharedValue: (value: number) => { const ref = React.useRef({ value }); return ref.current; },
+  withTiming: () => 0,
   default: { View: (p: any) => React.createElement('Animated.View', p, p.children), createAnimatedComponent: (component: any) => component },
 }));
 vi.mock('@/folio/theme', () => ({
@@ -40,7 +41,9 @@ vi.mock('@/folio/melo/MeloLine', () => ({ MeloLine: (p: any) => React.createElem
 import { TodayAfterScreen } from './TodayAfterScreen';
 
 describe('TodayAfterScreen mounted result visibility', () => {
+  afterEach(() => vi.useRealTimers());
   it('renders saved receipt feedback and return action even when entrance timing is frozen', async () => {
+    vi.useFakeTimers();
     const nav = { go: vi.fn(), openMelo: vi.fn() } as any;
     const recovery = { workspaceId: 'w1', at: new Date().toISOString(), action: { kind: 'hold-spend', dailyCap: 20, days: 3 }, before: { cashMinor: 100000, safeMinor: -50000, gapMinor: 50000 }, after: { cashMinor: 100000, safeMinor: 0, gapMinor: 0 } } as any;
     let tree!: renderer.ReactTestRenderer;
@@ -54,6 +57,11 @@ describe('TodayAfterScreen mounted result visibility', () => {
     expect(nav.go).toHaveBeenCalledWith('today');
     const root = tree.root.findAll((node) => (node.type as any) === 'Animated.View' || (node.type as any) === 'View')[0]!;
     expect(JSON.stringify(root.props.style)).not.toContain('opacity');
+    expect(JSON.stringify(root.props.style)).toContain('28');
+    act(() => { vi.advanceTimersByTime(450); });
+    const settledRoot = tree.root.findAll((node) => (node.type as any) === 'Animated.View' || (node.type as any) === 'View')[0]!;
+    expect(JSON.stringify(settledRoot.props.style)).toContain('translateX');
+    expect(JSON.stringify(settledRoot.props.style)).toContain('0');
     act(() => tree.unmount());
   });
 });

@@ -176,9 +176,10 @@ export function TodayAfterScreen({
   // Visibility must not depend on the entrance animation completing. Native animation scheduling can
   // be delayed or dropped during a route replacement; the saved result remains readable immediately.
   // Keep the authored horizontal settle as a visual refinement only.
-  const enterStyle = useAnimatedStyle(() => ({
+  const animatedEnterStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: entranceSettled ? 0 : 28 * (1 - enter.value) }],
   }));
+  const enterStyle = entranceSettled ? { transform: [{ translateX: 0 }] } : animatedEnterStyle;
 
   // route-draw — the NEW accent line strokes on over 2200ms (strokeDashoffset 1200 → 0). ONLY the
   // solid accent line animates; the dashed ghost route and the fill area are static (animating either
