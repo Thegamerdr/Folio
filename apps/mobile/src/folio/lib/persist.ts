@@ -175,6 +175,11 @@ let activePersistenceQuiesce: (() => Promise<() => void>) | null = null;
 // recreation must await that generation before deciding which saved state is authoritative.
 let stoppedPersistenceWrites: Promise<void> = Promise.resolve();
 let activeWorkspaceLoad: Promise<WorkspaceId> | null = null;
+// Explicit foreground operations (receipt durability, workspace switches, restore/delete) share one
+// gate. A quiesced writer alone is insufficient: two callers can otherwise both pause the debouncer
+// and interleave their manifest/partition snapshots. The gate is released by the idempotent resume
+// function returned from quiescePersistenceWrites.
+let explicitQuiesceTail: Promise<void> = Promise.resolve();
 
 /** Ask the live persistence controller to retry immediately. */
 export function requestPersistenceRetry(): boolean {
@@ -189,9 +194,31 @@ export function requestPersistenceRetry(): boolean {
  * are flushed once the returned idempotent resume function runs.
  */
 export async function quiescePersistenceWrites(): Promise<() => void> {
-  await stoppedPersistenceWrites;
-  if (activePersistenceQuiesce === null) return () => undefined;
-  return activePersistenceQuiesce();
+  const previous = explicitQuiesceTail;
+  let releaseGate!: () => void;
+  explicitQuiesceTail = previous.then(
+    () =>
+      new Promise<void>((resolve) => {
+        releaseGate = resolve;
+      }),
+  );
+  await previous;
+  try {
+    await stoppedPersistenceWrites;
+    const resumeWriter = activePersistenceQuiesce === null
+      ? () => undefined
+      : await activePersistenceQuiesce();
+    let resumed = false;
+    return () => {
+      if (resumed) return;
+      resumed = true;
+      resumeWriter();
+      releaseGate();
+    };
+  } catch (reason) {
+    releaseGate();
+    throw reason;
+  }
 }
 
 /** Pure debounce — returns a wrapper that delays `fn` until `ms` has elapsed
@@ -1452,7 +1479,7 @@ async function loadPersistedActiveWorkspaceOnce(): Promise<WorkspaceId> {
   return PERSONAL_WORKSPACE_ID;
 }
 
-export async function createPersistedBusinessWorkspace(name: string): Promise<PersistedWorkspace> {
+export async function createPersistedBusinessWorkspace(name: string, nested = false): Promise<PersistedWorkspace> {
   return runWithQuiescedPersistence(async () => {
     const current = getState();
     if (current.activeWorkspaceId !== PERSONAL_WORKSPACE_ID) {
@@ -1493,7 +1520,7 @@ export async function createPersistedBusinessWorkspace(name: string): Promise<Pe
       throw reason;
     }
     return business;
-  });
+  }, nested);
 }
 
 /** Restore one provisioned partition durably while retaining the device's other workspace registry. */
@@ -1593,7 +1620,7 @@ export async function recoverAndActivatePersistedBusinessWorkspace(
       setPartial({ workspaces: [personal, recovered] });
       await commitWorkspaceManifest();
       manifestCommitted = true;
-      await switchPersistedWorkspace(checked);
+      await switchPersistedWorkspace(checked, true);
     } catch (reason: unknown) {
       // Once the manifest is durable, retain the staged vault and registry so the next launch can
       // recover it; deleting bytes here would leave durable metadata pointing at nothing. Before
@@ -1617,8 +1644,8 @@ export async function createAndActivatePersistedBusinessWorkspace(
   name: string,
 ): Promise<PersistedWorkspace> {
   return runWithQuiescedPersistence(async () => {
-    const business = await createPersistedBusinessWorkspace(name);
-    await switchPersistedWorkspace(business.id);
+    const business = await createPersistedBusinessWorkspace(name, true);
+    await switchPersistedWorkspace(business.id, true);
     return business;
   });
 }
@@ -1643,7 +1670,7 @@ export async function persistEmptyWorkspaceSetAfterLocalClear(): Promise<void> {
   await commitWorkspaceManifest();
 }
 
-export async function switchPersistedWorkspace(workspaceId: WorkspaceId): Promise<void> {
+export async function switchPersistedWorkspace(workspaceId: WorkspaceId, nested = false): Promise<void> {
   await runWithQuiescedPersistence(async () => {
     const checked = requirePersistWorkspace(workspaceId);
     const before = getState();
@@ -1671,7 +1698,7 @@ export async function switchPersistedWorkspace(workspaceId: WorkspaceId): Promis
       setPartial({ workspaces: expectedWorkspaces });
       throw reason;
     }
-  });
+  }, nested);
 }
 
 export type PersistedOwnerTransferKind =
@@ -1808,7 +1835,7 @@ export async function archivePersistedBusinessWorkspace(
     const initial = getState();
     const business = requireBusinessWorkspace(initial.workspaces, workspaceId, false);
     if (initial.activeWorkspaceId === business.id) {
-      await switchPersistedWorkspace(PERSONAL_WORKSPACE_ID);
+      await switchPersistedWorkspace(PERSONAL_WORKSPACE_ID, true);
     }
     const current = getState();
     const latest = requireBusinessWorkspace(current.workspaces, workspaceId, false);
@@ -1831,7 +1858,8 @@ export async function restorePersistedBusinessWorkspace(
   });
 }
 
-async function runWithQuiescedPersistence<T>(operation: () => Promise<T>): Promise<T> {
+async function runWithQuiescedPersistence<T>(operation: () => Promise<T>, nested = false): Promise<T> {
+  if (nested) return operation();
   const resumePersistence = await quiescePersistenceWrites();
   try {
     return await operation();

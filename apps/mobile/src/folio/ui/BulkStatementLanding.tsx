@@ -82,6 +82,8 @@ export type BulkStatementLandingProps = {
   sessionKey?: string;
   /** New source identity, when the acquisition path has no retained evidence ID (for example paste). */
   sourceKey?: string;
+  /** A newly re-previewed source replaces its prior provisional session instead of resuming it. */
+  resumeExisting?: boolean;
   sourceLabel?: string;
   /** Parser issues for non-candidate source lines; they remain visible without inventing rows. */
   sourceIssues?: readonly ColumnIssue[];
@@ -320,6 +322,7 @@ export function BulkStatementLanding({
   candidates: initialCandidates,
   sessionKey,
   sourceKey: initialSourceKey,
+  resumeExisting = true,
   sourceLabel: initialSourceLabel,
   sourceReturn: initialSourceReturn,
   sourceIssues: initialSourceIssues = [],
@@ -339,14 +342,14 @@ export function BulkStatementLanding({
   const persistedSessions = useStatementReviewSessions();
   const incomingSourceKey =
     sessionKey ?? initialSourceKey ?? (initialCandidates.length > 0 ? statementReviewSourceKey(initialCandidates) : undefined);
-  const resumeSession =
-    persistedSessions.find(
+  const resumeSession = resumeExisting && incomingSourceKey !== undefined
+    ? persistedSessions.find(
       (session) =>
-        (incomingSourceKey === undefined ||
-          session.sourceKey === incomingSourceKey ||
+        (session.sourceKey === incomingSourceKey ||
           (session.sourceKey === undefined && statementReviewSourceKey(session.candidates) === incomingSourceKey)) &&
         (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)),
-    ) ?? null;
+      ) ?? null
+    : null;
   const seedCandidates = resumeSession?.candidates ?? initialCandidates;
   const sourceIssues = resumeSession?.sourceIssues ?? initialSourceIssues;
   const sourceReturn = resumeSession?.sourceReturn ?? initialSourceReturn;
@@ -569,6 +572,19 @@ export function BulkStatementLanding({
     }
   }
 
+  /** The add call is synchronous. If it throws after publishing a partial store update, no user
+   * event can interleave before this catch, so restore the exact pre-call partition directly. The
+   * async persistence catch continues to use the stricter revision guard above. */
+  function restoreSynchronousBeforeCommit(blob: string, workspaceId: typeof activeWorkspaceId): boolean {
+    if (String(getState().activeWorkspaceId) !== String(workspaceId)) return false;
+    try {
+      hydrateFromBlob(blob, workspaceId);
+      return String(getState().activeWorkspaceId) === String(workspaceId);
+    } catch {
+      return false;
+    }
+  }
+
   const toggle = useCallback(
     (id: string) =>
       setSelectedIds((current) => {
@@ -771,7 +787,7 @@ export function BulkStatementLanding({
       // addStatementAsHistory may have published part of its synchronous mutation before a later
       // detector/command boundary rejects. Restore the exact pre-attempt partition so the visible
       // "Nothing changed" branch is truthful and a retry cannot duplicate a landed row.
-      if (!restoreBeforeCommit(beforeCommitBlob, activeWorkspaceId, attemptBlob)) {
+      if (!restoreSynchronousBeforeCommit(beforeCommitBlob, activeWorkspaceId)) {
         setReceiptPending(false);
         setReceiptPersistenceError(true);
         return;
