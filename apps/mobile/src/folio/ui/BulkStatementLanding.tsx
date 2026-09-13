@@ -437,6 +437,8 @@ export function BulkStatementLanding({
   const [receiptAcknowledged, setReceiptAcknowledged] = useState(false);
   const [receiptPending, setReceiptPending] = useState(false);
   const [receiptPersistenceError, setReceiptPersistenceError] = useState(false);
+  const [receiptRecoveryAction, setReceiptRecoveryAction] = useState<'add' | 'ack' | 'aside'>('add');
+  const [receiptWorkspaceId, setReceiptWorkspaceId] = useState<typeof activeWorkspaceId | null>(null);
   const [commitError, setCommitError] = useState(false);
   const [receiptDelivery, setReceiptDelivery] = useState<{
     accountId: string;
@@ -629,6 +631,7 @@ export function BulkStatementLanding({
     setAdding(true);
     setReceiptPending(true);
     setReceiptPersistenceError(false);
+    setReceiptWorkspaceId(activeWorkspaceId);
     const beforeCommitBlob = getPersistBlob(activeWorkspaceId);
     try {
       const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
@@ -639,6 +642,7 @@ export function BulkStatementLanding({
       );
       setSummary(result);
       setReceiptAcknowledged(false);
+      setReceiptRecoveryAction('add');
       // Persist the receipt before callers clear the reader bridge. The existing persistence writer
       // observes this synchronous store update; native callers may additionally await their durable
       // write in onReceiptReady before releasing any source resources.
@@ -701,7 +705,7 @@ export function BulkStatementLanding({
   }
   async function retryReceiptPersistence() {
     if (summary === null || receiptDelivery === null) return;
-    const workspaceId = activeWorkspaceId;
+    const workspaceId = receiptWorkspaceId ?? activeWorkspaceId;
     setReceiptPending(true);
     setReceiptPersistenceError(false);
     try {
@@ -710,12 +714,24 @@ export function BulkStatementLanding({
         throw new Error('Statement review workspace changed before receipt durability completed.');
       }
       setReceiptPending(false);
-      onReceiptReady?.({
-        accountId: receiptDelivery.accountId,
-        result: summary,
-        selectedCandidateIds: receiptDelivery.selectedCandidateIds,
-        keptAsideIds: receiptDelivery.keptAsideIds,
-      });
+      setReceiptPersistenceError(false);
+      if (receiptRecoveryAction === 'ack') {
+        setReceiptAcknowledged(true);
+        onAdded();
+        nav.go('today');
+      } else if (receiptRecoveryAction === 'aside') {
+        setReceiptAcknowledged(true);
+        setReceiptDelivery(null);
+        setSummary(null);
+        setFilter('aside');
+      } else {
+        onReceiptReady?.({
+          accountId: receiptDelivery.accountId,
+          result: summary,
+          selectedCandidateIds: receiptDelivery.selectedCandidateIds,
+          keptAsideIds: receiptDelivery.keptAsideIds,
+        });
+      }
     } catch {
       setReceiptPending(false);
       setReceiptPersistenceError(true);
@@ -730,6 +746,8 @@ export function BulkStatementLanding({
     setReceiptAcknowledged(true);
     setReceiptPending(true);
     setReceiptPersistenceError(false);
+    setReceiptRecoveryAction('ack');
+    setReceiptWorkspaceId(workspaceId);
     if (acknowledgedSession === null) {
       removeStatementReviewSession(statementReviewSourceKey(candidates), workspaceId);
     } else {
@@ -741,10 +759,11 @@ export function BulkStatementLanding({
       onAdded();
       nav.go('today');
     } catch {
-      upsertStatementReviewSession(receiptSession);
+      const precommit = getPersistenceFailureStage() === 'preparation' || getPersistenceFailureStage() === 'workspace-state';
+      if (precommit) upsertStatementReviewSession(receiptSession);
       setReceiptPending(false);
-      setReceiptAcknowledged(false);
-      setReceiptPersistenceError(true);
+      setReceiptAcknowledged(precommit ? false : false);
+      setReceiptPersistenceError(!precommit);
     }
   }
   async function reviewAside() {
@@ -757,6 +776,8 @@ export function BulkStatementLanding({
     setReceiptAcknowledged(true);
     setReceiptPending(true);
     setReceiptPersistenceError(false);
+    setReceiptRecoveryAction('aside');
+    setReceiptWorkspaceId(workspaceId);
     upsertStatementReviewSession(retainedSession);
     try {
       await persistReceiptDurably(workspaceId);
@@ -765,10 +786,11 @@ export function BulkStatementLanding({
       setSummary(null);
       setFilter('aside');
     } catch {
-      upsertStatementReviewSession(receiptSession);
+      const precommit = getPersistenceFailureStage() === 'preparation' || getPersistenceFailureStage() === 'workspace-state';
+      if (precommit) upsertStatementReviewSession(receiptSession);
       setReceiptPending(false);
       setReceiptAcknowledged(false);
-      setReceiptPersistenceError(true);
+      setReceiptPersistenceError(!precommit);
     }
   }
   function keepSelectedAside() {
@@ -986,14 +1008,19 @@ export function BulkStatementLanding({
       <ReceiptViewport theme={t}>
         <View style={[styles.receipt, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <Text accessibilityRole="header" style={[styles.receiptTitle, { color: t.ink }]}>
-            Receipt not saved
+            {receiptRecoveryAction === 'ack' || receiptRecoveryAction === 'aside'
+              ? 'Statement saved'
+              : 'Receipt not saved'}
           </Text>
           <Text
             accessibilityLiveRegion="assertive"
             style={[styles.receiptBody, { color: t.muted }]}
           >
-            The statement write completed, but Melo could not durably save its receipt. Keep this
-            screen open and try again later.
+            {receiptRecoveryAction === 'ack'
+              ? 'The statement is saved, but Melo could not finish the acknowledgement handoff. Try again to continue.'
+              : receiptRecoveryAction === 'aside'
+                ? 'The statement is saved, but Melo could not finish keeping these rows aside. Try again to continue.'
+                : 'The statement write completed, but Melo could not durably save its receipt. Keep this screen open and try again later.'}
           </Text>
           <Pressable
             onPress={() => void retryReceiptPersistence()}
