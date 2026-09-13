@@ -1168,15 +1168,14 @@ function projectAccount(
   };
 }
 
-function canonicalCurrentBalanceAuthorityState(state: AppState): 'estimated' | 'user-confirmed' {
+function canonicalCurrentBalanceAuthorityState(
+  state: AppState,
+): 'estimated' | 'confirmed' | 'user-confirmed' {
   // Canonical storage has no separate `provided` bit on the legacy aggregate. For a zero
   // balance, carry that fact through authority state so hydration distinguishes an explicitly
   // confirmed £0 from the untouched unknown baseline without inventing money.
-  const zeroBalanceUnknown =
-    state.currentBalance.amount === 0 &&
-    state.currentBalance.provided !== true &&
-    state.currentBalance.source === 'user-entered' &&
-    state.currentBalance.confidence === 'rough';
+  if (state.currentBalance.provided === true) return 'confirmed';
+  const zeroBalanceUnknown = state.currentBalance.amount === 0;
   return zeroBalanceUnknown || state.currentBalance.source === 'sample'
     ? 'estimated'
     : 'user-confirmed';

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_ACCOUNT_ID, getState, resetToEmpty, type AppState } from '../store';
+import {
+  DEFAULT_ACCOUNT_ID,
+  addTransaction,
+  getState,
+  resetToEmpty,
+  setCurrentBalance,
+  type AppState,
+} from '../store';
 import { PERSONAL_WORKSPACE_ID, type PersistedWorkspace } from './workspaceRoot';
 
 import { readCanonicalAppStateMoneyProjection } from './canonicalAppStateReadProjection';
@@ -18,15 +25,15 @@ function personalWorkspace(state: AppState): PersistedWorkspace {
 }
 
 describe('canonical AppState read projection', () => {
-  it.each([true, false])('round-trips explicit zero-balance provenance (%s)', (provided) => {
+  it.each([0, 100])('round-trips explicit balance provenance at £%s', (amount) => {
     const base = emptyState();
     const workspace = personalWorkspace(base);
     const state: AppState = {
       ...base,
       currentBalance: {
         ...base.currentBalance,
-        amount: 0,
-        provided,
+        amount,
+        provided: true,
         source: 'user-entered',
         confidence: 'rough',
       },
@@ -41,7 +48,57 @@ describe('canonical AppState read projection', () => {
       String(workspace.id),
     );
 
-    expect(read.currentBalance.provided ?? false).toBe(provided);
+    expect(read.currentBalance.provided).toBe(true);
+  });
+
+  it('keeps an explicitly unknown nonzero balance semantically unprovided', () => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const state: AppState = {
+      ...base,
+      currentBalance: { ...base.currentBalance, amount: 100, provided: false },
+    };
+    const canonical = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-09-09T12:00:00.000Z',
+    );
+    const read = readCanonicalAppStateMoneyProjection(
+      canonical.repositorySnapshot,
+      String(workspace.id),
+    );
+    expect(read.currentBalance.provided ?? false).toBe(false);
+  });
+
+  it('preserves confirmed provenance across a live spend and canonical re-read', () => {
+    resetToEmpty();
+    setCurrentBalance({ amount: 100, source: 'user-entered', confidence: 'rough' });
+    const before = getState();
+    const workspace = personalWorkspace(before);
+    const first = readCanonicalAppStateMoneyProjection(
+      createCanonicalAppStateProjection(before, workspace, '2026-09-09T12:00:00.000Z').repositorySnapshot,
+      String(workspace.id),
+    );
+    expect(first.currentBalance.provided).toBe(true);
+
+    addTransaction(
+      {
+        id: 'txn-live-spend-100',
+        when: '2026-09-09T10:00:00.000Z',
+        merchant: 'Live spend',
+        amount: -100,
+        category: 'other',
+        source: 'manual',
+      },
+      { updateCurrentBalance: true },
+    );
+    const after = getState();
+    const second = readCanonicalAppStateMoneyProjection(
+      createCanonicalAppStateProjection(after, personalWorkspace(after), '2026-09-09T12:00:00.000Z').repositorySnapshot,
+      String(after.activeWorkspaceId),
+    );
+    expect(after.currentBalance).toMatchObject({ amount: 0, provided: true });
+    expect(second.currentBalance.provided).toBe(true);
   });
 
   it('round-trips the live cash-posting marker used by edit and undo', () => {
