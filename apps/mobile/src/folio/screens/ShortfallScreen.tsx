@@ -348,8 +348,9 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
           <ScreenHeader
             onBack={nav.back}
             eyebrow="Shortfall"
-            spacerWidth={16}
-            backHitWidth={24}
+            spacerWidth={48}
+            backHitWidth={48}
+            backHitHeight={48}
             eyebrowSize={11}
             eyebrowTracking={1.54}
           />
@@ -443,8 +444,9 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
           <ScreenHeader
             onBack={nav.back}
             eyebrow="A quiet moment"
-            spacerWidth={16}
-            backHitWidth={24}
+            spacerWidth={48}
+            backHitWidth={48}
+            backHitHeight={48}
             eyebrowSize={11}
             eyebrowTracking={1.54}
           />
@@ -475,7 +477,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
       <MeloScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + gap.md, paddingBottom: insets.bottom + gap.lg },
+          { paddingTop: insets.top + gap.md, paddingBottom: insets.bottom + gap.xl },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -483,8 +485,9 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         <ScreenHeader
           onBack={nav.back}
           eyebrow={modeCopy.eyebrow}
-          spacerWidth={16}
-          backHitWidth={24}
+          spacerWidth={48}
+          backHitWidth={48}
+          backHitHeight={48}
           eyebrowSize={11}
           eyebrowTracking={1.54}
         />

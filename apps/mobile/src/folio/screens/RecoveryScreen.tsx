@@ -1135,12 +1135,12 @@ const styles = StyleSheet.create({
   pressIcon: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
-    minWidth: 24,
+    minHeight: 48,
+    minWidth: 48,
   },
   // The right-edge spacer balancing the back glyph (web `w-5`).
   headerSpacer: {
-    width: 20,
+    width: 48,
   },
   // Eyebrow — 12px uppercase tracked muted (web tracking-[0.14em] ≈ 1.7px letterSpacing).
   eyebrow: {
