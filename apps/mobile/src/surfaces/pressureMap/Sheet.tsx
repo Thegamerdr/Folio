@@ -452,7 +452,9 @@ export function Sheet({
           }),
         );
       }
-      if (!visible || !bodyScrollable || !body) return;
+      // Layout/keyboard callbacks can arrive after navigation has released focus.
+      // Never enter native measurement with a stale null input handle.
+      if (!visible || !bodyScrollable || !focused || !body) return;
       if (imeOverflowPolicy === 'scrollBodyToFocusedTerminal' &&
           !(terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled)) return;
       const bodyNative = body.getNativeScrollRef();
