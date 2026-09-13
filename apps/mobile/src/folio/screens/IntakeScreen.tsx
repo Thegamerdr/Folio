@@ -73,6 +73,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  findNodeHandle,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -95,6 +96,7 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import type { CandidateMoneyItem } from '@/folio/lib/importSheet';
+import { statementReviewSourceKey } from '@/folio/lib/statementReviewModel';
 import { isOnboardingFirstRun } from '@/folio/lib/onboardingMutations';
 import {
   addEvidenceDocument,
@@ -102,6 +104,7 @@ import {
   setReaderCandidates,
   setReaderClosingBalance,
   useAppStore,
+  useStatementReviewSessions,
 } from '@/folio/store';
 import {
   setReaderFallbackEvidenceId,
@@ -282,12 +285,33 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       'business',
   );
   const waiting = useAppStore((current) => current.reviewQueue ?? []);
+  const statementSessions = useStatementReviewSessions();
+  const waitingStatementSessions = useMemo(
+    () => statementSessions.filter((session) => session.candidates.length > 0 || session.receipt !== undefined),
+    [statementSessions],
+  );
+  const waitingRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const waitingAnnouncedRef = useRef(false);
   const needsInitialSetup = useAppStore(isOnboardingFirstRun);
   const bySource = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const item of waiting) counts[item.source] = (counts[item.source] ?? 0) + 1;
     return counts;
   }, [waiting]);
+
+  useEffect(() => {
+    if (waitingAnnouncedRef.current || (waiting.length === 0 && waitingStatementSessions.length === 0)) return;
+    waitingAnnouncedRef.current = true;
+    AccessibilityInfo.announceForAccessibility('Earlier statement reviews are waiting.');
+  }, [waiting.length, waitingStatementSessions.length]);
+
+  function openStatementReview(session: (typeof waitingStatementSessions)[number]) {
+    const source = session.candidates[0]?.source ?? session.sourceKey?.split(':')[0] ?? 'pdf';
+    const screen: ScreenId = source === 'paste' || source === 'csv' ? 'paste-success' : source === 'photo' ? 'image-success' : 'pdf-success';
+    const sourceKey = session.sourceKey ?? statementReviewSourceKey(session.candidates);
+    nav.go(screen, { reviewSourceKey: sourceKey });
+  }
 
   // The picker, evidence vault and on-device parser are asynchronous, but the reader staging slot
   // is singular. Keep one transaction authority for this intake session so a double tap or a late
@@ -385,7 +409,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     source: Parameters<typeof retainEvidenceDocument>[0]['source'],
     sourceType: Parameters<typeof retainEvidenceDocument>[0]['sourceType'],
     extractionStatus: Parameters<typeof retainEvidenceDocument>[0]['extractionStatus'],
+    isActive: () => boolean,
   ): Promise<string | null> {
+    if (!isActive()) return null;
     const current = getState();
     const workspace = current.workspaces.find(
       (candidate) => candidate.id === current.activeWorkspaceId,
@@ -399,6 +425,10 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         sourceType,
         extractionStatus,
       });
+      if (!isActive()) {
+        await deleteEvidenceDocumentFile(workspace, retained).catch(() => undefined);
+        return null;
+      }
       addEvidenceDocument(retained);
       return retained.id;
     } catch (reason: unknown) {
@@ -454,12 +484,20 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         src,
         'document',
         result.kind === 'picked' ? 'read' : 'unreadable',
+        () =>
+          activeReaderAttempt.current?.attemptId === attempt.attemptId &&
+          pdfImportTransaction.current.phase === 'reading',
       );
       if (sourceEvidenceId === null) {
         settlePdfImport(attempt, { kind: 'failed-recoverably' });
         setReaderPhase('idle');
         return;
       }
+      if (
+        activeReaderAttempt.current?.attemptId !== attempt.attemptId ||
+        pdfImportTransaction.current.phase !== 'reading'
+      )
+        return;
       const isPdf = /application\/pdf/i.test(src.mediaType) || /\.pdf$/i.test(src.filename);
       if (result.kind === 'unsupported') {
         if (
@@ -545,12 +583,20 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       result.source,
       imageSource === 'camera' ? 'camera' : 'image',
       result.kind === 'picked' ? 'read' : 'unreadable',
+      () =>
+        activeReaderAttempt.current?.attemptId === attempt.attemptId &&
+        pdfImportTransaction.current.phase === 'reading',
     );
     if (sourceEvidenceId === null) {
       settlePdfImport(attempt, { kind: 'failed-recoverably' });
       setReaderPhase('idle');
       return;
     }
+    if (
+      activeReaderAttempt.current?.attemptId !== attempt.attemptId ||
+      pdfImportTransaction.current.phase !== 'reading'
+    )
+      return;
     if (
       result.kind === 'picked' &&
       stageLocalOcrRead(
@@ -680,6 +726,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   return (
     <Animated.View style={[styles.screen, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
@@ -745,16 +792,57 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           </Text>
         </View>
 
-        <View style={styles.waitingSection}>
+        {waitingStatementSessions.length > 0 ? (
+          <View style={[styles.waitingNotice, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}>
+            <Text accessibilityLiveRegion="polite" style={[styles.waitingNoticeBody, { color: t.ink }]}>An earlier statement is still waiting for you.</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open what's waiting"
+              onPress={() => {
+                scrollRef.current?.scrollToEnd({ animated: true });
+                const node = findNodeHandle(waitingRef.current);
+                if (node !== null) AccessibilityInfo.setAccessibilityFocus(node);
+              }}
+              style={[styles.waitingNoticeAction, { backgroundColor: t.calm }]}
+            >
+              <Text style={[styles.waitingLabel, { color: t.inverse }]}>Open what's waiting</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <View ref={waitingRef} style={styles.waitingSection}>
           <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Waiting</Text>
           <Text style={[styles.sectionTitle, { color: t.ink }]}>Things to check</Text>
-          {waiting.length > 0 ? (
+          {waiting.length > 0 || waitingStatementSessions.length > 0 ? (
             <View
               style={[styles.waitingList, { backgroundColor: t.surface, borderColor: t.hairline }]}
             >
+              {waitingStatementSessions.map((session, index) => {
+                const source = session.candidates[0]?.source ?? session.sourceKey?.split(':')[0] ?? 'pdf';
+                const count = session.candidates.length;
+                return (
+                  <View key={`statement:${session.workspaceId ?? ''}:${session.sourceKey ?? index}`}>
+                    {index > 0 ? <View style={[styles.divider, { backgroundColor: t.hairline }]} /> : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${waitingSourceLabel(source)}. ${count} suggested. ${session.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`}
+                      onPress={() => openStatementReview(session)}
+                      style={({ pressed: isPressed }) => [styles.waitingRow, isPressed ? styles.pressed : undefined]}
+                    >
+                      <View style={styles.waitingCopy}>
+                        <Text style={[styles.waitingLabel, { color: t.ink }]}>{waitingSourceLabel(source)}</Text>
+                        <Text style={[styles.waitingMeta, { color: t.muted }]}>
+                          {session.receipt === undefined ? 'not added yet' : 'result not seen yet'}
+                        </Text>
+                      </View>
+                      <Text style={[styles.waitingCount, { color: t.calm }]}>{count}</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
               {Object.entries(bySource).map(([source, count], index) => (
                 <View key={source}>
-                  {index > 0 ? (
+                  {index + waitingStatementSessions.length > 0 ? (
                     <View style={[styles.divider, { backgroundColor: t.hairline }]} />
                   ) : null}
                   <Pressable
@@ -1016,6 +1104,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     marginTop: gap.md,
+  },
+  waitingNotice: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: gap.sm,
+    marginTop: gap.xxl,
+    padding: gap.lg,
+  },
+  waitingNoticeBody: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  waitingNoticeAction: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
   },
   unavailable: {
     opacity: 0.78,

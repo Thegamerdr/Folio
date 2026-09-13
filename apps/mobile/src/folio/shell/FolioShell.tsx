@@ -645,7 +645,12 @@ export function FolioShell() {
     setAffordAmount(undefined);
     setScreen(next);
     setScreenPayload(
-      next === 'today-after' || next === 'paste-success' ? payload : undefined,
+      next === 'today-after' ||
+        next === 'paste-success' ||
+        next === 'pdf-success' ||
+        next === 'image-success'
+        ? payload
+        : undefined,
     );
   }, []);
 
@@ -1355,12 +1360,12 @@ function ScreenView({
 
   // Wave 2 — the intake / reader-state / review surfaces.
   if (screen === 'intake') return <IntakeScreen nav={nav} />;
-  if (screen === 'pdf-success') return <PdfSuccessScreen nav={nav} />;
+  if (screen === 'pdf-success') return <PdfSuccessScreen nav={nav} {...(payload?.reviewSourceKey === undefined ? {} : { reviewSourceKey: payload.reviewSourceKey })} />;
   if (screen === 'pdf-fallback') return <PdfFallbackScreen nav={nav} />;
-  if (screen === 'image-success') return <ImageSuccessScreen nav={nav} />;
+  if (screen === 'image-success') return <ImageSuccessScreen nav={nav} {...(payload?.reviewSourceKey === undefined ? {} : { reviewSourceKey: payload.reviewSourceKey })} />;
   if (screen === 'image-fallback') return <ImageFallbackScreen nav={nav} />;
   if (screen === 'paste-success') {
-    return <PasteSuccessScreen nav={nav} sourceReturn={payload?.importSource} />;
+    return <PasteSuccessScreen nav={nav} {...(payload?.importSource === undefined ? {} : { sourceReturn: payload.importSource })} {...(payload?.reviewSourceKey === undefined ? {} : { reviewSourceKey: payload.reviewSourceKey })} />;
   }
   // The pinned owner routes `visualizer` to the Timeline family's "What Melo saw" view. Keep the
   // transient reader preview behind the intake flow, but make the shipping route honor its actual

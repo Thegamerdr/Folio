@@ -118,10 +118,13 @@ export function statementReviewSourceKey(candidates: readonly CandidateMoneyItem
 
 /** A persisted session may resume an empty cold-relaunch route, or the same live source. */
 export function statementReviewSessionMatchesSource(
-  session: { sourceKey?: string } | null | undefined,
+  session: { sourceKey?: string; workspaceId?: string } | null | undefined,
   candidates: readonly CandidateMoneyItem[],
+  workspaceId?: string,
 ): boolean {
   if (session === null || session === undefined) return false;
+  if (workspaceId !== undefined && session.workspaceId !== undefined && session.workspaceId !== workspaceId)
+    return false;
   return candidates.length === 0 || session.sourceKey === statementReviewSourceKey(candidates);
 }
 

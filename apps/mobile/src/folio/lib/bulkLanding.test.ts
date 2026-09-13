@@ -218,6 +218,9 @@ describe('statement review receipt/session transitions', () => {
     const session: StatementReviewSession = {
       candidates,
       sourceKey: `csv:${candidates.map((candidate) => candidate.id).join('|')}`,
+      workspaceId: 'personal' as never,
+      sourceIssues: [{ code: 'bad-amount', message: 'Row 4 needs checking.', row: 4 }],
+      accountDraft: { name: 'Working account', kind: 'bank' },
       accountId: 'acct-main',
       selectedIds: [candidates[0]!.id, candidates[1]!.id],
       asideIds: [candidates[2]!.id],
@@ -228,6 +231,9 @@ describe('statement review receipt/session transitions', () => {
     expect(remaining?.selectedIds).toEqual([]);
     expect(remaining?.asideIds).toEqual([candidates[2]!.id]);
     expect(remaining?.receipt).toBeUndefined();
+    expect(remaining?.workspaceId).toBe('personal');
+    expect(remaining?.sourceIssues).toEqual(session.sourceIssues);
+    expect(remaining?.accountDraft).toEqual(session.accountDraft);
   });
 
   it('clears the acknowledged session when no provisional rows remain and restores its receipt exactly', () => {

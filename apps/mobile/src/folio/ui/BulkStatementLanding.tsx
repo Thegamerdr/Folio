@@ -20,7 +20,6 @@ import { formatReviewDate } from '@/folio/screens/reviewFormat';
 import {
   buildStatementReviewModel,
   filterStatementReviewRows,
-  statementReviewSessionMatchesSource,
   statementReviewSourceKey,
   statementReviewNaturalKey,
   type StatementReviewFilter,
@@ -34,22 +33,26 @@ import {
 } from '@/folio/lib/bulkLanding';
 import { detectAccountName } from '@/folio/lib/detectAccountName';
 import { persistCurrentStateNow, quiescePersistenceWrites } from '@/folio/lib/persist';
-import type { CandidateKind, CandidateMoneyItem } from '@/folio/lib/importSheet';
+import { getPersistenceFailureStage } from '@/folio/lib/persistenceRuntime';
+import type { CandidateKind, CandidateMoneyItem, ColumnIssue } from '@/folio/lib/importSheet';
 import {
   addAccount,
   addStatementAsHistory,
   DEFAULT_ACCOUNT_ID,
   getState,
+  getPersistBlob,
+  hydrateFromBlob,
   importedTransactionId,
-  setStatementReviewSession,
-  clearStatementReviewSession,
+  removeStatementReviewSession,
+  upsertStatementReviewSession,
   setAccountBalance,
   useAppStore,
-  useStatementReviewSession,
+  useStatementReviewSessions,
   type Account,
   type AccountKind,
   type AddStatementAsHistoryResult,
   type ReaderClosingBalance,
+  type StatementReviewSession,
 } from '@/folio/store';
 import type { Nav } from '@/folio/types';
 
@@ -74,6 +77,10 @@ function ReceiptViewport({ children, theme: t }: { children: ReactNode; theme: F
 export type BulkStatementLandingProps = {
   nav: Nav;
   candidates: readonly CandidateMoneyItem[];
+  /** Existing source identity used when opening a persisted review after a cold relaunch. */
+  sessionKey?: string;
+  /** Parser issues for non-candidate source lines; they remain visible without inventing rows. */
+  sourceIssues?: readonly ColumnIssue[];
   closingBalance?: ReaderClosingBalance;
   onAdded: () => void;
   onReviewOneByOne?: (accountId: string) => void;
@@ -305,6 +312,8 @@ function AccountOption({
 export function BulkStatementLanding({
   nav,
   candidates: initialCandidates,
+  sessionKey,
+  sourceIssues: initialSourceIssues = [],
   closingBalance,
   onAdded,
   onReceiptReady,
@@ -317,13 +326,22 @@ export function BulkStatementLanding({
   const transactions = useAppStore((s) => s.transactions);
   const existingAccounts = useAppStore((s) => s.accounts ?? []);
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId);
-  const persistedSession = useStatementReviewSession();
-  const canResumePersistedSession = statementReviewSessionMatchesSource(
-    persistedSession,
-    initialCandidates,
-  );
-  const resumeSession = canResumePersistedSession ? persistedSession : null;
+  const persistedSessions = useStatementReviewSessions();
+  const incomingSourceKey =
+    sessionKey ?? (initialCandidates.length > 0 ? statementReviewSourceKey(initialCandidates) : undefined);
+  const resumeSession =
+    persistedSessions.find(
+      (session) =>
+        (incomingSourceKey === undefined ||
+          session.sourceKey === incomingSourceKey ||
+          (session.sourceKey === undefined && statementReviewSourceKey(session.candidates) === incomingSourceKey)) &&
+        (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)),
+    ) ??
+    (initialCandidates.length === 0 && sessionKey === undefined
+      ? persistedSessions[persistedSessions.length - 1] ?? null
+      : null);
   const seedCandidates = resumeSession?.candidates ?? initialCandidates;
+  const sourceIssues = resumeSession?.sourceIssues ?? initialSourceIssues;
   const existingImportIds = useMemo(
     () => new Set(transactions.map((transaction) => transaction.id)),
     [transactions],
@@ -374,21 +392,19 @@ export function BulkStatementLanding({
   );
   const detection = useMemo(() => detectAccountName(candidates), [candidates]);
   const [selectedOption, setSelectedOption] = useState<string>(
-    resumeSession?.accountId ?? existingAccounts[0]?.id ?? NEW_ACCOUNT_OPTION,
+    resumeSession?.accountId ??
+      (resumeSession?.accountDraft !== undefined ? NEW_ACCOUNT_OPTION : existingAccounts[0]?.id ?? NEW_ACCOUNT_OPTION),
   );
-  const [newAccountName, setNewAccountName] = useState(detection.name ?? '');
+  const [newAccountName, setNewAccountName] = useState(
+    resumeSession?.accountDraft?.name ?? detection.name ?? '',
+  );
   const [newAccountKind, setNewAccountKind] = useState<AccountKind>(
-    detection.kind === 'credit-card' ? 'credit-card' : 'bank',
+    resumeSession?.accountDraft?.kind ?? (detection.kind === 'credit-card' ? 'credit-card' : 'bank'),
   );
   const [accountError, setAccountError] = useState<string | null>(null);
   const [resolvedAccountId, setResolvedAccountId] = useState<string | null>(
     resumeSession?.accountId ?? null,
   );
-  const sourceConflict =
-    persistedSession !== null &&
-    initialCandidates.length > 0 &&
-    !statementReviewSessionMatchesSource(persistedSession, initialCandidates);
-  const [allowIncomingSource, setAllowIncomingSource] = useState(false);
   const [editing, setEditing] = useState<CandidateMoneyItem | null>(null);
   const [editMerchant, setEditMerchant] = useState('');
   const [editAmount, setEditAmount] = useState('');
@@ -439,27 +455,39 @@ export function BulkStatementLanding({
   const [shownOffers, setShownOffers] = useState<ReadonlySet<BulkLandingOffer>>(new Set());
   const currentOffer = summary !== null ? nextBulkLandingOffer(summary, shownOffers) : null;
 
+  function makeReviewSession(accountIdOverride?: string): StatementReviewSession {
+    const accountId = accountIdOverride ?? resolvedAccountId;
+    return {
+      candidates: [...candidates],
+      sourceKey: statementReviewSourceKey(candidates),
+      workspaceId: activeWorkspaceId,
+      ...(sourceIssues.length === 0 ? {} : { sourceIssues: [...sourceIssues] }),
+      ...(selectedOption === NEW_ACCOUNT_OPTION
+        ? { accountDraft: { name: newAccountName, kind: newAccountKind } }
+        : {}),
+      ...(accountId === null || accountId === undefined ? {} : { accountId }),
+      selectedIds: [...selectedIds],
+      asideIds: [...asideIds],
+      resolvedRepeatIds: [...resolvedRepeatIds],
+    };
+  }
+
   // Keep the provisional review recoverable through the existing workspace persistence path. This
   // state is intentionally separate from readerCandidates, which remains a read-once bridge.
   useEffect(() => {
     if (summary !== null) return;
-    if (sourceConflict && !allowIncomingSource) return;
-    setStatementReviewSession({
-      candidates: [...candidates],
-      sourceKey: statementReviewSourceKey(candidates),
-      ...(resolvedAccountId === null ? {} : { accountId: resolvedAccountId }),
-      selectedIds: [...selectedIds],
-      asideIds: [...asideIds],
-      resolvedRepeatIds: [...resolvedRepeatIds],
-    });
+    upsertStatementReviewSession(makeReviewSession());
   }, [
-    allowIncomingSource,
     asideIds,
+    activeWorkspaceId,
     candidates,
+    newAccountKind,
+    newAccountName,
     resolvedAccountId,
     resolvedRepeatIds,
     selectedIds,
-    sourceConflict,
+    selectedOption,
+    sourceIssues,
     summary,
   ]);
 
@@ -601,6 +629,7 @@ export function BulkStatementLanding({
     setAdding(true);
     setReceiptPending(true);
     setReceiptPersistenceError(false);
+    const beforeCommitBlob = getPersistBlob(activeWorkspaceId);
     try {
       const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
       const result = addStatementAsHistory(
@@ -613,16 +642,9 @@ export function BulkStatementLanding({
       // Persist the receipt before callers clear the reader bridge. The existing persistence writer
       // observes this synchronous store update; native callers may additionally await their durable
       // write in onReceiptReady before releasing any source resources.
-      setStatementReviewSession(
+      upsertStatementReviewSession(
         statementReviewSessionWithReceipt(
-          {
-            candidates: [...candidates],
-            sourceKey: statementReviewSourceKey(candidates),
-            accountId,
-            selectedIds: [...selectedIds],
-            asideIds: [...asideIds],
-            resolvedRepeatIds: [...resolvedRepeatIds],
-          },
+          makeReviewSession(accountId),
           result,
         ),
       );
@@ -646,11 +668,30 @@ export function BulkStatementLanding({
           keptAsideIds: [...asideIds],
         });
       } catch {
-        setReceiptPersistenceError(true);
-        setReceiptPending(false);
+        // `persistCurrentStateNow` has two materially different failure boundaries. Before the
+        // native workspace-state commit, addStatementAsHistory's synchronous memory update must be
+        // rolled back so Try again performs one fresh add with the same candidate IDs. Once SQL has
+        // committed, a manifest/metadata failure must retain the receipt and show a retry without
+        // re-running the ledger write. The runtime stage is value-free and never includes user data.
+        if (getPersistenceFailureStage() === 'preparation' || getPersistenceFailureStage() === 'workspace-state') {
+          hydrateFromBlob(beforeCommitBlob, activeWorkspaceId);
+          setSummary(null);
+          setReceiptDelivery(null);
+          setReceiptPersistenceError(false);
+          setReceiptPending(false);
+          setCommitError(true);
+        } else {
+          setReceiptPersistenceError(true);
+          setReceiptPending(false);
+        }
       }
     } catch {
+      // addStatementAsHistory may have published part of its synchronous mutation before a later
+      // detector/command boundary rejects. Restore the exact pre-attempt partition so the visible
+      // "Nothing changed" branch is truthful and a retry cannot duplicate a landed row.
+      hydrateFromBlob(beforeCommitBlob, activeWorkspaceId);
       setSummary(null);
+      setReceiptDelivery(null);
       setReceiptPending(false);
       setReceiptPersistenceError(false);
       setCommitError(true);
@@ -684,29 +725,23 @@ export function BulkStatementLanding({
     if (summary === null) return;
     const workspaceId = activeWorkspaceId;
     const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
-    const receiptSession = statementReviewSessionWithReceipt(
-      {
-        candidates: [...candidates],
-        sourceKey: statementReviewSourceKey(candidates),
-        accountId,
-        selectedIds: [...selectedIds],
-        asideIds: [...asideIds],
-        resolvedRepeatIds: [...resolvedRepeatIds],
-      },
-      summary,
-    );
+    const receiptSession = statementReviewSessionWithReceipt(makeReviewSession(accountId), summary);
     const acknowledgedSession = acknowledgeStatementReviewSession(receiptSession);
     setReceiptAcknowledged(true);
     setReceiptPending(true);
     setReceiptPersistenceError(false);
-    setStatementReviewSession(acknowledgedSession);
+    if (acknowledgedSession === null) {
+      removeStatementReviewSession(statementReviewSourceKey(candidates), workspaceId);
+    } else {
+      upsertStatementReviewSession(acknowledgedSession);
+    }
     try {
       await persistReceiptDurably(workspaceId);
       setReceiptPending(false);
       onAdded();
       nav.go('today');
     } catch {
-      setStatementReviewSession(receiptSession);
+      upsertStatementReviewSession(receiptSession);
       setReceiptPending(false);
       setReceiptAcknowledged(false);
       setReceiptPersistenceError(true);
@@ -716,23 +751,13 @@ export function BulkStatementLanding({
     if (summary === null || asideIds.size === 0) return;
     const workspaceId = activeWorkspaceId;
     const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
-    const receiptSession = statementReviewSessionWithReceipt(
-      {
-        candidates: [...candidates],
-        sourceKey: statementReviewSourceKey(candidates),
-        accountId,
-        selectedIds: [...selectedIds],
-        asideIds: [...asideIds],
-        resolvedRepeatIds: [...resolvedRepeatIds],
-      },
-      summary,
-    );
+    const receiptSession = statementReviewSessionWithReceipt(makeReviewSession(accountId), summary);
     const retainedSession = acknowledgeStatementReviewSession(receiptSession);
     if (retainedSession === null) return;
     setReceiptAcknowledged(true);
     setReceiptPending(true);
     setReceiptPersistenceError(false);
-    setStatementReviewSession(retainedSession);
+    upsertStatementReviewSession(retainedSession);
     try {
       await persistReceiptDurably(workspaceId);
       setReceiptPending(false);
@@ -740,7 +765,7 @@ export function BulkStatementLanding({
       setSummary(null);
       setFilter('aside');
     } catch {
-      setStatementReviewSession(receiptSession);
+      upsertStatementReviewSession(receiptSession);
       setReceiptPending(false);
       setReceiptAcknowledged(false);
       setReceiptPersistenceError(true);
@@ -797,39 +822,6 @@ export function BulkStatementLanding({
     ),
     [asideIds, focusRowId, nav, openEditor, selectedIds, t, toggle],
   );
-
-  if (sourceConflict && !allowIncomingSource) {
-    return (
-      <ReceiptViewport theme={t}>
-        <View style={[styles.receipt, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          <Text accessibilityRole="header" style={[styles.receiptTitle, { color: t.ink }]}>
-            Saved review in progress
-          </Text>
-          <Text style={[styles.receiptBody, { color: t.muted }]}>
-            Finish or leave the saved statement review before starting another statement.
-          </Text>
-          <Pressable
-            onPress={() => {
-              onSourceReturn?.();
-              if (onSourceReturn === undefined) nav.go('intake');
-            }}
-            style={[styles.primary, { backgroundColor: t.calm }]}
-          >
-            <Text style={[styles.primaryLabel, { color: t.inverse }]}>Keep saved review</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              clearStatementReviewSession();
-              setAllowIncomingSource(true);
-            }}
-            style={styles.secondary}
-          >
-            <Text style={[styles.secondaryLabel, { color: t.muted }]}>Start this statement</Text>
-          </Pressable>
-        </View>
-      </ReceiptViewport>
-    );
-  }
 
   if (!accountConfirmed) {
     const choices = [
@@ -1217,6 +1209,13 @@ export function BulkStatementLanding({
             <Text
               style={[styles.exclusion, { color: t.muted }]}
             >{`Totals exclude ${model.counts.uncertain} amounts that need checking.`}</Text>
+          ) : null}
+          {sourceIssues.length > 0 ? (
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[styles.exclusion, { color: t.repairInk }]}
+            >{`${sourceIssues.length} source ${sourceIssues.length === 1 ? 'line needs' : 'lines need'} checking and was left out rather than guessed.`}
+            </Text>
           ) : null}
         </View>
         <TextInput

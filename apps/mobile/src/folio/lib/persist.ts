@@ -99,9 +99,11 @@ import {
   getPersistenceRuntimeState,
   classifyPersistenceDiagnostic,
   classifyPersistenceFailure,
+  setPersistenceFailureStage,
   markPersistenceFailed,
   markPersistenceSaved,
   markPersistenceSaving,
+  type PersistenceFailureStage,
 } from './persistenceRuntime';
 
 /** The on-disk file holding the serialized store state. `v3` tracks the store's
@@ -947,8 +949,9 @@ export async function persistCurrentStateNow(
   // Preparation must share the same failure boundary as the native write. A malformed state or
   // projection error is still a failed save attempt and must remain visible to the retry/runtime
   // machinery, while the diagnostic remains value-free.
-  let failureStage = 'preparation';
+  let failureStage: PersistenceFailureStage = 'preparation';
   try {
+    setPersistenceFailureStage(failureStage);
     markPersistenceSaving(workspaceId, persistedAt);
     const files = partitionFileUris(workspaceId);
     const workspace = workspaceMetadata(workspaceId);
@@ -964,6 +967,7 @@ export async function persistCurrentStateNow(
     const pendingCommands = snapshotPendingAppStateCommands(workspaceId);
     const manifest = createWorkspaceManifest(getState(), persistedAt);
     failureStage = 'workspace-state';
+    setPersistenceFailureStage(failureStage);
     // SQLCipher is the authoritative commit path. The exact current partition is hash-checked and
     // read back inside its transaction before the Personal root is allowed to select it.
     await saveNativeWorkspaceStateGeneration(
@@ -984,8 +988,10 @@ export async function persistCurrentStateNow(
       pendingCommands.map((receipt) => receipt.id),
     );
     failureStage = 'workspace-manifest';
+    setPersistenceFailureStage(failureStage);
     await saveNativeWorkspaceManifestGeneration(workspaceMetadata(PERSONAL_WORKSPACE_ID), manifest);
     failureStage = 'rollback-files';
+    setPersistenceFailureStage(failureStage);
     if (files !== null) {
       try {
         // Keep the authenticated files as rollback/downgrade generations during normalized-table
@@ -1010,6 +1016,7 @@ export async function persistCurrentStateNow(
     console.error(
       `[melo:persistence] stage=${failureStage} code=${classifyPersistenceDiagnostic(reason)}`,
     );
+    setPersistenceFailureStage(failureStage);
     markPersistenceFailed(workspaceId, reason, new Date().toISOString());
     throw reason;
   }

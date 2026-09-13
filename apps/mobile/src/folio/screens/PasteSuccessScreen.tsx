@@ -91,13 +91,14 @@ import {
   resolvePasteBackAction,
   type TextSelection,
 } from '../../local/pasteInputState';
-import { isBulkStatement } from '@/folio/lib/bulkLanding';
+import { statementReviewSourceKey } from '@/folio/lib/statementReviewModel';
 import {
   clearReaderCandidates,
   enqueueReviewItems,
   getState,
   queueInputFromCandidates,
   useReaderCandidates,
+  useStatementReviewSessions,
 } from '@/folio/store';
 import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import { formatReviewDate } from '@/folio/screens/reviewFormat';
@@ -128,6 +129,7 @@ export type PasteSuccessScreenProps = {
   state?: PasteSuccessState;
   /** Raw editor state returned by a review flow. This is an in-memory nav handoff only. */
   sourceReturn?: ImportSourceReturn | undefined;
+  reviewSourceKey?: string;
 };
 
 // Format a bare GBP magnitude the way the web preformatted it: whole pounds, thousands grouped, no
@@ -201,6 +203,7 @@ export function PasteSuccessScreen({
   items: itemsOverride,
   state = 'populated',
   sourceReturn,
+  reviewSourceKey,
 }: PasteSuccessScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -211,6 +214,11 @@ export function PasteSuccessScreen({
   // succeed and then rendered a misleading empty doorway. The slot is still review-only and is
   // cleared only after the candidates move into the persisted review queue.
   const staged = useReaderCandidates();
+  const reviewSessions = useStatementReviewSessions();
+  const canResumeReview =
+    sourceReturn === undefined &&
+    reviewSourceKey !== undefined &&
+    reviewSessions.some((session) => session.sourceKey === reviewSourceKey && session.candidates.length > 0);
   const initialDraft = sourceReturn?.rawText ?? pasteText ?? '';
   const [draft, setDraft] = useState(initialDraft);
   const [submittedDraft, setSubmittedDraft] = useState(pasteText ?? '');
@@ -229,6 +237,7 @@ export function PasteSuccessScreen({
   const headingRef = useRef<Text>(null);
   const draftRef = useRef(draft);
   const selectionRef = useRef(selection);
+  const scrollOffsetRef = useRef(sourceReturn?.scrollOffset ?? 0);
   const clipboardRequestRef = useRef(0);
   const previewRequestRef = useRef(0);
   const keyboardVisibleRef = useRef(false);
@@ -397,7 +406,21 @@ export function PasteSuccessScreen({
   // single-candidate read, or a fixture-driven `items` prop, is unchanged — same
   // enqueue-then-Review path (`candidates` is already [] for an `items` fixture, so
   // `isBulkStatement` reads false there too).
-  const isBulk = isBulkStatement(candidates.length);
+  // Every real candidate, including a one-row read, belongs to the same D2 review contract. The
+  // old singleton shortcut bypassed line uncertainty and the durable provisional session.
+  const isBulk = canResumeReview || candidates.length > 0;
+  const returnToSource = () => {
+    nav.go('paste-success', {
+      importSource: {
+        sourceKey:
+          sourceReturn?.sourceKey ??
+          (candidates.length > 0 ? statementReviewSourceKey(candidates) : 'paste-editor'),
+        rawText: draftRef.current,
+        selection: selectionRef.current,
+        scrollOffset: scrollOffsetRef.current,
+      },
+    });
+  };
 
   // A hard column issue means the engine could not understand the paste at all (no amount/name
   // column, or empty input) — that IS the "read failed" case, so it resolves to the same calm error
@@ -423,7 +446,7 @@ export function PasteSuccessScreen({
     );
   }
 
-  if (items.length === 0) {
+  if (!canResumeReview && items.length === 0) {
     const hasDraft = draft.trim().length > 0;
     const editorStatus = state === 'error' || parseError
       ? 'Melo couldn\'t read this text just now. Your draft is still here.'
@@ -504,6 +527,10 @@ export function PasteSuccessScreen({
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onScroll={(event) => {
+            scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
         >
           <View style={styles.header}>
             <Pressable
@@ -656,8 +683,11 @@ export function PasteSuccessScreen({
       <View style={[styles.root, { backgroundColor: t.canvas }]}>
         <BulkStatementLanding
           nav={nav}
-          candidates={candidates}
+          candidates={canResumeReview ? [] : candidates}
+          {...(canResumeReview ? { sessionKey: reviewSourceKey } : {})}
+          sourceIssues={issues}
           onAdded={() => clearReaderCandidates()}
+          onSourceReturn={returnToSource}
         />
       </View>
     );
@@ -748,7 +778,9 @@ export function PasteSuccessScreen({
           <BulkStatementLanding
             nav={nav}
             candidates={candidates}
+            sourceIssues={issues}
             onAdded={() => clearReaderCandidates()}
+            onSourceReturn={returnToSource}
             onReviewOneByOne={(accountId) => {
               const { dropped } = enqueueReviewItems(
                 queueInputFromCandidates(candidates, reviewSource, accountId),

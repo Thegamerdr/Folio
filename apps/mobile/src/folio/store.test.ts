@@ -94,6 +94,9 @@ import {
   setReaderCandidates,
   setReaderClosingBalance,
   setStatementReviewSession,
+  getStatementReviewSessions,
+  removeStatementReviewSession,
+  upsertStatementReviewSession,
   setTightPointGoal,
   sweepReviewQueue,
   sweepAutoResumeNow,
@@ -588,6 +591,23 @@ describe('statement review session persistence', () => {
 
     hydrateFromBlob(getPersistBlob());
     expect(getState().statementReviewSession).toEqual(withReceipt);
+  });
+
+  it('keeps separate source sessions and removes only the acknowledged source', () => {
+    resetAll();
+    const a = { ...session, sourceKey: 'csv:a' };
+    const b = {
+      ...session,
+      sourceKey: 'pdf:b',
+      candidates: [{ ...session.candidates[0]!, id: 'b' }],
+      selectedIds: ['b'],
+    };
+    upsertStatementReviewSession(a);
+    upsertStatementReviewSession(b);
+    expect(getStatementReviewSessions().map((item) => item.sourceKey)).toEqual(['csv:a', 'pdf:b']);
+    removeStatementReviewSession('csv:a');
+    expect(getStatementReviewSessions().map((item) => item.sourceKey)).toEqual(['pdf:b']);
+    expect(getState().statementReviewSession?.sourceKey).toBe('pdf:b');
   });
 });
 

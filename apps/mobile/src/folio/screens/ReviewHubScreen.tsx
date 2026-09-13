@@ -18,9 +18,10 @@ import {
   type DecisionHistoryRow,
 } from '@/folio/lib/reviewHistory';
 import { ReviewScreen } from '@/folio/screens/ReviewScreen';
+import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import { formatGBPExact } from '@/folio/screens/reviewFormat';
 import { formatGBP } from '@/folio/screens/today/format';
-import { useAppStore } from '@/folio/store';
+import { useAppStore, useStatementReviewSessions } from '@/folio/store';
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
 
@@ -151,6 +152,9 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
   const queueCount = useAppStore(
     (state) => (state.reviewQueue?.length ?? 0) + (state.reviewQueueSpillover?.length ?? 0),
   );
+  const statementReviewSessions = useStatementReviewSessions();
+  const resumableStatements = statementReviewSessions.filter((session) => session.candidates.length > 0);
+  const pendingCount = queueCount + resumableStatements.reduce((total, session) => total + session.candidates.length, 0);
   const hiddenCount = useAppStore((state) => state.ignoredReviewSigs?.length ?? 0);
   const transactions = useAppStore((state) => state.transactions);
   const subscriptions = useAppStore((state) => state.subs);
@@ -227,8 +231,8 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
               >
                 <Text style={[styles.segmentLabel, { color: selected ? t.ink : t.muted }]}>
                   {label}
-                  {key === 'needs' && queueCount > 0 ? (
-                    <Text style={[styles.segmentCount, { color: t.muted }]}> {queueCount}</Text>
+                  {key === 'needs' && pendingCount > 0 ? (
+                    <Text style={[styles.segmentCount, { color: t.muted }]}> {pendingCount}</Text>
                   ) : null}
                 </Text>
               </Pressable>
@@ -238,8 +242,17 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
       </View>
 
       {tab === 'needs' ? (
-        <View style={styles.screenHost}>
-          {caught ? (
+          <View style={styles.screenHost}>
+          {resumableStatements.map((session) => (
+            <BulkStatementLanding
+              key={`${session.workspaceId ?? ''}:${session.sourceKey ?? ''}`}
+              nav={nav}
+              candidates={[]}
+              {...(session.sourceKey === undefined ? {} : { sessionKey: session.sourceKey })}
+              onAdded={() => undefined}
+            />
+          ))}
+          {resumableStatements.length === 0 && caught ? (
             <View style={styles.caughtBlock}>
               <View style={[styles.pressureNote, { borderLeftColor: t.caution }]}>
                 <Text style={[styles.eyebrow, { color: t.muted }]}>
@@ -260,7 +273,7 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
             </View>
           ) : null}
           <View style={styles.screenHost}>
-            {caught && queueCount === 0 ? (
+            {caught && pendingCount === 0 ? (
               <Text style={{ color: t.muted, fontSize: 13, lineHeight: 20, padding: gap.xl }}>
                 Nothing else waiting.
               </Text>

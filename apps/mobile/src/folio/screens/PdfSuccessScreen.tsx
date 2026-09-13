@@ -102,7 +102,6 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showToast } from '@/folio/ui/Toast';
 import type { CandidateKind, CandidateMoneyItem } from '@/folio/lib/importSheet';
-import { isBulkStatement } from '@/folio/lib/bulkLanding';
 import { statementPreviewPresentation } from '@/folio/lib/statementPreview';
 import {
   clearReaderCandidates,
@@ -111,6 +110,7 @@ import {
   useAppStore,
   useReaderCandidates,
   useReaderClosingBalance,
+  useStatementReviewSessions,
 } from '@/folio/store';
 import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import type { Nav } from '@/folio/types';
@@ -144,6 +144,7 @@ export type PdfSuccessScreenProps = {
   nav: Nav;
   statement?: FoundStatement;
   state?: PdfSuccessState;
+  reviewSourceKey?: string;
 };
 
 // A cold open with no staged read renders the honest EmptyState below — NEVER fabricated
@@ -259,6 +260,7 @@ export function PdfSuccessScreen({
   nav,
   statement: statementProp,
   state = 'populated',
+  reviewSourceKey,
 }: PdfSuccessScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -278,6 +280,10 @@ export function PdfSuccessScreen({
   // one, or came from a path that never does — see setReaderClosingBalance's doc). Only
   // meaningful for the REAL staged read, never for a fixture.
   const stagedClosingBalance = useReaderClosingBalance();
+  const reviewSessions = useStatementReviewSessions();
+  const canResumeReview =
+    reviewSourceKey !== undefined &&
+    reviewSessions.some((session) => session.sourceKey === reviewSourceKey && session.candidates.length > 0);
   const statement: FoundStatement =
     statementProp ??
     (staged.length > 0 ? liveStatementFrom(staged, evidenceFilename) : EMPTY_FOUND);
@@ -295,7 +301,9 @@ export function PdfSuccessScreen({
   // preview for the bulk summary + "Add all as history" landing (BulkStatementLanding owns the
   // actual `addStatementAsHistory` write, fired only on that CTA tap). A single-candidate read
   // keeps going straight to the existing per-row enqueue -> Review path below, unchanged.
-  const isBulk = !statementProp && isBulkStatement(rawCandidates.length);
+  // Every real read, including a one-row result, enters the shared D2 review contract so its
+  // candidate identity and uncertainty state are preserved through the provisional session.
+  const isBulk = canResumeReview || (!statementProp && rawCandidates.length > 0);
 
   // slide-in-r — drives the whole screen. 0 = entering, 1 = resting (translateX 0, opacity 1). Under
   // reduce-motion we resolve straight to the final state instead of animating.
@@ -342,7 +350,7 @@ export function PdfSuccessScreen({
   // empty — n/a in practice (you only land here when a statement was read). A zero-candidate read is a
   // fallback/empty-found case the upstream flow defines; rendered here as the calm EmptyState so the
   // screen never shows a hollow "0 things found" card.
-  if (state === 'empty' || statement.items.length === 0) {
+  if (!canResumeReview && (state === 'empty' || statement.items.length === 0)) {
     return (
       <EmptyState
         mood="calm"
@@ -366,7 +374,8 @@ export function PdfSuccessScreen({
       <View style={[styles.root, { backgroundColor: t.canvas }]}>
         <BulkStatementLanding
           nav={nav}
-          candidates={rawCandidates}
+          candidates={canResumeReview ? [] : rawCandidates}
+          {...(canResumeReview ? { sessionKey: reviewSourceKey } : {})}
           {...(closingBalance !== undefined ? { closingBalance } : {})}
           onAdded={() => clearReaderCandidates()}
         />

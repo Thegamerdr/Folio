@@ -96,6 +96,8 @@ describe('statementReviewModel', () => {
     expect(statementReviewSessionMatchesSource(session, [candidate])).toBe(true);
     expect(statementReviewSessionMatchesSource(session, [other])).toBe(false);
     expect(statementReviewSessionMatchesSource(session, [])).toBe(true);
+    expect(statementReviewSessionMatchesSource({ ...session, workspaceId: 'personal' }, [], 'business')).toBe(false);
+    expect(statementReviewSessionMatchesSource({ ...session, workspaceId: 'personal' }, [], 'personal')).toBe(true);
   });
 
   it('projects and filters the full 10k+ corpus within a conservative CI budget', () => {

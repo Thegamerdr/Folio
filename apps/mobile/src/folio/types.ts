@@ -36,6 +36,8 @@ export type ImportSourceReturn = Readonly<{
 export type ScreenPayload = Readonly<{
   recovery?: RecoveryReceipt;
   importSource?: ImportSourceReturn;
+  /** Source-scoped MF09 review to restore from the canonical Intake waiting entry. */
+  reviewSourceKey?: string;
 }>;
 
 export type ScreenId =
