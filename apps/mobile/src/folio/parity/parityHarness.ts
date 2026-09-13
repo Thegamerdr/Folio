@@ -11,6 +11,7 @@ import { Linking } from 'react-native';
 import {
   addAccount,
   addCalendarEvent,
+  addCycle,
   addDebt,
   addEvidenceDocument,
   addPlan,
@@ -32,6 +33,7 @@ import {
   setSubs,
   updateBusinessOperations,
   type BalanceConfidence,
+  type CycleRecord,
   type EvidenceDocument,
   type Sub,
   type Transaction,
@@ -121,6 +123,10 @@ type PersonalFixture = Readonly<{
       category: 'transport' | 'income';
       hint: string;
     }>
+  >;
+  /** Capture-only recorded review rows, seeded oldest first through the canonical close authority. */
+  cycles?: ReadonlyArray<
+    Pick<CycleRecord, 'closedAt' | 'label' | 'spare' | 'tightPoint' | 'setAside' | 'note'>
   >;
 }>;
 
@@ -585,6 +591,7 @@ function configurePersonalBase(input: PersonalFixture): void {
   addPinnedSourcePotCadenceAdapters(input);
   for (const debt of input.debts ?? []) addDebt(debt);
   for (const plan of input.plans ?? []) addPlan(plan);
+  for (const cycle of input.cycles ?? []) addCycle(cycle);
   if ((input.reviewItems?.length ?? 0) > 0) {
     const evidence = addEvidenceDocument({
       id: 'evidence_11111111111111111111111111111111',

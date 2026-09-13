@@ -345,6 +345,48 @@
         { "name": "Energy", "cost": 310, "daysAway": 4 }
       ]
     },
+    "mf11-a04-negative-metric": {
+      "kind": "personal",
+      "designPressure": "overspent",
+      "captureClean": true,
+      "balance": 1800,
+      "balanceSource": "user-entered",
+      "confidence": "corrected",
+      "income": 1800,
+      "payday": 9,
+      "financialSetupConfirmed": true,
+      "weeklyEssentials": 70,
+      "bufferAmount": 200,
+      "subscriptions": [],
+      "pots": [
+        {
+          "id": "mf11-a04-pot",
+          "name": "Buffer",
+          "saved": 0.29,
+          "goal": 100,
+          "perWeek": 0,
+          "accent": true
+        }
+      ],
+      "cycles": [
+        {
+          "closedAt": "2026-08-01T08:00:00.000Z",
+          "label": "August",
+          "spare": 1000,
+          "tightPoint": 3192.86,
+          "setAside": 0,
+          "note": "Capture fixture prior review."
+        },
+        {
+          "closedAt": "2026-09-01T08:00:00.000Z",
+          "label": "September",
+          "spare": 1000,
+          "tightPoint": -2692.86,
+          "setAside": 520,
+          "note": "Capture fixture latest review."
+        }
+      ]
+    },
     "populated-commitments": {
       "kind": "personal",
       "designPressure": "safe",

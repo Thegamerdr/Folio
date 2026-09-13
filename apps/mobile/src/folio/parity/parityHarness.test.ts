@@ -16,6 +16,7 @@ import { buildFinancialPlanFromState } from '../lib/financialPlan';
 import { selectFinancialPresentation } from '../lib/financialPresentation';
 import { routeFromStore } from '../lib/storeRoute';
 import { activateParityHarness, type ParityFixtureId } from './parityHarness';
+import { selectRecordedReviews } from '../lib/recordedReviews';
 
 function activate(fixture: ParityFixtureId, nowISO = '2026-08-18T08:00:00.000Z') {
   activateParityHarness({
@@ -292,6 +293,19 @@ describe('visual parity fixture harness', () => {
     const firstRun = activate('first-run');
     expect(firstRun.onboarding.done).toBe(false);
     expect(hasConfiguredMoneyPicture(firstRun)).toBe(false);
+  });
+
+  it('seeds the MF11-A04 negative metric capture through canonical cycles and leaves empty unchanged', () => {
+    const state = activate('mf11-a04-negative-metric');
+    const reviews = selectRecordedReviews(state.cycles);
+    expect(reviews.map(({ tightPoint }) => tightPoint)).toEqual([-2692.86, 3192.86]);
+    expect(reviews.reduce((sum, review) => sum + review.tightPoint, 0) / reviews.length).toBe(250);
+    expect(reviews[0]).toMatchObject({ setAside: 520 });
+    expect(state.pots).toEqual([expect.objectContaining({ id: 'mf11-a04-pot', saved: 0.29 })]);
+
+    const empty = activate('empty');
+    expect(empty.cycles).toEqual([]);
+    expect(empty.pots).toEqual([]);
   });
 
   it('builds populated Sole Trader and Ltd partitions from business-engine fixtures', () => {
