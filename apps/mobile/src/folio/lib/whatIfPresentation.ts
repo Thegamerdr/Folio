@@ -3,6 +3,23 @@ import type { AppState, WhatIfHold } from '../store';
 import { toFinancialPlanInput } from './financialPlan';
 import { formatFinancialDate, selectFinancialPresentation } from './financialPresentation';
 
+/**
+ * The What If copy describes the first payday window. The engine's
+ * lowestProjectedMinor covers the full horizon, so select the lowest closing
+ * balance strictly before the next income date for the displayed value.
+ * Without a known payday, retain the engine's full-horizon qualification.
+ */
+export function selectWhatIfProjectedLowMinor(plan: FinancialPlanResult): number {
+  const nextIncomeDate = plan.nextIncomeDate;
+  if (!nextIncomeDate) return plan.lowestProjectedMinor;
+  return plan.timeline
+    .filter((point) => point.date < nextIncomeDate)
+    .reduce(
+      (lowest, point) => Math.min(lowest, point.closingMinor),
+      plan.currentBalanceMinor,
+    );
+}
+
 /** The current tile describes the current plan, independent of the proposed spend or payday. */
 export function selectWhatIfCurrentPresentation(state: AppState, plan: FinancialPlanResult) {
   const presentation = selectFinancialPresentation(state, plan);

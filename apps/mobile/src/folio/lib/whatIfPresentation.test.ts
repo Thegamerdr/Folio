@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { getState, type AppState, type WhatIfHold } from '../store';
 import { buildFinancialPlanFromState } from './financialPlan';
-import { buildWhatIfPresentation, selectWhatIfCurrentPresentation } from './whatIfPresentation';
+import {
+  buildWhatIfPresentation,
+  selectWhatIfCurrentPresentation,
+  selectWhatIfProjectedLowMinor,
+} from './whatIfPresentation';
 import { selectFinancialPresentation } from './financialPresentation';
 
 function fixture(): AppState {
@@ -158,4 +162,28 @@ it('uses the saved-hold retention limit and amount rounding', () => {
   expect(buildWhatIfPresentation(state, NOW, 40.6, 'once').savedHold.safeToSpendMinor).toBe(
     expected.safeToSpendMinor,
   );
+});
+
+it('shows the lowest balance before payday, excluding a later long-horizon shortfall', () => {
+  const plan = {
+    currentBalanceMinor: 25000,
+    lowestProjectedMinor: -90000,
+    nextIncomeDate: '2026-09-10',
+    timeline: [
+      { date: '2026-09-09', closingMinor: 24500 },
+      { date: '2026-09-10', closingMinor: 25000 },
+      { date: '2026-12-01', closingMinor: -90000 },
+    ],
+  } as never;
+  expect(selectWhatIfProjectedLowMinor(plan)).toBe(24500);
+});
+
+it('retains the full-horizon low when no payday is known', () => {
+  const plan = {
+    currentBalanceMinor: 25000,
+    lowestProjectedMinor: -90000,
+    nextIncomeDate: null,
+    timeline: [{ date: '2026-12-01', closingMinor: -90000 }],
+  } as never;
+  expect(selectWhatIfProjectedLowMinor(plan)).toBe(-90000);
 });

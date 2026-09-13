@@ -81,6 +81,7 @@ import {
 import { useRoute } from '@/folio/lib/storeRoute';
 import {
   buildWhatIfPresentation,
+  selectWhatIfProjectedLowMinor,
   selectWhatIfCurrentPresentation,
 } from '@/folio/lib/whatIfPresentation';
 import { buildFinancialPlanFromState } from '@/folio/lib/financialPlan';
@@ -758,7 +759,7 @@ export function WhatIfScreen({ nav, state = 'populated' }: WhatIfScreenProps) {
             {currentPresentation.qualification ? ` ${currentPresentation.qualification}` : ''}
           </Text>
           <Text style={styles.tileCaption}>
-            Projected balance: lowest {formatGBP(scenario.preview.lowestProjectedMinor / 100)}.
+            Projected balance: lowest {formatGBP(selectWhatIfProjectedLowMinor(scenario.preview) / 100)}.
             Payday {formatFinancialDate(scenario.preview.nextIncomeDate)}. No money has moved.
           </Text>
 
