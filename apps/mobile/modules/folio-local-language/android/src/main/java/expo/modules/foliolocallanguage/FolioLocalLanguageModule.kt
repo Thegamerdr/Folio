@@ -14,17 +14,16 @@ import java.security.MessageDigest
  */
 class FolioLocalLanguageModule : Module() {
   private val engineLock = Any()
-  private var languageRuntime: LiteRtLmBridge? = null
-  private var activeModelSha256: String? = null
-  private var activeModelBytes: Long? = null
+  @Volatile private var languageRuntime: LiteRtLmBridge? = null
+  @Volatile private var activeModelSha256: String? = null
+  @Volatile private var activeModelBytes: Long? = null
 
   override fun definition() = ModuleDefinition {
     Name("FolioLocalLanguage")
 
     Function("getStatus") {
-      synchronized(engineLock) {
-        status()
-      }
+      // A synchronous JS status read must not wait behind a CPU inference turn.
+      status()
     }
 
     AsyncFunction("verifyModel") { modelUri: String, expectedSha256: String, minimumBytes: Double ->

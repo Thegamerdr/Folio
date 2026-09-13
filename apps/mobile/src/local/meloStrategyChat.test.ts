@@ -72,6 +72,19 @@ const scenario: StrategyScenario = {
 const noModel = async () => null;
 
 describe('Strategy Chat acceptance with real deterministic engines', () => {
+  it('answers known missing setup without waiting for the optional model', async () => {
+    const complete = vi.fn(async () => { throw new Error('must not run'); });
+    const reply = await buildMeloStrategyTurn({
+      prompt: 'What if I put £500 extra toward my debts?',
+      source: { ...source, unknowns: ['current balance'] },
+      memory: null,
+      complete,
+    });
+    expect(complete).not.toHaveBeenCalled();
+    expect(reply!.reply).toContain('I need current balance');
+    expect(reply!.context!.strategy!.scenario.amountMinor).toBe(50_000);
+    expect(reply!.suggestions).toEqual([]);
+  });
   it('completes the nine-turn acceptance, preserving preferences without writes', async () => {
     const before = JSON.stringify(source);
     let memory: StrategyMemory | null = null;
