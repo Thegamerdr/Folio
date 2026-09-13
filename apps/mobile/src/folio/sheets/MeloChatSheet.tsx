@@ -851,6 +851,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
     scrollOffsetRef.current = contentOffset.y;
     const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    if (distanceFromBottom > SCROLL_BOTTOM_EPSILON) draftActionRef.current = false;
     setAtBottom(distanceFromBottom <= SCROLL_BOTTOM_EPSILON);
   }
 
