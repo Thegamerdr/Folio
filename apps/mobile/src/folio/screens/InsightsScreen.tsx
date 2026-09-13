@@ -55,6 +55,7 @@ const CHART_HEIGHT_LARGE = 288;
 const ROUTE_DASH = 1200;
 const ROUTE_DRAW_MS = 2200;
 const COUNT_MS = 700;
+const METRIC_VALUE_VIEWPORT = 280;
 const INSIGHTS_TEXT_LAYOUT_DIAGNOSTIC =
   process.env.EXPO_PUBLIC_MELO_INSIGHTS_TEXT_LAYOUT_DIAGNOSTIC === 'true';
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -459,7 +460,7 @@ function PopulatedBranch({
 
       <InsightReadBlock read={read} styles={styles} onOpenToday={() => nav.go('today')} />
 
-      <View style={[styles.metrics, fontScale >= 1.3 ? styles.metricsLarge : undefined]}>
+      <View style={styles.metrics}>
         <StatTile
           label="LATEST PAYDAY CASH FORECAST"
           value={latest ? displayMoney(latest.spare) : undefined}
@@ -655,9 +656,53 @@ function StatTile({
       accessibilityLabel={`${label}, ${value}${supportingText ? `, ${supportingText}` : ''}`}
     >
       <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={[styles.metricValue, positive ? styles.positiveValue : undefined]}>{value}</Text>
+      <MetricValue value={value} positive={positive} styles={styles} />
       {supportingText ? <Text style={styles.metricSupport}>{supportingText}</Text> : null}
     </View>
+  );
+}
+
+function MetricValue({
+  value,
+  positive,
+  styles,
+}: {
+  value: string;
+  positive: boolean;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const [tokenWidth, setTokenWidth] = useState<number | undefined>();
+  const onTextLayout = (event: TextLayoutEvent) => {
+    const width = Math.ceil(Math.max(0, ...event.nativeEvent.lines.map((line) => line.width)));
+    if (width > 0) {
+      setTokenWidth((previous) => (previous === width ? previous : width));
+    }
+  };
+  const valueText = (
+    <Text
+      accessible={false}
+      numberOfLines={1}
+      onTextLayout={onTextLayout}
+      style={[styles.metricValue, positive ? styles.positiveValue : undefined]}
+    >
+      {value}
+    </Text>
+  );
+
+  if (tokenWidth !== undefined && tokenWidth <= METRIC_VALUE_VIEWPORT) {
+    return valueText;
+  }
+
+  return (
+    <ScrollView
+      accessible={false}
+      bounces={false}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.metricValuePan}
+    >
+      {valueText}
+    </ScrollView>
   );
 }
 
@@ -976,18 +1021,16 @@ function makeStyles(t: Palette) {
       fontSize: 16,
       lineHeight: 24,
     },
-    metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.md, marginTop: gap.xxl },
-    metricsLarge: { flexDirection: 'column' },
+    metrics: { flexDirection: 'column', gap: gap.md, marginTop: gap.xxl },
     metricTile: {
       backgroundColor: t.surface,
       borderColor: t.hairline,
       borderRadius: radius.xxl,
       borderWidth: StyleSheet.hairlineWidth,
-      flexBasis: '47%',
-      flexGrow: 1,
-      minWidth: 0,
+      width: '100%',
       padding: gap.lg,
     },
+    metricValuePan: { width: '100%' },
     metricLabel: { color: t.muted, fontSize: 13, lineHeight: 18, textTransform: 'uppercase' },
     metricValue: {
       color: t.ink,
