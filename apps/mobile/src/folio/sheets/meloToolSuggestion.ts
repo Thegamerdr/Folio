@@ -253,7 +253,7 @@ export function settleMeloToolApplication(
 export function settleMeloToolUndo(): MeloToolSuggestionSettlement {
   return {
     state: MELO_TOOL_UNDONE,
-    output: { ok: true, message: 'Undone. Nothing changed.' },
+    output: { ok: true, message: 'Change undone.' },
   };
 }
 
@@ -272,24 +272,24 @@ export function describeMeloToolSuggestion(
       break;
     case 'log_income': {
       const source = merchant ?? textValue(input.source);
-      if (amount && source) return `Log ${amount} received from ${source}.${preview}`;
+      if (amount && source) return `Record ${amount} income from ${source}.${preview}`;
       break;
     }
     case 'log_refund':
-      if (amount && merchant) return `Log a ${amount} refund from ${merchant}.`;
+      if (amount && merchant) return `Record a ${amount} refund from ${merchant}.`;
       break;
     case 'log_transfer': {
       const from = textValue(input.from);
       const to = textValue(input.to);
-      if (amount && from && to) return `Log a ${amount} transfer from ${from} to ${to}.`;
+      if (amount && from && to) return `Move ${amount} from ${from} to ${to}.`;
       break;
     }
     case 'log_debt_payment': {
       const debt = textValue(input.debtName) ?? textValue(input.name);
       if (amount && debt)
-        return `Record the completed ${amount} payment to ${debt}. Review the cash and debt changes before confirming.`;
+        return `Record a ${amount} debt payment to ${debt}. Review the cash and debt changes before confirming.`;
       if (amount)
-        return `Record the completed ${amount} debt payment. Review the cash and debt changes before confirming.`;
+        return `Record a ${amount} debt payment. Review the cash and debt changes before confirming.`;
       break;
     }
     case 'set_debt_balance': {

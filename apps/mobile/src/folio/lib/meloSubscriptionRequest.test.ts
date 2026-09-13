@@ -26,7 +26,7 @@ describe('Melo subscription request resolver', () => {
 
     expect(result).toMatchObject({
       state: 'review',
-      actionLabel: 'Review Spotify pause',
+      actionLabel: 'Review subscription',
     });
     if (result.state === 'review') {
       expect(result.reply).toContain('£10.99');
@@ -44,7 +44,7 @@ describe('Melo subscription request resolver', () => {
 
     expect(result).toMatchObject({
       state: 'review',
-      actionLabel: 'Review Spotify resume',
+      actionLabel: 'Review subscription',
     });
     if (result.state === 'review') expect(result.reply).toContain('£15.99 to £26.98');
   });
@@ -61,6 +61,8 @@ describe('Melo subscription request resolver', () => {
 
     expect(paused.state === 'review' ? paused.reply : '').toContain('already paused');
     expect(active.state === 'review' ? active.reply : '').toContain('already active');
+    expect(paused.state === 'review' ? paused.actionLabel : '').toBe('Review subscription');
+    expect(active.state === 'review' ? active.actionLabel : '').toBe('Review subscription');
   });
 
   it('asks for explicit selection instead of guessing a missing or ambiguous target', () => {
@@ -95,7 +97,7 @@ describe('Melo subscription request resolver', () => {
       state: 'needs-selection',
       canOpenSubscriptions: true,
     });
-    if (result.state === 'needs-selection') expect(result.reply).toContain('could not find');
+    if (result.state === 'needs-selection') expect(result.reply).toContain('I can’t find one clear match');
   });
 
   it('refuses to calculate from a corrupt negative stored amount', () => {
@@ -106,7 +108,7 @@ describe('Melo subscription request resolver', () => {
 
     expect(result).toMatchObject({
       state: 'review',
-      actionLabel: 'Review subscription amount',
+      actionLabel: 'Review subscription',
     });
     if (result.state === 'review') {
       expect(result.reply).toContain('needs review');

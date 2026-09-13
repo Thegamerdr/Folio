@@ -102,6 +102,7 @@ import { formatFinancialDate, formatMoney } from '@/folio/lib/financialPresentat
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
+import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 import { useAppStore, setMelo, setMeloPrimerSeen, hasConfiguredMoneyPicture } from '@/folio/store';
 import { useLens } from '@/folio/lib/lens';
 import { canShowUpsell } from '@/folio/lib/lensPaywall';
@@ -309,7 +310,11 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
   const toggleWardrobe = (id: string, equipped: boolean, locked: boolean) => {
     if (locked) {
-      if (upsellsOn) nav.go('paywall');
+      Alert.alert(
+        'Melo Full',
+        'This touch is part of Melo Full. Your current companion and money features keep working without it.',
+        [{ text: 'Close', style: 'cancel' }],
+      );
       return;
     }
     const next = equipped
@@ -323,15 +328,23 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
   // empty / error — the calm EmptyState doorway (n/a in practice, rendered for completeness).
   if (state === 'empty' || state === 'error') {
-    const headline = state === 'error' ? copy.err.generic : 'Meet Melo, your quiet companion.';
+    const headline =
+      state === 'error'
+        ? 'Your money picture couldn’t be refreshed.'
+        : 'There isn’t enough here for a money-health reading yet.';
     const body =
-      state === 'error' ? undefined : 'A quiet presence across the journey. Nothing to set up.';
+      state === 'error'
+        ? 'Try again when your numbers are available.'
+        : 'Add or confirm your numbers to see Melo’s reading.';
     return (
       <EmptyState
         mood="calm"
         headline={headline}
         body={body}
-        cta={{ label: 'Back', onPress: () => nav.back() }}
+        cta={{
+          label: state === 'error' ? 'Back' : 'Add my numbers',
+          onPress: state === 'error' ? () => nav.back() : () => nav.openSheet('onboarding'),
+        }}
       />
     );
   }
@@ -342,7 +355,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
       <View
         style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.huge }]}
       >
-        <MeloLine mood="curious" text="One moment — Melo's settling in." />
+        <MeloLine mood="curious" text="Checking your money picture…" />
       </View>
     );
   }
@@ -378,7 +391,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         <View style={[styles.section, { marginTop: 20 }]}>
           <View style={styles.sectionHeaderRow}>
             <Text style={[styles.sectionTitle, { color: t.ink }]}>Your money picture</Text>
-            <Text style={[styles.sectionHint, { color: t.muted }]}>From your numbers</Text>
+            <Text style={[styles.sectionHint, { color: t.muted }]}>FROM YOUR NUMBERS</Text>
           </View>
           <View style={styles.plumageRow}>
             <Text
@@ -387,7 +400,11 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
                 { color: t.ink, textTransform: health.scored ? 'capitalize' : 'none' },
               ]}
             >
-              {health.scored ? plumage : health.presentation.label}
+              {health.scored
+                ? plumage
+                : health.presentation.complete
+                  ? health.presentation.label
+                  : 'Based on what you’ve added so far.'}
             </Text>
             {health.scored ? (
               <View
@@ -447,6 +464,22 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
           {melo.quietMode ? (
             <View style={styles.restingWrap}>
               <Text style={[styles.restingLine, { color: t.muted }]}>Melo is resting.</Text>
+              <Text style={[styles.restingNote, { color: t.muted }]}>
+                Quiet Mode is on, so Melo stays out of sight here. Everything else works the same.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Turn off Quiet Mode"
+                onPress={toggleQuietMode}
+                style={({ pressed }) => [
+                  styles.restingAction,
+                  pressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.restingActionLabel, { color: t.calm }]}>
+                  Turn off Quiet Mode
+                </Text>
+              </Pressable>
             </View>
           ) : (
             <MeloFigure
@@ -455,11 +488,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               maxBoxSize={Math.min(160, height * 0.22)}
               mood={mood}
               onPress={() => setContextOpen(true)}
-              label={
-                hasMoneyPicture
-                  ? 'Melo. Tap for options.'
-                  : 'Melo, ready to help you start. Tap for options.'
-              }
+              label="Melo companion"
             />
           )}
 
@@ -490,48 +519,59 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
         <View style={styles.section}>
           <View style={styles.chatActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Chat with Melo"
-              onPress={() => nav.openMelo()}
-              style={({ pressed: isPressed }) => [
-                styles.tapToTalk,
-                { backgroundColor: t.calm, borderColor: t.calm },
-                isPressed ? styles.pressed : undefined,
-              ]}
-            >
-              <Text style={[styles.tapToTalkLabel, { color: t.inverse }]}>Chat with Melo →</Text>
-            </Pressable>
+            <View style={styles.chatActionBlock}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Chat with Melo"
+                onPress={() => nav.openMelo()}
+                style={({ pressed: isPressed }) => [
+                  styles.tapToTalk,
+                  { backgroundColor: t.calm, borderColor: t.calm },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.tapToTalkLabel, { color: t.inverse }]}>Chat with Melo →</Text>
+              </Pressable>
+              <Text style={[styles.actionHelper, { color: t.muted }]}>Ask, check or create a change to review.</Text>
+            </View>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open chat for voice input"
-              accessibilityHint="Choose Voice in chat to speak; permission is checked before recording."
-              onPress={() => nav.openMelo()}
-              style={({ pressed: isPressed }) => [
-                styles.holdButton,
-                { backgroundColor: t.surface, borderColor: t.hairline },
-                isPressed ? styles.pressed : undefined,
-              ]}
-            >
-              <Text style={[styles.holdLabel, { color: t.muted }]}>VOICE IN CHAT</Text>
-            </Pressable>
+            <View style={styles.chatActionBlock}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Voice in chat"
+                accessibilityHint="Choose Voice in chat to speak; permission is checked before recording."
+                onPress={() => nav.openMelo()}
+                style={({ pressed: isPressed }) => [
+                  styles.holdButton,
+                  { backgroundColor: t.surface, borderColor: t.hairline },
+                  isPressed ? styles.pressed : undefined,
+                ]}
+              >
+                <Text style={[styles.holdLabel, { color: t.muted }]}>Voice in chat</Text>
+              </Pressable>
+              <Text style={[styles.actionHelper, { color: t.muted }]}>Speak, then review the transcript before anything is sent.</Text>
+            </View>
           </View>
-          <Text style={[styles.voiceHelper, { color: t.muted }]}>
-            Speak in chat. Review before sending.
-          </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: t.ink }]}>What he's reading</Text>
+          <Text style={[styles.sectionTitle, { color: t.ink }]}>What he’s reading</Text>
           <View style={[styles.readingGrid, stackReading ? styles.readingGridStacked : undefined]}>
             <ReadingCell
               label="balance"
-              value={formatWholePounds(currentBalance.amount)}
+              value={health.presentation.balanceKnown ? formatWholePounds(currentBalance.amount) : 'Not available'}
               palette={t}
             />
-            <ReadingCell label="live bills" value={String(activeSubs)} palette={t} />
-            <ReadingCell label="funded pots" value={String(fundedPots)} palette={t} />
+            <ReadingCell
+              label="live bills"
+              value={String(activeSubs)}
+              palette={t}
+            />
+            <ReadingCell
+              label="funded pots"
+              value={String(fundedPots)}
+              palette={t}
+            />
           </View>
         </View>
 
@@ -598,9 +638,8 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               return (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={{ selected: equipped, disabled: suppress }}
+                  accessibilityState={{ selected: equipped }}
                   accessibilityLabel={`${w.label}. ${equipped ? 'Selected' : locked ? 'Locked, requires Melo Full' : 'Available'}`}
-                  disabled={suppress}
                   key={w.id}
                   onPress={() => toggleWardrobe(w.id, equipped, locked)}
                   style={({ pressed: isPressed }) => [
@@ -632,7 +671,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         <View style={styles.section}>
           <Pressable
             accessibilityRole="switch"
-            accessibilityLabel={`Quiet Mode, ${melo.quietMode ? 'on' : 'off'}`}
+            accessibilityLabel={`Quiet Mode, ${melo.quietMode ? 'On' : 'Off'}`}
             accessibilityHint="Hides the character but keeps your money information available"
             accessibilityState={{ checked: melo.quietMode }}
             onPress={toggleQuietMode}
@@ -646,8 +685,8 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               <Text style={[styles.quietLabel, { color: t.ink }]}>Quiet Mode</Text>
               <Text style={[styles.quietHint, { color: t.muted }]}>
                 {melo.quietMode
-                  ? 'Character hidden. Weather chip still shows on Today.'
-                  : 'Turn off the character. Keep the numbers.'}
+                  ? 'Melo stays quiet and out of sight. Your money, plan and settings are unchanged.'
+                  : 'Melo can appear and speak up. Turn on Quiet Mode for a still, silent app.'}
               </Text>
             </View>
             <View
@@ -657,13 +696,13 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               ]}
             >
               <Text style={[styles.quietPillLabel, { color: melo.quietMode ? t.calm : t.muted }]}>
-                {melo.quietMode ? 'on' : 'off'}
+                {melo.quietMode ? 'On' : 'Off'}
               </Text>
             </View>
           </Pressable>
           <Pressable
             accessibilityRole="switch"
-            accessibilityLabel={`Milestone sounds, ${melo.soundEnabled === true ? 'on' : 'off'}`}
+            accessibilityLabel={`Milestone sounds, ${melo.soundEnabled === true ? 'On' : 'Off'}`}
             accessibilityHint="Optional sounds play only for earned or completed milestone moments"
             accessibilityState={{ checked: melo.soundEnabled === true }}
             onPress={toggleMilestoneSounds}
@@ -696,7 +735,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
                   { color: melo.soundEnabled === true ? t.calm : t.muted },
                 ]}
               >
-                {melo.soundEnabled === true ? 'on' : 'off'}
+                {melo.soundEnabled === true ? 'On' : 'Off'}
               </Text>
             </View>
           </Pressable>
@@ -849,9 +888,9 @@ const styles = StyleSheet.create({
   },
   headline: {
     fontFamily: serif.display,
-    fontSize: 28,
+    fontSize: 32,
     letterSpacing: -0.3,
-    lineHeight: 35,
+    lineHeight: 38,
     marginTop: gap.xs,
   },
   headlineAccent: {
@@ -872,6 +911,24 @@ const styles = StyleSheet.create({
     fontFamily: serif.displayItalic,
     fontSize: 15,
     fontStyle: 'italic',
+  },
+  restingNote: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: gap.sm,
+    maxWidth: 280,
+    textAlign: 'center',
+  },
+  restingAction: {
+    minHeight: 44,
+    justifyContent: 'center',
+    marginTop: gap.xs,
+    paddingHorizontal: gap.sm,
+  },
+  restingActionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   lensLine: {
     alignItems: 'center',
@@ -902,15 +959,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    minHeight: 48,
+    minHeight: 56,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderWidth: 1,
     borderRadius: radius.md,
   },
+  chatActionBlock: {
+    alignSelf: 'stretch',
+    gap: gap.sm,
+  },
+  actionHelper: {
+    fontSize: 14,
+    lineHeight: 20,
+    paddingHorizontal: 4,
+  },
   tapToTalkLabel: {
     flexShrink: 1,
-    fontSize: 14,
+    fontSize: 16,
+    lineHeight: 20,
     fontWeight: '600',
   },
   tapToTalkMood: {
@@ -925,7 +992,7 @@ const styles = StyleSheet.create({
     columnGap: gap.sm,
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    minHeight: 48,
+    minHeight: 56,
     paddingHorizontal: 16,
     paddingVertical: 12,
     alignSelf: 'stretch',
@@ -936,7 +1003,8 @@ const styles = StyleSheet.create({
     width: 6,
   },
   holdLabel: {
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 16,
     letterSpacing: 1.4,
   },
   lockChip: {
@@ -973,11 +1041,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     maxWidth: '100%',
     fontFamily: serif.displayItalic,
-    fontSize: 16,
+    fontSize: 22,
+    lineHeight: 28,
   },
   sectionHint: {
     maxWidth: '100%',
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 16,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
@@ -1017,8 +1087,9 @@ const styles = StyleSheet.create({
   },
   plumageCaption: {
     fontFamily: serif.displayItalic,
-    fontSize: 12.5,
+    fontSize: 14,
     fontStyle: 'italic',
+    lineHeight: 20,
     marginTop: gap.sm,
   },
   readingGrid: {

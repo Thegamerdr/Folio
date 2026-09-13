@@ -39,8 +39,8 @@ describe('Melo native voice recognition contract', () => {
   });
 
   it('always preserves typing as the recovery path', () => {
-    expect(describeMeloVoiceError('not-allowed')).toContain('type instead');
-    expect(describeMeloVoiceError('network')).toContain('type instead');
+    expect(describeMeloVoiceError('not-allowed')).toContain('keep typing');
+    expect(describeMeloVoiceError('network')).toContain('Keep typing');
     expect(describeMeloVoiceError('aborted')).toBe('');
   });
 });

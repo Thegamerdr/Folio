@@ -36,7 +36,7 @@ export function MeloCompanionHost({
   if (presence === 'hidden') return null;
   const alignSelf =
     position === 'left' ? 'flex-start' : position === 'right' ? 'flex-end' : 'center';
-  const label = accessibilityLabel ?? `Melo, ${presence}`;
+  const label = accessibilityLabel ?? 'Melo companion';
   // Keep one touch target. Melo's own `onTap` wrapper is intentionally not
   // used here because the host owns the semantic action and accessibility
   // label for this placement.
@@ -44,8 +44,9 @@ export function MeloCompanionHost({
 
   return (
     <View
-      accessibilityLabel={`${label}. Presence: ${presence}.`}
-      accessibilityRole="image"
+      accessible={!onPress}
+      accessibilityLabel={!onPress ? label : undefined}
+      accessibilityRole={!onPress ? 'image' : undefined}
       style={[styles.host, { alignSelf }, style]}
     >
       {onPress ? (
@@ -60,7 +61,7 @@ export function MeloCompanionHost({
           {content}
         </Pressable>
       ) : (
-        content
+        <View importantForAccessibility="no-hide-descendants">{content}</View>
       )}
     </View>
   );

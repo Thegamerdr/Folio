@@ -36,6 +36,8 @@ function poundsFromMinor(minor: number): string {
   return `£${(minor / 100).toFixed(2)}`;
 }
 
+const REVIEW_SUBSCRIPTION_ACTION = 'Review subscription';
+
 function monthlyMinor(subs: readonly Sub[], paused: Readonly<Record<string, boolean>>): number {
   return subs.reduce((total, subscription) => {
     if (
@@ -126,10 +128,7 @@ export function resolveMeloSubscriptionRequest(
     const candidates = matches.length > 1 ? matches : eligible;
     return {
       state: 'needs-selection',
-      reply:
-        matches.length > 1
-          ? `I found ${matches.length} matching subscriptions. Choose the exact one; nothing has changed.`
-          : `I could not find “${request.target}” in your subscriptions. Nothing has changed.`,
+      reply: `I can’t find one clear match for ‘${request.target}’. Nothing has changed.`,
       choices: candidates.slice(0, 3).map((subscription) => ({
         label: `${request.change === 'pause' ? 'Pause' : 'Resume'} ${subscription.name}`,
       })),
@@ -143,7 +142,7 @@ export function resolveMeloSubscriptionRequest(
     return {
       state: 'review',
       reply: `I found ${subscription.name}, but its stored monthly amount needs review before I can calculate a change. Nothing changed.`,
-      actionLabel: 'Review subscription amount',
+      actionLabel: REVIEW_SUBSCRIPTION_ACTION,
       actionDetail: `Open Bills and commitments and correct ${subscription.name} before pausing or resuming it.`,
     };
   }
@@ -154,7 +153,7 @@ export function resolveMeloSubscriptionRequest(
     return {
       state: 'review',
       reply: `${subscription.name} is already paused, so its ${poundsFromMinor(subscriptionMinor)} monthly charge is already excluded from your active recurring total. Nothing changed.`,
-      actionLabel: 'Open bills and commitments',
+      actionLabel: REVIEW_SUBSCRIPTION_ACTION,
       actionDetail: `Review ${subscription.name} and its current paused state locally.`,
     };
   }
@@ -162,7 +161,7 @@ export function resolveMeloSubscriptionRequest(
     return {
       state: 'review',
       reply: `${subscription.name} is already active at ${poundsFromMinor(subscriptionMinor)} a month. Nothing changed.`,
-      actionLabel: 'Open bills and commitments',
+      actionLabel: REVIEW_SUBSCRIPTION_ACTION,
       actionDetail: `Review ${subscription.name} and its current active state locally.`,
     };
   }
@@ -175,10 +174,7 @@ export function resolveMeloSubscriptionRequest(
   return {
     state: 'review',
     reply: `${subscription.name} is ${isPaused ? 'paused' : 'active'} at ${poundsFromMinor(subscriptionMinor)} a month. ${verb} it would change your active recurring total from ${poundsFromMinor(currentMonthlyMinor)} to ${poundsFromMinor(nextMonthlyMinor)}. Nothing has changed yet.`,
-    actionLabel:
-      request.change === 'pause'
-        ? `Review ${subscription.name} pause`
-        : `Review ${subscription.name} resume`,
+    actionLabel: REVIEW_SUBSCRIPTION_ACTION,
     actionDetail: `Open Bills and commitments to review and apply the ${request.change}; the dedicated surface keeps the change reversible.`,
   };
 }

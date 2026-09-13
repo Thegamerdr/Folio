@@ -78,7 +78,7 @@ export function MeloContextSheet({
         <View style={[styles.controls, { borderTopColor: t.hairline }]}>
           <Pressable
             accessibilityRole="switch"
-            accessibilityLabel={`Quiet Mode, ${quietMode ? 'on' : 'off'}`}
+            accessibilityLabel={`Quiet Mode, ${quietMode ? 'On' : 'Off'}`}
             accessibilityState={{ checked: quietMode }}
             onPress={onQuietModeChange}
             style={({ pressed }) => [styles.controlRow, pressed ? styles.pressed : undefined]}
@@ -86,11 +86,13 @@ export function MeloContextSheet({
             <View style={styles.controlCopy}>
               <Text style={[styles.controlLabel, { color: t.ink }]}>Quiet Mode</Text>
               <Text style={[styles.controlHint, { color: t.muted }]}>
-                Turn off the character. Keep the numbers.
+                {quietMode
+                  ? 'Melo stays quiet and out of sight. Your money, plan and settings are unchanged.'
+                  : 'Melo can appear and speak up. Turn on Quiet Mode for a still, silent app.'}
               </Text>
             </View>
             <Text style={[styles.controlValue, { color: quietMode ? t.calm : t.muted }]}>
-              {quietMode ? 'on' : 'off'}
+              {quietMode ? 'On' : 'Off'}
             </Text>
           </Pressable>
 

@@ -90,14 +90,32 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
 
         <View style={styles.hero}>
           {melo.quietMode ? (
-            <Text style={[styles.quietCompanion, { color: t.muted }]}>Melo is resting.</Text>
+            <View style={styles.quietCompanion}>
+              <Text style={[styles.quietCompanionTitle, { color: t.muted }]}>Melo is resting.</Text>
+              <Text style={[styles.quietCompanionBody, { color: t.muted }]}>
+                Quiet Mode is on, so Melo stays out of sight here. Everything else works the same.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Turn off Quiet Mode"
+                onPress={() => setMelo({ quietMode: false })}
+                style={({ pressed }) => [
+                  styles.quietCompanionAction,
+                  { opacity: pressed ? 0.68 : 1 },
+                ]}
+              >
+                <Text style={[styles.quietCompanionActionLabel, { color: t.calm }]}>
+                  Turn off Quiet Mode
+                </Text>
+              </Pressable>
+            </View>
           ) : (
             <MeloCompanionHost
               mood={mood}
               size={74}
               position="left"
               presence={presence}
-              accessibilityLabel={`Melo, ${mood}, business context`}
+              accessibilityLabel="Melo companion"
               onPress={() => setContextOpen(true)}
               style={styles.heroCompanion}
             />
@@ -208,7 +226,7 @@ export function BusinessMeloScreen({ nav }: { nav: Nav }) {
           size={71}
           position="right"
           presence={presence}
-          accessibilityLabel="Melo, perched at the business summary"
+          accessibilityLabel="Melo companion"
           onPress={() => setContextOpen(true)}
           style={styles.semanticPerch}
         />
@@ -273,7 +291,16 @@ const styles = StyleSheet.create({
   wordmark: { fontFamily: serif.displayItalic, fontSize: 14 },
   workspaceKind: { fontFamily: weightFamily(600), fontSize: 11, letterSpacing: 0.88 },
   hero: { alignItems: 'flex-start', marginTop: gap.xl },
-  quietCompanion: { fontFamily: serif.displayItalic, fontSize: 15, marginBottom: gap.md },
+  quietCompanion: { marginBottom: gap.md },
+  quietCompanionTitle: { fontFamily: serif.displayItalic, fontSize: 15 },
+  quietCompanionBody: { fontSize: 12, lineHeight: 17, marginTop: gap.sm, maxWidth: 360 },
+  quietCompanionAction: {
+    justifyContent: 'center',
+    minHeight: 44,
+    marginTop: gap.xs,
+    paddingHorizontal: gap.sm,
+  },
+  quietCompanionActionLabel: { fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' },
   eyebrow: { fontFamily: serif.displayItalic, fontSize: 14, marginTop: gap.md },
   headline: {
     fontFamily: serif.display,

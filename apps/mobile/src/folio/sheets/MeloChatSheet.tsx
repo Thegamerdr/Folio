@@ -47,6 +47,8 @@ import {
   Text,
   TextInput,
   View,
+  findNodeHandle,
+  useWindowDimensions,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -91,6 +93,7 @@ import {
   type MeloDebtPaymentReview,
 } from '@/folio/sheets/meloToolSuggestion';
 import { filterMeloFollowUpChips, resolveMeloLocalAction } from '@/folio/sheets/meloLocalAction';
+import { presentMeloReply } from '@/folio/sheets/meloPresentation';
 import {
   buildLocalMeloTurn,
   type LocalMeloCalculationBuilder,
@@ -156,6 +159,7 @@ type ChatMessage = {
   actions?: readonly MeloLocalAiAction[];
   followUpChips?: readonly string[];
   sourceRows?: ReturnType<typeof buildMeloSourceFigures>['rows'];
+  sourcePrompt?: string;
 };
 
 // status mirrors the web useChat status union the UI branches on.
@@ -335,6 +339,8 @@ function MeloChat({
   voiceActive: boolean;
 }) {
   const t = useTheme();
+  const { fontScale, width } = useWindowDimensions();
+  const stackComposer = fontScale >= 1.3 || width < 360;
   const s = useMemo(() => makeStyles(t), [t]);
 
   // Tone is a global companion preference, not throwaway sheet state. Chat phrasing and the narrow
@@ -366,14 +372,37 @@ function MeloChat({
   }, [seed]);
 
   const [messages, setMessages] = useState<ChatMessage[]>(seededMessages);
+  const [dismissedFailureIds, setDismissedFailureIds] = useState<ReadonlySet<string>>(new Set());
+  const [confirmingIds, setConfirmingIds] = useState<ReadonlySet<string>>(new Set());
   const [conversationContext, setConversationContext] =
     useState<LocalMeloConversationContext | null>(null);
   const [status, setStatus] = useState<ChatStatus>('ready');
   const voice = useMeloVoiceTranscript(voiceActive);
+  const voiceErrorRef = useRef<Text>(null);
+  useEffect(() => {
+    if (!voice.permissionDenied) return;
+    const frame = requestAnimationFrame(() => {
+      const node = findNodeHandle(voiceErrorRef.current);
+      if (node != null) AccessibilityInfo.setAccessibilityFocus?.(node);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [voice.permissionDenied]);
   const [languagePackState, setLanguagePackState] = useState<
-    LocalLanguagePackState | Readonly<{ kind: 'checking' | 'installing'; fraction?: number }>
+    | LocalLanguagePackState
+    | Readonly<{ kind: 'checking' | 'installing'; fraction?: number }>
+    | Readonly<{ kind: 'download-failed'; message: string }>
   >({ kind: 'checking' });
+  const announcedLanguagePackState = useRef<string | null>(null);
+  useEffect(() => {
+    const kind = languagePackState.kind;
+    if (kind === 'checking' || kind === 'installing' || announcedLanguagePackState.current === kind) return;
+    announcedLanguagePackState.current = kind;
+    AccessibilityInfo.announceForAccessibility?.(describeLanguagePackState(languagePackState));
+  }, [languagePackState]);
   const isLoading = status === 'submitted' || status === 'streaming';
+  useEffect(() => {
+    if (status === 'submitted') AccessibilityInfo.announceForAccessibility?.('Melo is thinking.');
+  }, [status]);
   const toneLabel = TONES.find((tn) => tn.id === savedTone)?.label ?? 'Calm';
   const starters = meloChatStarters(snapshot.workspaceKind ?? 'personal');
   function replaceDraft(text: string) {
@@ -387,12 +416,12 @@ function MeloChat({
     const result = await voice.requestStart();
     if (!voiceActive || result !== 'needs-phone-service-consent') return;
     Alert.alert(
-      'Use this phone’s speech service?',
-      'On-device transcription is not available here. If you continue, your phone’s speech provider may process this one voice input. Melo does not save the audio. You will review and can edit the transcript before it creates a proposal.',
+      'Use your phone’s speech service?',
+      'Your phone may send audio to its speech provider. Nothing is added or changed until you review the transcript and choose Create proposal.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Not now', style: 'cancel' },
         {
-          text: 'Start voice',
+          text: 'Continue',
           onPress: () => {
             void voice.startWithPhoneService();
           },
@@ -437,13 +466,14 @@ function MeloChat({
       });
       return;
     }
-    setLanguagePackState({ kind: 'unavailable', message: result.message });
+    setLanguagePackState({ kind: 'download-failed', message: result.message });
   }
 
   // --- Tool approval gate -------------------------------------------------------------------------
   // Suggestions remain transcript-only until Confirm. Dismiss only settles the visible part.
   // `decidedRef` protects against double taps; a confirmed write keeps the existing 30s Undo window.
   const decidedRef = useRef<Set<string>>(new Set());
+  const undoClaimedRef = useRef<Set<string>>(new Set());
   const turnRequestRef = useRef(0);
   const undoTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [undoMap, setUndoMap] = useState<Record<string, { undo: () => boolean | void }>>({});
@@ -488,6 +518,8 @@ function MeloChat({
     const command = decideMeloToolSuggestion(suggestion, 'confirm');
     if (command.type !== 'apply') return;
     decidedRef.current.add(callId);
+    setConfirmingIds((prev) => new Set(prev).add(callId));
+    AccessibilityInfo.announceForAccessibility?.('Recording change.');
 
     const name = suggestion.type.replace(/^tool-/, '');
     const paymentReview = suggestion.paymentReview;
@@ -500,9 +532,14 @@ function MeloChat({
         callId,
         settleMeloToolApplication(
           false,
-          'The payment details or figures changed. Nothing was recorded. Ask Melo again or open Log a payment to review the current figures.',
+          'That wasn’t recorded. Your money picture is unchanged.',
         ),
       );
+      setConfirmingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(callId);
+        return next;
+      });
       return;
     }
     let result: ReturnType<typeof applyMeloTool>;
@@ -516,19 +553,35 @@ function MeloChat({
         callId,
         settleMeloToolApplication(
           false,
-          'This change could not be saved. Check the current account and details, then try again.',
+          'That wasn’t recorded. Your money picture is unchanged.',
         ),
       );
+      setConfirmingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(callId);
+        return next;
+      });
       return;
     }
     const outputMessage = result.applied
-      ? paymentReview?.kind === 'ready'
-        ? `Payment recorded: ${formatMoney(paymentReview.paymentAmount, true)} to ${paymentReview.debtName}.\n${paymentReview.rows.map((row) => `${row.label}: ${formatMoney(row.before, true)} → ${formatMoney(row.after, true)}`).join('\n')}`
-        : result.summary
-      : result.reason;
+      ? `Recorded.\n${
+          paymentReview?.kind === 'ready'
+            ? `Payment recorded: ${formatMoney(paymentReview.paymentAmount, true)} to ${paymentReview.debtName}.\n${paymentReview.rows.map((row) => `${row.label}: ${formatMoney(row.before, true)} → ${formatMoney(row.after, true)}`).join('\n')}`
+            : result.summary
+        }`
+      : 'That wasn’t recorded. Your money picture is unchanged.';
     recordToolSettlement(callId, settleMeloToolApplication(result.applied, outputMessage));
+    setConfirmingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(callId);
+      return next;
+    });
 
-    if (!result.applied) return;
+    if (!result.applied) {
+      AccessibilityInfo.announceForAccessibility?.('Change was not recorded.');
+      return;
+    }
+    AccessibilityInfo.announceForAccessibility?.('Change recorded. Undo available.');
     setUndoMap((prev) => ({ ...prev, [callId]: { undo: result.undo } }));
     undoTimers.current[callId] = setTimeout(() => {
       setUndoMap((prev) => {
@@ -548,10 +601,15 @@ function MeloChat({
   }, []);
 
   function runUndo(id: string) {
+    if (undoClaimedRef.current.has(id)) return;
     const entry = undoMap[id];
     if (!entry) return;
+    // Claim before invoking the store callback: a stale accessibility/onPress closure can fire
+    // twice before React commits the state update that removes the Undo affordance.
+    undoClaimedRef.current.add(id);
     try {
       if (entry.undo() === false) {
+        undoClaimedRef.current.delete(id);
         Alert.alert(
           'Change kept',
           'The affected records changed after this action. Nothing was undone.',
@@ -559,6 +617,7 @@ function MeloChat({
         return;
       }
     } catch (reason) {
+      undoClaimedRef.current.delete(id);
       Alert.alert(
         'Change kept',
         reason instanceof Error ? reason.message : 'The action could not be undone safely.',
@@ -566,6 +625,7 @@ function MeloChat({
       return;
     }
     recordToolSettlement(id, settleMeloToolUndo(), 'applied');
+    AccessibilityInfo.announceForAccessibility?.('Change undone.');
     const timer = undoTimers.current[id];
     if (timer) {
       clearTimeout(timer);
@@ -640,21 +700,26 @@ function MeloChat({
       );
     }
     setConversationContext(result.context);
+    const presentedResult = { ...result, reply: presentMeloReply(result) };
     setMessages((prev) => [
       ...prev,
       {
-        ...assistantMessageFromResult(result),
-        ...(result.intent === 'explain_position' &&
+        ...assistantMessageFromResult(presentedResult),
+        sourcePrompt: trimmed,
+        ...(presentedResult.intent === 'explain_position' &&
         snapshot.workspaceKind !== 'business' &&
         snapshot.setupComplete !== false
           ? { sourceRows }
           : {}),
       },
     ]);
+    if (presentedResult.suggestions.length > 0) {
+      AccessibilityInfo.announceForAccessibility?.('Proposal ready. Nothing has changed.');
+    }
     setStatus('ready');
-  }
+}
 
-  function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) {
+function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) {
     const destination = resolveMeloLocalAction(action.kind, intent);
     if (destination.kind === 'screen') {
       nav.go(destination.screen);
@@ -688,26 +753,47 @@ function MeloChat({
     undoTimers.current = {};
     decidedRef.current = new Set();
     setUndoMap({});
+    setDismissedFailureIds(new Set());
+    setConfirmingIds(new Set());
     setConversationContext(null);
     setMessages([]);
   }
 
   function startFresh() {
-    Alert.alert('Clear this conversation?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: performClear },
-    ]);
+    Alert.alert(
+      'Start a fresh conversation?',
+      'This clears this conversation only. Your money, settings and recorded changes stay as they are.',
+      [
+        { text: 'Keep conversation', style: 'cancel' },
+        { text: 'Start fresh', style: 'destructive', onPress: performClear },
+      ],
+    );
   }
 
   // --- Stick-to-bottom transcript + scroll-to-bottom affordance. ----------------------------------
   const scrollRef = useRef<ScrollView>(null);
   const hasDraft = input.length > 0;
+  const [atBottom, setAtBottom] = useState(true);
+  const scrollOffsetRef = useRef(0);
+  const settingsReturnOffsetRef = useRef(0);
+  function toggleSettings() {
+    if (!showSettings) settingsReturnOffsetRef.current = scrollOffsetRef.current;
+    setShowSettings((open) => !open);
+  }
   useEffect(() => {
-    if (!keyboardVisible) return;
+    const frame = requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: showSettings ? 0 : settingsReturnOffsetRef.current,
+        animated: false,
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [showSettings]);
+  useEffect(() => {
+    if (!keyboardVisible || !atBottom || showSettings) return;
     const frame = requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: false }));
     return () => cancelAnimationFrame(frame);
-  }, [keyboardVisible, composerHeight, draftHeight, hasDraft]);
-  const [atBottom, setAtBottom] = useState(true);
+  }, [keyboardVisible, composerHeight, draftHeight, hasDraft, atBottom, showSettings]);
   const contentHeight = useRef(0);
   const viewportHeight = useRef(0);
 
@@ -723,6 +809,7 @@ function MeloChat({
 
   function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    scrollOffsetRef.current = contentOffset.y;
     const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
     setAtBottom(distanceFromBottom <= SCROLL_BOTTOM_EPSILON);
   }
@@ -734,6 +821,57 @@ function MeloChat({
       ? partsToText(messages[0])
       : null;
 
+  const voiceTrigger = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Use voice"
+      accessibilityHint="Starts one voice transcription after checking this phone"
+      disabled={isLoading || voice.phase !== 'idle'}
+      onPress={() => void startVoiceInput()}
+      style={({ pressed }) => [
+        s.voiceTrigger,
+        (isLoading || voice.phase !== 'idle') && s.voiceTriggerDisabled,
+        pressed && s.voiceTriggerPressed,
+      ]}
+      hitSlop={4}
+    >
+      <Text style={s.voiceTriggerGlyph}>●</Text>
+      <Text style={s.voiceTriggerLabel}>Voice</Text>
+    </Pressable>
+  );
+  const inputField = (
+    <View style={[s.inputWrap, stackComposer ? s.inputWrapStacked : undefined]}>
+      <TextInput
+        ref={inputRef}
+        value={input}
+        onChangeText={setInput}
+        placeholder="Say anything to Melo…"
+        placeholderTextColor={t.muted}
+        editable={!isLoading && voice.phase === 'idle'}
+        multiline
+        selectTextOnFocus={Boolean(prefill && input === prefill)}
+        autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
+        style={s.input}
+        accessibilityLabel="Message Melo"
+        onSubmitEditing={() => send(input)}
+        returnKeyType="send"
+        submitBehavior="submit"
+      />
+    </View>
+  );
+  const submitButton = (
+    <View style={s.submitRow}>
+      <SubmitButton
+        onPress={() => send(input)}
+        isLoading={isLoading}
+        disabled={!input.trim() && !isLoading}
+        palette={t}
+        reduceMotion={reduceMotion}
+        onStop={stop}
+      />
+    </View>
+  );
+
   return (
     <View style={s.body}>
       {/* Header */}
@@ -741,26 +879,55 @@ function MeloChat({
         <Melo mood="calm" size={36} grounded={false} />
         <View style={s.headerText}>
           <Text style={s.headerTitle}>{copy.global.melo.name}</Text>
-          <Text style={s.headerSub} numberOfLines={1}>
-            {`On this phone · ${toneLabel}`}
-          </Text>
+          <Text style={s.headerSub}>{`On this phone · ${toneLabel}`}</Text>
         </View>
         <PressText
           label={showSettings ? 'Done' : 'Tune'}
-          onPress={() => setShowSettings((v) => !v)}
+          onPress={toggleSettings}
           style={s.tune}
           labelStyle={s.tuneLabel}
           reduceMotion={reduceMotion}
           accessibilityLabel="Chat settings"
+          accessibilityState={{ expanded: showSettings }}
         />
       </View>
 
+      {typingContext ? (
+        <View style={{ flexShrink: 0, paddingVertical: gap.sm }}>
+          <Text style={{ color: t.ink, fontSize: 14, lineHeight: 20 }}>{typingContext}</Text>
+        </View>
+      ) : null}
+      {/* Transcript */}
+      <View
+        style={[
+          s.transcript,
+          ((showEmpty && keyboardVisible) || typingContext) && !showSettings
+            ? { flex: 0 }
+            : undefined,
+        ]}
+      >
+        <ScrollView
+          ref={scrollRef}
+          style={s.scroll}
+          contentContainerStyle={[s.scrollContent, { paddingBottom: gap.xl }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
+          onScroll={onScroll}
+          onContentSizeChange={(_w, h) => {
+            contentHeight.current = h;
+            if (atBottom && !showSettings) scrollToEnd(false);
+          }}
+          onLayout={(e: LayoutChangeEvent) => {
+            viewportHeight.current = e.nativeEvent.layout.height;
+          }}
+        >
       {/* Settings panel */}
       {showSettings ? (
         <View style={s.settings}>
           <View>
-            <Text style={s.sectionLabel}>Melo style</Text>
-            <View style={s.toneRow}>
+            <Text style={s.sectionLabel}>Tone</Text>
+            <View style={[s.toneRow, stackComposer ? s.toneRowStacked : undefined]}>
               {TONES.map((tn) => (
                 <ToneButton
                   key={tn.id}
@@ -778,27 +945,36 @@ function MeloChat({
           <View style={s.languagePackRow}>
             <View style={s.languagePackCopy}>
               <Text style={s.languagePackTitle}>Natural conversation</Text>
+              <Text style={s.languagePackHelper}>
+                An optional on-device language pack lets Melo talk more naturally. Your money answers don't depend on it.
+              </Text>
               <Text style={s.languagePackBody}>{describeLanguagePackState(languagePackState)}</Text>
             </View>
             {languagePackState.kind === 'not-installed' ||
             languagePackState.kind === 'invalid' ||
-            languagePackState.kind === 'unavailable' ? (
+            languagePackState.kind === 'download-failed' ? (
               <PressText
-                label="Install · 648 MB"
+                label={
+                  languagePackState.kind === 'invalid'
+                    ? 'Download again'
+                    : languagePackState.kind === 'download-failed'
+                      ? 'Try download again'
+                      : 'Download pack'
+                }
                 onPress={() =>
                   Alert.alert(
-                    'Download the private language pack?',
-                    'This is a one-off download of about 648 MB. Use Wi-Fi to avoid mobile data charges. Melo still works without this optional pack.',
+                    'Download this language pack?',
+                    'This downloads a 647 MB language pack from the model host.\n\nOnly the public pack file is downloaded. Your messages, transcripts, money and identifiers are not sent.',
                     [
                       { text: 'Not now', style: 'cancel' },
-                      { text: 'Download 648 MB', onPress: () => void installLanguagePack() },
+                      { text: 'Download', onPress: () => void installLanguagePack() },
                     ],
                   )
                 }
                 style={s.languagePackAction}
                 labelStyle={s.languagePackActionLabel}
                 reduceMotion={reduceMotion}
-                accessibilityLabel="Install local language pack, 648 megabytes"
+                accessibilityLabel="Download language pack"
               />
             ) : null}
           </View>
@@ -816,34 +992,7 @@ function MeloChat({
         </View>
       ) : null}
 
-      {typingContext ? (
-        <View style={{ flexShrink: 0, paddingVertical: gap.sm }}>
-          <Text style={{ color: t.ink, fontSize: 14, lineHeight: 20 }}>{typingContext}</Text>
-        </View>
-      ) : null}
-      {/* Transcript */}
-      <View
-        style={[
-          s.transcript,
-          (showEmpty && keyboardVisible) || typingContext ? { flex: 0 } : undefined,
-        ]}
-      >
-        <ScrollView
-          ref={scrollRef}
-          style={s.scroll}
-          contentContainerStyle={[s.scrollContent, { paddingBottom: gap.md }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          scrollEventThrottle={16}
-          onScroll={onScroll}
-          onContentSizeChange={(_w, h) => {
-            contentHeight.current = h;
-            if (atBottom) scrollToEnd(false);
-          }}
-          onLayout={(e: LayoutChangeEvent) => {
-            viewportHeight.current = e.nativeEvent.layout.height;
-          }}
-        >
+
           {/* Empty — Fraunces-italic prompt + 4 tappable starter chips. */}
           {showEmpty && !keyboardVisible ? (
             <View style={s.empty}>
@@ -868,7 +1017,7 @@ function MeloChat({
             if (m.role === 'user') {
               return (
                 <FadeIn key={m.id} reduceMotion={reduceMotion} style={s.userRow}>
-                  <View style={s.userBubble}>
+                  <View style={[s.userBubble, { maxWidth: stackComposer ? '92%' : '82%' }]}>
                     <Text style={s.userText}>{text}</Text>
                   </View>
                 </FadeIn>
@@ -935,6 +1084,8 @@ function MeloChat({
                   const paymentUnavailable =
                     toolName === 'log_debt_payment' && paymentReview?.kind !== 'ready';
                   const canUndo = phase === 'applied' && !!undoMap[callId];
+                  const failureDismissed = dismissedFailureIds.has(callId);
+                  const confirming = confirmingIds.has(callId);
                   const glyph =
                     phase === 'applied'
                       ? '✓'
@@ -952,16 +1103,17 @@ function MeloChat({
                         ? paymentReview.message
                         : describeMeloToolSuggestion(toolName, tp.input ?? {})
                     : phase === 'dismissed'
-                      ? 'Dismissed. Nothing changed.'
+                      ? 'Not changed.'
                       : phase === 'unavailable'
                         ? 'This suggestion is unavailable.'
                         : (tp.output?.message ?? 'No change was made.');
                   return (
+                    failureDismissed ? null :
                     <View key={`${callId}-${i}`} style={s.toolPill}>
                       <Text style={s.toolTick}>{glyph}</Text>
                       <View style={s.toolTextCol}>
-                        <Text style={s.toolName}>{name}</Text>
-                        <Text style={s.toolResult} accessibilityLiveRegion="polite">
+                        <Text style={s.toolName}>{isPending ? 'Proposed change' : name}</Text>
+          <Text style={s.toolResult} accessibilityLiveRegion="polite">
                           {resultText}
                         </Text>
                         {isPending ? (
@@ -999,6 +1151,7 @@ function MeloChat({
                                 reduceMotion={reduceMotion}
                                 accessibilityLabel={`Dismiss ${name} suggestion`}
                                 accessibilityHint="Leaves your money records unchanged"
+                                disabled={confirming}
                               />
                               <PressText
                                 label={
@@ -1028,9 +1181,32 @@ function MeloChat({
                                       : `Confirm ${name} suggestion`
                                 }
                                 accessibilityHint="Records this change in Melo"
+                                disabled={confirming}
                               />
                             </View>
                           </>
+                        ) : null}
+                        {phase === 'failed' && !failureDismissed ? (
+                          <View style={s.toolActions}>
+                            <PressText
+                              label="Dismiss"
+                              onPress={() =>
+                                setDismissedFailureIds((prev) => new Set(prev).add(callId))
+                              }
+                              style={s.toolDismiss}
+                              labelStyle={s.toolDismissLabel}
+                              reduceMotion={reduceMotion}
+                              accessibilityLabel="Dismiss failed change"
+                            />
+                            <PressText
+                              label="Try again"
+                              onPress={() => replaceDraft(m.sourcePrompt ?? '')}
+                              style={s.toolConfirm}
+                              labelStyle={s.toolConfirmLabel}
+                              reduceMotion={reduceMotion}
+                              accessibilityLabel="Try this change again"
+                            />
+                          </View>
                         ) : null}
                       </View>
                       {canUndo ? (
@@ -1068,7 +1244,7 @@ function MeloChat({
                       <StarterChip
                         key={`${m.id}-${chip}`}
                         label={chip}
-                        onPress={() => send(chip)}
+                        onPress={() => replaceDraft(chip)}
                         styles={s}
                         reduceMotion={reduceMotion}
                       />
@@ -1082,7 +1258,7 @@ function MeloChat({
           {/* Loading — Shimmer text only, never a spinner (STATES.md). */}
           {status === 'submitted' ? (
             <View style={s.thinking}>
-              <Shimmer text="Melo's thinking…" palette={t} reduceMotion={reduceMotion} />
+              <Shimmer text="Melo is thinking…" palette={t} reduceMotion={reduceMotion} />
             </View>
           ) : null}
 
@@ -1119,7 +1295,7 @@ function MeloChat({
         <View
           style={s.voiceListening}
           accessibilityRole="summary"
-          accessibilityLiveRegion="assertive"
+          accessibilityLiveRegion="polite"
           accessibilityLabel={
             voice.phase === 'listening'
               ? 'Listening for voice input'
@@ -1133,10 +1309,10 @@ function MeloChat({
             <View style={s.voiceListeningCopy}>
               <Text style={s.voiceListeningTitle}>
                 {voice.phase === 'listening'
-                  ? 'Listening'
+                  ? 'Listening…'
                   : voice.phase === 'processing'
-                    ? 'Finishing transcript…'
-                    : 'Starting microphone…'}
+                    ? 'Processing…'
+                    : 'Starting…'}
               </Text>
               <Text style={s.voicePrivacyLine}>
                 {voice.route === 'on-device'
@@ -1167,10 +1343,9 @@ function MeloChat({
 
       {voice.phase === 'review' ? (
         <View style={s.voiceReview} accessibilityLiveRegion="polite">
-          <Text style={s.voiceReviewTitle}>Review transcript</Text>
+          <Text style={s.voiceReviewTitle}>Review what Melo heard</Text>
           <Text style={s.voiceReviewBody}>
-            Edit this before Melo sees it. Creating a proposal still changes nothing until you
-            review and confirm it.
+            Edit anything before creating a proposal. Nothing has been sent or changed.
           </Text>
           <TextInput
             value={voice.transcript}
@@ -1209,9 +1384,31 @@ function MeloChat({
       ) : null}
 
       {voice.error ? (
-        <Text style={s.voiceError} accessibilityLiveRegion="polite">
-          {voice.error}
-        </Text>
+        <View
+          style={s.voiceErrorBlock}
+        >
+          <Text ref={voiceErrorRef} style={s.voiceError} accessibilityRole="alert" accessibilityLiveRegion="polite">{voice.error}</Text>
+          {voice.permissionDenied ? (
+            <View style={s.voiceErrorActions}>
+              <PressText
+                label="Not now"
+                onPress={voice.discard}
+                style={s.voiceErrorSecondary}
+                labelStyle={s.voiceErrorSecondaryLabel}
+                reduceMotion={reduceMotion}
+                accessibilityLabel="Not now"
+              />
+              <PressText
+                label="Open settings"
+                onPress={() => void Linking.openSettings()}
+                style={s.voiceErrorPrimary}
+                labelStyle={s.voiceErrorPrimaryLabel}
+                reduceMotion={reduceMotion}
+                accessibilityLabel="Open microphone settings"
+              />
+            </View>
+          ) : null}
+        </View>
       ) : null}
 
       {/* Composer */}
@@ -1232,74 +1429,50 @@ function MeloChat({
         </View>
       ) : null}
       <View
-        style={s.composer}
+        style={[s.composer, stackComposer ? s.composerStacked : undefined]}
         onLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Start voice input"
-          accessibilityHint="Starts one voice transcription after checking this phone"
-          disabled={isLoading || voice.phase !== 'idle'}
-          onPress={() => void startVoiceInput()}
-          style={({ pressed }) => [
-            s.voiceTrigger,
-            (isLoading || voice.phase !== 'idle') && s.voiceTriggerDisabled,
-            pressed && s.voiceTriggerPressed,
-          ]}
-          hitSlop={4}
-        >
-          <Text style={s.voiceTriggerGlyph}>●</Text>
-          <Text style={s.voiceTriggerLabel}>Voice</Text>
-        </Pressable>
-        <View style={s.inputWrap}>
-          <TextInput
-            ref={inputRef}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Say anything to Melo…"
-            placeholderTextColor={t.muted}
-            editable={!isLoading && voice.phase === 'idle'}
-            multiline
-            selectTextOnFocus={Boolean(prefill && input === prefill)}
-            autoFocus={process.env.EXPO_PUBLIC_MELO_PARITY_CAPTURE !== 'true'}
-            style={s.input}
-            accessibilityLabel="Say anything to Melo"
-            onSubmitEditing={() => send(input)}
-            returnKeyType="send"
-            submitBehavior="submit"
-          />
-        </View>
-        <View style={s.submitRow}>
-          <SubmitButton
-            onPress={() => send(input)}
-            isLoading={isLoading}
-            disabled={!input.trim() && !isLoading}
-            palette={t}
-            reduceMotion={reduceMotion}
-            onStop={stop}
-          />
-        </View>
+        {stackComposer ? (
+          <>
+            {inputField}
+            <View style={s.composerControls}>
+              {voiceTrigger}
+              {submitButton}
+            </View>
+          </>
+        ) : (
+          <>
+            {voiceTrigger}
+            {inputField}
+            {submitButton}
+          </>
+        )}
       </View>
     </View>
   );
 }
 
 function describeLanguagePackState(
-  state: LocalLanguagePackState | Readonly<{ kind: 'checking' | 'installing'; fraction?: number }>,
+  state:
+    | LocalLanguagePackState
+    | Readonly<{ kind: 'checking' | 'installing'; fraction?: number }>
+    | Readonly<{ kind: 'download-failed'; message: string }>,
 ): string {
   switch (state.kind) {
     case 'checking':
       return 'Checking this phone…';
     case 'installing':
-      return `Installing on this phone · ${Math.round((state.fraction ?? 0) * 100)}%`;
+      return `Downloading… ${Math.round((state.fraction ?? 0) * 100)}%`;
     case 'installed':
-      return 'Ready on this phone for broader wording and more natural replies.';
+      return 'Installed on this phone';
     case 'not-installed':
-      return 'Optional, one-off 648 MB download for more natural replies. Use Wi-Fi. Melo works without it.';
+      return 'Not installed · 647 MB download';
     case 'invalid':
-      return 'The saved pack did not pass verification. Install a clean copy.';
-    case 'unavailable':
+      return "The downloaded pack didn't check out. Nothing was changed.";
+    case 'download-failed':
       return state.message;
+    case 'unavailable':
+      return 'Not available in this build.';
   }
 }
 
@@ -1367,7 +1540,7 @@ function ToneButton({
   }
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole="radio"
       accessibilityState={{ selected }}
       onPress={onPress}
       onPressIn={() => press(PRESS_SCALE)}
@@ -1433,6 +1606,8 @@ function PressText({
   reduceMotion,
   accessibilityLabel,
   accessibilityHint,
+  disabled = false,
+  accessibilityState,
 }: {
   label: string;
   onPress: () => void;
@@ -1441,6 +1616,8 @@ function PressText({
   reduceMotion: boolean;
   accessibilityLabel: string;
   accessibilityHint?: string;
+  disabled?: boolean;
+  accessibilityState?: { disabled?: boolean; expanded?: boolean; selected?: boolean };
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   function press(to: number) {
@@ -1455,12 +1632,21 @@ function PressText({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
+      disabled={disabled}
+      accessibilityState={{ disabled, ...accessibilityState }}
       onPress={onPress}
       onPressIn={() => press(PRESS_SCALE)}
       onPressOut={() => press(1)}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
-      <Animated.View style={[style, { transform: [{ scale }] }]}>
+      <Animated.View
+        style={[
+          style,
+          { minHeight: 44, minWidth: 44, justifyContent: 'center' },
+          disabled && { opacity: 0.55 },
+          { transform: [{ scale }] },
+        ]}
+      >
         <Text style={labelStyle}>{label}</Text>
       </Animated.View>
     </Pressable>
@@ -1498,7 +1684,7 @@ function SubmitButton({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={isLoading ? 'Stop' : 'Send'}
+      accessibilityLabel={isLoading ? 'Stop' : 'Send message'}
       accessibilityState={{ disabled }}
       disabled={disabled && !isLoading}
       onPress={isLoading ? onStop : onPress}
@@ -1707,8 +1893,8 @@ function makeStyles(t: Palette) {
     },
     assistantText: {
       color: t.ink,
-      fontSize: 13.5,
-      lineHeight: 21,
+      fontSize: 16,
+      lineHeight: 23,
     },
     followUpList: {
       flexDirection: 'row',
@@ -1720,7 +1906,7 @@ function makeStyles(t: Palette) {
       borderColor: t.calm,
       borderRadius: radius.md,
       borderWidth: StyleSheet.hairlineWidth,
-      minHeight: 36,
+      minHeight: 44,
       paddingHorizontal: gap.md,
       paddingVertical: gap.sm,
     },
@@ -1744,8 +1930,18 @@ function makeStyles(t: Palette) {
     composer: {
       alignItems: 'flex-end',
       flexDirection: 'row',
-      gap: gap.sm,
+      gap: gap.md,
       paddingTop: gap.sm,
+    },
+    composerStacked: {
+      alignItems: 'stretch',
+      flexDirection: 'column',
+    },
+    composerControls: {
+      alignItems: 'flex-end',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      width: '100%',
     },
     emptyHeadline: {
       color: t.ink,
@@ -1765,6 +1961,7 @@ function makeStyles(t: Palette) {
     },
     header: {
       alignItems: 'center',
+      minHeight: 72,
       borderBottomColor: t.hairline,
       borderBottomWidth: StyleSheet.hairlineWidth,
       flexDirection: 'row',
@@ -1773,7 +1970,8 @@ function makeStyles(t: Palette) {
     },
     headerSub: {
       color: t.muted,
-      fontSize: 11.5,
+      fontSize: 14,
+      lineHeight: 20,
     },
     headerText: {
       flex: 1,
@@ -1781,16 +1979,22 @@ function makeStyles(t: Palette) {
     },
     headerTitle: {
       color: t.ink,
-      fontSize: 14,
+      fontSize: 16,
       fontWeight: '500',
+      lineHeight: 23,
     },
     input: {
       color: t.ink,
-      fontSize: 14,
-      lineHeight: 20,
-      maxHeight: 120,
-      minHeight: 24,
+      fontSize: 16,
+      lineHeight: 23,
+      maxHeight: 144,
+      minHeight: 56,
       paddingVertical: 0,
+    },
+    inputWrapStacked: {
+      alignSelf: 'stretch',
+      flex: 0,
+      width: '100%',
     },
     inputWrap: {
       backgroundColor: t.surface,
@@ -1806,7 +2010,7 @@ function makeStyles(t: Palette) {
     },
     scrollContent: {
       paddingHorizontal: gap.xs,
-      paddingVertical: gap.md,
+      paddingVertical: gap.lg,
     },
     scrollFab: {
       alignItems: 'center',
@@ -1833,8 +2037,9 @@ function makeStyles(t: Palette) {
     },
     sectionLabel: {
       color: t.muted,
-      fontSize: 11.5,
+      fontSize: 12,
       letterSpacing: 1.6, // tracking-[0.14em] on an 11.5px label
+      lineHeight: 16,
       marginBottom: gap.sm,
       textTransform: 'uppercase',
     },
@@ -1855,9 +2060,15 @@ function makeStyles(t: Palette) {
     },
     languagePackBody: {
       color: t.muted,
-      fontSize: 11.5,
-      lineHeight: 16,
+      fontSize: 14,
+      lineHeight: 20,
       marginTop: 2,
+    },
+    languagePackHelper: {
+      color: t.muted,
+      fontSize: 14,
+      lineHeight: 20,
+      marginTop: gap.xs,
     },
     languagePackCopy: {
       flex: 1,
@@ -1872,8 +2083,9 @@ function makeStyles(t: Palette) {
     },
     languagePackTitle: {
       color: t.ink,
-      fontSize: 13,
+      fontSize: 16,
       fontWeight: '600',
+      lineHeight: 23,
     },
     settings: {
       borderBottomColor: t.hairline,
@@ -1901,8 +2113,11 @@ function makeStyles(t: Palette) {
       fontSize: 13,
     },
     starter: {
+      alignItems: 'flex-start',
       backgroundColor: t.inset,
       borderRadius: radius.md,
+      justifyContent: 'center',
+      minHeight: 44,
       paddingHorizontal: 14,
       paddingVertical: 10,
     },
@@ -1932,16 +2147,20 @@ function makeStyles(t: Palette) {
     tone: {
       alignItems: 'center',
       borderRadius: radius.md,
-      height: 32,
       justifyContent: 'center',
+      minHeight: 44,
     },
     toneCell: {
       flex: 1,
     },
+    toneCellStacked: {
+      alignSelf: 'stretch',
+      flex: 0,
+    },
     toneDescription: {
       color: t.muted,
-      fontSize: 11.5,
-      lineHeight: 16,
+      fontSize: 14,
+      lineHeight: 20,
       marginTop: gap.sm,
     },
     toneLabelSelected: {
@@ -1956,6 +2175,9 @@ function makeStyles(t: Palette) {
       flexDirection: 'row',
       gap: gap.xs + gap.xxs, // gap-1.5 = 6
     },
+    toneRowStacked: {
+      flexDirection: 'column',
+    },
     toneSelected: {
       backgroundColor: t.calm,
     },
@@ -1964,8 +2186,9 @@ function makeStyles(t: Palette) {
     },
     toolName: {
       color: t.muted,
-      fontSize: 10.5,
-      letterSpacing: 1.3, // tracking-[0.12em] on a 10.5px label
+      fontSize: 12,
+      letterSpacing: 1.2,
+      lineHeight: 16,
       textTransform: 'uppercase',
     },
     toolActions: {
@@ -2004,8 +2227,8 @@ function makeStyles(t: Palette) {
     },
     toolHint: {
       color: t.muted,
-      fontSize: 11.5,
-      lineHeight: 16,
+      fontSize: 14,
+      lineHeight: 20,
       marginTop: gap.xs,
     },
     paymentReview: {
@@ -2046,7 +2269,8 @@ function makeStyles(t: Palette) {
     },
     toolResult: {
       color: t.ink,
-      fontSize: 12.5,
+      fontSize: 16,
+      lineHeight: 23,
       marginTop: 2,
     },
     toolTextCol: {
@@ -2105,7 +2329,7 @@ function makeStyles(t: Palette) {
       backgroundColor: t.ink,
       borderRadius: radius.sm,
       justifyContent: 'center',
-      minHeight: 40,
+      minHeight: 44,
       paddingHorizontal: gap.md,
     },
     voiceCreateProposalLabel: {
@@ -2119,7 +2343,7 @@ function makeStyles(t: Palette) {
       borderRadius: radius.sm,
       borderWidth: StyleSheet.hairlineWidth,
       justifyContent: 'center',
-      minHeight: 40,
+      minHeight: 44,
       paddingHorizontal: gap.md,
     },
     voiceDiscardLabel: {
@@ -2131,7 +2355,40 @@ function makeStyles(t: Palette) {
       color: t.repairInk,
       fontSize: 12,
       lineHeight: 17,
+    },
+    voiceErrorActions: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: gap.sm,
       paddingTop: gap.sm,
+    },
+    voiceErrorBlock: {
+      paddingTop: gap.sm,
+    },
+    voiceErrorPrimary: {
+      backgroundColor: t.repair,
+      borderRadius: radius.sm,
+      justifyContent: 'center',
+      minHeight: 44,
+      paddingHorizontal: gap.md,
+    },
+    voiceErrorPrimaryLabel: {
+      color: t.inverse,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    voiceErrorSecondary: {
+      borderColor: t.hairlineStrong,
+      borderRadius: radius.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      justifyContent: 'center',
+      minHeight: 44,
+      paddingHorizontal: gap.md,
+    },
+    voiceErrorSecondaryLabel: {
+      color: t.muted,
+      fontSize: 12,
+      fontWeight: '500',
     },
     voiceListening: {
       backgroundColor: t.repairSoft,
@@ -2223,7 +2480,7 @@ function makeStyles(t: Palette) {
       backgroundColor: t.repair,
       borderRadius: radius.pill,
       justifyContent: 'center',
-      minHeight: 36,
+      minHeight: 44,
       paddingHorizontal: gap.md,
     },
     voiceStopLabel: {
@@ -2237,7 +2494,7 @@ function makeStyles(t: Palette) {
       borderColor: t.hairlineStrong,
       borderRadius: radius.md,
       borderWidth: StyleSheet.hairlineWidth,
-      height: 48,
+      height: 56,
       justifyContent: 'center',
       paddingHorizontal: gap.sm,
     },

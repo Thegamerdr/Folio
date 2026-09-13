@@ -22,6 +22,7 @@ export type MeloVoiceTranscript = Readonly<{
   route: Exclude<MeloVoiceRecognitionRoute, 'unavailable'> | null;
   transcript: string;
   error: string | null;
+  permissionDenied: boolean;
   requestStart: () => Promise<MeloVoiceStartResult>;
   startWithPhoneService: () => Promise<boolean>;
   stop: () => void;
@@ -40,6 +41,7 @@ export function useMeloVoiceTranscript(active: boolean): MeloVoiceTranscript {
   );
   const [transcript, setTranscriptState] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   const phaseRef = useRef<MeloVoicePhase>('idle');
   const transcriptRef = useRef('');
@@ -92,7 +94,7 @@ export function useMeloVoiceTranscript(active: boolean): MeloVoiceTranscript {
     const hasTranscript = transcriptRef.current.trim().length > 0;
     updatePhase(hasTranscript ? 'review' : 'idle');
     if (!hasTranscript) {
-      setError("Melo didn't hear anything. You can tap the mic to try once more, or type instead.");
+      setError('No speech detected. Try again or type instead.');
     }
   });
 
@@ -102,9 +104,17 @@ export function useMeloVoiceTranscript(active: boolean): MeloVoiceTranscript {
     if (!sessionActiveRef.current && !wasDeliberate) return;
     sessionActiveRef.current = false;
     if (wasDeliberate || event.error === 'aborted') return;
+    if (event.error === 'not-allowed') {
+      updatePhase('idle');
+      setPermissionDenied(true);
+      setError(
+        'Microphone access is off.\nAllow microphone access in your phone settings, or keep typing.',
+      );
+      return;
+    }
     if (transcriptRef.current.trim()) {
       updatePhase('review');
-      setError('Voice input stopped early. Review the words captured below, or discard them.');
+      setError('Voice input stopped. Review what Melo heard, or try again.');
       return;
     }
     updatePhase('idle');
@@ -118,6 +128,7 @@ export function useMeloVoiceTranscript(active: boolean): MeloVoiceTranscript {
       const generation = requestGenerationRef.current + 1;
       requestGenerationRef.current = generation;
       setError(null);
+      setPermissionDenied(false);
       setTranscript('');
       setRoute(recognitionRoute);
       updatePhase('starting');
@@ -135,17 +146,16 @@ export function useMeloVoiceTranscript(active: boolean): MeloVoiceTranscript {
         sessionActiveRef.current = false;
         setRoute(null);
         updatePhase('idle');
-        setError('Microphone permission could not be checked. You can type instead.');
+        setError('Couldn’t start listening. Keep typing, or try again.');
         return false;
       }
       if (generation !== requestGenerationRef.current || !activeRef.current) return false;
       if (!permission.granted) {
         setRoute(null);
         updatePhase('idle');
+        setPermissionDenied(true);
         setError(
-          permission.canAskAgain
-            ? 'Microphone access is needed for voice input. You can also type instead.'
-            : 'Microphone access is off. You can enable it in phone settings, or type instead.',
+          'Microphone access is off.\nAllow microphone access in your phone settings, or keep typing.',
         );
         return false;
       }
@@ -159,7 +169,7 @@ export function useMeloVoiceTranscript(active: boolean): MeloVoiceTranscript {
         sessionActiveRef.current = false;
         setRoute(null);
         updatePhase('idle');
-        setError('Voice input could not start. You can type instead.');
+        setError('Couldn’t start listening. Keep typing, or try again.');
         return false;
       }
     },
@@ -186,7 +196,7 @@ export function useMeloVoiceTranscript(active: boolean): MeloVoiceTranscript {
     }
     if (!activeRef.current || phaseRef.current !== 'idle') return 'unavailable';
     if (nextRoute === 'unavailable') {
-      setError('Speech recognition is not available on this phone. You can type instead.');
+      setError('Speech isn’t available right now. Keep typing or try later.');
       return 'unavailable';
     }
     if (nextRoute === 'phone-service') return 'needs-phone-service-consent';
@@ -196,7 +206,7 @@ export function useMeloVoiceTranscript(active: boolean): MeloVoiceTranscript {
   const startWithPhoneService = useCallback(async (): Promise<boolean> => {
     if (!activeRef.current || phaseRef.current !== 'idle') return false;
     if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
-      setError('Speech recognition is not available on this phone. You can type instead.');
+      setError('Speech isn’t available right now. Keep typing or try later.');
       return false;
     }
     return beginRecognition('phone-service');
@@ -235,6 +245,7 @@ export function useMeloVoiceTranscript(active: boolean): MeloVoiceTranscript {
     route,
     transcript,
     error,
+    permissionDenied,
     requestStart,
     startWithPhoneService,
     stop,

@@ -49,24 +49,24 @@ export function describeMeloVoiceError(error: ExpoSpeechRecognitionErrorCode): s
   switch (error) {
     case 'no-speech':
     case 'speech-timeout':
-      return "Melo didn't hear anything. You can tap the mic to try once more, or type instead.";
+      return 'No speech detected. Try again or type instead.';
     case 'not-allowed':
-      return 'Microphone access is off. You can enable it in phone settings, or type instead.';
+      return 'Microphone access is off.\nAllow microphone access in your phone settings, or keep typing.';
     case 'language-not-supported':
-      return 'English speech recognition is not ready on this phone. You can type instead.';
+      return 'Speech isn’t available right now. Keep typing or try later.';
     case 'network':
-      return 'The phone speech service could not finish. You can try once more, or type instead.';
+      return 'Couldn’t start listening. Keep typing, or try again.';
     case 'audio-capture':
     case 'interrupted':
     case 'busy':
-      return 'Voice input stopped because the microphone became unavailable. You can type instead.';
+      return 'Couldn’t start listening. Keep typing, or try again.';
     case 'service-not-allowed':
-      return 'Speech recognition is not available on this phone. You can type instead.';
+      return 'Speech isn’t available right now. Keep typing or try later.';
     case 'aborted':
       return '';
     case 'bad-grammar':
     case 'client':
     case 'unknown':
-      return 'Voice input stopped. You can tap the mic to try once more, or type instead.';
+      return 'Voice input stopped. Keep typing, or try again.';
   }
 }

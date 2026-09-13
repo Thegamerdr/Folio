@@ -72,7 +72,7 @@ describe('Melo tool suggestion approval gate', () => {
     const undone = settleMeloToolUndo();
     expect(undone).toEqual({
       state: MELO_TOOL_UNDONE,
-      output: { ok: true, message: 'Undone. Nothing changed.' },
+      output: { ok: true, message: 'Change undone.' },
     });
     expect(getMeloToolSuggestionPhase(undone)).toBe('undone');
   });
@@ -87,7 +87,7 @@ describe('Melo tool suggestion approval gate', () => {
         from: 'Current',
         to: 'Savings',
       }),
-    ).toBe('Log a £100.00 transfer from Current to Savings.');
+    ).toBe('Move £100.00 from Current to Savings.');
   });
 });
 
