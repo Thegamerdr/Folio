@@ -1137,7 +1137,7 @@ function reconcileVisibleCurrentBalance(
     balanceConfidence: state.currentBalance.confidence,
     balanceSourceVariant: state.currentBalance.source,
     projectionRole: 'reconciliation',
-    authorityState: 'estimated',
+    authorityState: canonicalCurrentBalanceAuthorityState(state),
     includeInAvailablePosition: true,
   });
 }
@@ -1147,6 +1147,9 @@ function projectAccount(
   state: AppState,
   projectionRole: NonNullable<CanonicalMobileAccountInput['projectionRole']> = 'source',
 ): CanonicalMobileAccountInput {
+  // Canonical storage has no separate `provided` bit on the legacy aggregate. For a zero
+  // balance, carry that fact through the authority state so hydration can distinguish an
+  // explicitly confirmed £0 from the untouched unknown baseline without inventing money.
   return {
     id: account.id,
     name: account.name,
@@ -1160,9 +1163,22 @@ function projectAccount(
     balanceConfidence: state.currentBalance.confidence,
     balanceSourceVariant: state.currentBalance.source,
     projectionRole,
-    authorityState: state.currentBalance.source === 'sample' ? 'estimated' : 'user-confirmed',
+    authorityState: canonicalCurrentBalanceAuthorityState(state),
     includeInAvailablePosition: !account.isLiability,
   };
+}
+
+function canonicalCurrentBalanceAuthorityState(
+  state: AppState,
+): 'estimated' | 'confirmed' | 'user-confirmed' {
+  // Canonical storage has no separate `provided` bit on the legacy aggregate. For a zero
+  // balance, carry that fact through authority state so hydration distinguishes an explicitly
+  // confirmed £0 from the untouched unknown baseline without inventing money.
+  if (state.currentBalance.provided === true) return 'confirmed';
+  const zeroBalanceUnknown = state.currentBalance.amount === 0;
+  return zeroBalanceUnknown || state.currentBalance.source === 'sample'
+    ? 'estimated'
+    : 'user-confirmed';
 }
 
 function canonicalAccountKind(account: Account): CanonicalMobileAccountInput['kind'] {
