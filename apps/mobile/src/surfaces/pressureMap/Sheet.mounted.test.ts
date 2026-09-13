@@ -1,7 +1,7 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
-import { TextInput } from 'react-native';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TextInput, View } from 'react-native';
 
 (globalThis as any).requestAnimationFrame = (callback: () => void) => { callback(); return 1; };
 (globalThis as any).cancelAnimationFrame = () => undefined;
@@ -20,7 +20,13 @@ vi.mock('react-native', async () => {
     BackHandler: { addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
     Dimensions: { get: vi.fn(() => ({ width: 390, height: 844 })) },
     Easing: { inOut: (x: any) => x, cubic: (x: any) => x, bezier: (...x: any[]) => x },
-    Keyboard: { metrics: vi.fn(() => undefined), addListener: vi.fn(() => ({ remove: vi.fn() })) },
+    Keyboard: {
+      metrics: vi.fn(() => undefined),
+      addListener: vi.fn((name: string, callback: (event?: any) => void) => {
+        keyboardListeners.set(name, callback);
+        return { remove: vi.fn(() => keyboardListeners.delete(name)) };
+      }),
+    },
     Modal: el('Modal'), Platform: { OS: 'android' }, Pressable: el('Pressable'),
     ScrollView: el('ScrollView'), StyleSheet: { create: (x: any) => x, hairlineWidth: 1 },
     Text: el('Text'), TextInput: Object.assign(el('TextInput'), { State: { currentlyFocusedInput: vi.fn(() => null) } }),
@@ -35,7 +41,10 @@ vi.mock('./sheetBack', () => ({ dismissTopSheet: vi.fn(), registerSheetBack: vi.
 
 import { Sheet } from './Sheet';
 
+const keyboardListeners = new Map<string, (event?: any) => void>();
+
 describe('Sheet mounted focus lifecycle', () => {
+  afterEach(() => keyboardListeners.clear());
   it('survives default-off sheet layout after navigation releases focused input', () => {
     let bodyNode: any;
     let tree!: renderer.ReactTestRenderer;
@@ -52,6 +61,82 @@ describe('Sheet mounted focus lifecycle', () => {
     ); });
     const scroll = tree.root.findAll((node) => (node.type as any) === 'ScrollView')[0]!;
     expect(() => act(() => scroll.props.onLayout({ nativeEvent: { layout: { width: 390, height: 400 } } }))).not.toThrow();
+    act(() => tree.unmount());
+  });
+
+  it('keeps terminal content visible when IME dismissal grows the viewport without focus', () => {
+    let bodyNode: any;
+    const terminalAlignmentEnabledRef = { current: true };
+    const terminalRef = { current: { measureLayout: (_relative: any, cb: any) => cb(0, 1200, 390, 80) } as any };
+    const scrollTo = vi.fn();
+    act(() => { renderer.create(
+      React.createElement(Sheet, {
+        visible: true,
+        onClose: vi.fn(),
+        scrollable: true,
+        imeOverflowPolicy: 'scrollBodyToFocusedTerminal',
+        terminalAlignmentEnabledRef,
+        terminalRef,
+        children: React.createElement(View, { style: { height: 80 } }),
+      }),
+      { createNodeMock: (element: any) => {
+        if (element.type === 'ScrollView') {
+          bodyNode = {
+            getNativeScrollRef: () => bodyNode,
+            measureInWindow: (cb: any) => cb(0, 0, 390, 400),
+            scrollTo,
+          };
+          return bodyNode;
+        }
+        if (element.type === 'View' || element.type === 'Animated.View') {
+          return {
+            measure: vi.fn(),
+            measureInWindow: vi.fn(),
+            measureLayout: (_relative: any, cb: any) => cb(0, 1200, 390, 80),
+          };
+        }
+        return {};
+      } },
+    ); });
+    act(() => keyboardListeners.get('keyboardDidShow')?.({ endCoordinates: { height: 300 } }));
+    act(() => keyboardListeners.get('keyboardDidHide')?.());
+    expect(scrollTo).toHaveBeenCalledWith({ y: 880, animated: false });
+  });
+
+  it('restores the prior reader anchor when IME dismissal is nonterminal', () => {
+    let bodyNode: any;
+    const scrollTo = vi.fn();
+    let tree!: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(
+      React.createElement(Sheet, {
+          visible: true,
+          onClose: vi.fn(),
+          scrollable: true,
+          imeOverflowPolicy: 'scrollBodyToFocusedTerminal',
+          terminalAlignmentEnabled: false,
+          children: React.createElement(View, { style: { height: 80 } }),
+        }),
+        { createNodeMock: (element: any) => {
+          if (element.type === 'ScrollView') {
+            bodyNode = {
+              getNativeScrollRef: () => bodyNode,
+              measureInWindow: (cb: any) => cb(0, 0, 390, 400),
+              scrollTo,
+            };
+            return bodyNode;
+          }
+          if (element.type === 'View' || element.type === 'Animated.View') {
+            return { measure: vi.fn(), measureInWindow: vi.fn(), measureLayout: vi.fn() };
+          }
+          return {};
+        } },
+      );
+    });
+    const scroll = tree.root.findAll((node) => (node.type as any) === 'ScrollView')[0]!;
+    act(() => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 240 } } }));
+    act(() => keyboardListeners.get('keyboardDidShow')?.({ endCoordinates: { height: 300 } }));
+    act(() => keyboardListeners.get('keyboardDidHide')?.());
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 240, animated: false });
     act(() => tree.unmount());
   });
 });

@@ -432,6 +432,8 @@ export function Sheet({
   const focusMeasurement = useRef(0);
   const lastKeyboardVisible = useRef(false);
   const anchorOffset = useRef(0);
+  const terminalImeIntent = useRef(false);
+  const terminalImeRestore = useRef(false);
   const keepFocusedInputVisible = useCallback(() => {
     const generation = ++focusMeasurement.current;
     if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
@@ -439,6 +441,10 @@ export function Sheet({
       focusFrame.current = null;
       const focused = TextInput.State.currentlyFocusedInput();
       const body = bodyScrollRef.current;
+      const terminalAlignmentRequested =
+        imeOverflowPolicy === 'scrollBodyToFocusedTerminal' &&
+        ((terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled) ||
+          terminalImeRestore.current);
       if (geometryLogging) {
         console.info(
           'MeloSheetGeometry',
@@ -454,24 +460,24 @@ export function Sheet({
       }
       // Layout/keyboard callbacks can arrive after navigation has released focus.
       // Never enter native measurement with a stale null input handle.
-      if (!visible || !bodyScrollable || !focused || !body) return;
-      if (imeOverflowPolicy === 'scrollBodyToFocusedTerminal' &&
-          !(terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled)) return;
+      if (!visible || !bodyScrollable || !body || (!terminalAlignmentRequested && !focused)) return;
       const bodyNative = body.getNativeScrollRef();
       const content = contentRef.current;
       if (!bodyNative || !content) return;
       bodyNative.measureInWindow((_bodyX, bodyTop, _bodyWidth, bodyHeight) => {
-        if (imeOverflowPolicy === 'scrollBodyToFocusedTerminal' && terminalRef?.current && (terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled)) {
+        if (terminalAlignmentRequested && terminalRef?.current) {
           terminalRef.current.measureLayout(
             content,
             (_x, terminalTop, _width, terminalHeight) => {
               const nextY = Math.max(0, terminalTop + terminalHeight - bodyHeight);
               if (Math.abs(nextY - scrollY.current) > 1) body.scrollTo({ y: nextY, animated: false });
+              if (terminalImeRestore.current) terminalImeRestore.current = false;
             },
             () => undefined,
           );
           return;
         }
+        if (!focused) return;
         focused.measureLayout(
           content,
           (_inputX, inputContentTop, _inputWidth, inputHeight) => {
@@ -544,13 +550,37 @@ export function Sheet({
     );
   }, [keepFocusedInputVisible]);
   useEffect(() => {
+    const terminalAlignmentEnabledNow =
+      terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled;
+    if (keyboardMetrics && imeOverflowPolicy === 'scrollBodyToFocusedTerminal') {
+      terminalImeIntent.current = terminalAlignmentEnabledNow;
+    }
     if (!keyboardMetrics && lastKeyboardVisible.current && bodyScrollable) {
-      bodyScrollRef.current?.scrollTo({ y: anchorOffset.current, animated: false });
+      const terminalAlignmentRequested =
+        imeOverflowPolicy === 'scrollBodyToFocusedTerminal' &&
+        (terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled);
+      if (terminalAlignmentRequested || terminalImeIntent.current) {
+        terminalImeRestore.current = true;
+        keepFocusedInputVisible();
+        terminalImeIntent.current = false;
+      } else {
+        bodyScrollRef.current?.scrollTo({ y: anchorOffset.current, animated: false });
+      }
     }
     lastKeyboardVisible.current = Boolean(keyboardMetrics);
     if (visible && keyboardMetrics) settleFocusedInput();
     return () => focusSettleTimers.current.forEach(clearTimeout);
-  }, [visible, keyboardMetrics, settleFocusedInput]);
+  }, [
+    visible,
+    keyboardMetrics,
+    settleFocusedInput,
+    bodyScrollable,
+    bodyScrollRef,
+    imeOverflowPolicy,
+    terminalAlignmentEnabled,
+    terminalAlignmentEnabledRef,
+    keepFocusedInputVisible,
+  ]);
   const measureViewport = useCallback(() => {
     measureSheetFrame(rootRef.current, usesAndroidPortal, (next) => {
       setWindowFrame((current) =>
