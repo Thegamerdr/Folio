@@ -1,7 +1,9 @@
-import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Alert,
+  AccessibilityInfo,
   FlatList,
+  findNodeHandle,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,12 +20,18 @@ import { formatReviewDate } from '@/folio/screens/reviewFormat';
 import {
   buildStatementReviewModel,
   filterStatementReviewRows,
+  statementReviewSessionMatchesSource,
   statementReviewSourceKey,
   statementReviewNaturalKey,
   type StatementReviewFilter,
   type StatementReviewRow,
 } from '@/folio/lib/statementReviewModel';
-import { nextBulkLandingOffer, type BulkLandingOffer } from '@/folio/lib/bulkLanding';
+import {
+  acknowledgeStatementReviewSession,
+  nextBulkLandingOffer,
+  statementReviewSessionWithReceipt,
+  type BulkLandingOffer,
+} from '@/folio/lib/bulkLanding';
 import { detectAccountName } from '@/folio/lib/detectAccountName';
 import { persistCurrentStateNow, quiescePersistenceWrites } from '@/folio/lib/persist';
 import type { CandidateKind, CandidateMoneyItem } from '@/folio/lib/importSheet';
@@ -34,6 +42,7 @@ import {
   getState,
   importedTransactionId,
   setStatementReviewSession,
+  clearStatementReviewSession,
   setAccountBalance,
   useAppStore,
   useStatementReviewSession,
@@ -152,6 +161,7 @@ type ReviewRowProps = {
   onSaved: () => void;
   theme: FolioTheme;
   largeText: boolean;
+  restoreFocus: boolean;
 };
 const ReviewRow = memo(function ReviewRow({
   row,
@@ -163,7 +173,17 @@ const ReviewRow = memo(function ReviewRow({
   onSaved,
   theme: t,
   largeText,
+  restoreFocus,
 }: ReviewRowProps) {
+  const actionRef = useRef<View>(null);
+  useEffect(() => {
+    if (!restoreFocus) return;
+    const timer = setTimeout(() => {
+      const tag = findNodeHandle(actionRef.current);
+      if (tag !== null) AccessibilityInfo.setAccessibilityFocus(tag);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [restoreFocus]);
   const candidate = row.candidate;
   const selectable = row.status === 'ready' && !aside;
   const state = aside ? 'Kept aside' : issueReason(row);
@@ -233,6 +253,7 @@ const ReviewRow = memo(function ReviewRow({
           {state}
         </Text>
         <Pressable
+          ref={actionRef}
           accessibilityRole="button"
           accessibilityLabel={actionAccessibilityLabel}
           onPress={onAction}
@@ -297,10 +318,10 @@ export function BulkStatementLanding({
   const existingAccounts = useAppStore((s) => s.accounts ?? []);
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId);
   const persistedSession = useStatementReviewSession();
-  const incomingSessionKey = statementReviewSourceKey(initialCandidates);
-  const canResumePersistedSession =
-    persistedSession !== null &&
-    (initialCandidates.length === 0 || persistedSession.sourceKey === incomingSessionKey);
+  const canResumePersistedSession = statementReviewSessionMatchesSource(
+    persistedSession,
+    initialCandidates,
+  );
   const resumeSession = canResumePersistedSession ? persistedSession : null;
   const seedCandidates = resumeSession?.candidates ?? initialCandidates;
   const existingImportIds = useMemo(
@@ -363,6 +384,11 @@ export function BulkStatementLanding({
   const [resolvedAccountId, setResolvedAccountId] = useState<string | null>(
     resumeSession?.accountId ?? null,
   );
+  const sourceConflict =
+    persistedSession !== null &&
+    initialCandidates.length > 0 &&
+    !statementReviewSessionMatchesSource(persistedSession, initialCandidates);
+  const [allowIncomingSource, setAllowIncomingSource] = useState(false);
   const [editing, setEditing] = useState<CandidateMoneyItem | null>(null);
   const [editMerchant, setEditMerchant] = useState('');
   const [editAmount, setEditAmount] = useState('');
@@ -372,6 +398,10 @@ export function BulkStatementLanding({
   const [editErrors, setEditErrors] = useState<
     Partial<Record<'merchant' | 'amount' | 'date' | 'direction', string>>
   >({});
+  const editMerchantRef = useRef<TextInput>(null);
+  const editAmountRef = useRef<TextInput>(null);
+  const editDateRef = useRef<TextInput>(null);
+  const [focusRowId, setFocusRowId] = useState<string | null>(null);
   const [repeatCandidate, setRepeatCandidate] = useState<CandidateMoneyItem | null>(null);
   const [repeatSelectedIds, setRepeatSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const repeatRows = useMemo(
@@ -413,6 +443,7 @@ export function BulkStatementLanding({
   // state is intentionally separate from readerCandidates, which remains a read-once bridge.
   useEffect(() => {
     if (summary !== null) return;
+    if (sourceConflict && !allowIncomingSource) return;
     setStatementReviewSession({
       candidates: [...candidates],
       sourceKey: statementReviewSourceKey(candidates),
@@ -421,7 +452,16 @@ export function BulkStatementLanding({
       asideIds: [...asideIds],
       resolvedRepeatIds: [...resolvedRepeatIds],
     });
-  }, [asideIds, candidates, resolvedAccountId, resolvedRepeatIds, selectedIds, summary]);
+  }, [
+    allowIncomingSource,
+    asideIds,
+    candidates,
+    resolvedAccountId,
+    resolvedRepeatIds,
+    selectedIds,
+    sourceConflict,
+    summary,
+  ]);
 
   async function persistReceiptDurably(workspaceId: typeof activeWorkspaceId) {
     const resumePersistence = await quiescePersistenceWrites();
@@ -448,6 +488,7 @@ export function BulkStatementLanding({
     [asideIds, model.rows],
   );
   const openEditor = useCallback((candidate: CandidateMoneyItem) => {
+    setFocusRowId(null);
     setEditing(candidate);
     setEditMerchant(candidate.merchant);
     setEditAmount(Math.abs(candidate.amount).toFixed(2));
@@ -491,7 +532,18 @@ export function BulkStatementLanding({
         errors.date = 'Enter a real date.';
     }
     setEditErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      const firstInvalid =
+        errors.merchant !== undefined
+          ? editMerchantRef
+          : errors.amount !== undefined
+            ? editAmountRef
+            : errors.date !== undefined
+              ? editDateRef
+              : null;
+      if (firstInvalid !== null) setTimeout(() => firstInvalid.current?.focus(), 0);
+      return;
+    }
     const absolute = Number(amountText);
     const signed =
       editKind === 'income' || (editKind === 'transfer' && editTransferFlow === 'in')
@@ -503,6 +555,7 @@ export function BulkStatementLanding({
       amount: signed,
       date: editDate.trim(),
       kind: editKind,
+      reviewed: true,
     };
     setCandidates((current) =>
       current.map((candidate) => (candidate.id === editing.id ? nextCandidate : candidate)),
@@ -512,6 +565,8 @@ export function BulkStatementLanding({
       next.delete(editing.id);
       return next;
     });
+    setFocusRowId(editing.id);
+    AccessibilityInfo.announceForAccessibility('Saved. Ready to add.');
     setEditing(null);
   }
   function resolveAccount() {
@@ -558,15 +613,19 @@ export function BulkStatementLanding({
       // Persist the receipt before callers clear the reader bridge. The existing persistence writer
       // observes this synchronous store update; native callers may additionally await their durable
       // write in onReceiptReady before releasing any source resources.
-      setStatementReviewSession({
-        candidates: [...candidates],
-        sourceKey: statementReviewSourceKey(candidates),
-        accountId,
-        selectedIds: [...selectedIds],
-        asideIds: [...asideIds],
-        resolvedRepeatIds: [...resolvedRepeatIds],
-        receipt: result,
-      });
+      setStatementReviewSession(
+        statementReviewSessionWithReceipt(
+          {
+            candidates: [...candidates],
+            sourceKey: statementReviewSourceKey(candidates),
+            accountId,
+            selectedIds: [...selectedIds],
+            asideIds: [...asideIds],
+            resolvedRepeatIds: [...resolvedRepeatIds],
+          },
+          result,
+        ),
+      );
       setReceiptDelivery({
         accountId,
         selectedCandidateIds: selected.map((candidate) => candidate.id),
@@ -625,29 +684,18 @@ export function BulkStatementLanding({
     if (summary === null) return;
     const workspaceId = activeWorkspaceId;
     const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
-    const remaining = candidates.filter((candidate) => asideIds.has(candidate.id));
-    const acknowledgedSession =
-      remaining.length === 0
-        ? null
-        : {
-            candidates: remaining,
-            sourceKey: statementReviewSourceKey(remaining),
-            accountId,
-            selectedIds: [],
-            asideIds: remaining.map((candidate) => candidate.id),
-            resolvedRepeatIds: [...resolvedRepeatIds].filter((id) =>
-              remaining.some((candidate) => candidate.id === id),
-            ),
-          };
-    const receiptSession = {
-      candidates: [...candidates],
-      sourceKey: statementReviewSourceKey(candidates),
-      accountId,
-      selectedIds: [...selectedIds],
-      asideIds: [...asideIds],
-      resolvedRepeatIds: [...resolvedRepeatIds],
-      receipt: summary,
-    };
+    const receiptSession = statementReviewSessionWithReceipt(
+      {
+        candidates: [...candidates],
+        sourceKey: statementReviewSourceKey(candidates),
+        accountId,
+        selectedIds: [...selectedIds],
+        asideIds: [...asideIds],
+        resolvedRepeatIds: [...resolvedRepeatIds],
+      },
+      summary,
+    );
+    const acknowledgedSession = acknowledgeStatementReviewSession(receiptSession);
     setReceiptAcknowledged(true);
     setReceiptPending(true);
     setReceiptPersistenceError(false);
@@ -657,6 +705,40 @@ export function BulkStatementLanding({
       setReceiptPending(false);
       onAdded();
       nav.go('today');
+    } catch {
+      setStatementReviewSession(receiptSession);
+      setReceiptPending(false);
+      setReceiptAcknowledged(false);
+      setReceiptPersistenceError(true);
+    }
+  }
+  async function reviewAside() {
+    if (summary === null || asideIds.size === 0) return;
+    const workspaceId = activeWorkspaceId;
+    const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
+    const receiptSession = statementReviewSessionWithReceipt(
+      {
+        candidates: [...candidates],
+        sourceKey: statementReviewSourceKey(candidates),
+        accountId,
+        selectedIds: [...selectedIds],
+        asideIds: [...asideIds],
+        resolvedRepeatIds: [...resolvedRepeatIds],
+      },
+      summary,
+    );
+    const retainedSession = acknowledgeStatementReviewSession(receiptSession);
+    if (retainedSession === null) return;
+    setReceiptAcknowledged(true);
+    setReceiptPending(true);
+    setReceiptPersistenceError(false);
+    setStatementReviewSession(retainedSession);
+    try {
+      await persistReceiptDurably(workspaceId);
+      setReceiptPending(false);
+      setReceiptDelivery(null);
+      setSummary(null);
+      setFilter('aside');
     } catch {
       setStatementReviewSession(receiptSession);
       setReceiptPending(false);
@@ -710,10 +792,44 @@ export function BulkStatementLanding({
         onSaved={() => nav.go('timeline')}
         theme={t}
         largeText={largeText}
+        restoreFocus={focusRowId === item.candidate.id}
       />
     ),
-    [asideIds, nav, openEditor, selectedIds, t, toggle],
+    [asideIds, focusRowId, nav, openEditor, selectedIds, t, toggle],
   );
+
+  if (sourceConflict && !allowIncomingSource) {
+    return (
+      <ReceiptViewport theme={t}>
+        <View style={[styles.receipt, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Text accessibilityRole="header" style={[styles.receiptTitle, { color: t.ink }]}>
+            Saved review in progress
+          </Text>
+          <Text style={[styles.receiptBody, { color: t.muted }]}>
+            Finish or leave the saved statement review before starting another statement.
+          </Text>
+          <Pressable
+            onPress={() => {
+              onSourceReturn?.();
+              if (onSourceReturn === undefined) nav.go('intake');
+            }}
+            style={[styles.primary, { backgroundColor: t.calm }]}
+          >
+            <Text style={[styles.primaryLabel, { color: t.inverse }]}>Keep saved review</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              clearStatementReviewSession();
+              setAllowIncomingSource(true);
+            }}
+            style={styles.secondary}
+          >
+            <Text style={[styles.secondaryLabel, { color: t.muted }]}>Start this statement</Text>
+          </Pressable>
+        </View>
+      </ReceiptViewport>
+    );
+  }
 
   if (!accountConfirmed) {
     const choices = [
@@ -948,13 +1064,7 @@ export function BulkStatementLanding({
             </Pressable>
           )}
           {aside > 0 ? (
-            <Pressable
-              onPress={() => {
-                setReceiptAcknowledged(true);
-                setFilter('aside');
-              }}
-              style={styles.secondary}
-            >
+            <Pressable onPress={() => void reviewAside()} style={styles.secondary}>
               <Text
                 style={[styles.secondaryLabel, { color: t.calm }]}
               >{`Review ${aside} kept aside`}</Text>
@@ -1241,13 +1351,18 @@ export function BulkStatementLanding({
             </Pressable>
           </View>
         }
-      >
-        <View style={styles.editor}>
+        closeAccessibilityLabel="Close editor"
+        maxHeightFraction={largeText ? 1 : 0.88}
+        header={
           <Text accessibilityRole="header" style={[styles.editorTitle, { color: t.ink }]}>
             Edit transaction
           </Text>
+        }
+      >
+        <View style={styles.editor}>
           <Text style={[styles.fieldLabel, { color: t.ink }]}>Merchant or description</Text>
           <TextInput
+            ref={editMerchantRef}
             accessibilityLabel="Merchant or description"
             value={editMerchant}
             onChangeText={setEditMerchant}
@@ -1266,20 +1381,25 @@ export function BulkStatementLanding({
             </Text>
           ) : null}
           <Text style={[styles.fieldLabel, { color: t.ink }]}>Amount</Text>
-          <TextInput
-            accessibilityLabel="Amount"
-            value={editAmount}
-            onChangeText={setEditAmount}
-            keyboardType="decimal-pad"
+          <View
             style={[
-              styles.input,
+              styles.amountInput,
               {
-                color: t.ink,
                 borderColor: editErrors.amount ? t.repair : t.hairline,
                 backgroundColor: t.inset,
               },
             ]}
-          />
+          >
+            <Text style={[styles.currencyPrefix, { color: t.muted }]}>£</Text>
+            <TextInput
+              ref={editAmountRef}
+              accessibilityLabel="Amount"
+              value={editAmount}
+              onChangeText={setEditAmount}
+              keyboardType="decimal-pad"
+              style={[styles.input, styles.amountInputField, { color: t.ink }]}
+            />
+          </View>
           {editErrors.amount ? (
             <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: t.repair }]}>
               {editErrors.amount}
@@ -1290,6 +1410,7 @@ export function BulkStatementLanding({
           </Text>
           <Text style={[styles.fieldLabel, { color: t.ink }]}>Date</Text>
           <TextInput
+            ref={editDateRef}
             accessibilityLabel="Date"
             value={editDate}
             onChangeText={setEditDate}
@@ -1304,6 +1425,7 @@ export function BulkStatementLanding({
               },
             ]}
           />
+          <Text style={[styles.helper, { color: t.muted }]}>YYYY-MM-DD</Text>
           {editErrors.date ? (
             <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: t.repair }]}>
               {editErrors.date}
@@ -1478,6 +1600,23 @@ const styles = StyleSheet.create({
     minHeight: 48,
     marginTop: gap.sm,
     paddingHorizontal: gap.lg,
+  },
+  amountInput: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    marginTop: gap.sm,
+    minHeight: 48,
+    paddingLeft: gap.lg,
+  },
+  currencyPrefix: { fontSize: 16, fontWeight: '600' },
+  amountInputField: {
+    borderWidth: 0,
+    flex: 1,
+    marginTop: 0,
+    minHeight: 46,
+    paddingLeft: gap.sm,
   },
   typeChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.sm, marginTop: gap.sm },
   typeChoice: {

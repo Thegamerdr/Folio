@@ -116,6 +116,15 @@ export function statementReviewSourceKey(candidates: readonly CandidateMoneyItem
   return `${candidates[0]?.source ?? 'unknown'}:${candidates.map((candidate) => candidate.id).join('|')}`;
 }
 
+/** A persisted session may resume an empty cold-relaunch route, or the same live source. */
+export function statementReviewSessionMatchesSource(
+  session: { sourceKey?: string } | null | undefined,
+  candidates: readonly CandidateMoneyItem[],
+): boolean {
+  if (session === null || session === undefined) return false;
+  return candidates.length === 0 || session.sourceKey === statementReviewSourceKey(candidates);
+}
+
 /**
  * Linear-time review projection for any statement size. Confidence is never upgraded: only rows
  * the parser already marked high/medium, with a known non-transfer kind and no exact within-batch
@@ -171,7 +180,8 @@ export function buildStatementReviewModel(
       issue = 'missing-date';
     else if (!isValidISODate(candidate.date)) issue = 'invalid-date';
     else if (candidate.kind === 'unknown') issue = 'unknown';
-    else if (candidate.confidence === 'low') issue = 'low-confidence';
+    else if (candidate.confidence === 'low' && candidate.reviewed !== true)
+      issue = 'low-confidence';
     else if (candidate.kind === 'transfer') issue = 'transfer';
     const status: StatementReviewStatus = isAlreadyAdded
       ? 'already-added'

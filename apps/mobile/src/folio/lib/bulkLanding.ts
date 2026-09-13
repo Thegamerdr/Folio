@@ -17,7 +17,36 @@
 // "nothing auto-applies silently" review-before-truth expectation keeps visible in the render
 // layer, not buried in a pure helper.
 
-import type { AddStatementAsHistoryResult } from '../store';
+import type { AddStatementAsHistoryResult, StatementReviewSession } from '../store';
+import { statementReviewSourceKey } from './statementReviewModel';
+
+/** Build the durable provisional state after a receipt is acknowledged. Kept-aside rows remain
+ * available for a later explicit review; accepted rows and the acknowledged receipt do not reopen. */
+export function acknowledgeStatementReviewSession(
+  session: StatementReviewSession,
+): StatementReviewSession | null {
+  const asideIds = new Set(session.asideIds);
+  const remaining = session.candidates.filter((candidate) => asideIds.has(candidate.id));
+  if (remaining.length === 0) return null;
+  return {
+    candidates: remaining,
+    sourceKey: statementReviewSourceKey(remaining),
+    ...(session.accountId === undefined ? {} : { accountId: session.accountId }),
+    selectedIds: [],
+    asideIds: remaining.map((candidate) => candidate.id),
+    resolvedRepeatIds: session.resolvedRepeatIds.filter((id) =>
+      remaining.some((candidate) => candidate.id === id),
+    ),
+  };
+}
+
+/** Keep the exact committed review state available while durable receipt persistence is retried. */
+export function statementReviewSessionWithReceipt(
+  session: StatementReviewSession,
+  receipt: AddStatementAsHistoryResult,
+): StatementReviewSession {
+  return { ...session, receipt };
+}
 
 // A statement is "multiple candidates" — the plain threshold the owner's spec draws between "a
 // statement" (bulk landing) and "a single item" (straight to per-row Review). Exactly 1 candidate

@@ -64,6 +64,8 @@ export type CandidateMoneyItem = {
   /** Suggested category — never silently final (confirmed in Review). */
   category?: string;
   confidence: CandidateConfidence;
+  /** Set only after a user has explicitly saved a valid correction in Review. */
+  reviewed?: boolean;
   /** Human explanation / source context for Review. */
   note?: string;
 };

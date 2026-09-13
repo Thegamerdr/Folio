@@ -4,6 +4,7 @@ import { buildScaleFixture } from './scaleFixture.testSupport';
 import {
   buildStatementReviewModel,
   filterStatementReviewRows,
+  statementReviewSessionMatchesSource,
   statementReviewNaturalKey,
 } from './statementReviewModel';
 
@@ -70,6 +71,31 @@ describe('statementReviewModel', () => {
     expect(model.rows.every((row) => row.status === 'issue')).toBe(true);
     expect(model.counts.ready).toBe(0);
     expect(model.counts.issues).toBe(4);
+  });
+
+  it('keeps low-confidence rows blocked until an explicit valid review saves them', () => {
+    const candidate = { ...buildScaleFixture(1).candidates[0]!, confidence: 'low' as const };
+    expect(buildStatementReviewModel([candidate]).rows[0]?.status).toBe('issue');
+    expect(buildStatementReviewModel([{ ...candidate, reviewed: true }]).rows[0]?.status).toBe(
+      'ready',
+    );
+    expect(
+      filterStatementReviewRows(
+        buildStatementReviewModel([candidate]).rows,
+        'issues',
+        'Needs checking',
+        new Set(),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('only resumes a persisted review for its source, while allowing an explicit cold resume', () => {
+    const candidate = buildScaleFixture(1).candidates[0]!;
+    const other = { ...candidate, id: 'other-source-row', source: 'paste' as const };
+    const session = { sourceKey: `${candidate.source}:${candidate.id}` };
+    expect(statementReviewSessionMatchesSource(session, [candidate])).toBe(true);
+    expect(statementReviewSessionMatchesSource(session, [other])).toBe(false);
+    expect(statementReviewSessionMatchesSource(session, [])).toBe(true);
   });
 
   it('projects and filters the full 10k+ corpus within a conservative CI budget', () => {
