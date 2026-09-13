@@ -11,9 +11,18 @@ export type PersistenceFailureStage =
   | 'workspace-manifest'
   | 'rollback-files';
 
-export type PersistenceStageTaggedError = Error & {
-  readonly persistenceStage?: PersistenceFailureStage;
-};
+export class PersistenceAttemptError extends Error {
+  readonly persistenceStage: PersistenceFailureStage;
+  override readonly cause: unknown;
+
+  constructor(stage: PersistenceFailureStage, cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = 'PersistenceAttemptError';
+    this.persistenceStage = stage;
+    this.cause = cause;
+    Object.freeze(this);
+  }
+}
 
 export type PersistenceRuntimeState = Readonly<{
   status: PersistenceStatus;

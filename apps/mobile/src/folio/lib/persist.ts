@@ -103,6 +103,7 @@ import {
   markPersistenceFailed,
   markPersistenceSaved,
   markPersistenceSaving,
+  PersistenceAttemptError,
   type PersistenceFailureStage,
 } from './persistenceRuntime';
 
@@ -1018,12 +1019,7 @@ export async function persistCurrentStateNow(
     );
     setPersistenceFailureStage(failureStage);
     markPersistenceFailed(workspaceId, reason, new Date().toISOString());
-    const tagged = reason instanceof Error ? reason : new Error(String(reason));
-    Object.defineProperty(tagged, 'persistenceStage', {
-      configurable: true,
-      value: failureStage,
-    });
-    throw tagged;
+    throw new PersistenceAttemptError(failureStage, reason);
   }
 }
 

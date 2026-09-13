@@ -34,6 +34,7 @@ import {
 import { detectAccountName } from '@/folio/lib/detectAccountName';
 import { persistCurrentStateNow, quiescePersistenceWrites } from '@/folio/lib/persist';
 import { persistenceFailureStageOf } from '@/folio/lib/persistenceRuntime';
+import { canRestoreReviewSnapshot } from '@/folio/lib/reviewPersistenceGuard';
 import type { CandidateKind, CandidateMoneyItem, ColumnIssue } from '@/folio/lib/importSheet';
 import {
   addAccount,
@@ -438,6 +439,7 @@ export function BulkStatementLanding({
   const [receiptPending, setReceiptPending] = useState(false);
   const [receiptPersistenceError, setReceiptPersistenceError] = useState(false);
   const [receiptRecoveryAction, setReceiptRecoveryAction] = useState<'add' | 'ack' | 'aside'>('add');
+  const [retryNeedsFreshAction, setRetryNeedsFreshAction] = useState(false);
   const [receiptWorkspaceId, setReceiptWorkspaceId] = useState<typeof activeWorkspaceId | null>(null);
   const [commitError, setCommitError] = useState(false);
   const [receiptDelivery, setReceiptDelivery] = useState<{
@@ -505,10 +507,25 @@ export function BulkStatementLanding({
     }
   }
 
-  function restoreBeforeCommit(blob: string, workspaceId: typeof activeWorkspaceId): boolean {
+  function restoreBeforeCommit(
+    blob: string,
+    workspaceId: typeof activeWorkspaceId,
+    expectedAttemptBlob: string,
+  ): boolean {
     // A workspace switch invalidates the captured partition snapshot. Never hydrate it over the
     // newly active workspace; leave the durable boundary to that workspace's own persistence loop.
-    if (String(getState().activeWorkspaceId) !== String(workspaceId)) return false;
+    if (
+      !canRestoreReviewSnapshot({
+        currentWorkspaceId: getState().activeWorkspaceId,
+        expectedWorkspaceId: workspaceId,
+        currentBlob: getPersistBlob(workspaceId),
+        expectedAttemptBlob,
+      })
+    )
+      return false;
+    // A newer mutation in the same workspace invalidates the captured snapshot just as surely as
+    // a workspace switch. Comparing the exact serialized partition is the existing store revision
+    // boundary and avoids adding a second counter that could drift from persistence.
     try {
       hydrateFromBlob(blob, workspaceId);
       return String(getState().activeWorkspaceId) === String(workspaceId);
@@ -645,6 +662,7 @@ export function BulkStatementLanding({
     setReceiptPersistenceError(false);
     setReceiptWorkspaceId(activeWorkspaceId);
     const beforeCommitBlob = getPersistBlob(activeWorkspaceId);
+    let attemptBlob = beforeCommitBlob;
     try {
       const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
       const result = addStatementAsHistory(
@@ -664,6 +682,7 @@ export function BulkStatementLanding({
           result,
         ),
       );
+      attemptBlob = getPersistBlob(activeWorkspaceId);
       setReceiptDelivery({
         accountId,
         selectedCandidateIds: selected.map((candidate) => candidate.id),
@@ -691,7 +710,7 @@ export function BulkStatementLanding({
         // re-running the ledger write. The runtime stage is value-free and never includes user data.
         const stage = persistenceFailureStageOf(reason);
         if (stage === 'preparation' || stage === 'workspace-state') {
-          if (!restoreBeforeCommit(beforeCommitBlob, activeWorkspaceId)) {
+          if (!restoreBeforeCommit(beforeCommitBlob, activeWorkspaceId, attemptBlob)) {
             setReceiptPending(false);
             setReceiptPersistenceError(true);
             return;
@@ -710,7 +729,7 @@ export function BulkStatementLanding({
       // addStatementAsHistory may have published part of its synchronous mutation before a later
       // detector/command boundary rejects. Restore the exact pre-attempt partition so the visible
       // "Nothing changed" branch is truthful and a retry cannot duplicate a landed row.
-      if (!restoreBeforeCommit(beforeCommitBlob, activeWorkspaceId)) {
+      if (!restoreBeforeCommit(beforeCommitBlob, activeWorkspaceId, attemptBlob)) {
         setReceiptPending(false);
         setReceiptPersistenceError(true);
         return;
@@ -736,6 +755,7 @@ export function BulkStatementLanding({
       }
       setReceiptPending(false);
       setReceiptPersistenceError(false);
+      setRetryNeedsFreshAction(false);
       if (receiptRecoveryAction === 'ack') {
         setReceiptAcknowledged(true);
         onAdded();
@@ -767,6 +787,7 @@ export function BulkStatementLanding({
     setReceiptAcknowledged(true);
     setReceiptPending(true);
     setReceiptPersistenceError(false);
+    setRetryNeedsFreshAction(false);
     setReceiptRecoveryAction('ack');
     setReceiptWorkspaceId(workspaceId);
     if (acknowledgedSession === null) {
@@ -784,8 +805,9 @@ export function BulkStatementLanding({
       const precommit = stage === 'preparation' || stage === 'workspace-state';
       if (precommit) upsertStatementReviewSession(receiptSession);
       setReceiptPending(false);
-      setReceiptAcknowledged(precommit ? false : false);
-      setReceiptPersistenceError(!precommit);
+      setReceiptAcknowledged(false);
+      setRetryNeedsFreshAction(precommit);
+      setReceiptPersistenceError(true);
     }
   }
   async function reviewAside() {
@@ -813,7 +835,8 @@ export function BulkStatementLanding({
       if (precommit) upsertStatementReviewSession(receiptSession);
       setReceiptPending(false);
       setReceiptAcknowledged(false);
-      setReceiptPersistenceError(!precommit);
+      setRetryNeedsFreshAction(precommit);
+      setReceiptPersistenceError(true);
     }
   }
   function keepSelectedAside() {
@@ -1039,14 +1062,24 @@ export function BulkStatementLanding({
             accessibilityLiveRegion="assertive"
             style={[styles.receiptBody, { color: t.muted }]}
           >
-            {receiptRecoveryAction === 'ack'
+            {retryNeedsFreshAction
+              ? 'Nothing changed. Your receipt and choices are still here. Try again to finish this step.'
+              : receiptRecoveryAction === 'ack'
               ? 'The statement is saved, but Melo could not finish the acknowledgement handoff. Try again to continue.'
               : receiptRecoveryAction === 'aside'
                 ? 'The statement is saved, but Melo could not finish keeping these rows aside. Try again to continue.'
                 : 'The statement write completed, but Melo could not durably save its receipt. Keep this screen open and try again later.'}
           </Text>
           <Pressable
-            onPress={() => void retryReceiptPersistence()}
+            onPress={() => {
+              if (retryNeedsFreshAction) {
+                setRetryNeedsFreshAction(false);
+                if (receiptRecoveryAction === 'ack') void acknowledgeReceipt();
+                else if (receiptRecoveryAction === 'aside') void reviewAside();
+              } else {
+                void retryReceiptPersistence();
+              }
+            }}
             style={[styles.primary, { backgroundColor: t.calm }]}
           >
             <Text style={[styles.primaryLabel, { color: t.inverse }]}>Try again</Text>
