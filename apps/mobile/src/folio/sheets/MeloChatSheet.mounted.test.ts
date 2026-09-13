@@ -29,7 +29,7 @@ vi.mock('react-native', async () => {
   });
 });
 vi.mock('@/folio/ui/meloAlert', () => ({ MeloAlert: { alert: alertSpy } }));
-vi.mock('@/folio/theme', () => ({ gap:{xs:4,sm:8,md:12,lg:16,xl:24}, radius:{sm:8,md:12,lg:16}, serif:'serif', Sheet:({children,...p}:any)=>React.createElement('Sheet',p,children), useTheme:()=>t }));
+vi.mock('@/folio/theme', () => ({ gap:{xs:4,sm:8,md:12,lg:16,xl:24}, radius:{sm:8,md:12,lg:16}, serif:'serif', Sheet:({children,...p}:any)=>React.createElement('Sheet',p,p.imeOverflowPolicy === 'scrollBodyToFocusedTerminal' ? React.createElement('ScrollView',{ref:p.scrollRef,onScroll:p.onBodyScroll,onContentSizeChange:p.onBodyContentSizeChange,onLayout:p.onBodyLayout},children) : children), useTheme:()=>t }));
 vi.mock('@/folio/copy/copy', () => ({ copy:{global:{melo:{name:'Melo'}}} }));
 vi.mock('@/folio/melo/Melo', () => ({ Melo:()=>React.createElement('Melo') }));
 vi.mock('@/folio/store', () => ({ applyMeloTool:vi.fn(()=>{ applyTool(); return {applied:true,summary:'Recorded test change.',undo:undoSpy}; }), getState:()=>state, purgeSeedIfReal:(x:any)=>x, setMelo:vi.fn(), useAppStore:(sel:any)=>sel(state) }));

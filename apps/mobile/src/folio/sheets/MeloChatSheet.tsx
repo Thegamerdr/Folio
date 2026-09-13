@@ -217,6 +217,12 @@ export type MeloChatSheetProps = {
 
 export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloChatSheetProps) {
   const reduceMotion = useReduceMotion();
+  const bodyScrollRef = useRef<ScrollView>(null);
+  const bodyHandlersRef = useRef<{
+    onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+    onContentSizeChange?: (width: number, height: number) => void;
+    onLayout?: (event: LayoutChangeEvent) => void;
+  }>({});
 
   const state = useAppStore((s) => s);
   const subs = useAppStore((s) => s.subs);
@@ -294,7 +300,19 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
   // is intentionally dropped (spec `moods` row + fidelity note). One avatar instance, re-keyed on
   // visible so it remounts fresh each open (matches the web mount lifecycle).
   return (
-    <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion} scrollable={false}>
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      reduceMotion={reduceMotion}
+      scrollRef={bodyScrollRef}
+      directScrollContent
+      imeOverflowPolicy="scrollBodyToFocusedTerminal"
+      onBodyScroll={(event) => bodyHandlersRef.current.onScroll?.(event)}
+      onBodyContentSizeChange={(widthValue, heightValue) =>
+        bodyHandlersRef.current.onContentSizeChange?.(widthValue, heightValue)
+      }
+      onBodyLayout={(event) => bodyHandlersRef.current.onLayout?.(event)}
+    >
       <MeloChat
         snapshot={snapshot}
         prefill={prefill}
@@ -306,6 +324,8 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
         subscriptionState={subscriptionState}
         sourceRows={buildMeloSourceFigures(state).rows}
         voiceActive={visible}
+        bodyScrollRef={bodyScrollRef}
+        bodyHandlersRef={bodyHandlersRef}
       />
     </Sheet>
   );
@@ -326,6 +346,8 @@ function MeloChat({
   subscriptionState,
   sourceRows,
   voiceActive,
+  bodyScrollRef,
+  bodyHandlersRef,
 }: {
   snapshot: MeloLocalFinancialSnapshot;
   prefill?: string | undefined;
@@ -337,6 +359,12 @@ function MeloChat({
   subscriptionState: Parameters<LocalMeloSubscriptionActionResolver>[1];
   sourceRows: ReturnType<typeof buildMeloSourceFigures>['rows'];
   voiceActive: boolean;
+  bodyScrollRef: React.RefObject<ScrollView | null>;
+  bodyHandlersRef: React.MutableRefObject<{
+    onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+    onContentSizeChange?: (width: number, height: number) => void;
+    onLayout?: (event: LayoutChangeEvent) => void;
+  }>;
 }) {
   const t = useTheme();
   const { fontScale, width } = useWindowDimensions();
@@ -771,7 +799,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
   }
 
   // --- Stick-to-bottom transcript + scroll-to-bottom affordance. ----------------------------------
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = bodyScrollRef;
   const hasDraft = input.length > 0;
   const [atBottom, setAtBottom] = useState(true);
   const scrollOffsetRef = useRef(0);
@@ -813,6 +841,17 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
     const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
     setAtBottom(distanceFromBottom <= SCROLL_BOTTOM_EPSILON);
   }
+
+  bodyHandlersRef.current = {
+    onScroll,
+    onContentSizeChange: (_w, h) => {
+      contentHeight.current = h;
+      if (atBottom && !showSettings) scrollToEnd(false);
+    },
+    onLayout: (e) => {
+      viewportHeight.current = e.nativeEvent.layout.height;
+    },
+  };
 
   const showEmpty = messages.length === 0 && !isLoading;
   // The opening money question remains readable while its first reply is being typed.
@@ -901,22 +940,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
             : undefined,
         ]}
       >
-        <ScrollView
-          ref={scrollRef}
-          style={s.scroll}
-          contentContainerStyle={[s.scrollContent, { paddingBottom: gap.xl }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          scrollEventThrottle={16}
-          onScroll={onScroll}
-          onContentSizeChange={(_w, h) => {
-            contentHeight.current = h;
-            if (atBottom && !showSettings) scrollToEnd(false);
-          }}
-          onLayout={(e: LayoutChangeEvent) => {
-            viewportHeight.current = e.nativeEvent.layout.height;
-          }}
-        >
+        <View style={s.scrollContent}>
       {typingContext ? (
         <View style={{ flexShrink: 0, paddingVertical: gap.sm }}>
           <Text style={{ color: t.ink, fontSize: 14, lineHeight: 20 }}>{typingContext}</Text>
@@ -1263,7 +1287,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
           ) : null}
 
           {/* Error — accent-coloured line. */}
-        </ScrollView>
+        </View>
 
         {/* Scroll-to-bottom FAB — only when not already at the bottom. */}
         {!atBottom ? (

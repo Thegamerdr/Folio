@@ -42,6 +42,8 @@ import {
   type KeyboardEvent,
   type StyleProp,
   type ViewStyle,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion as useSystemReducedMotion } from 'react-native-reanimated';
@@ -117,6 +119,11 @@ type SheetProps = {
   closeAccessibilityLabel?: string;
   /** Resting sheet height as a fraction of its window; defaults to the shared 92% shell. */
   maxHeightFraction?: number;
+  /** Local geometry policy; existing sheets retain sibling resizing by default. */
+  imeOverflowPolicy?: 'resizeSiblings' | 'scrollBodyToFocusedTerminal';
+  onBodyScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onBodyContentSizeChange?: (width: number, height: number) => void;
+  onBodyLayout?: (event: NativeSyntheticEvent<any>) => void;
 };
 
 type SheetPortalApi = {
@@ -342,6 +349,10 @@ export function Sheet({
   contentMinHeight,
   closeAccessibilityLabel = 'Close',
   maxHeightFraction = MAX_HEIGHT_FRACTION,
+  imeOverflowPolicy = 'resizeSiblings',
+  onBodyScroll,
+  onBodyContentSizeChange,
+  onBodyLayout,
 }: SheetProps) {
   const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -405,6 +416,7 @@ export function Sheet({
   const internalScrollRef = useRef<ScrollView>(null);
   const contentRef = useRef<View>(null);
   const bodyScrollRef = scrollRef ?? internalScrollRef;
+  const bodyScrollable = scrollable || imeOverflowPolicy === 'scrollBodyToFocusedTerminal';
   const scrollY = useRef(0);
   const focusFrame = useRef<number | null>(null);
   const focusMeasurement = useRef(0);
@@ -428,7 +440,7 @@ export function Sheet({
           }),
         );
       }
-      if (!visible || !scrollable || !focused || !body) return;
+      if (!visible || !bodyScrollable || !focused || !body) return;
       const bodyNative = body.getNativeScrollRef();
       const content = contentRef.current;
       if (!bodyNative || !content) return;
@@ -489,7 +501,7 @@ export function Sheet({
     scrollKey,
     focusContextBefore,
     focusContextAfter,
-    scrollable,
+    bodyScrollable,
     shouldReduceMotion,
     visible,
   ]);
@@ -675,7 +687,7 @@ export function Sheet({
               style={[
                 s.panel,
                 { maxHeight, paddingBottom: panelBottomPadding },
-                !scrollable && { height: maxHeight },
+                !bodyScrollable && { height: maxHeight },
                 { transform: [{ translateY }] },
               ]}
             >
@@ -697,7 +709,7 @@ export function Sheet({
                 ) : null}
               </View>
               {header ? <View style={{ flexShrink: 0 }}>{header}</View> : null}
-              {scrollable ? (
+              {bodyScrollable ? (
                 <ScrollView
                   key={`sheet-body-${scrollKey ?? 'stable'}`}
                   ref={bodyScrollRef}
@@ -715,6 +727,7 @@ export function Sheet({
                   keyboardDismissMode="none"
                   automaticallyAdjustKeyboardInsets={false}
                   onLayout={(event) => {
+                    onBodyLayout?.(event);
                     keepFocusedInputVisible();
                     if (geometryLogging) {
                       console.info(
@@ -728,6 +741,7 @@ export function Sheet({
                     }
                   }}
                   onContentSizeChange={(widthValue, heightValue) => {
+                    onBodyContentSizeChange?.(widthValue, heightValue);
                     keepFocusedInputVisible();
                     if (geometryLogging) {
                       console.info(
@@ -742,6 +756,7 @@ export function Sheet({
                     }
                   }}
                   onScroll={(event) => {
+                    onBodyScroll?.(event);
                     scrollY.current = event.nativeEvent.contentOffset.y;
                     if (geometryLogging) {
                       console.info(
@@ -831,7 +846,11 @@ export function Sheet({
       translateY,
       usesAndroidPortal,
       visible,
-      scrollable,
+      bodyScrollable,
+      imeOverflowPolicy,
+      onBodyScroll,
+      onBodyContentSizeChange,
+      onBodyLayout,
       scrollKey,
     ],
   );
