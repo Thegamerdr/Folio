@@ -127,6 +127,7 @@ type SheetProps = {
   terminalRef?: RefObject<View | null>;
   terminalAlignmentEnabled?: boolean;
   terminalAlignmentEnabledRef?: { current: boolean };
+  terminalAlignmentIntentRef?: { current: number };
 };
 
 type SheetPortalApi = {
@@ -359,6 +360,7 @@ export function Sheet({
   terminalRef,
   terminalAlignmentEnabled = true,
   terminalAlignmentEnabledRef,
+  terminalAlignmentIntentRef,
 }: SheetProps) {
   const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -435,6 +437,7 @@ export function Sheet({
   const terminalImeIntent = useRef(false);
   const terminalImeRestore = useRef(false);
   const terminalImeReaderOverride = useRef(false);
+  const terminalImeIntentVersion = useRef(terminalAlignmentIntentRef?.current ?? 0);
   const keepFocusedInputVisible = useCallback(() => {
     const generation = ++focusMeasurement.current;
     if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
@@ -442,6 +445,10 @@ export function Sheet({
       focusFrame.current = null;
       const focused = TextInput.State.currentlyFocusedInput();
       const body = bodyScrollRef.current;
+      if (terminalAlignmentIntentRef && terminalAlignmentIntentRef.current !== terminalImeIntentVersion.current) {
+        terminalImeIntentVersion.current = terminalAlignmentIntentRef.current;
+        terminalImeReaderOverride.current = false;
+      }
       const terminalAlignmentRequested =
         imeOverflowPolicy === 'scrollBodyToFocusedTerminal' &&
         ((terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled) ||
@@ -540,8 +547,12 @@ export function Sheet({
     focusContextBefore,
     focusContextAfter,
     bodyScrollable,
-    shouldReduceMotion,
     visible,
+    terminalAlignmentEnabled,
+    terminalAlignmentEnabledRef,
+    terminalAlignmentIntentRef,
+    terminalRef,
+    imeOverflowPolicy,
   ]);
   const focusSettleTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const settleFocusedInput = useCallback(() => {
@@ -557,6 +568,10 @@ export function Sheet({
   useEffect(() => {
     const terminalAlignmentEnabledNow =
       terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled;
+    if (terminalAlignmentIntentRef && terminalAlignmentIntentRef.current !== terminalImeIntentVersion.current) {
+      terminalImeIntentVersion.current = terminalAlignmentIntentRef.current;
+      terminalImeReaderOverride.current = false;
+    }
     if (keyboardMetrics && imeOverflowPolicy === 'scrollBodyToFocusedTerminal') {
       terminalImeReaderOverride.current = false;
       terminalImeIntent.current = terminalAlignmentEnabledNow;
@@ -924,6 +939,7 @@ export function Sheet({
       terminalRef,
       terminalAlignmentEnabled,
       terminalAlignmentEnabledRef,
+      terminalAlignmentIntentRef,
       scrollKey,
     ],
   );

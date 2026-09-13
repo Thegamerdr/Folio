@@ -220,6 +220,7 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
   const bodyScrollRef = useRef<ScrollView>(null);
   const terminalRef = useRef<View>(null);
   const terminalAlignmentRef = useRef(true);
+  const terminalAlignmentIntentRef = useRef(0);
   const bodyHandlersRef = useRef<{
     onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     onContentSizeChange?: (width: number, height: number) => void;
@@ -316,6 +317,7 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
       onBodyLayout={(event) => bodyHandlersRef.current.onLayout?.(event)}
       terminalRef={terminalRef}
       terminalAlignmentEnabledRef={terminalAlignmentRef}
+      terminalAlignmentIntentRef={terminalAlignmentIntentRef}
     >
       <MeloChat
         snapshot={snapshot}
@@ -331,6 +333,7 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
         bodyScrollRef={bodyScrollRef}
         bodyHandlersRef={bodyHandlersRef}
         terminalAlignmentRef={terminalAlignmentRef}
+        terminalAlignmentIntentRef={terminalAlignmentIntentRef}
         terminalRef={terminalRef}
       />
     </Sheet>
@@ -355,6 +358,7 @@ function MeloChat({
   bodyScrollRef,
   bodyHandlersRef,
   terminalAlignmentRef,
+  terminalAlignmentIntentRef,
   terminalRef,
 }: {
   snapshot: MeloLocalFinancialSnapshot;
@@ -374,6 +378,7 @@ function MeloChat({
     onLayout?: (event: LayoutChangeEvent) => void;
   }>;
   terminalAlignmentRef: React.MutableRefObject<boolean>;
+  terminalAlignmentIntentRef: React.MutableRefObject<number>;
   terminalRef: React.RefObject<View | null>;
 }) {
   const t = useTheme();
@@ -446,12 +451,14 @@ function MeloChat({
   const starters = meloChatStarters(snapshot.workspaceKind ?? 'personal');
   function replaceDraft(text: string) {
     draftActionRef.current = true;
+    terminalAlignmentIntentRef.current += 1;
     setInput(text);
     inputRef.current?.focus();
   }
 
   async function startVoiceInput() {
     if (isLoading || voice.phase !== 'idle') return;
+    terminalAlignmentIntentRef.current += 1;
     Keyboard.dismiss();
     const result = await voice.requestStart();
     if (!voiceActive || result !== 'needs-phone-service-consent') return;
@@ -682,6 +689,7 @@ function MeloChat({
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
+    terminalAlignmentIntentRef.current += 1;
     const requestId = turnRequestRef.current + 1;
     turnRequestRef.current = requestId;
     const userMsg: ChatMessage = {
@@ -899,6 +907,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
         value={input}
         onChangeText={(text) => {
           draftActionRef.current = true;
+          terminalAlignmentIntentRef.current += 1;
           setInput(text);
         }}
         placeholder="Say anything to Melo…"

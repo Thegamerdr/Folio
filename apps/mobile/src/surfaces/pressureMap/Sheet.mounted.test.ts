@@ -103,16 +103,17 @@ describe('Sheet mounted focus lifecycle', () => {
     expect(scrollTo).toHaveBeenCalledWith({ y: 880, animated: false });
   });
 
-  it('keeps a deliberate reader drag anchored after IME dismissal', () => {
+  it('restores terminal after a deliberate drag followed by an explicit composer intent', () => {
     let bodyNode: any;
     const terminalAlignmentEnabledRef = { current: true };
+    const terminalAlignmentIntentRef = { current: 0 };
     const terminalRef = { current: { measureLayout: (_relative: any, cb: any) => cb(0, 1200, 390, 80) } as any };
     const scrollTo = vi.fn();
     let tree!: renderer.ReactTestRenderer;
     act(() => { tree = renderer.create(
       React.createElement(Sheet, {
         visible: true, onClose: vi.fn(), scrollable: true,
-        imeOverflowPolicy: 'scrollBodyToFocusedTerminal', terminalAlignmentEnabledRef, terminalRef,
+        imeOverflowPolicy: 'scrollBodyToFocusedTerminal', terminalAlignmentEnabledRef, terminalAlignmentIntentRef, terminalRef,
         children: React.createElement(View, { style: { height: 80 } }),
       }),
       { createNodeMock: (element: any) => {
@@ -128,8 +129,9 @@ describe('Sheet mounted focus lifecycle', () => {
     act(() => keyboardListeners.get('keyboardDidShow')?.({ endCoordinates: { height: 300 } }));
     act(() => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 240 } } }));
     act(() => scroll.props.onScrollBeginDrag?.());
+    terminalAlignmentIntentRef.current += 1;
     act(() => keyboardListeners.get('keyboardDidHide')?.());
-    expect(scrollTo).toHaveBeenLastCalledWith({ y: 240, animated: false });
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 880, animated: false });
     act(() => tree.unmount());
   });
 
