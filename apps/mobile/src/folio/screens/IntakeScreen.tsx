@@ -17,8 +17,8 @@
 // @copy         FROZEN — no "import" / "OCR" / "parser" wording allowed.
 // @tokens       --surface (Surface) · --hairline (Hairline) · --accent (calm) · --muted-ink (muted)
 //               · --inset (icon tiles + Melo panel) · --accent-soft (calmSoft, fastest badge)
-// @motion       slide-in-r (whole screen) · press 0.97/120ms (back + every option row) · Melo
-//               breathe + blink (calm mood, inside MeloLine — the only continuous motion)
+// @motion       slide-in-r (whole screen) · press 0.97/120ms (back + every option row) · calm
+//               native reading indicator while a local source is being processed
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store sources):
 //   • This screen is a NAVIGATION / DISPATCH MENU that now also fires the REAL on-device pickers
@@ -72,7 +72,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
-  Clipboard,
+  ActivityIndicator,
+  findNodeHandle,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -95,6 +96,7 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import type { CandidateMoneyItem } from '@/folio/lib/importSheet';
+import { statementReviewSourceKey } from '@/folio/lib/statementReviewModel';
 import { isOnboardingFirstRun } from '@/folio/lib/onboardingMutations';
 import {
   addEvidenceDocument,
@@ -102,6 +104,7 @@ import {
   setReaderCandidates,
   setReaderClosingBalance,
   useAppStore,
+  useStatementReviewSessions,
 } from '@/folio/store';
 import {
   setReaderFallbackEvidenceId,
@@ -150,8 +153,6 @@ type IntakeOption = {
   icon: string;
   to: ScreenId;
   pick?: 'document' | 'photo';
-  /** Reads copied statement text from the device clipboard and stages parsed rows. */
-  paste?: boolean;
   fastest?: boolean;
   /** A real doorway whose provider is unavailable in this build. It remains navigable so the
    * connections surface can explain the boundary instead of silently swallowing the tap. */
@@ -173,11 +174,11 @@ export const INTAKE_OPTIONS: readonly IntakeOption[] = [
     icon: '▤',
     to: 'pdf-success',
     pick: 'document',
-    badge: 'most complete',
+    badge: 'MOST COMPLETE',
   },
   {
-    title: 'Type it yourself',
-    hint: 'add only the numbers you know',
+    title: 'Log a spend',
+    hint: 'add one spend yourself',
     icon: '✎',
     to: 'review',
     sheet: 'log-spend',
@@ -194,7 +195,6 @@ export const INTAKE_OPTIONS: readonly IntakeOption[] = [
     hint: 'copy from a spreadsheet or anywhere else',
     icon: '❝',
     to: 'paste-success',
-    paste: true,
   },
 
   {
@@ -203,7 +203,7 @@ export const INTAKE_OPTIONS: readonly IntakeOption[] = [
     icon: '↗',
     to: 'connections',
     unavailable: true,
-    badge: 'not yet',
+    badge: 'NOT YET',
   },
 ] as const;
 
@@ -270,9 +270,12 @@ function readTextCandidates(
   text: string,
   source: Extract<CandidateMoneyItem['source'], 'csv' | 'paste'>,
   filename: string,
+  sourceFormat: 'csv' | 'tsv' | 'txt' = 'csv',
 ): CandidateMoneyItem[] | null {
   const result = readTextImport(text, source, filename);
-  return result.candidates.length > 0 ? result.candidates : null;
+  return result.candidates.length > 0
+    ? result.candidates.map((candidate) => ({ ...candidate, sourceFormat }))
+    : null;
 }
 
 export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
@@ -285,12 +288,46 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       'business',
   );
   const waiting = useAppStore((current) => current.reviewQueue ?? []);
+  const activeWorkspaceId = useAppStore((current) => current.activeWorkspaceId);
+  const statementSessions = useStatementReviewSessions();
+  const waitingStatementSessions = useMemo(
+    () =>
+      statementSessions.filter(
+        (session) =>
+          (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)) &&
+          (session.candidates.length > 0 || session.receipt !== undefined),
+      ),
+    [activeWorkspaceId, statementSessions],
+  );
+  const waitingRef = useRef<View>(null);
+  const firstWaitingRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const waitingAnnouncedRef = useRef(false);
   const needsInitialSetup = useAppStore(isOnboardingFirstRun);
   const bySource = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const item of waiting) counts[item.source] = (counts[item.source] ?? 0) + 1;
     return counts;
   }, [waiting]);
+
+  useEffect(() => {
+    if (waitingAnnouncedRef.current || (waiting.length === 0 && waitingStatementSessions.length === 0)) return;
+    waitingAnnouncedRef.current = true;
+    AccessibilityInfo.announceForAccessibility(
+      "An earlier statement is still waiting for you. Open what's waiting, button.",
+    );
+  }, [waiting.length, waitingStatementSessions.length]);
+
+  function openStatementReview(session: (typeof waitingStatementSessions)[number]) {
+    const source = session.candidates[0]?.source ?? session.sourceKey?.split(':')[0] ?? 'pdf';
+    const screen: ScreenId = source === 'paste' || source === 'csv' || source === 'txt' ? 'paste-success' : source === 'photo' ? 'image-success' : 'pdf-success';
+    const sourceKey = session.sourceKey ?? statementReviewSourceKey(session.candidates);
+    const label = session.sourceLabel ?? waitingSourceLabel(source);
+    AccessibilityInfo.announceForAccessibility(
+      `${label}. ${session.candidates.length} suggested. ${session.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`,
+    );
+    nav.go(screen, { reviewSourceKey: sourceKey });
+  }
 
   // The picker, evidence vault and on-device parser are asynchronous, but the reader staging slot
   // is singular. Keep one transaction authority for this intake session so a double tap or a late
@@ -330,6 +367,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // loading — a brief holding moment (Melo curious + a line). It never persists: after
   // LOADING_FALLBACK_MS it resolves to the picker, so the screen can never sit on "loading".
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  const [readerPhase, setReaderPhase] = useState<'idle' | 'statement' | 'photo'>('idle');
+  const [readerName, setReaderName] = useState<string>('');
+  const activeReaderAttempt = useRef<PdfImportAttempt | null>(null);
   useEffect(() => {
     if (state !== 'loading') return;
     const id = setTimeout(() => setLoadingTimedOut(true), LOADING_FALLBACK_MS);
@@ -385,7 +425,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     source: Parameters<typeof retainEvidenceDocument>[0]['source'],
     sourceType: Parameters<typeof retainEvidenceDocument>[0]['sourceType'],
     extractionStatus: Parameters<typeof retainEvidenceDocument>[0]['extractionStatus'],
+    isActive: () => boolean,
   ): Promise<string | null> {
+    if (!isActive()) return null;
     const current = getState();
     const workspace = current.workspaces.find(
       (candidate) => candidate.id === current.activeWorkspaceId,
@@ -399,6 +441,10 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         sourceType,
         extractionStatus,
       });
+      if (!isActive()) {
+        await deleteEvidenceDocumentFile(workspace, retained).catch(() => undefined);
+        return null;
+      }
       addEvidenceDocument(retained);
       return retained.id;
     } catch (reason: unknown) {
@@ -427,6 +473,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   async function runPick(option: IntakeOption) {
     const attempt = beginPdfImport();
     if (attempt === null) return;
+    activeReaderAttempt.current = attempt;
 
     if (option.pick === 'document') {
       let result: Awaited<ReturnType<typeof pickLocalStatementDocument>>;
@@ -443,18 +490,30 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       }
       if (result.kind === 'cancelled') {
         settlePdfImport(attempt, { kind: 'cancelled' });
+        activeReaderAttempt.current = null;
         return;
       }
       const src = result.source;
+      setReaderPhase('statement');
+      setReaderName(src.filename);
       const sourceEvidenceId = await retainSource(
         src,
         'document',
         result.kind === 'picked' ? 'read' : 'unreadable',
+        () =>
+          activeReaderAttempt.current?.attemptId === attempt.attemptId &&
+          pdfImportTransaction.current.phase === 'reading',
       );
       if (sourceEvidenceId === null) {
         settlePdfImport(attempt, { kind: 'failed-recoverably' });
+        setReaderPhase('idle');
         return;
       }
+      if (
+        activeReaderAttempt.current?.attemptId !== attempt.attemptId ||
+        pdfImportTransaction.current.phase !== 'reading'
+      )
+        return;
       const isPdf = /application\/pdf/i.test(src.mediaType) || /\.pdf$/i.test(src.filename);
       if (result.kind === 'unsupported') {
         if (
@@ -468,7 +527,12 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         /text\/csv|application\/csv|tab-separated|text\/plain/i.test(src.mediaType) ||
         /\.(csv|tsv|txt)$/i.test(src.filename);
       if (result.kind === 'picked' && looksDelimited) {
-        const candidates = readTextCandidates(result.text, 'csv', src.filename);
+        const sourceFormat: 'csv' | 'tsv' | 'txt' = /\.tsv$/i.test(src.filename)
+          ? 'tsv'
+          : /\.txt$/i.test(src.filename)
+            ? 'txt'
+            : 'csv';
+        const candidates = readTextCandidates(result.text, 'csv', src.filename, sourceFormat);
         if (candidates !== null) {
           if (!settlePdfImport(attempt, { kind: 'parsed', reviewItemCount: candidates.length }))
             return;
@@ -517,29 +581,43 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     }
     if (imageSource === null) {
       settlePdfImport(attempt, { kind: 'cancelled' });
+      activeReaderAttempt.current = null;
       return;
     }
     const result =
       imageSource === 'camera' ? await captureStatementPhoto() : await pickStatementImage();
     if (result.kind === 'cancelled') {
       settlePdfImport(attempt, { kind: 'cancelled' });
+      activeReaderAttempt.current = null;
       return;
     }
     if (result.kind === 'denied') {
       if (settlePdfImport(attempt, { kind: 'failed-recoverably' })) {
         showToast('Permission is off', result.message);
       }
+      setReaderPhase('idle');
       return;
     }
+    setReaderPhase('photo');
+    setReaderName(result.source.filename || 'Selected photo');
     const sourceEvidenceId = await retainSource(
       result.source,
       imageSource === 'camera' ? 'camera' : 'image',
       result.kind === 'picked' ? 'read' : 'unreadable',
+      () =>
+        activeReaderAttempt.current?.attemptId === attempt.attemptId &&
+        pdfImportTransaction.current.phase === 'reading',
     );
     if (sourceEvidenceId === null) {
       settlePdfImport(attempt, { kind: 'failed-recoverably' });
+      setReaderPhase('idle');
       return;
     }
+    if (
+      activeReaderAttempt.current?.attemptId !== attempt.attemptId ||
+      pdfImportTransaction.current.phase !== 'reading'
+    )
+      return;
     if (
       result.kind === 'picked' &&
       stageLocalOcrRead(
@@ -559,26 +637,53 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     }
   }
 
-  // A paste row must actually read the clipboard before it claims anything was found. Parsed rows
-  // are staged only; Review remains the sole route into financial reality. Empty clipboard input
-  // stays on this screen with a useful instruction instead of opening a hollow success page.
-  async function runClipboardPaste() {
-    const text = await Clipboard.getString();
-    if (text.trim().length === 0) {
-      showToast('Nothing copied yet', 'Copy the transaction rows, then tap Paste from clipboard.');
-      return;
-    }
-    const candidates = readTextCandidates(text, 'paste', 'pasted transactions');
-    setReaderCandidates(candidates ?? []);
-    setReaderClosingBalance(null);
-    nav.go('paste-success');
+  if (readerPhase !== 'idle') {
+    const isPhoto = readerPhase === 'photo';
+    return (
+      <View style={[styles.readerProgress, { backgroundColor: t.canvas, paddingTop: insets.top }]}>
+        <View style={styles.progressHeader}>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>{isPhoto ? 'PHOTO' : 'STATEMENT'}</Text>
+        </View>
+        <Text accessibilityRole="header" style={[styles.progressHeadline, { color: t.ink }]}>
+          {isPhoto ? 'Reading your photo.' : 'Reading your statement.'}
+        </Text>
+        <View style={[styles.progressEvidence, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Text style={[styles.progressName, { color: t.ink }]}>{readerName}</Text>
+          <Text style={[styles.progressBody, { color: t.muted }]}>Melo is looking for dates, names and amounts.</Text>
+        </View>
+        <View accessibilityLiveRegion="polite" style={styles.progressIndicator}>
+          <ActivityIndicator
+            color={t.calm}
+            accessibilityLabel={isPhoto ? 'Reading your photo' : 'Reading your statement'}
+          />
+          <Text style={[styles.progressBody, { color: t.muted }]}>
+            {isPhoto ? 'Melo is reading your photo.' : 'Melo is reading your statement.'}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel reading"
+          onPress={() => {
+            const active = activeReaderAttempt.current;
+            if (active !== null) settlePdfImport(active, { kind: 'cancelled' });
+            activeReaderAttempt.current = null;
+            setReaderPhase('idle');
+          }}
+          style={({ pressed }) => [styles.cancelReading, { borderColor: t.hairline }, pressed ? styles.pressed : undefined]}
+        >
+          <Text style={[styles.cancelReadingLabel, { color: t.muted }]}>Cancel reading</Text>
+        </Pressable>
+      </View>
+    );
   }
 
   // Dispatch a row: the two file-shaped rows open the real picker (runPick); every other row keeps the
   // straight, declarative nav.go to its screen (web parity).
   const onSelect = (option: IntakeOption) => {
-    if (option.paste === true) {
-      void runClipboardPaste();
+    if (option.title === 'Paste transactions') {
+      // Entering the editor is intentionally side-effect free. Clipboard access belongs to the
+      // explicit action on PasteSuccessScreen, never to this navigation event.
+      nav.go('paste-success');
       return;
     }
     if (option.pick !== undefined) {
@@ -596,12 +701,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       );
       return;
     }
-    if (option.unavailable) {
-      // Keep the unavailable provider row as a truthful, navigable doorway. ConnectionsScreen
-      // owns the explanation and future enablement state; Intake never pretends to connect here.
-      nav.go('connections');
-      return;
-    }
+    if (option.unavailable) return;
     nav.go(option.to);
   };
 
@@ -647,6 +747,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   return (
     <Animated.View style={[styles.screen, enterStyle, { backgroundColor: t.canvas }]}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
@@ -661,7 +762,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
             accessibilityLabel="Back"
             hitSlop={16}
             onPress={nav.back}
-            style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
+            style={({ pressed: isPressed }) => [styles.backTarget, isPressed ? styles.pressed : undefined]}
           >
             <Text style={[styles.back, { color: t.muted }]}>←</Text>
           </Pressable>
@@ -692,7 +793,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           <Text style={[styles.subhead, { color: t.muted }]}>
             {isBusiness
               ? 'Read a statement or receipt here. Nothing reaches Business activity until you confirm it.'
-              : 'Melo reads on this device, shows you what it found, then waits for your decision. Nothing lands until you say so.'}
+              : 'Melo shows you what it finds, then waits for your decision. Nothing is added until you say so.'}
           </Text>
         </View>
 
@@ -707,22 +808,71 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
             ))}
           </View>
           <Text style={[styles.explainer, { color: t.muted }]}>
-            Pasted text and numbers you type stay on this phone while Melo prepares suggestions.
-            Files and photos use the native picker here; sources you already use are managed in Data
-            &amp; security. Nothing is added until you review it.
+            Reading starts only after you choose a file, photo, or Paste from clipboard. Melo does
+            not keep checking your clipboard. Nothing is added until you review and confirm it.
           </Text>
         </View>
 
-        <View style={styles.waitingSection}>
+        {waitingStatementSessions.length > 0 ? (
+          <View style={[styles.waitingNotice, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}>
+            <Text accessibilityLiveRegion="polite" style={[styles.waitingNoticeBody, { color: t.ink }]}>An earlier statement is still waiting for you.</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open what's waiting"
+              onPress={() => {
+                const node = findNodeHandle(firstWaitingRef.current);
+                if (node !== null) AccessibilityInfo.setAccessibilityFocus(node);
+                const first = waitingStatementSessions[0];
+                if (first !== undefined) {
+                  const source = first.candidates[0]?.source ?? first.sourceKey?.split(':')[0] ?? 'pdf';
+                  const label = first.sourceLabel ?? waitingSourceLabel(source);
+                  AccessibilityInfo.announceForAccessibility(
+                    `${label}. ${first.candidates.length} suggested. ${first.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`,
+                  );
+                }
+              }}
+              style={[styles.waitingNoticeAction, { backgroundColor: t.calm }]}
+            >
+              <Text style={[styles.waitingLabel, { color: t.inverse }]}>Open what's waiting</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <View ref={waitingRef} style={styles.waitingSection}>
           <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Waiting</Text>
           <Text style={[styles.sectionTitle, { color: t.ink }]}>Things to check</Text>
-          {waiting.length > 0 ? (
+          {waiting.length > 0 || waitingStatementSessions.length > 0 ? (
             <View
               style={[styles.waitingList, { backgroundColor: t.surface, borderColor: t.hairline }]}
             >
+              {waitingStatementSessions.map((session, index) => {
+                const source = session.candidates[0]?.source ?? session.sourceKey?.split(':')[0] ?? 'pdf';
+                const count = session.candidates.length;
+                const label = session.sourceLabel ?? waitingSourceLabel(source);
+                return (
+                  <View key={`statement:${session.workspaceId ?? ''}:${session.sourceKey ?? index}`}>
+                    {index > 0 ? <View style={[styles.divider, { backgroundColor: t.hairline }]} /> : null}
+                    <Pressable
+                      ref={index === 0 ? firstWaitingRef : undefined}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${label}. ${count} suggested. ${session.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`}
+                      onPress={() => openStatementReview(session)}
+                      style={({ pressed: isPressed }) => [styles.waitingRow, isPressed ? styles.pressed : undefined]}
+                    >
+                      <View style={styles.waitingCopy}>
+                        <Text style={[styles.waitingLabel, { color: t.ink }]}>{label}</Text>
+                        <Text style={[styles.waitingMeta, { color: t.muted }]}>
+                          {session.receipt === undefined ? 'not added yet' : 'result not seen yet'}
+                        </Text>
+                      </View>
+                      <Text style={[styles.waitingCount, { color: t.calm }]}>{count}</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
               {Object.entries(bySource).map(([source, count], index) => (
                 <View key={source}>
-                  {index > 0 ? (
+                  {index + waitingStatementSessions.length > 0 ? (
                     <View style={[styles.divider, { backgroundColor: t.hairline }]} />
                   ) : null}
                   <Pressable
@@ -797,6 +947,8 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: option.unavailable === true }}
+      disabled={option.unavailable === true}
       onPress={onPress}
       style={({ pressed: isPressed }) => [
         styles.row,
@@ -836,7 +988,7 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
         </View>
         <Text style={[styles.rowHint, { color: t.muted }]}>{option.hint}</Text>
       </View>
-      <Text style={[styles.forward, { color: t.muted }]}>→</Text>
+      {option.unavailable ? null : <Text style={[styles.forward, { color: t.muted }]}>→</Text>}
     </Pressable>
   );
 }
@@ -844,7 +996,7 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
 function waitingSourceLabel(source: string): string {
   if (source === 'csv' || source === 'txt' || source === 'paste') return 'Sheet or pasted text';
   if (source === 'pdf') return 'Statement';
-  if (source === 'image') return 'Photo';
+  if (source === 'image' || source === 'photo') return 'Photo';
   if (source === 'bank') return 'Connected account';
   return 'Manual entry';
 }
@@ -868,8 +1020,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    minHeight: 56,
   },
   // The back glyph — 20px muted (web text-[20px] text-muted-ink press).
+  backTarget: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    minWidth: 48,
+  },
+  readerProgress: {
+    flex: 1,
+    gap: gap.lg,
+    paddingHorizontal: gap.xl,
+    paddingBottom: gap.xl,
+  },
+  progressHeader: {
+    alignItems: 'center',
+    minHeight: 56,
+    justifyContent: 'center',
+  },
+  progressHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 34,
+    marginTop: gap.xl,
+  },
+  progressEvidence: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: gap.lg,
+  },
+  progressName: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  progressBody: {
+    fontSize: 13.5,
+    lineHeight: 20,
+    marginTop: gap.sm,
+  },
+  progressIndicator: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: gap.sm,
+  },
+  cancelReading: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 48,
+    justifyContent: 'center',
+    marginTop: 'auto',
+  },
+  cancelReadingLabel: {
+    fontSize: 13,
+  },
   back: {
     fontSize: 20,
   },
@@ -882,7 +1088,7 @@ const styles = StyleSheet.create({
   },
   // 20px spacer to balance the 20px back glyph (web <span class="w-5" />).
   headerSpacer: {
-    width: 20,
+    width: 48,
   },
   // mt-6 (24px) = gap.xl.
   titleBlock: {
@@ -907,7 +1113,7 @@ const styles = StyleSheet.create({
   },
   // mt-6 (24px) = gap.xl; space-y-2.5 (10px) = gap.md row gap (web rounds 2.5 → 10px).
   options: {
-    marginTop: gap.xl,
+    marginTop: gap.xxl,
   },
   sectionEyebrow: {
     fontSize: 10.5,
@@ -925,9 +1131,27 @@ const styles = StyleSheet.create({
     marginTop: gap.md,
   },
   explainer: {
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 20,
     marginTop: gap.md,
+  },
+  waitingNotice: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: gap.sm,
+    marginTop: gap.xxl,
+    padding: gap.lg,
+  },
+  waitingNoticeBody: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  waitingNoticeAction: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: gap.lg,
   },
   unavailable: {
     opacity: 0.78,
@@ -997,6 +1221,7 @@ const styles = StyleSheet.create({
     columnGap: gap.lg,
     flexDirection: 'row',
     paddingHorizontal: gap.lg,
+    minHeight: 72,
     paddingVertical: gap.lg,
   },
   // w-11 h-11 (44px) · rounded-lg (radius.sm = 8) · centred · --inset bg.
@@ -1013,11 +1238,13 @@ const styles = StyleSheet.create({
   },
   rowBody: {
     flex: 1,
+    minWidth: 0,
   },
   titleRow: {
     alignItems: 'center',
     columnGap: gap.sm,
     flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   // 14.5px medium (web text-[14.5px] font-medium).
   rowTitle: {
@@ -1027,8 +1254,8 @@ const styles = StyleSheet.create({
   // The "fastest" pill — accent-soft fill, rounded-full, px-1.5 py-0.5 (web).
   badge: {
     borderRadius: radius.pill,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   // 9px, uppercase, tracked, accent, medium (web text-[9px] uppercase tracking-wider).
   badgeLabel: {

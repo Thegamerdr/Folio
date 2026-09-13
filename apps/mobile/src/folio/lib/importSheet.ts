@@ -55,6 +55,8 @@ export type CandidateMoneyItem = {
    *  selected file/photo. Metadata only; no file bytes or picker URI enter the candidate. */
   sourceEvidenceId?: string;
   source: CandidateSource;
+  /** Selected text format, kept separate from the shared CSV parser family. */
+  sourceFormat?: 'csv' | 'tsv' | 'txt';
   kind: CandidateKind;
   merchant: string;
   /** GBP. Spend is negative, income positive. */
@@ -64,6 +66,8 @@ export type CandidateMoneyItem = {
   /** Suggested category — never silently final (confirmed in Review). */
   category?: string;
   confidence: CandidateConfidence;
+  /** Set only after a user has explicitly saved a valid correction in Review. */
+  reviewed?: boolean;
   /** Human explanation / source context for Review. */
   note?: string;
 };
@@ -108,6 +112,7 @@ export type ColumnMapping = {
 export type ParseSheetOptions = {
   /** Defaults to `csv`. Use `paste` for rows pasted from a spreadsheet. */
   source?: CandidateSource;
+  sourceFormat?: 'csv' | 'tsv' | 'txt';
   /** Force-disable / force-enable header detection. Omit to auto-detect. */
   hasHeader?: boolean;
   /** Pin columns explicitly; overrides header-name auto-mapping. */
@@ -583,6 +588,7 @@ export function parseSheet(text: string, opts: ParseSheetOptions = {}): ParseShe
       amount,
       confidence,
     };
+    if (opts.sourceFormat !== undefined) candidate.sourceFormat = opts.sourceFormat;
     if (isoDate !== null) candidate.date = isoDate;
     if (categoryCell !== undefined) candidate.category = categoryCell;
     if (note !== undefined) candidate.note = note;

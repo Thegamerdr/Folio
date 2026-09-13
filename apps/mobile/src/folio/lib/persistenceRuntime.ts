@@ -2,6 +2,27 @@ import type { WorkspaceId } from '@folio/domain';
 
 export type PersistenceFailureKind = 'storage' | 'key-storage' | 'unknown';
 export type PersistenceStatus = 'idle' | 'saving' | 'saved' | 'failed';
+/** Internal save boundary used by review flows to distinguish an atomic pre-commit failure from
+ * a post-SQL metadata/rollback failure. It carries no payload or user data. */
+export type PersistenceFailureStage =
+  | 'none'
+  | 'preparation'
+  | 'workspace-state'
+  | 'workspace-manifest'
+  | 'rollback-files';
+
+export class PersistenceAttemptError extends Error {
+  readonly persistenceStage: PersistenceFailureStage;
+  override readonly cause: unknown;
+
+  constructor(stage: PersistenceFailureStage, cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = 'PersistenceAttemptError';
+    this.persistenceStage = stage;
+    this.cause = cause;
+    Object.freeze(this);
+  }
+}
 
 export type PersistenceRuntimeState = Readonly<{
   status: PersistenceStatus;
@@ -22,6 +43,7 @@ const INITIAL_STATE: PersistenceRuntimeState = {
 };
 
 let state = INITIAL_STATE;
+let failureStage: PersistenceFailureStage = 'none';
 const listeners = new Set<() => void>();
 
 export function getPersistenceRuntimeState(): PersistenceRuntimeState {
@@ -34,6 +56,7 @@ export function subscribePersistenceRuntime(listener: () => void): () => void {
 }
 
 export function markPersistenceSaving(workspaceId: WorkspaceId, atISO: string): void {
+  failureStage = 'none';
   publish({
     ...state,
     status: 'saving',
@@ -43,6 +66,7 @@ export function markPersistenceSaving(workspaceId: WorkspaceId, atISO: string): 
 }
 
 export function markPersistenceSaved(workspaceId: WorkspaceId, atISO: string): void {
+  failureStage = 'none';
   publish({
     status: 'saved',
     workspaceId,
@@ -66,6 +90,31 @@ export function markPersistenceFailed(
     failureKind: classifyPersistenceFailure(reason),
     consecutiveFailures: state.consecutiveFailures + 1,
   });
+}
+
+export function setPersistenceFailureStage(stage: PersistenceFailureStage): void {
+  failureStage = stage;
+}
+
+export function getPersistenceFailureStage(): PersistenceFailureStage {
+  return failureStage;
+}
+
+/** Read the stage attached to one save attempt. Callers making rollback/retry decisions must use
+ * this attempt-local value rather than the process-global diagnostic snapshot. */
+export function persistenceFailureStageOf(reason: unknown): PersistenceFailureStage {
+  if (reason !== null && typeof reason === 'object' && 'persistenceStage' in reason) {
+    const stage = (reason as { persistenceStage?: unknown }).persistenceStage;
+    if (
+      stage === 'preparation' ||
+      stage === 'workspace-state' ||
+      stage === 'workspace-manifest' ||
+      stage === 'rollback-files'
+    ) {
+      return stage;
+    }
+  }
+  return 'none';
 }
 
 export function classifyPersistenceFailure(reason: unknown): PersistenceFailureKind {
@@ -118,6 +167,7 @@ export function classifyPersistenceDiagnostic(reason: unknown): string {
 /** Test-only reset. Runtime callers should let the latest save attempt own this state. */
 export function resetPersistenceRuntimeState(): void {
   state = INITIAL_STATE;
+  failureStage = 'none';
   notify();
 }
 

@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  acknowledgeStatementReviewSession,
   bulkSummaryLine,
   closingBalanceOfferLine,
   isBulkStatement,
   nextBulkLandingOffer,
+  statementReviewSessionWithReceipt,
   type BulkLandingOffer,
 } from './bulkLanding';
-import type { AddStatementAsHistoryResult } from '../store';
+import type { AddStatementAsHistoryResult, StatementReviewSession } from '../store';
+import { buildScaleFixture } from './scaleFixture.testSupport';
 
 describe('isBulkStatement', () => {
   it('is false for zero or one candidate', () => {
@@ -206,6 +209,64 @@ describe('nextBulkLandingOffer', () => {
       totalOutPence: 500,
     };
     expect(nextBulkLandingOffer(neither, new Set())).toBeNull();
+  });
+});
+
+describe('statement review receipt/session transitions', () => {
+  it('acknowledges the receipt while retaining only kept-aside provisional rows', () => {
+    const candidates = [...buildScaleFixture(3).candidates];
+    const session: StatementReviewSession = {
+      candidates,
+      sourceKey: `csv:${candidates.map((candidate) => candidate.id).join('|')}`,
+      workspaceId: 'personal' as never,
+      sourceIssues: [{ code: 'bad-amount', message: 'Row 4 needs checking.', row: 4 }],
+      accountDraft: { name: 'Working account', kind: 'bank' },
+      accountId: 'acct-main',
+      selectedIds: [candidates[0]!.id, candidates[1]!.id],
+      asideIds: [candidates[2]!.id],
+      resolvedRepeatIds: [candidates[1]!.id],
+    };
+    const remaining = acknowledgeStatementReviewSession(session);
+    expect(remaining?.candidates.map((candidate) => candidate.id)).toEqual([candidates[2]!.id]);
+    expect(remaining?.selectedIds).toEqual([]);
+    expect(remaining?.asideIds).toEqual([candidates[2]!.id]);
+    expect(remaining?.receipt).toBeUndefined();
+    expect(remaining?.workspaceId).toBe('personal');
+    expect(remaining?.sourceIssues).toEqual(session.sourceIssues);
+    expect(remaining?.accountDraft).toEqual(session.accountDraft);
+  });
+
+  it('keeps the source identity stable when only kept-aside rows remain', () => {
+    const candidates = [...buildScaleFixture(2).candidates];
+    const session: StatementReviewSession = {
+      candidates,
+      sourceKey: 'paste:source-instance-1',
+      selectedIds: [candidates[0]!.id],
+      asideIds: [candidates[1]!.id],
+      resolvedRepeatIds: [],
+    };
+    expect(acknowledgeStatementReviewSession(session)?.sourceKey).toBe(session.sourceKey);
+  });
+
+  it('clears the acknowledged session when no provisional rows remain and restores its receipt exactly', () => {
+    const candidates = [...buildScaleFixture(2).candidates];
+    const session: StatementReviewSession = {
+      candidates,
+      sourceKey: `csv:${candidates.map((candidate) => candidate.id).join('|')}`,
+      selectedIds: candidates.map((candidate) => candidate.id),
+      asideIds: [],
+      resolvedRepeatIds: [],
+    };
+    const receipt: AddStatementAsHistoryResult = {
+      added: 2,
+      dateRange: { fromISO: '2026-06-01', toISO: '2026-06-02' },
+      totalInPence: 0,
+      totalOutPence: 4200,
+    };
+    expect(
+      acknowledgeStatementReviewSession(statementReviewSessionWithReceipt(session, receipt)),
+    ).toBeNull();
+    expect(statementReviewSessionWithReceipt(session, receipt)).toEqual({ ...session, receipt });
   });
 });
 

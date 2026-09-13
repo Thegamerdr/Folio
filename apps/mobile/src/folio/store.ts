@@ -51,7 +51,8 @@ import {
 import type { ObligationResolution } from '@folio/finance-engine';
 import { expandObligationOccurrences } from '@folio/finance-engine';
 import { preserveDebtMinimumSchedule } from './lib/obligationState';
-import type { CandidateMoneyItem } from './lib/importSheet';
+import type { CandidateMoneyItem, ColumnIssue } from './lib/importSheet';
+import type { RestoreResult } from './lib/restoreResult';
 import {
   applyMemoryToCandidates,
   MERCHANT_CATEGORY_CAP,
@@ -504,6 +505,34 @@ export type Account = {
   closed?: boolean;
 };
 
+/** Durable provisional statement review session. Candidates remain provisional until the user
+ * explicitly accepts them; the session only preserves the user's review work and receipt across a
+ * backgrounding or cold relaunch. */
+export type StatementReviewSession = {
+  candidates: CandidateMoneyItem[];
+  sourceKey?: string;
+  /** The workspace that owns this provisional review. Older sessions omit this for migration. */
+  workspaceId?: WorkspaceId;
+  /** Line-level parser uncertainty stays with the review session without inventing a candidate. */
+  sourceIssues?: ColumnIssue[];
+  /** Human source identity for the canonical Intake waiting entry (filename or paste label). */
+  sourceLabel?: string;
+  /** Data-only return state for a paste source; never contains picker URIs or callbacks. */
+  sourceReturn?: {
+    sourceKey: string;
+    rawText: string;
+    selection: { start: number; end: number };
+    scrollOffset: number;
+  };
+  /** Unresolved account choice draft, retained until the user explicitly creates the account. */
+  accountDraft?: { name: string; kind: AccountKind };
+  accountId?: string;
+  selectedIds: string[];
+  asideIds: string[];
+  resolvedRepeatIds: string[];
+  receipt?: AddStatementAsHistoryResult;
+};
+
 /** The id every pre-existing install's data is synthesized under (see `synthesizeDefaultAccount`
  *  below) — the implicit "whole ledger is one account" bank account this codebase always had before
  *  `AppState.accounts` existed. */
@@ -703,6 +732,13 @@ export type AppState = {
    *  predating this field; `DEFAULTS`/`load()`/`resetToEmpty()` always
    *  populate it (null). */
   readerClosingBalance?: ReaderClosingBalance | null;
+  /** Durable MF09 statement review work and its unacknowledged receipt. */
+  statementReviewSession?: StatementReviewSession | null;
+  /** Durable MF09 reviews, one entry per source/workspace. The singular field remains as a
+   *  migration/read compatibility alias for older callers and persisted installs. */
+  statementReviewSessions?: StatementReviewSession[];
+  /** Durable MF10 restore outcomes, partitioned by workspace and retained until explicit ack. */
+  restoreReceipts?: Record<string, RestoreResult>;
   /** ENGINES.md §6 "Ignored review items: suppressed in main flow, visible in
    *  Hidden list." A Review candidate the user tapped "Ignore" on is recorded
    *  here by signature (`merchant|amountCents|date`, matching the design
@@ -1707,6 +1743,23 @@ function load(): AppState {
       // excluded from getPersistBlob), so a load always starts it empty.
       readerCandidates: [],
       readerClosingBalance: null,
+      statementReviewSession:
+        migrated.statementReviewSession !== null &&
+        typeof migrated.statementReviewSession === 'object'
+          ? (migrated.statementReviewSession as StatementReviewSession)
+          : null,
+      statementReviewSessions: Array.isArray(migrated.statementReviewSessions)
+        ? (migrated.statementReviewSessions as StatementReviewSession[])
+        : migrated.statementReviewSession !== null &&
+            typeof migrated.statementReviewSession === 'object'
+          ? [migrated.statementReviewSession as StatementReviewSession]
+          : [],
+      restoreReceipts:
+        migrated.restoreReceipts !== null &&
+        typeof migrated.restoreReceipts === 'object' &&
+        !Array.isArray(migrated.restoreReceipts)
+          ? (migrated.restoreReceipts as Record<string, RestoreResult>)
+          : {},
       ignoredReviewSigs: migrated.ignoredReviewSigs ?? [],
       reviewQueue: Array.isArray(migrated.reviewQueue) ? migrated.reviewQueue : [],
       ...(migrated.bankImportInbox === undefined
@@ -5249,7 +5302,7 @@ function stableHash(input: string): string {
  *  with the existing row's id rather than mint a second row. Manual single-entry `addTransaction`
  *  is untouched — it keeps its existing random `txn-${Date.now()}-...` id, since a manual entry has
  *  no "candidate" to derive a stable key from and doesn't need re-import defense. */
-function importedTransactionId(candidate: CandidateMoneyItem): string {
+export function importedTransactionId(candidate: CandidateMoneyItem): string {
   return `imp-${stableHash(dedupeKey(candidate))}`;
 }
 
@@ -6065,6 +6118,76 @@ export function setReaderClosingBalance(closingBalance: ReaderClosingBalance | n
  *  a stale balance from a prior read can never survive into the next one. */
 export function clearReaderCandidates() {
   setPartial({ readerCandidates: [], readerClosingBalance: null });
+}
+
+/** Persist the provisional MF09 review session. This never posts a transaction; it only preserves
+ *  candidate edits, selection and an unacknowledged receipt across relaunch. */
+export function setStatementReviewSession(session: StatementReviewSession | null) {
+  if (session === null) {
+    setPartial({ statementReviewSession: null, statementReviewSessions: [] });
+    return;
+  }
+  const current = getStatementReviewSessions();
+  const key = statementReviewSessionKey(session);
+  const next = [...current.filter((candidate) => statementReviewSessionKey(candidate) !== key), session];
+  setPartial({ statementReviewSession: session, statementReviewSessions: next });
+}
+
+export function clearStatementReviewSession() {
+  setPartial({ statementReviewSession: null, statementReviewSessions: [] });
+}
+
+export function useStatementReviewSession(): StatementReviewSession | null {
+  return useAppStore((s) => s.statementReviewSession ?? null);
+}
+
+function statementReviewSessionKey(session: StatementReviewSession): string {
+  return `${String(session.workspaceId ?? '')}:${session.sourceKey ?? session.candidates.map((candidate) => candidate.id).join('|')}`;
+}
+
+/** Return all source-scoped MF09 review sessions, migrating the old singular slot in memory. */
+export function getStatementReviewSessions(): StatementReviewSession[] {
+  const sessions = state.statementReviewSessions;
+  if (Array.isArray(sessions)) return [...sessions];
+  return state.statementReviewSession === null || state.statementReviewSession === undefined
+    ? []
+    : [state.statementReviewSession];
+}
+
+export function useStatementReviewSessions(): StatementReviewSession[] {
+  return useAppStore((s) =>
+    Array.isArray(s.statementReviewSessions)
+      ? s.statementReviewSessions
+      : s.statementReviewSession === null || s.statementReviewSession === undefined
+        ? []
+        : [s.statementReviewSession],
+  );
+}
+
+/** Upsert one source review without touching any other in-progress source or receipt. */
+export function upsertStatementReviewSession(session: StatementReviewSession): void {
+  const key = statementReviewSessionKey(session);
+  const next = [
+    ...getStatementReviewSessions().filter((candidate) => statementReviewSessionKey(candidate) !== key),
+    session,
+  ];
+  setPartial({ statementReviewSession: session, statementReviewSessions: next });
+}
+
+/** Replace/remove one source review after receipt acknowledgement. */
+export function removeStatementReviewSession(
+  sourceKey: string,
+  workspaceId?: WorkspaceId,
+): void {
+  const next = getStatementReviewSessions().filter(
+    (session) =>
+      !(session.sourceKey === sourceKey &&
+        (workspaceId === undefined || String(session.workspaceId ?? '') === String(workspaceId))),
+  );
+  setPartial({
+    statementReviewSessions: next,
+    statementReviewSession: next[next.length - 1] ?? null,
+  });
 }
 
 /** Read path for the staged statement-reader review queue. A thin selector over
@@ -6947,6 +7070,9 @@ export function createEmptyWorkspacePartition(
     routeFocusDate: null,
     readerCandidates: [],
     readerClosingBalance: null,
+    statementReviewSession: null,
+    statementReviewSessions: [],
+    restoreReceipts: {},
     ignoredReviewSigs: [],
     reviewQueue: [],
     reviewQueueSpillover: [],

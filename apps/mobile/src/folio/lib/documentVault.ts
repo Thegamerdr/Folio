@@ -98,6 +98,42 @@ async function evidenceKey(workspace: PersistedWorkspace): Promise<Uint8Array> {
   return deriveWorkspacePartitionKey(await getVaultKey(), workspace, 'documents');
 }
 
+async function readEvidenceBytes(
+  workspace: PersistedWorkspace,
+  document: EvidenceDocument,
+): Promise<Uint8Array> {
+  if (document.workspaceId !== workspace.id) {
+    throw new Error('This source belongs to a different workspace.');
+  }
+  const dir = FileSystem.documentDirectory;
+  if (dir === null) throw new Error('Source viewing is unavailable on this device.');
+  const encryptedUri = `${dir}${workspaceEvidenceFilename(workspace.id, document.id)}`;
+  const encoded = await FileSystem.readAsStringAsync(encryptedUri, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+  const bytes = decryptBytes(
+    encoded,
+    await evidenceKey(workspace),
+    workspaceEvidenceAssociatedData(workspace, document.id),
+  );
+  if (bytes === null) throw new Error('This saved source could not be verified.');
+  return bytes;
+}
+
+/** Verify the exact selected retained source without opening a viewer. Used to avoid rendering a
+ * View action for metadata whose encrypted file has been deleted or cannot be authenticated. */
+export async function verifyEvidenceDocument(
+  workspace: PersistedWorkspace,
+  document: EvidenceDocument,
+): Promise<boolean> {
+  try {
+    await readEvidenceBytes(workspace, document);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Keep an Android viewer grant alive until Melo returns to the foreground. Some viewers return
  *  from ACTION_VIEW before they have read the content URI, so deleting in the launch promise's
  *  `finally` produces a blank document. The timeout and boot cleanup remain bounded fallbacks. */
@@ -198,22 +234,12 @@ export async function openEvidenceDocument(
   if (document.workspaceId !== workspace.id) {
     throw new Error('This source belongs to a different workspace.');
   }
-  const dir = FileSystem.documentDirectory;
   const cache = FileSystem.cacheDirectory;
-  if (dir === null || cache === null)
+  if (cache === null)
     throw new Error('Source viewing is unavailable on this device.');
 
   await clearEvidenceViewCache();
-  const encryptedUri = `${dir}${workspaceEvidenceFilename(workspace.id, document.id)}`;
-  const encoded = await FileSystem.readAsStringAsync(encryptedUri, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
-  const bytes = decryptBytes(
-    encoded,
-    await evidenceKey(workspace),
-    workspaceEvidenceAssociatedData(workspace, document.id),
-  );
-  if (bytes === null) throw new Error('This saved source could not be verified.');
+  const bytes = await readEvidenceBytes(workspace, document);
   if (Platform.OS !== 'android' && !(await Sharing.isAvailableAsync())) {
     throw new Error('No compatible source viewer is available on this device.');
   }

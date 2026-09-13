@@ -87,6 +87,7 @@ import {
   type WorkspaceManifest,
 } from './workspacePartition';
 import { validateRestoreJson } from './restore';
+import type { RestoreReceiptStore, RestoreResult } from './restoreResult';
 import {
   createBusinessWorkspace,
   createPersonalWorkspaceRoot,
@@ -99,9 +100,12 @@ import {
   getPersistenceRuntimeState,
   classifyPersistenceDiagnostic,
   classifyPersistenceFailure,
+  setPersistenceFailureStage,
   markPersistenceFailed,
   markPersistenceSaved,
   markPersistenceSaving,
+  PersistenceAttemptError,
+  type PersistenceFailureStage,
 } from './persistenceRuntime';
 
 /** The on-disk file holding the serialized store state. `v3` tracks the store's
@@ -172,6 +176,11 @@ let activePersistenceQuiesce: (() => Promise<() => void>) | null = null;
 // recreation must await that generation before deciding which saved state is authoritative.
 let stoppedPersistenceWrites: Promise<void> = Promise.resolve();
 let activeWorkspaceLoad: Promise<WorkspaceId> | null = null;
+// Explicit foreground operations (receipt durability, workspace switches, restore/delete) share one
+// gate. A quiesced writer alone is insufficient: two callers can otherwise both pause the debouncer
+// and interleave their manifest/partition snapshots. The gate is released by the idempotent resume
+// function returned from quiescePersistenceWrites.
+let explicitQuiesceTail: Promise<void> = Promise.resolve();
 
 /** Ask the live persistence controller to retry immediately. */
 export function requestPersistenceRetry(): boolean {
@@ -186,9 +195,31 @@ export function requestPersistenceRetry(): boolean {
  * are flushed once the returned idempotent resume function runs.
  */
 export async function quiescePersistenceWrites(): Promise<() => void> {
-  await stoppedPersistenceWrites;
-  if (activePersistenceQuiesce === null) return () => undefined;
-  return activePersistenceQuiesce();
+  const previous = explicitQuiesceTail;
+  let releaseGate!: () => void;
+  explicitQuiesceTail = previous.then(
+    () =>
+      new Promise<void>((resolve) => {
+        releaseGate = resolve;
+      }),
+  );
+  await previous;
+  try {
+    await stoppedPersistenceWrites;
+    const resumeWriter = activePersistenceQuiesce === null
+      ? () => undefined
+      : await activePersistenceQuiesce();
+    let resumed = false;
+    return () => {
+      if (resumed) return;
+      resumed = true;
+      resumeWriter();
+      releaseGate();
+    };
+  } catch (reason) {
+    releaseGate();
+    throw reason;
+  }
 }
 
 /** Pure debounce — returns a wrapper that delays `fn` until `ms` has elapsed
@@ -947,8 +978,9 @@ export async function persistCurrentStateNow(
   // Preparation must share the same failure boundary as the native write. A malformed state or
   // projection error is still a failed save attempt and must remain visible to the retry/runtime
   // machinery, while the diagnostic remains value-free.
-  let failureStage = 'preparation';
+  let failureStage: PersistenceFailureStage = 'preparation';
   try {
+    setPersistenceFailureStage(failureStage);
     markPersistenceSaving(workspaceId, persistedAt);
     const files = partitionFileUris(workspaceId);
     const workspace = workspaceMetadata(workspaceId);
@@ -964,6 +996,7 @@ export async function persistCurrentStateNow(
     const pendingCommands = snapshotPendingAppStateCommands(workspaceId);
     const manifest = createWorkspaceManifest(getState(), persistedAt);
     failureStage = 'workspace-state';
+    setPersistenceFailureStage(failureStage);
     // SQLCipher is the authoritative commit path. The exact current partition is hash-checked and
     // read back inside its transaction before the Personal root is allowed to select it.
     await saveNativeWorkspaceStateGeneration(
@@ -984,8 +1017,10 @@ export async function persistCurrentStateNow(
       pendingCommands.map((receipt) => receipt.id),
     );
     failureStage = 'workspace-manifest';
+    setPersistenceFailureStage(failureStage);
     await saveNativeWorkspaceManifestGeneration(workspaceMetadata(PERSONAL_WORKSPACE_ID), manifest);
     failureStage = 'rollback-files';
+    setPersistenceFailureStage(failureStage);
     if (files !== null) {
       try {
         // Keep the authenticated files as rollback/downgrade generations during normalized-table
@@ -1010,10 +1045,86 @@ export async function persistCurrentStateNow(
     console.error(
       `[melo:persistence] stage=${failureStage} code=${classifyPersistenceDiagnostic(reason)}`,
     );
+    setPersistenceFailureStage(failureStage);
     markPersistenceFailed(workspaceId, reason, new Date().toISOString());
-    throw reason;
+    throw new PersistenceAttemptError(failureStage, reason);
   }
 }
+
+function checkedReceiptWorkspaceId(workspaceId: string): WorkspaceId {
+  return createWorkspaceId(String(workspaceId));
+}
+
+function receiptKey(workspaceId: WorkspaceId): string {
+  return String(workspaceId);
+}
+
+/**
+ * Durable restore-result handoff for MF10. Receipts live inside the encrypted workspace partition,
+ * so one workspace can never hydrate or acknowledge another workspace's result. `acknowledge`
+ * writes a receipt-free snapshot first and only hydrates that snapshot after the native commit has
+ * succeeded; a failed write therefore leaves the in-memory and durable receipt available to retry.
+ */
+export function createRestoreReceiptStore(): RestoreReceiptStore {
+  return {
+    load(workspaceId: string): RestoreResult | null {
+      const checked = checkedReceiptWorkspaceId(workspaceId);
+      const current = getState();
+      if (String(current.activeWorkspaceId) !== String(checked)) return null;
+      return current.restoreReceipts?.[receiptKey(checked)] ?? null;
+    },
+    async save(result: RestoreResult): Promise<void> {
+      const checked = checkedReceiptWorkspaceId(result.workspaceId);
+      await runWithQuiescedPersistence(async () => {
+        const current = getState();
+        if (String(current.activeWorkspaceId) !== String(checked)) {
+          throw new Error('Restore receipt workspace is no longer active.');
+        }
+        setPartial({
+          restoreReceipts: {
+            ...(current.restoreReceipts ?? {}),
+            [receiptKey(checked)]: result,
+          },
+        });
+        await persistCurrentStateNow(checked);
+      });
+    },
+    async acknowledge(workspaceId: string): Promise<void> {
+      const checked = checkedReceiptWorkspaceId(workspaceId);
+      await runWithQuiescedPersistence(async () => {
+        const current = getState();
+        if (String(current.activeWorkspaceId) !== String(checked)) {
+          throw new Error('Restore receipt workspace is no longer active.');
+        }
+        if (current.restoreReceipts?.[receiptKey(checked)] === undefined) return;
+        const before = getPersistBlob(checked);
+        const parsed = JSON.parse(before) as Record<string, unknown>;
+        const receipts =
+          parsed.restoreReceipts !== null &&
+          typeof parsed.restoreReceipts === 'object' &&
+          !Array.isArray(parsed.restoreReceipts)
+            ? { ...(parsed.restoreReceipts as Record<string, unknown>) }
+            : {};
+        delete receipts[receiptKey(checked)];
+        parsed.restoreReceipts = receipts;
+        const acknowledged = JSON.stringify(parsed);
+        await persistCurrentStateNow(checked, undefined, { plaintextOverride: acknowledged });
+
+        // If a user mutation arrived while the native write was in flight, preserve that newer
+        // state and its receipt instead of hydrating an old snapshot over it. The caller must see
+        // a rejected acknowledgement: the receipt is still present and must remain visible.
+        if (getPersistBlob(checked) !== before) {
+          await persistCurrentStateNow(checked);
+          throw new Error('Restore receipt acknowledgement was superseded by a newer local edit.');
+        }
+        hydrateFromBlob(acknowledged, checked);
+      });
+    },
+  };
+}
+
+/** Shared local receipt boundary for restore screens and the cold-start hydrator. */
+export const restoreReceiptStore = createRestoreReceiptStore();
 
 /** Commit a verified remote projection before hydrating it into the live store. This is the
  * replay boundary: an edit captured after the caller's snapshot makes the operation fail closed,
@@ -1444,7 +1555,7 @@ async function loadPersistedActiveWorkspaceOnce(): Promise<WorkspaceId> {
   return PERSONAL_WORKSPACE_ID;
 }
 
-export async function createPersistedBusinessWorkspace(name: string): Promise<PersistedWorkspace> {
+export async function createPersistedBusinessWorkspace(name: string, nested = false): Promise<PersistedWorkspace> {
   return runWithQuiescedPersistence(async () => {
     const current = getState();
     if (current.activeWorkspaceId !== PERSONAL_WORKSPACE_ID) {
@@ -1485,7 +1596,7 @@ export async function createPersistedBusinessWorkspace(name: string): Promise<Pe
       throw reason;
     }
     return business;
-  });
+  }, nested);
 }
 
 /** Restore one provisioned partition durably while retaining the device's other workspace registry. */
@@ -1585,7 +1696,7 @@ export async function recoverAndActivatePersistedBusinessWorkspace(
       setPartial({ workspaces: [personal, recovered] });
       await commitWorkspaceManifest();
       manifestCommitted = true;
-      await switchPersistedWorkspace(checked);
+      await switchPersistedWorkspace(checked, true);
     } catch (reason: unknown) {
       // Once the manifest is durable, retain the staged vault and registry so the next launch can
       // recover it; deleting bytes here would leave durable metadata pointing at nothing. Before
@@ -1609,8 +1720,8 @@ export async function createAndActivatePersistedBusinessWorkspace(
   name: string,
 ): Promise<PersistedWorkspace> {
   return runWithQuiescedPersistence(async () => {
-    const business = await createPersistedBusinessWorkspace(name);
-    await switchPersistedWorkspace(business.id);
+    const business = await createPersistedBusinessWorkspace(name, true);
+    await switchPersistedWorkspace(business.id, true);
     return business;
   });
 }
@@ -1635,7 +1746,7 @@ export async function persistEmptyWorkspaceSetAfterLocalClear(): Promise<void> {
   await commitWorkspaceManifest();
 }
 
-export async function switchPersistedWorkspace(workspaceId: WorkspaceId): Promise<void> {
+export async function switchPersistedWorkspace(workspaceId: WorkspaceId, nested = false): Promise<void> {
   await runWithQuiescedPersistence(async () => {
     const checked = requirePersistWorkspace(workspaceId);
     const before = getState();
@@ -1663,7 +1774,7 @@ export async function switchPersistedWorkspace(workspaceId: WorkspaceId): Promis
       setPartial({ workspaces: expectedWorkspaces });
       throw reason;
     }
-  });
+  }, nested);
 }
 
 export type PersistedOwnerTransferKind =
@@ -1800,7 +1911,7 @@ export async function archivePersistedBusinessWorkspace(
     const initial = getState();
     const business = requireBusinessWorkspace(initial.workspaces, workspaceId, false);
     if (initial.activeWorkspaceId === business.id) {
-      await switchPersistedWorkspace(PERSONAL_WORKSPACE_ID);
+      await switchPersistedWorkspace(PERSONAL_WORKSPACE_ID, true);
     }
     const current = getState();
     const latest = requireBusinessWorkspace(current.workspaces, workspaceId, false);
@@ -1823,7 +1934,8 @@ export async function restorePersistedBusinessWorkspace(
   });
 }
 
-async function runWithQuiescedPersistence<T>(operation: () => Promise<T>): Promise<T> {
+async function runWithQuiescedPersistence<T>(operation: () => Promise<T>, nested = false): Promise<T> {
+  if (nested) return operation();
   const resumePersistence = await quiescePersistenceWrites();
   try {
     return await operation();

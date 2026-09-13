@@ -20,7 +20,7 @@ import {
 import { ReviewScreen } from '@/folio/screens/ReviewScreen';
 import { formatGBPExact } from '@/folio/screens/reviewFormat';
 import { formatGBP } from '@/folio/screens/today/format';
-import { useAppStore } from '@/folio/store';
+import { useAppStore, useStatementReviewSessions } from '@/folio/store';
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
 
@@ -151,6 +151,14 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
   const queueCount = useAppStore(
     (state) => (state.reviewQueue?.length ?? 0) + (state.reviewQueueSpillover?.length ?? 0),
   );
+  const statementReviewSessions = useStatementReviewSessions();
+  const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const resumableStatements = statementReviewSessions.filter(
+    (session) =>
+      (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)) &&
+      session.candidates.length > 0,
+  );
+  const pendingCount = queueCount + resumableStatements.reduce((total, session) => total + session.candidates.length, 0);
   const hiddenCount = useAppStore((state) => state.ignoredReviewSigs?.length ?? 0);
   const transactions = useAppStore((state) => state.transactions);
   const subscriptions = useAppStore((state) => state.subs);
@@ -227,8 +235,8 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
               >
                 <Text style={[styles.segmentLabel, { color: selected ? t.ink : t.muted }]}>
                   {label}
-                  {key === 'needs' && queueCount > 0 ? (
-                    <Text style={[styles.segmentCount, { color: t.muted }]}> {queueCount}</Text>
+                  {key === 'needs' && pendingCount > 0 ? (
+                    <Text style={[styles.segmentCount, { color: t.muted }]}> {pendingCount}</Text>
                   ) : null}
                 </Text>
               </Pressable>
@@ -239,7 +247,36 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
 
       {tab === 'needs' ? (
         <View style={styles.screenHost}>
-          {caught ? (
+          {resumableStatements.length > 0 ? (
+            <View style={styles.destinationList}>
+              {resumableStatements.map((session) => {
+                const source = session.candidates[0]?.source ?? 'pdf';
+                const sourceKind = String(source);
+                const destination = sourceKind === 'paste' || sourceKind === 'csv' || sourceKind === 'txt'
+                  ? 'paste-success'
+                  : sourceKind === 'photo' ? 'image-success' : 'pdf-success';
+                return (
+                  <Pressable
+                    key={`${session.workspaceId ?? ''}:${session.sourceKey ?? ''}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${source} statement. ${session.candidates.length} suggested.`}
+                    onPress={() => nav.go(destination, {
+                      ...(session.sourceKey === undefined ? {} : { reviewSourceKey: session.sourceKey }),
+                    })}
+                    style={({ pressed }) => [styles.destination, pressed ? styles.pressed : undefined]}
+                  >
+                    <Text style={[styles.destinationLabel, { color: t.ink }]}>
+                      {session.sourceLabel ?? (source === 'photo' ? 'Photo statement' : 'Statement')}
+                    </Text>
+                    <Text style={[styles.destinationMeta, { color: t.muted }]}>
+                      {`${session.candidates.length} suggested · ${session.receipt === undefined ? 'not added yet' : 'result not seen yet'}`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+          {resumableStatements.length === 0 && caught ? (
             <View style={styles.caughtBlock}>
               <View style={[styles.pressureNote, { borderLeftColor: t.caution }]}>
                 <Text style={[styles.eyebrow, { color: t.muted }]}>
@@ -260,7 +297,7 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
             </View>
           ) : null}
           <View style={styles.screenHost}>
-            {caught && queueCount === 0 ? (
+            {caught && pendingCount === 0 ? (
               <Text style={{ color: t.muted, fontSize: 13, lineHeight: 20, padding: gap.xl }}>
                 Nothing else waiting.
               </Text>

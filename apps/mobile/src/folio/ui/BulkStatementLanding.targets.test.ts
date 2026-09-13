@@ -58,6 +58,15 @@ function pressablesUsing(styleName: string): ts.JsxOpeningElement[] {
 // the exact 24dp checkbox / narrow Edit / 33dp footer regressions seen in332/337;
 // actual touch bounds and keyboard room still require a rebuilt native capture.
 describe('statement review actionable targets', () => {
+  it('rechecks the workspace after queued persistence admission before the ledger mutation', () => {
+    const admitted = source.text.indexOf('resumePersistence = await quiescePersistenceWrites()');
+    const guard = source.text.indexOf('String(getState().activeWorkspaceId)', admitted);
+    const mutation = source.text.indexOf('const result = addStatementAsHistory(', admitted);
+    expect(admitted).toBeGreaterThanOrEqual(0);
+    expect(guard).toBeGreaterThan(admitted);
+    expect(mutation).toBeGreaterThan(guard);
+  });
+
   it('keeps the24dp checkbox visual inside a real48dp clickable target', () => {
     expect(style('check')).toMatchObject({ width: '24', height: '24' });
     expect(style('checkTarget')).toMatchObject({

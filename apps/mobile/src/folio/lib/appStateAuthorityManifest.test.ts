@@ -7,7 +7,7 @@ import {
 
 describe('AppState authority manifest', () => {
   it('keeps the current shipping contract explicitly classified', () => {
-    expect(Object.keys(appStateAuthorityManifest)).toHaveLength(58);
+    expect(Object.keys(appStateAuthorityManifest)).toHaveLength(61);
     expect(appStateFieldsWithAuthority('workspace-root')).toEqual([
       'schemaVersion',
       'workspaces',
@@ -91,6 +91,9 @@ describe('AppState authority manifest', () => {
       'business',
       'bankImportInbox',
       'debtPaymentSequence',
+      'statementReviewSession',
+      'statementReviewSessions',
+      'restoreReceipts',
     ]);
   });
 });

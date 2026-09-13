@@ -102,7 +102,6 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showToast } from '@/folio/ui/Toast';
 import type { CandidateKind, CandidateMoneyItem } from '@/folio/lib/importSheet';
-import { isBulkStatement } from '@/folio/lib/bulkLanding';
 import { statementPreviewPresentation } from '@/folio/lib/statementPreview';
 import {
   clearReaderCandidates,
@@ -111,6 +110,7 @@ import {
   useAppStore,
   useReaderCandidates,
   useReaderClosingBalance,
+  useStatementReviewSessions,
 } from '@/folio/store';
 import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import type { Nav } from '@/folio/types';
@@ -144,6 +144,7 @@ export type PdfSuccessScreenProps = {
   nav: Nav;
   statement?: FoundStatement;
   state?: PdfSuccessState;
+  reviewSourceKey?: string;
 };
 
 // A cold open with no staged read renders the honest EmptyState below — NEVER fabricated
@@ -259,6 +260,7 @@ export function PdfSuccessScreen({
   nav,
   statement: statementProp,
   state = 'populated',
+  reviewSourceKey,
 }: PdfSuccessScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -269,6 +271,7 @@ export function PdfSuccessScreen({
   // `statement` prop still wins for fixtures/tests.
   const staged = useReaderCandidates();
   const firstEvidenceId = staged[0]?.sourceEvidenceId;
+  const activeWorkspaceId = useAppStore((current) => current.activeWorkspaceId);
   const evidenceFilename = useAppStore(
     (current) =>
       current.evidenceDocuments?.find((document) => document.id === firstEvidenceId)?.filename,
@@ -278,6 +281,15 @@ export function PdfSuccessScreen({
   // one, or came from a path that never does — see setReaderClosingBalance's doc). Only
   // meaningful for the REAL staged read, never for a fixture.
   const stagedClosingBalance = useReaderClosingBalance();
+  const reviewSessions = useStatementReviewSessions();
+  const canResumeReview =
+    reviewSourceKey !== undefined &&
+    reviewSessions.some(
+      (session) =>
+        session.sourceKey === reviewSourceKey &&
+        session.candidates.length > 0 &&
+        (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)),
+    );
   const statement: FoundStatement =
     statementProp ??
     (staged.length > 0 ? liveStatementFrom(staged, evidenceFilename) : EMPTY_FOUND);
@@ -295,7 +307,9 @@ export function PdfSuccessScreen({
   // preview for the bulk summary + "Add all as history" landing (BulkStatementLanding owns the
   // actual `addStatementAsHistory` write, fired only on that CTA tap). A single-candidate read
   // keeps going straight to the existing per-row enqueue -> Review path below, unchanged.
-  const isBulk = !statementProp && isBulkStatement(rawCandidates.length);
+  // Every real read, including a one-row result, enters the shared D2 review contract so its
+  // candidate identity and uncertainty state are preserved through the provisional session.
+  const isBulk = canResumeReview || (!statementProp && rawCandidates.length > 0);
 
   // slide-in-r — drives the whole screen. 0 = entering, 1 = resting (translateX 0, opacity 1). Under
   // reduce-motion we resolve straight to the final state instead of animating.
@@ -320,9 +334,9 @@ export function PdfSuccessScreen({
     return (
       <EmptyState
         mood="calm"
-        headline="File saved."
-        body="Melo couldn't read this one. It's saved as a note — try a different file."
-        cta={{ label: 'Use a different file', onPress: () => nav.go('intake') }}
+        headline="Melo couldn't read this file."
+        body="The file was not added. Try another copy, or add one spend yourself."
+        cta={{ label: 'Try another file', onPress: () => nav.go('intake') }}
       />
     );
   }
@@ -342,7 +356,7 @@ export function PdfSuccessScreen({
   // empty — n/a in practice (you only land here when a statement was read). A zero-candidate read is a
   // fallback/empty-found case the upstream flow defines; rendered here as the calm EmptyState so the
   // screen never shows a hollow "0 things found" card.
-  if (state === 'empty' || statement.items.length === 0) {
+  if (!canResumeReview && (state === 'empty' || statement.items.length === 0)) {
     return (
       <EmptyState
         mood="calm"
@@ -366,7 +380,9 @@ export function PdfSuccessScreen({
       <View style={[styles.root, { backgroundColor: t.canvas }]}>
         <BulkStatementLanding
           nav={nav}
-          candidates={rawCandidates}
+          candidates={canResumeReview ? [] : rawCandidates}
+          {...(canResumeReview ? { sessionKey: reviewSourceKey } : {})}
+          {...(evidenceFilename === undefined ? {} : { sourceLabel: evidenceFilename })}
           {...(closingBalance !== undefined ? { closingBalance } : {})}
           onAdded={() => clearReaderCandidates()}
         />
@@ -413,7 +429,7 @@ export function PdfSuccessScreen({
               <FileGlyph color={t.calm} />
             </View>
             <View style={styles.fileMeta}>
-              <Text numberOfLines={1} style={[styles.fileName, { color: t.ink }]}>
+              <Text style={[styles.fileName, { color: t.ink }]}>
                 {statement.fileName}
               </Text>
               <Text style={[styles.fileSub, { color: t.muted }]}>
@@ -435,7 +451,7 @@ export function PdfSuccessScreen({
                 <View key={item.id} style={styles.foundRow}>
                   <View style={[styles.dot, { backgroundColor: t.calm }]} />
                   <View style={styles.foundMeta}>
-                    <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
+                    <Text style={[styles.merchant, { color: t.ink }]}>
                       {item.merchant}
                     </Text>
                     <Text style={[styles.hint, { color: t.muted }]}>{item.hint}</Text>
@@ -678,12 +694,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    minHeight: 56,
   },
   pressIcon: {
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: ICON_CHIP,
-    minWidth: 20,
+    minWidth: 48,
   },
   // PDF — uppercase, tracked, 12px, muted (web text-[12px] uppercase tracking-[0.14em]).
   headerLabel: {
@@ -693,7 +710,7 @@ const styles = StyleSheet.create({
   },
   // Balances the 20px back glyph so the label stays centred (web w-5).
   headerSpacer: {
-    width: 20,
+    width: 48,
   },
   // mt-6 (24) → gap.xl.
   intro: {

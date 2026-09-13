@@ -75,7 +75,6 @@ import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showToast } from '@/folio/ui/Toast';
 import { parseSheet, type CandidateKind, type CandidateMoneyItem } from '@/folio/lib/importSheet';
-import { isBulkStatement } from '@/folio/lib/bulkLanding';
 import {
   clearReaderCandidates,
   enqueueReviewItems,
@@ -83,6 +82,7 @@ import {
   useAppStore,
   useReaderCandidates,
   useReaderClosingBalance,
+  useStatementReviewSessions,
 } from '@/folio/store';
 import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import type { Nav } from '@/folio/types';
@@ -111,6 +111,7 @@ export type ImageSuccessScreenProps = {
   nav: Nav;
   image?: FoundImage;
   state?: ImageSuccessState;
+  reviewSourceKey?: string;
 };
 
 // Per-merchant hint wording layered on top of a live parse's money facts. ATM rows get the more
@@ -226,6 +227,7 @@ export function ImageSuccessScreen({
   nav,
   image: imageProp,
   state = 'populated',
+  reviewSourceKey,
 }: ImageSuccessScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -237,6 +239,7 @@ export function ImageSuccessScreen({
   // prop still wins (fixtures / tests).
   const staged = useReaderCandidates();
   const firstEvidenceId = staged[0]?.sourceEvidenceId;
+  const activeWorkspaceId = useAppStore((current) => current.activeWorkspaceId);
   const evidenceFilename = useAppStore(
     (current) =>
       current.evidenceDocuments?.find((document) => document.id === firstEvidenceId)?.filename,
@@ -244,6 +247,15 @@ export function ImageSuccessScreen({
   // The closing balance the reader staged alongside `staged` (null when the read didn't carry
   // one — a photographed statement's reader path can still return one, per StatementReadResult).
   const stagedClosingBalance = useReaderClosingBalance();
+  const reviewSessions = useStatementReviewSessions();
+  const canResumeReview =
+    reviewSourceKey !== undefined &&
+    reviewSessions.some(
+      (session) =>
+        session.sourceKey === reviewSourceKey &&
+        session.candidates.length > 0 &&
+        (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)),
+    );
   const image: FoundImage =
     imageProp ??
     (staged.length > 0
@@ -255,7 +267,9 @@ export function ImageSuccessScreen({
   // CTA pair for the bulk landing surface (BulkStatementLanding owns the actual
   // `addStatementAsHistory` write). A single-candidate read is unchanged.
   const rawCandidates: readonly CandidateMoneyItem[] = imageProp ? [] : staged;
-  const isBulk = !imageProp && isBulkStatement(rawCandidates.length);
+  // Every real read, including a one-row result, enters the shared D2 review contract so its
+  // candidate identity and uncertainty state are preserved through the provisional session.
+  const isBulk = canResumeReview || (!imageProp && rawCandidates.length > 0);
   // Mirrors `rawCandidates`' fixture guard: a fixture-driven `image` prop (tests only) never
   // carries a real reader-staged balance through to the landing.
   const closingBalance = imageProp ? undefined : (stagedClosingBalance ?? undefined);
@@ -282,9 +296,9 @@ export function ImageSuccessScreen({
     return (
       <EmptyState
         mood="calm"
-        headline="Image saved."
-        body="Melo couldn't read this one clearly. Try a different image."
-        cta={{ label: 'Use a different image', onPress: () => nav.go('intake') }}
+        headline="Melo couldn't read this photo."
+        body="The photo was not added. Try another photo, or add one spend yourself."
+        cta={{ label: 'Try another photo', onPress: () => nav.go('intake') }}
       />
     );
   }
@@ -303,7 +317,7 @@ export function ImageSuccessScreen({
 
   // empty — n/a in practice (you only land here when something was read). Rendered as the calm
   // EmptyState so the screen never shows a hollow "0 things found" card.
-  if (state === 'empty' || image.items.length === 0) {
+  if (!canResumeReview && (state === 'empty' || image.items.length === 0)) {
     return (
       <EmptyState
         mood="calm"
@@ -325,7 +339,9 @@ export function ImageSuccessScreen({
       <View style={[styles.root, { backgroundColor: t.canvas }]}>
         <BulkStatementLanding
           nav={nav}
-          candidates={rawCandidates}
+          candidates={canResumeReview ? [] : rawCandidates}
+          {...(canResumeReview ? { sessionKey: reviewSourceKey } : {})}
+          {...(evidenceFilename === undefined ? {} : { sourceLabel: evidenceFilename })}
           {...(closingBalance !== undefined ? { closingBalance } : {})}
           onAdded={() => clearReaderCandidates()}
         />
@@ -356,7 +372,7 @@ export function ImageSuccessScreen({
           >
             <BackArrow color={t.muted} />
           </Pressable>
-          <Text style={[styles.headerLabel, { color: t.muted }]}>Image</Text>
+          <Text style={[styles.headerLabel, { color: t.muted }]}>PHOTO</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -379,10 +395,10 @@ export function ImageSuccessScreen({
           <View style={styles.imageRow}>
             <View style={[styles.thumb, { backgroundColor: t.inset, borderColor: t.hairline }]} />
             <View style={styles.imageMeta}>
-              <Text numberOfLines={1} style={[styles.imageName, { color: t.ink }]}>
+              <Text style={[styles.imageName, { color: t.ink }]}>
                 {image.imageName}
               </Text>
-              <Text style={[styles.imageSub, { color: t.muted }]}>saved in Melo</Text>
+              <Text style={[styles.imageSub, { color: t.muted }]}>selected photo</Text>
             </View>
           </View>
 
@@ -397,7 +413,7 @@ export function ImageSuccessScreen({
                 <View key={item.id} style={styles.foundRow}>
                   <View style={[styles.dot, { backgroundColor: t.calm }]} />
                   <View style={styles.foundMeta}>
-                    <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
+                    <Text style={[styles.merchant, { color: t.ink }]}>
                       {item.merchant}
                     </Text>
                     <Text style={[styles.hint, { color: t.muted }]}>{item.hint}</Text>
@@ -529,12 +545,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    minHeight: 56,
   },
   pressIcon: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
-    minWidth: 20,
+    minHeight: 48,
+    minWidth: 48,
   },
   // Image — uppercase, tracked, 12px, muted (web text-[12px] uppercase tracking-[0.14em]).
   headerLabel: {
@@ -543,7 +560,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   headerSpacer: {
-    width: 20,
+    width: 48,
   },
   // mt-6 (24) → gap.xl.
   intro: {

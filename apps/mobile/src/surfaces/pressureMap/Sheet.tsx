@@ -113,6 +113,10 @@ type SheetProps = {
   directScrollContent?: boolean;
   /** Optional measured floor for an alert's native scroll content; ordinary sheets leave it off. */
   contentMinHeight?: number | undefined;
+  /** Optional accessible name for a workflow-specific close action. */
+  closeAccessibilityLabel?: string;
+  /** Resting sheet height as a fraction of its window; defaults to the shared 92% shell. */
+  maxHeightFraction?: number;
 };
 
 type SheetPortalApi = {
@@ -336,6 +340,8 @@ export function Sheet({
   bodyContentInset = 0,
   directScrollContent = false,
   contentMinHeight,
+  closeAccessibilityLabel = 'Close',
+  maxHeightFraction = MAX_HEIGHT_FRACTION,
 }: SheetProps) {
   const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -387,7 +393,7 @@ export function Sheet({
     keyboard: keyboardFrame,
     topInset: insets.top,
     bottomOffset: restingBottomOffset,
-    maxHeightFraction: MAX_HEIGHT_FRACTION,
+    maxHeightFraction,
   });
   const maxHeight = viewport.maxHeight;
   const panelBottomOffset = viewport.bottom;
@@ -681,7 +687,7 @@ export function Sheet({
                 />
                 {dismissible ? (
                   <Pressable
-                    accessibilityLabel="Close"
+                    accessibilityLabel={closeAccessibilityLabel}
                     accessibilityRole="button"
                     onPress={handleClose}
                     style={({ pressed }) => [s.close, { opacity: pressed ? 0.6 : 1 }]}
