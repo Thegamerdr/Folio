@@ -78,6 +78,7 @@ export const appStateAuthorityManifest = {
   dismissedAnnualSignals: 'canonical-transaction-intelligence-authority',
   merchantCategories: 'canonical-transaction-intelligence-authority',
   statementImports: 'canonical-transaction-intelligence-authority',
+  statementReviewSession: 'exact-encrypted-authority',
   evidenceDocuments: 'canonical-transaction-intelligence-authority',
 
   calendarFocusDate: 'transient-not-persisted',

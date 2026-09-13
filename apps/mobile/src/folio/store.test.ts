@@ -37,6 +37,7 @@ import {
   bankTransactions,
   borrowFromPot,
   clearReaderCandidates,
+  clearStatementReviewSession,
   clearReviewQueue,
   consumeLoadDegraded,
   createEmptyWorkspacePartition,
@@ -92,6 +93,7 @@ import {
   startLensTrial,
   setReaderCandidates,
   setReaderClosingBalance,
+  setStatementReviewSession,
   setTightPointGoal,
   sweepReviewQueue,
   sweepAutoResumeNow,
@@ -533,6 +535,59 @@ describe('setModeExtra', () => {
 
     hydrateFromBlob(blob);
     expect(getState().modeExtras).toEqual({ planning: 8000 });
+  });
+});
+
+describe('statement review session persistence', () => {
+  const session = {
+    candidates: [
+      {
+        id: 'candidate-session-1',
+        source: 'csv' as const,
+        kind: 'spend' as const,
+        merchant: 'Coffee shop',
+        amount: -3.2,
+        date: '2026-06-20',
+        confidence: 'high' as const,
+      },
+    ],
+    accountId: DEFAULT_ACCOUNT_ID,
+    selectedIds: ['candidate-session-1'],
+    asideIds: [],
+    resolvedRepeatIds: [],
+  };
+
+  it('round-trips provisional review state and clears it explicitly after receipt acknowledgement', () => {
+    resetAll();
+    setStatementReviewSession(session);
+    const blob = getPersistBlob();
+
+    resetToEmpty();
+    expect(getState().statementReviewSession).toBeNull();
+
+    hydrateFromBlob(blob);
+    expect(getState().statementReviewSession).toEqual(session);
+
+    clearStatementReviewSession();
+    expect(getState().statementReviewSession).toBeNull();
+  });
+
+  it('round-trips an unacknowledged receipt with the same review session', () => {
+    resetAll();
+    const withReceipt = {
+      ...session,
+      receipt: {
+        added: 1,
+        dateRange: { fromISO: '2026-06-20', toISO: '2026-06-20' },
+        totalInPence: 0,
+        totalOutPence: 320,
+        duplicatesSkipped: 0,
+      },
+    };
+    setStatementReviewSession(withReceipt);
+
+    hydrateFromBlob(getPersistBlob());
+    expect(getState().statementReviewSession).toEqual(withReceipt);
   });
 });
 
@@ -2851,6 +2906,23 @@ describe('schema migration v9 workspace root', () => {
 describe('schema v11 isolated workspace partitions', () => {
   it('builds and hydrates a genuinely empty Business partition without Personal or sample rows', () => {
     resetToEmpty();
+    setStatementReviewSession({
+      candidates: [
+        {
+          id: 'personal-session-candidate',
+          source: 'csv',
+          kind: 'spend',
+          merchant: 'Personal coffee',
+          amount: -2.5,
+          date: '2026-07-15',
+          confidence: 'high',
+        },
+      ],
+      accountId: DEFAULT_ACCOUNT_ID,
+      selectedIds: ['personal-session-candidate'],
+      asideIds: [],
+      resolvedRepeatIds: [],
+    });
     const personalBlob = getPersistBlob(PERSONAL_WORKSPACE_ID);
     const personalRoot = createPersonalWorkspaceRoot();
     const businessId = createWorkspaceId('workspace_business_partition_test');
@@ -2876,6 +2948,7 @@ describe('schema v11 isolated workspace partitions', () => {
     expect(partition.pots).toEqual([]);
     expect(partition.subs).toEqual([]);
     expect(partition.reviewQueue).toEqual([]);
+    expect(partition.statementReviewSession).toBeNull();
     expect(JSON.stringify(partition)).not.toContain('Pret');
     expect(JSON.stringify(partition)).not.toContain('workspaceId":"workspace_personal_local');
 
@@ -2896,6 +2969,7 @@ describe('schema v11 isolated workspace partitions', () => {
 
     hydrateFromBlob(personalBlob, PERSONAL_WORKSPACE_ID);
     expect(getState().activeWorkspaceId).toBe(PERSONAL_WORKSPACE_ID);
+    expect(getState().statementReviewSession?.candidates[0]?.merchant).toBe('Personal coffee');
   });
 
   it('keeps Business operations inside the active encrypted Business partition', () => {

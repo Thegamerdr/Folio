@@ -33,6 +33,45 @@ describe('statementReviewModel', () => {
     expect(model.rows.slice(0, 2).every((row) => row.issue === 'possible-duplicate')).toBe(true);
   });
 
+  it('keeps already-added and resolved repeats out of the ready and needs-checking counts', () => {
+    const fixture = buildScaleFixture(2);
+    const first = fixture.candidates[1]!;
+    const repeat = { ...first, id: 'repeat-id' };
+    const model = buildStatementReviewModel([first, repeat], {
+      alreadyAddedIds: new Set([first.id]),
+      resolvedDuplicateIds: new Set([repeat.id]),
+    });
+
+    expect(model.rows[0]?.status).toBe('already-added');
+    expect(model.rows[1]?.status).toBe('ready');
+    expect(model.counts.alreadyAdded).toBe(1);
+    expect(model.counts.duplicates).toBe(0);
+    expect(model.counts.ready).toBe(1);
+    expect(model.counts.issues).toBe(0);
+  });
+
+  it('surfaces missing and invalid required fields before a candidate can be selected', () => {
+    const base = buildScaleFixture(1).candidates[0]!;
+    const missingDate = { ...base, id: 'missing-date' };
+    delete (missingDate as { date?: string }).date;
+    const model = buildStatementReviewModel([
+      { ...base, id: 'missing-name', merchant: ' ' },
+      { ...base, id: 'zero-amount', amount: 0 },
+      missingDate,
+      { ...base, id: 'invalid-date', date: '2026-02-30' },
+    ]);
+
+    expect(model.rows.map((row) => row.issue)).toEqual([
+      'missing-name',
+      'invalid-amount',
+      'missing-date',
+      'invalid-date',
+    ]);
+    expect(model.rows.every((row) => row.status === 'issue')).toBe(true);
+    expect(model.counts.ready).toBe(0);
+    expect(model.counts.issues).toBe(4);
+  });
+
   it('projects and filters the full 10k+ corpus within a conservative CI budget', () => {
     const fixture = buildScaleFixture(10_001);
     const startedAt = performance.now();

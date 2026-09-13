@@ -504,6 +504,18 @@ export type Account = {
   closed?: boolean;
 };
 
+/** Durable provisional statement review session. Candidates remain provisional until the user
+ * explicitly accepts them; the session only preserves the user's review work and receipt across a
+ * backgrounding or cold relaunch. */
+export type StatementReviewSession = {
+  candidates: CandidateMoneyItem[];
+  accountId?: string;
+  selectedIds: string[];
+  asideIds: string[];
+  resolvedRepeatIds: string[];
+  receipt?: AddStatementAsHistoryResult;
+};
+
 /** The id every pre-existing install's data is synthesized under (see `synthesizeDefaultAccount`
  *  below) — the implicit "whole ledger is one account" bank account this codebase always had before
  *  `AppState.accounts` existed. */
@@ -703,6 +715,8 @@ export type AppState = {
    *  predating this field; `DEFAULTS`/`load()`/`resetToEmpty()` always
    *  populate it (null). */
   readerClosingBalance?: ReaderClosingBalance | null;
+  /** Durable MF09 statement review work and its unacknowledged receipt. */
+  statementReviewSession?: StatementReviewSession | null;
   /** ENGINES.md §6 "Ignored review items: suppressed in main flow, visible in
    *  Hidden list." A Review candidate the user tapped "Ignore" on is recorded
    *  here by signature (`merchant|amountCents|date`, matching the design
@@ -1707,6 +1721,11 @@ function load(): AppState {
       // excluded from getPersistBlob), so a load always starts it empty.
       readerCandidates: [],
       readerClosingBalance: null,
+      statementReviewSession:
+        migrated.statementReviewSession !== null &&
+        typeof migrated.statementReviewSession === 'object'
+          ? (migrated.statementReviewSession as StatementReviewSession)
+          : null,
       ignoredReviewSigs: migrated.ignoredReviewSigs ?? [],
       reviewQueue: Array.isArray(migrated.reviewQueue) ? migrated.reviewQueue : [],
       ...(migrated.bankImportInbox === undefined
@@ -5249,7 +5268,7 @@ function stableHash(input: string): string {
  *  with the existing row's id rather than mint a second row. Manual single-entry `addTransaction`
  *  is untouched — it keeps its existing random `txn-${Date.now()}-...` id, since a manual entry has
  *  no "candidate" to derive a stable key from and doesn't need re-import defense. */
-function importedTransactionId(candidate: CandidateMoneyItem): string {
+export function importedTransactionId(candidate: CandidateMoneyItem): string {
   return `imp-${stableHash(dedupeKey(candidate))}`;
 }
 
@@ -6065,6 +6084,20 @@ export function setReaderClosingBalance(closingBalance: ReaderClosingBalance | n
  *  a stale balance from a prior read can never survive into the next one. */
 export function clearReaderCandidates() {
   setPartial({ readerCandidates: [], readerClosingBalance: null });
+}
+
+/** Persist the provisional MF09 review session. This never posts a transaction; it only preserves
+ *  candidate edits, selection and an unacknowledged receipt across relaunch. */
+export function setStatementReviewSession(session: StatementReviewSession | null) {
+  setPartial({ statementReviewSession: session });
+}
+
+export function clearStatementReviewSession() {
+  setPartial({ statementReviewSession: null });
+}
+
+export function useStatementReviewSession(): StatementReviewSession | null {
+  return useAppStore((s) => s.statementReviewSession ?? null);
 }
 
 /** Read path for the staged statement-reader review queue. A thin selector over
@@ -6947,6 +6980,7 @@ export function createEmptyWorkspacePartition(
     routeFocusDate: null,
     readerCandidates: [],
     readerClosingBalance: null,
+    statementReviewSession: null,
     ignoredReviewSigs: [],
     reviewQueue: [],
     reviewQueueSpillover: [],
