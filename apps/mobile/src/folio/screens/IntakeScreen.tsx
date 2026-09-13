@@ -986,8 +986,8 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   );
 }
 
-// One compact dispatch row — an inline decorative icon, the title (with the optional "fastest"
-// badge) over a muted hint, and a right-pinned forward glyph. The whole row is the Pressable; its accessibility
+// One dispatch row — personal uses the compact text-only authority list; Business keeps its
+// decorative icon tile. The whole row is the Pressable; its accessibility
 // label is the title + hint so the decorative glyph is never load-bearing for a screen reader.
 function OptionRow({
   option,
@@ -1014,22 +1014,24 @@ function OptionRow({
         isPressed ? styles.pressed : undefined,
       ]}
     >
-      <View style={compact ? styles.iconTile : styles.iconTileBusiness}>
-        {option.icon === '▢' ? (
-          <Svg width={24} height={24} viewBox="0 0 24 24" accessible={false}>
-            <Path
-              d="M3 6h4l2-3h6l2 3h4v15H3z"
-              fill="none"
-              stroke={t.ink}
-              strokeWidth={1.6}
-              strokeLinejoin="round"
-            />
-            <Circle cx={12} cy={13} r={4} fill="none" stroke={t.ink} strokeWidth={1.6} />
-          </Svg>
-        ) : (
-          <Text style={[styles.icon, { color: t.ink }]}>{option.icon}</Text>
-        )}
-      </View>
+      {!compact ? (
+        <View style={[styles.iconTileBusiness, { backgroundColor: t.inset }]}>
+          {option.icon === '▢' ? (
+            <Svg width={24} height={24} viewBox="0 0 24 24" accessible={false}>
+              <Path
+                d="M3 6h4l2-3h6l2 3h4v15H3z"
+                fill="none"
+                stroke={t.ink}
+                strokeWidth={1.6}
+                strokeLinejoin="round"
+              />
+              <Circle cx={12} cy={13} r={4} fill="none" stroke={t.ink} strokeWidth={1.6} />
+            </Svg>
+          ) : (
+            <Text style={[styles.icon, { color: t.ink }]}>{option.icon}</Text>
+          )}
+        </View>
+      ) : null}
       <View style={styles.rowBody}>
         <View style={styles.titleRow}>
           <Text style={[styles.rowTitle, { color: t.ink }]}>{option.title}</Text>
@@ -1310,9 +1312,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 44,
   },
-  // Unicode glyph at compact inline size.
+  // Business Unicode glyph at the original 20px size.
   icon: {
-    fontSize: 17,
+    fontSize: 20,
   },
   rowBody: {
     flex: 1,
