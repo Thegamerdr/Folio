@@ -61,6 +61,18 @@ describe('validateRestoreJson — envelope check', () => {
     });
   });
 
+  it('rejects an export from a newer schema before it reaches migration', () => {
+    const newer = JSON.stringify({
+      schemaVersion: 15,
+      currentBalance: {},
+      transactions: [],
+    });
+    expect(validateRestoreJson(newer, PERSONAL_WORKSPACE_ID)).toEqual({
+      ok: false,
+      reason: 'unsupported-version',
+    });
+  });
+
   it('allows a pre-v9 rootless export only through the historic Personal migration path', () => {
     const legacy = JSON.parse(getPersistBlob()) as Record<string, unknown>;
     delete legacy.workspaces;

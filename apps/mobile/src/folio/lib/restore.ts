@@ -24,7 +24,9 @@ export type RestoreRejection =
   | 'not-json'
   | 'not-an-object'
   | 'not-a-folio-export'
-  | 'wrong-workspace';
+  | 'wrong-workspace'
+  | 'unsupported-version'
+  | 'accountant-csv';
 
 export type RestoreValidation =
   | { ok: true; parsed: Record<string, unknown> }
@@ -47,6 +49,9 @@ const SIGNATURE_KEYS = [
 ] as const;
 
 const MIN_SIGNATURE_MATCHES = 2;
+// Keep this aligned with the store's current schema owner. Newer exports must not reach a
+// migration path that cannot understand their fields.
+const CURRENT_RESTORE_SCHEMA_VERSION = 14;
 
 /** Envelope check: is this string a Folio export we can hand to the store? */
 export function validateRestoreJson(
@@ -66,6 +71,13 @@ export function validateRestoreJson(
   const matches = SIGNATURE_KEYS.filter((k) => k in record).length;
   if (matches < MIN_SIGNATURE_MATCHES) {
     return { ok: false, reason: 'not-a-folio-export' };
+  }
+  if (
+    typeof record.schemaVersion === 'number' &&
+    Number.isFinite(record.schemaVersion) &&
+    record.schemaVersion > CURRENT_RESTORE_SCHEMA_VERSION
+  ) {
+    return { ok: false, reason: 'unsupported-version' };
   }
   if (
     expectedWorkspaceId !== undefined &&

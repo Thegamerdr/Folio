@@ -38,6 +38,13 @@ export type RunExportResult = Readonly<{
   shared: boolean;
 }>;
 
+export type ExportVariant = 'default' | 'accountant-csv' | 'backup-json';
+
+/** A generated file exists, but Android rejected the handoff before a chooser was established. */
+export class ExportHandoffError extends Error {
+  override readonly name = 'ExportHandoffError';
+}
+
 /**
  * Run the full data export: build the bundle from live state, write the JSON
  * and every CSV to the document directory, and open the OS share sheet on the
@@ -49,7 +56,10 @@ export type RunExportResult = Readonly<{
  * sharing is unavailable on the device, the files are still written and
  * `shared` comes back false — the export itself never fails for that reason.
  */
-export async function runExport(workspaceId: WorkspaceId): Promise<RunExportResult> {
+export async function runExport(
+  workspaceId: WorkspaceId,
+  variant: ExportVariant = 'default',
+): Promise<RunExportResult> {
   const dir = FileSystem.documentDirectory;
   if (dir === null) {
     throw new Error('Export storage is unavailable on this device.');
@@ -65,31 +75,59 @@ export async function runExport(workspaceId: WorkspaceId): Promise<RunExportResu
   const { json, csvs } = buildExport(snapshot, workspaceId, new Date().toISOString());
 
   const jsonUri = `${dir}${jsonFilename}`;
-  await FileSystem.writeAsStringAsync(jsonUri, json, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
-
+  const writtenUris: string[] = [];
   const filenames: string[] = [jsonFilename];
   const writtenCsvUris = new Map<string, string>();
-  for (const [name, csv] of Object.entries(csvs)) {
-    const filename = `${stem}-${name}`;
-    const uri = `${dir}${filename}`;
-    await FileSystem.writeAsStringAsync(uri, csv, {
+  try {
+    // Record the URI before the native write starts. A rejected write may have created a partial
+    // file before reporting its error, so cleanup must cover the attempted path as well.
+    writtenUris.push(jsonUri);
+    await FileSystem.writeAsStringAsync(jsonUri, json, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-    filenames.push(filename);
-    writtenCsvUris.set(name, uri);
+    for (const [name, csv] of Object.entries(csvs)) {
+      const filename = `${stem}-${name}`;
+      const uri = `${dir}${filename}`;
+      writtenUris.push(uri);
+      await FileSystem.writeAsStringAsync(uri, csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      filenames.push(filename);
+      writtenCsvUris.set(name, uri);
+    }
+  } catch (error) {
+    await Promise.allSettled(
+      writtenUris.map((uri) => FileSystem.deleteAsync(uri, { idempotent: true })),
+    );
+    throw error;
   }
 
-  const available = await Sharing.isAvailableAsync();
+  let available: boolean;
+  try {
+    available = await Sharing.isAvailableAsync();
+  } catch (error) {
+    // The files were generated, but Android could not establish whether a receiving app exists.
+    // Treat that post-generation platform rejection as the same failed-handoff branch as a share
+    // rejection; callers must not present the successful A01 handoff sheet.
+    throw new ExportHandoffError(
+      error instanceof Error ? error.message : 'Android did not accept the file handoff.',
+    );
+  }
   if (available) {
     const businessCsvUri = writtenCsvUris.get('accountant-records.csv');
-    const shareBusinessCsv = workspace.kind === 'business' && businessCsvUri !== undefined;
-    await Sharing.shareAsync(shareBusinessCsv ? businessCsvUri : jsonUri, {
-      mimeType: shareBusinessCsv ? 'text/csv' : 'application/json',
-      dialogTitle: workspace.kind === 'business' ? 'Share business records' : 'Export your data',
-      UTI: shareBusinessCsv ? 'public.comma-separated-values-text' : 'public.json',
-    });
+    const shareBusinessCsv =
+      workspace.kind === 'business' && variant !== 'backup-json' && businessCsvUri !== undefined;
+    try {
+      await Sharing.shareAsync(shareBusinessCsv ? businessCsvUri : jsonUri, {
+        mimeType: shareBusinessCsv ? 'text/csv' : 'application/json',
+        dialogTitle: workspace.kind === 'business' ? 'Share business records' : 'Export your data',
+        UTI: shareBusinessCsv ? 'public.comma-separated-values-text' : 'public.json',
+      });
+    } catch (error) {
+      throw new ExportHandoffError(
+        error instanceof Error ? error.message : 'Android did not accept the file handoff.',
+      );
+    }
   }
 
   return {

@@ -27,13 +27,14 @@ import {
 } from '@/folio/lib/persist';
 
 import { summarizeRestore, validateRestoreJson } from './restore';
+import { createRestoreResult, stringId, type RestoreResult } from './restoreResult';
 import { PERSONAL_WORKSPACE_ID } from './workspaceRoot';
 import type { RestoreRejection, RestoreSummary } from './restore';
 
 /** Outcome of the pick-and-validate stage (nothing is replaced yet). */
 export type PickRestoreResult =
   | { status: 'cancelled' }
-  | { status: 'invalid'; reason: RestoreRejection }
+  | { status: 'invalid'; reason: RestoreRejection; workspaceKind?: 'Personal' | 'Business' }
   | { status: 'staged'; raw: string; fileName: string; summary: RestoreSummary };
 
 /**
@@ -53,29 +54,117 @@ export async function pickRestoreFile(workspaceId: WorkspaceId): Promise<PickRes
   if (picked.canceled || picked.assets.length === 0) return { status: 'cancelled' };
 
   const asset = picked.assets[0]!;
+  const fileName = asset.name ?? '';
+  if (asset.mimeType === 'text/csv' || fileName.toLowerCase().endsWith('.csv')) {
+    return { status: 'invalid', reason: 'accountant-csv' };
+  }
   const raw = await FileSystem.readAsStringAsync(asset.uri, {
     encoding: FileSystem.EncodingType.UTF8,
   });
 
   const validation = validateRestoreJson(raw, workspaceId);
-  if (!validation.ok) return { status: 'invalid', reason: validation.reason };
+  if (!validation.ok) {
+    const workspaceKind =
+      validation.reason === 'wrong-workspace' ? exportedWorkspaceKind(raw) : null;
+    return {
+      status: 'invalid',
+      reason: validation.reason,
+      ...(workspaceKind === null ? {} : { workspaceKind }),
+    };
+  }
 
   return {
     status: 'staged',
     raw,
-    fileName: asset.name,
+    fileName: asset.name ?? 'Melo export.json',
     summary: summarizeRestore(validation.parsed),
   };
 }
 
-export type ApplyRestoreResult = Readonly<{
-  /** True when the store's load pipeline THREW and degraded the state to safe
-   *  defaults — the file passed the envelope check but was fundamentally
-   *  unreadable. (Per-FIELD corruption is silently defaulted by load()'s
-   *  guards, same as a cold boot, and is NOT reported here — see
-   *  restore.test.ts "field tolerance".) The caller must say so honestly. */
-  degraded: boolean;
-}>;
+function exportedWorkspaceKind(raw: string): 'Personal' | 'Business' | null {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const workspaces = Array.isArray(parsed.workspaces) ? parsed.workspaces : [];
+    const activeId = String(parsed.activeWorkspaceId ?? '');
+    const workspace = workspaces.find(
+      (candidate) =>
+        candidate !== null &&
+        typeof candidate === 'object' &&
+        !Array.isArray(candidate) &&
+        String((candidate as Record<string, unknown>).id ?? '') === activeId,
+    );
+    const kind =
+      workspace && typeof workspace === 'object'
+        ? (workspace as Record<string, unknown>).kind
+        : parsed.kind;
+    return kind === 'business' ? 'Business' : kind === 'personal' ? 'Personal' : null;
+  } catch {
+    return null;
+  }
+}
+
+export type ApplyRestoreResult = RestoreResult;
+
+function restoreInput(parsed: Record<string, unknown>) {
+  // Keep malformed/non-object entries in the attempted count. The store is the authority for
+  // whether a row can be loaded, while the receipt must still report rows it dropped.
+  const attemptedTransactions = Array.isArray(parsed.transactions) ? parsed.transactions : [];
+  const attemptedOriginalFileIds = Array.isArray(parsed.evidenceDocuments)
+    ? parsed.evidenceDocuments
+        .map((document) =>
+          document !== null && typeof document === 'object' && !Array.isArray(document)
+            ? stringId((document as Record<string, unknown>).id)
+            : null,
+        )
+        .filter((id): id is string => id !== null)
+    : [];
+  const attemptedStatementRecords = Array.isArray(parsed.statementImports)
+    ? parsed.statementImports.filter(
+        (record): record is Record<string, unknown> =>
+          record !== null && typeof record === 'object' && !Array.isArray(record),
+      )
+    : [];
+  return {
+    attemptedTransactions,
+    attemptedStatementRecords,
+    attemptedOriginalFileIds,
+    attemptedAccounts: Array.isArray(parsed.accounts) ? parsed.accounts : [],
+    attemptedDebts: Array.isArray(parsed.debts) ? parsed.debts : [],
+    attemptedSubscriptions: Array.isArray(parsed.subs) ? parsed.subs : [],
+    attemptedPots: Array.isArray(parsed.pots) ? parsed.pots : [],
+  };
+}
+
+function resultFromState(
+  workspaceId: WorkspaceId,
+  degraded: boolean,
+  input: ReturnType<typeof restoreInput>,
+): RestoreResult {
+  const restored = getState();
+  return createRestoreResult({
+    workspaceId: String(workspaceId),
+    degraded,
+    attemptedTransactions: input.attemptedTransactions,
+    restoredTransactions: Array.isArray(restored.transactions) ? restored.transactions : [],
+    attemptedStatementRecords: input.attemptedStatementRecords,
+    restoredStatementRecords: Array.isArray(restored.statementImports)
+      ? restored.statementImports
+      : [],
+    restoredAccountCount: Array.isArray(restored.accounts) ? restored.accounts.length : 0,
+    attemptedAccounts: input.attemptedAccounts,
+    restoredAccounts: Array.isArray(restored.accounts) ? restored.accounts : [],
+    attemptedDebts: input.attemptedDebts,
+    restoredDebts: Array.isArray(restored.debts) ? restored.debts : [],
+    attemptedSubscriptions: input.attemptedSubscriptions,
+    restoredSubscriptions: Array.isArray(restored.subs) ? restored.subs : [],
+    attemptedPots: input.attemptedPots,
+    restoredPots: Array.isArray(restored.pots) ? restored.pots : [],
+    attemptedOriginalFileIds: input.attemptedOriginalFileIds,
+    restoredOriginalFileIds: (restored.evidenceDocuments ?? [])
+      .map((document) => stringId(document.id))
+      .filter((id): id is string => id !== null),
+  });
+}
 
 /**
  * Replace live state with a staged export. Runs the store's cold-boot path
@@ -89,10 +178,12 @@ export async function applyRestore(
 ): Promise<ApplyRestoreResult> {
   const validation = validateRestoreJson(raw, workspaceId);
   if (!validation.ok) throw new Error('This backup cannot replace the selected Melo workspace.');
+  const input = restoreInput(validation.parsed);
   const { degraded } = await restorePersistedWorkspacePayload(raw, workspaceId);
   if (!degraded) await reconcileMissingEvidenceFiles(workspaceId);
+  const result = resultFromState(workspaceId, degraded, input);
   await reconcileEntitlements();
-  return { degraded };
+  return result;
 }
 
 /**
@@ -108,9 +199,12 @@ export async function applyBusinessCloudRestore(
     (workspace) => workspace.kind === 'business' && workspace.id === workspaceId,
   );
   if (!hasBusiness && String(workspaceId) !== String(PERSONAL_WORKSPACE_ID)) {
+    const validation = validateRestoreJson(raw, workspaceId);
+    if (!validation.ok) throw new Error('This backup cannot replace the selected Melo workspace.');
+    const input = restoreInput(validation.parsed);
     await recoverAndActivatePersistedBusinessWorkspace(raw, workspaceId);
     await reconcileEntitlements();
-    return { degraded: false };
+    return resultFromState(workspaceId, false, input);
   }
   return applyRestore(raw, workspaceId);
 }

@@ -1,5 +1,5 @@
 // Privacy controls keep local clearing separate from remote account services.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MeloAlert as Alert } from '@/folio/ui/meloAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,10 +19,16 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showStatusDialog } from '@/folio/ui/statusDialogs';
-import { runExport } from '@/folio/lib/exportNative';
-import { applyRestore, pickRestoreFile } from '@/folio/lib/restoreNative';
+import { ExportHandoffError, runExport, type ExportVariant } from '@/folio/lib/exportNative';
+import {
+  applyRestore,
+  pickRestoreFile,
+  type PickRestoreResult,
+} from '@/folio/lib/restoreNative';
+import { runConfirmedRestore, restoreFailureMessage } from '@/folio/lib/restoreConfirmation';
 import { canStartFresh, type StartFreshState } from '@/folio/lib/undoPolicy';
 import { clearLocalMeloData } from '@/folio/lib/localDataDeletion';
+import { restoreReceiptStore } from '@/folio/lib/persist';
 import { privacyHistoryPresentation } from '@/folio/lib/privacyHistoryPresentation';
 import { useUndo } from '@/folio/ui/useUndo';
 import { useAppStore } from '@/folio/store';
@@ -35,6 +41,9 @@ import {
   type AppLockCapability,
 } from '@/folio/lib/appLock';
 import type { Nav } from '@/folio/types';
+import type { RestoreResult } from '@/folio/lib/restoreResult';
+
+type StagedRestore = Extract<PickRestoreResult, { status: 'staged' }>;
 
 // The render states this screen can occupy. Per the spec, Privacy is populated-only and offline is
 // identical to populated (local-first, no network dependency); loading/empty/error are n/a for a
@@ -53,6 +62,114 @@ const HONEST_CLAIMS = [
   'Bank, backup, Melo and statement services run only when you choose them',
   'Local clearing and cloud account deletion stay separate',
 ] as const;
+
+type RestoreResultPresentation = Readonly<{
+  title: string;
+  message: string;
+  mixed: boolean;
+  partialWithMissingOriginals: boolean;
+  inventorylessLinkLoss: boolean;
+}>;
+
+/** Keep the immediate and cold-relaunch restore terminals on one truthful copy path. */
+function restoreResultPresentation(
+  result: RestoreResult,
+  workspaceName: string,
+): RestoreResultPresentation {
+  const hasDroppedMoney =
+    result.droppedTransactionCount > 0 ||
+    result.missingTransactionIds.length > 0 ||
+    result.changedTransactionIds.length > 0 ||
+    result.duplicateTransactionIdCount > 0;
+  const hasChangedOtherRecords =
+    result.changedAccountCount > 0 ||
+    result.changedDebtCount > 0 ||
+    result.changedSubscriptionCount > 0 ||
+    result.changedPotCount > 0;
+  // Lost source links are evidence metadata. They must not turn intact money into a changed
+  // result; the missing-originals branch below reports those links separately.
+  const mixed =
+    result.status === 'degraded' ||
+    result.notRestoredTransactionCount > 0 ||
+    hasDroppedMoney ||
+    hasChangedOtherRecords;
+  const partialWithMissingOriginals =
+    result.status === 'partial' && result.missingOriginalFileCount > 0 && !mixed;
+  const inventorylessLinkLoss =
+    result.status === 'partial' &&
+    result.missingOriginalFileCount === 0 &&
+    result.restoredOriginalFileCount === 0 &&
+    !mixed &&
+    (result.unlinkedRecordCount > 0 || result.unlinkedStatementRecordCount > 0);
+  const missingOriginalsBlock =
+    result.missingOriginalFileCount > 0
+      ? `${result.missingOriginalFileCount} original statements and photos were not in this file, so ${result.unlinkedRecordCount} money records no longer link to an original.`
+      : '';
+  const statementLinksBlock =
+    result.unlinkedStatementRecordCount === 1
+      ? 'One statement record also lost its link.'
+      : result.unlinkedStatementRecordCount > 1
+        ? `${result.unlinkedStatementRecordCount} statement records also lost their links.`
+        : '';
+  const title =
+    result.status === 'success'
+      ? 'Restored'
+      : partialWithMissingOriginals
+        ? 'Restored, without your original files'
+        : inventorylessLinkLoss
+          ? 'Restored, without some original links'
+        : mixed
+          ? 'Restored, with changes'
+          : 'Restore partly finished';
+  const message =
+    result.status === 'success'
+      ? `Your ${workspaceName} data is back.`
+      : partialWithMissingOriginals
+        ? `${result.restoredTransactionCount} money records and ${result.restoredAccountCount} accounts are back. ${missingOriginalsBlock} ${statementLinksBlock} Your money figures are unchanged.`
+        : inventorylessLinkLoss
+          ? [
+              'All your money records, accounts and plans came back as they were.',
+              ...(result.unlinkedRecordCount > 0
+                ? [`${result.unlinkedRecordCount} money records no longer link to an original.`]
+                : []),
+              ...(statementLinksBlock ? [statementLinksBlock] : []),
+              "This backup doesn't list the original files, so Melo can't say how many are missing.",
+            ].join(' ')
+        : mixed
+          ? [
+              `${result.intactTransactionCount} money records came back unchanged.`,
+              ...(result.changedTransactionIds.length > 0
+                ? [
+                    `${result.changedTransactionIds.length} money records are back. ${result.changedTransactionIds.length} came back with a different value than the file held, so check them before you rely on them.`,
+                  ]
+                : []),
+              ...(result.notRestoredTransactionCount > 0
+                ? [
+                    `${result.intactTransactionCount + result.changedTransactionIds.length} of ${result.attemptedTransactionCount} money records were restored. ${result.notRestoredTransactionCount} could not be read from this file.`,
+                  ]
+                : []),
+              ...(result.changedAccountCount > 0
+                ? [`${result.changedAccountCount} accounts didn't come back as they were.`]
+                : []),
+              ...(result.changedDebtCount > 0
+                ? [`${result.changedDebtCount} debts didn't come back as they were.`]
+                : []),
+              ...(result.changedSubscriptionCount > 0
+                ? [
+                    `${result.changedSubscriptionCount} subscriptions didn't come back as they were.`,
+                  ]
+                : []),
+              ...(result.changedPotCount > 0
+                ? [`${result.changedPotCount} pots didn't come back as they were.`]
+                : []),
+              missingOriginalsBlock,
+              statementLinksBlock,
+            ]
+              .filter(Boolean)
+              .join(' ')
+          : `${result.intactTransactionCount} of ${result.attemptedTransactionCount} money records were restored. ${Math.max(result.attemptedTransactionCount - result.intactTransactionCount, 0)} could not be read from this file. ${statementLinksBlock}`.trim();
+  return { title, message, mixed, partialWithMissingOriginals, inventorylessLinkLoss };
+}
 
 // The positive check badge is a 15% alpha tint of the `positive` token (web bg-[var(--positive)]/15).
 // `positive` is a 6-digit hex; append the 0x26 (~15%) alpha byte so the tint follows the theme rather
@@ -84,14 +201,123 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     finalConfirm: false,
   });
   const [clearing, setClearing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [exportReady, setExportReady] = useState(false);
+  const [exportForClear, setExportForClear] = useState(false);
+  const [exportFailure, setExportFailure] = useState<'generation' | 'no-target' | 'handoff' | null>(
+    null,
+  );
+  const [businessExportOptions, setBusinessExportOptions] = useState(false);
+  const [pendingRestoreReceipt, setPendingRestoreReceipt] = useState<RestoreResult | null>(null);
+  const [restoreReceiptSheet, setRestoreReceiptSheet] = useState<{
+    receipt: RestoreResult;
+    acknowledgementFailed: boolean;
+    announceNotice: boolean;
+  } | null>(null);
+  const [acknowledgingRestore, setAcknowledgingRestore] = useState(false);
+  const [stagedRestore, setStagedRestore] = useState<StagedRestore | null>(null);
+  const [restoreConsentStep, setRestoreConsentStep] = useState<'preview' | 'confirm' | null>(null);
+  const restoringGuardRef = useRef(false);
+  const acknowledgingRestoreGuardRef = useRef(false);
+  const acknowledgementOperationRef = useRef(0);
+  const activeWorkspaceIdRef = useRef(String(activeWorkspaceId));
+  const clearingGuardRef = useRef(false);
   const savedBillCount = useAppStore((current) => current.subs.length);
   const savedDebtCount = useAppStore((current) => current.debts?.length ?? 0);
   const workspaceNames = useAppStore((current) =>
     current.workspaces.map((workspace) => workspace.name).join(', '),
   );
   const closeReset = () => {
-    if (!clearing) setResetStep(null);
+    if (!clearing && !clearingGuardRef.current) setResetStep(null);
   };
+
+  const acknowledgeRestoreReceipt = (receipt: RestoreResult) => {
+    if (acknowledgingRestore || acknowledgingRestoreGuardRef.current) return;
+    const operation = ++acknowledgementOperationRef.current;
+    const workspaceId = String(activeWorkspaceId);
+    const receiptIdentity = JSON.stringify(receipt);
+    const isCurrentOperation = () =>
+      activeWorkspaceIdRef.current === workspaceId &&
+      acknowledgementOperationRef.current === operation;
+    acknowledgingRestoreGuardRef.current = true;
+    setAcknowledgingRestore(true);
+    void restoreReceiptStore
+      .acknowledge(receipt.workspaceId, receipt)
+      .then(() => {
+        if (!isCurrentOperation()) return;
+        setPendingRestoreReceipt((current) =>
+          JSON.stringify(current) === receiptIdentity ? null : current,
+        );
+        setRestoreReceiptSheet((current) =>
+          JSON.stringify(current?.receipt) === receiptIdentity ? null : current,
+        );
+      })
+      .catch(async () => {
+        if (!isCurrentOperation()) return;
+        // A newer receipt must remain authoritative. The guarded store call rejects before any
+        // marker write; avoid replacing it with a failure marker for the old receipt.
+        const currentReceipt = restoreReceiptStore.load(workspaceId);
+        if (currentReceipt !== null && JSON.stringify(currentReceipt) !== receiptIdentity) {
+          setPendingRestoreReceipt(currentReceipt);
+          return;
+        }
+        // Keep the durable result visible and offer a concrete retry. A failed/superseded
+        // acknowledgement must never make the result disappear until the store confirms it.
+        const announceNotice = receipt.acknowledgementFailed !== true;
+        const failedReceipt: RestoreResult = {
+          ...receipt,
+          acknowledgementFailed: true,
+          acknowledgementNoticeAnnounced: true,
+        };
+        // The receipt itself is already durable. Persist this presentation-only marker as an
+        // additive update so the same A03 notice can be shown after cold relaunch. If that
+        // marker write is rejected too, the original result remains durable and this session
+        // still keeps the exact result open with the truthful notice.
+        try {
+          // Finish this marker write before re-enabling the retry action. Otherwise a slow marker
+          // save could land after a successful retry and resurrect an already acknowledged receipt.
+          await restoreReceiptStore.save(failedReceipt, receipt);
+        } catch {
+          // The original receipt remains the durable source of truth. Do not claim that the
+          // presentation marker survived; retain the exact result and notice in this session.
+          console.error('[melo:restore-receipt] acknowledgement-notice-save-failed');
+        }
+        if (!isCurrentOperation()) return;
+        setRestoreReceiptSheet({
+          receipt: failedReceipt,
+          acknowledgementFailed: true,
+          announceNotice,
+        });
+      })
+      .finally(() => {
+        if (!isCurrentOperation()) return;
+        acknowledgingRestoreGuardRef.current = false;
+        setAcknowledgingRestore(false);
+      });
+  };
+
+  const presentRestoreReceipt = (receipt: RestoreResult, acknowledgementFailed = false) => {
+    setRestoreReceiptSheet({
+      receipt,
+      acknowledgementFailed,
+      // A receipt loaded from the durable store is an existing failure. It remains fully readable,
+      // but its notice is not a newly occurring event and must not auto-announce on re-entry.
+      announceNotice: false,
+    });
+  };
+
+  useEffect(() => {
+    activeWorkspaceIdRef.current = String(activeWorkspaceId);
+    acknowledgementOperationRef.current += 1;
+    acknowledgingRestoreGuardRef.current = false;
+    setAcknowledgingRestore(false);
+    const receipt = restoreReceiptStore.load(String(activeWorkspaceId));
+    // Explicitly clear the previous workspace's result when no matching durable receipt exists.
+    setRestoreReceiptSheet(null);
+    setStagedRestore(null);
+    setRestoreConsentStep(null);
+    setPendingRestoreReceipt(receipt);
+  }, [activeWorkspaceId]);
 
   useEffect(() => {
     let mounted = true;
@@ -108,6 +334,12 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const receipt = pendingRestoreReceipt;
+    if (receipt === null || receipt.workspaceId !== String(activeWorkspaceId)) return;
+    presentRestoreReceipt(receipt, receipt.acknowledgementFailed === true);
+  }, [activeWorkspace.name, activeWorkspaceId, pendingRestoreReceipt]);
 
   const handleAppLock = () => {
     if (changingAppLock) return;
@@ -128,31 +360,47 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // Scope review and a real export choice precede the explicit final destructive action.
   // Export is optional; requesting a share sheet does not assert that a copy was saved.
   const performReset = async () => {
-    if (clearing || resetStep !== 'confirm') return;
+    if (clearing || clearingGuardRef.current || resetStep !== 'confirm') return;
     const gate: StartFreshState = { ...resetGate, finalConfirm: true };
     if (!canStartFresh(gate)) return;
     // A pre-clear reversal must never remain available after the clean profile is persisted.
     dismissUndo();
+    clearingGuardRef.current = true;
     setClearing(true);
     try {
       const result = await clearLocalMeloData(activeWorkspaceId);
+      if (!result.complete) {
+        Alert.alert(
+          "Clearing didn't finish",
+          "Some local data is still here. Check what's saved and try again.",
+          [
+            { text: 'Try again', onPress: () => void performReset() },
+            { text: "See what's saved", style: 'cancel', onPress: () => nav.go('timeline') },
+          ],
+          { cancelable: true },
+        );
+        return;
+      }
       setResetStep(null);
       nav.go('start');
       Alert.alert(
-        result.complete ? 'Local data cleared' : 'Local data cleared with one warning',
-        result.complete
-          ? 'Money, setup details, statements, history and app-owned export files were cleared from this device. Your sign-in, cloud backup and bank connections are separate and unchanged.'
-          : `Your live Melo data is empty, but ${result.failedArtifacts.length} older app file${result.failedArtifacts.length === 1 ? '' : 's'} could not be removed. Do not treat this device as fully wiped yet.`,
+        'Local data cleared',
+        'Money, setup details, statements, history and app-owned export files were cleared from this device. Your sign-in, cloud backup and bank connections are separate and unchanged.',
         [{ text: 'OK', style: 'cancel' }],
         { cancelable: true },
       );
-    } catch (reason: unknown) {
-      const message =
-        reason instanceof Error
-          ? reason.message
-          : 'Melo could not verify that local data was fully cleared.';
-      showStatusDialog('dialog.privacy-clear-failed', { message });
+    } catch {
+      Alert.alert(
+        "Clearing didn't finish",
+        "Some local data is still here. Check what's saved and try again.",
+        [
+          { text: 'Try again', onPress: () => void performReset() },
+          { text: "See what's saved", style: 'cancel', onPress: () => nav.go('timeline') },
+        ],
+        { cancelable: true },
+      );
     } finally {
+      clearingGuardRef.current = false;
       setClearing(false);
     }
   };
@@ -166,14 +414,22 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
     setResetStep('confirm');
   };
   const exportBeforeClear = async () => {
+    if (isBusiness) {
+      setExportForClear(true);
+      setBusinessExportOptions(true);
+      return;
+    }
     try {
-      await runExport(activeWorkspaceId);
-      continueClear('requested');
-    } catch (reason: unknown) {
-      showStatusDialog('dialog.privacy-export-failed', {
-        message:
-          reason instanceof Error ? reason.message : 'Export could not finish on this device.',
-      });
+      // Android does not report where the handoff was saved. Keep the clear scope review open
+      // until the user dismisses this truthful handoff sheet; no export outcome is inferred.
+      const result = await runExport(activeWorkspaceId);
+      setExportForClear(true);
+      setExportFailure(result.shared ? null : 'no-target');
+      setExportReady(true);
+    } catch (error) {
+      setExportForClear(true);
+      setExportFailure(error instanceof ExportHandoffError ? 'handoff' : 'generation');
+      setExportReady(true);
     }
   };
 
@@ -185,60 +441,95 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // the same code path. Degraded (= the pipeline threw and state fell back to defaults) is
   // reported honestly; per-field corruption defaults silently, same as any boot.
   const handleRestore = () => {
+    if (restoring || restoringGuardRef.current) return;
     void (async () => {
       const picked = await pickRestoreFile(activeWorkspaceId);
       if (picked.status === 'cancelled') return;
       if (picked.status === 'invalid') {
-        showStatusDialog('dialog.privacy-restore-invalid-file');
+        if (picked.reason === 'wrong-workspace') {
+          const sourceKind = picked.workspaceKind ?? (isBusiness ? 'Personal' : 'Business');
+          const activeKind = isBusiness ? 'Business' : 'Personal';
+          Alert.alert(
+            'That file is for your other workspace',
+            `This is a ${sourceKind} export. Switch to that workspace to restore it, or choose a ${activeKind} export file.`,
+            [
+              { text: 'Choose another file', onPress: handleRestore },
+              { text: 'Close', style: 'cancel' },
+            ],
+            { cancelable: true },
+          );
+        } else if (picked.reason === 'unsupported-version') {
+          Alert.alert(
+            "Melo can't read this export yet",
+            'This file was made by a different version of Melo. Nothing was changed.',
+            [
+              { text: 'Choose another file', onPress: handleRestore },
+              { text: 'Close', style: 'cancel' },
+            ],
+            { cancelable: true },
+          );
+        } else if (picked.reason === 'accountant-csv') {
+          Alert.alert(
+            "That's a summary, not a backup",
+            'Melo can only restore from a Melo backup file (JSON).',
+            [
+              { text: 'Choose another file', onPress: handleRestore },
+              { text: 'Close', style: 'cancel' },
+            ],
+            { cancelable: true },
+          );
+        } else {
+          Alert.alert(
+            "Couldn't read that file",
+            "That file doesn't look like a Melo data export. Pick the personal or business export file that Melo created.",
+            [{ text: 'Done', style: 'cancel' }],
+            { cancelable: true },
+          );
+        }
         return;
       }
-      const { summary, raw, fileName } = picked;
-      const who = summary.name !== null ? ` for ${summary.name}` : '';
-      const counted = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-      // Gate 1 — what the file holds + what loading it does, before anything changes.
-      Alert.alert(
-        'Restore from this export?',
-        `${fileName} holds ${counted(summary.transactions, 'transaction')}, ${counted(summary.subs, 'subscription')} and ${counted(summary.pots, 'pot')}${who}. Loading it replaces everything currently in the app — export your current data first if you want to keep it.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Continue',
-            onPress: () => {
-              // Gate 2 — the final replace confirm; only this branch applies the file.
-              Alert.alert(
-                'Replace everything now?',
-                'What’s in the app now is overwritten by the file.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Restore',
-                    style: 'destructive',
-                    onPress: () => {
-                      void applyRestore(raw, activeWorkspaceId).then(({ degraded }) => {
-                        Alert.alert(
-                          degraded ? 'Restored with gaps' : 'Restored',
-                          degraded
-                            ? 'The file couldn’t be fully read — what loaded is in place, the rest was reset.'
-                            : 'Your data is back.',
-                          [{ text: 'OK', style: 'cancel' }],
-                          { cancelable: true },
-                        );
-                      });
-                    },
-                  },
-                ],
-                { cancelable: true },
-              );
-            },
-          },
-        ],
-        { cancelable: true },
-      );
+      // Keep both consent gates in the existing scrollable sheet so the final action can remain
+      // mounted and disabled while the apply promise is in flight.
+      setStagedRestore(picked);
+      setRestoreConsentStep('preview');
     })().catch((err: unknown) => {
-      const message =
-        err instanceof Error ? err.message : 'Restore could not finish on this device.';
-      showStatusDialog('dialog.privacy-restore-failed', { message });
+      showStatusDialog('dialog.privacy-restore-failed', { message: restoreFailureMessage(err) });
     });
+  };
+
+  const beginConfirmedRestore = () => {
+    const staged = stagedRestore;
+    if (restoring || restoringGuardRef.current || staged === null) return;
+    restoringGuardRef.current = true;
+    setRestoring(true);
+    void runConfirmedRestore(
+      () => applyRestore(staged.raw, activeWorkspaceId),
+      async (result) => {
+        // The result is not acknowledged by navigation: persist it before the terminal opens,
+        // then remove it only from the explicit OK action.
+        await restoreReceiptStore.save(result);
+        restoringGuardRef.current = false;
+        setRestoring(false);
+        setRestoreConsentStep(null);
+        setStagedRestore(null);
+        setPendingRestoreReceipt(result);
+      },
+      () => {
+        restoringGuardRef.current = false;
+        setRestoring(false);
+        setRestoreConsentStep(null);
+        setStagedRestore(null);
+        Alert.alert(
+          "Restore didn't finish",
+          "Melo stopped part-way. Check what's saved before adding anything new.",
+          [
+            { text: "See what's saved", onPress: () => nav.go('timeline') },
+            { text: 'Close', style: 'cancel' },
+          ],
+          { cancelable: true },
+        );
+      },
+    );
   };
 
   // Export my data — runs the REAL export engine (ENGINES §6 D6 "export everything", free + never
@@ -248,11 +539,49 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
   // — the old wiring opened the cycle-share card, which is NOT a data export. On a device without
   // storage/sharing the call rejects; we surface that honestly rather than imply the export happened.
   const handleExport = () => {
-    void runExport(activeWorkspaceId).catch((err: unknown) => {
-      const message =
-        err instanceof Error ? err.message : 'Export could not finish on this device.';
-      showStatusDialog('dialog.privacy-export-failed', { message });
-    });
+    if (isBusiness) {
+      setExportForClear(false);
+      setBusinessExportOptions(true);
+      return;
+    }
+    void runExport(activeWorkspaceId)
+      .then((result) => {
+        setExportForClear(false);
+        setExportFailure(result.shared ? null : 'no-target');
+        setExportReady(true);
+      })
+      .catch((error: unknown) => {
+        setExportForClear(false);
+        setExportFailure(error instanceof ExportHandoffError ? 'handoff' : 'generation');
+        setExportReady(true);
+      });
+  };
+
+  const retryExport = () => {
+    setExportReady(false);
+    setExportFailure(null);
+    if (exportForClear) void exportBeforeClear();
+    else handleExport();
+  };
+
+  const runBusinessExport = (variant: Extract<ExportVariant, 'accountant-csv' | 'backup-json'>) => {
+    setBusinessExportOptions(false);
+    void runExport(activeWorkspaceId, variant)
+      .then((result) => {
+        setExportFailure(result.shared ? null : 'no-target');
+        setExportReady(true);
+      })
+      .catch((error: unknown) => {
+        setExportFailure(error instanceof ExportHandoffError ? 'handoff' : 'generation');
+        setExportReady(true);
+      });
+  };
+
+  const closeExportReady = () => {
+    setExportReady(false);
+    setExportFailure(null);
+    setExportForClear(false);
+    if (!exportForClear) setResetStep(null);
   };
 
   // empty / error — the calm EmptyState doorway (n/a in practice — no async path — rendered for
@@ -399,6 +728,9 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
 
         {/* Primary CTA — terracotta fill + the warm raised glow; opens the share (export) sheet. Plain
           centred label, no arrow, faithful to the web button. */}
+        <Text style={[styles.body, { color: t.muted }]}>
+          This file leaves Melo only if you save or send it somewhere.
+        </Text>
         <Pressable
           accessibilityHint={
             isBusiness
@@ -484,13 +816,17 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
           <Pressable
             accessibilityHint="Asks you to pick an export file and confirm before replacing your data"
             accessibilityRole="button"
+            accessibilityState={{ disabled: restoring, busy: restoring }}
+            disabled={restoring}
             onPress={handleRestore}
             style={({ pressed: isPressed }) => [styles.actionRow, isPressed ? pressed : undefined]}
           >
             <View style={styles.actionText}>
               <Text style={[styles.actionTitle, { color: t.ink }]}>Restore from an export</Text>
               <Text style={[styles.actionSubtitle, { color: t.muted }]}>
-                loads a Melo JSON export, replaces this workspace
+                {restoring
+                  ? 'restoring this workspace…'
+                  : 'loads a Melo JSON export, replaces this workspace'}
               </Text>
             </View>
             <ChevronRight color={t.muted} />
@@ -539,93 +875,388 @@ export function PrivacyScreen({ nav, state = 'populated' }: PrivacyScreenProps) 
         </View>
       </ScrollView>
       <Sheet
-        visible={resetStep !== null}
-        dismissible={!clearing}
-        onClose={closeReset}
-        scrollKey={resetStep ?? 'closed'}
+        visible={resetStep !== null || exportReady}
+        dismissible={!clearing && !restoring}
+        onClose={restoring ? () => undefined : exportReady ? closeExportReady : closeReset}
+        scrollKey={restoring ? 'restoring' : exportReady ? 'export-ready' : (resetStep ?? 'closed')}
         footer={
-          <View style={styles.resetActions}>
-            {resetStep === 'review' ? (
-              <>
+            exportReady ? (
+            <View style={styles.resetActions}>
+              {exportFailure === 'generation' || exportFailure === 'handoff' ? (
+                <>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={retryExport}
+                    style={[styles.resetButton, { backgroundColor: t.calmStrong }]}
+                  >
+                    <Text style={[styles.primaryLabel, { color: t.inverse }]}>Try again</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={closeExportReady}
+                    style={styles.resetButton}
+                  >
+                    <Text style={[styles.primaryLabel, { color: t.ink }]}>Close</Text>
+                  </Pressable>
+                </>
+              ) : (
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => void exportBeforeClear()}
+                  onPress={closeExportReady}
                   style={[styles.resetButton, { backgroundColor: t.calmStrong }]}
                 >
-                  <Text style={[styles.primaryLabel, { color: t.inverse }]}>Export first</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => continueClear('declined')}
-                  style={styles.resetButton}
-                >
-                  <Text style={[styles.primaryLabel, { color: t.ink }]}>
-                    Continue without export
+                  <Text style={[styles.primaryLabel, { color: t.inverse }]}>
+                    {exportFailure === 'no-target' ? 'Close' : 'Done'}
                   </Text>
                 </Pressable>
-              </>
-            ) : (
+              )}
+            </View>
+          ) : (
+            <View style={styles.resetActions}>
+              {resetStep === 'review' ? (
+                <>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => void exportBeforeClear()}
+                    style={[styles.resetButton, { backgroundColor: t.calmStrong }]}
+                  >
+                    <Text style={[styles.primaryLabel, { color: t.inverse }]}>Export first</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => continueClear('declined')}
+                    style={styles.resetButton}
+                  >
+                    <Text style={[styles.primaryLabel, { color: t.ink }]}>
+                      Continue without export
+                    </Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: clearing, busy: clearing }}
+                  disabled={clearing}
+                  onPress={() => void performReset()}
+                  style={[
+                    styles.resetButton,
+                    { backgroundColor: t.repair, opacity: clearing ? 0.6 : 1 },
+                  ]}
+                >
+                  <Text style={[styles.primaryLabel, { color: t.inverse }]}>
+                    {clearing ? 'Clearing…' : 'Clear local data'}
+                  </Text>
+                </Pressable>
+              )}
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: clearing, busy: clearing }}
                 disabled={clearing}
-                onPress={() => void performReset()}
-                style={[
-                  styles.resetButton,
-                  { backgroundColor: t.repair, opacity: clearing ? 0.6 : 1 },
-                ]}
-              >
-                <Text style={[styles.primaryLabel, { color: t.inverse }]}>
-                  {clearing ? 'Clearing local data…' : 'Clear local data'}
-                </Text>
-              </Pressable>
-            )}
-            {!clearing ? (
-              <Pressable
-                accessibilityRole="button"
-                disabled={clearing}
                 onPress={closeReset}
-                style={styles.resetButton}
+                style={[styles.resetButton, clearing ? { opacity: 0.6 } : undefined]}
               >
                 <Text style={[styles.primaryLabel, { color: t.ink }]}>Cancel</Text>
               </Pressable>
-            ) : null}
+            </View>
+          )
+        }
+      >
+        {exportReady ? (
+          <>
+            <Text accessibilityRole="header" style={[styles.resetTitle, { color: t.ink }]}>
+              {exportFailure === 'generation'
+                ? "Melo couldn't make that file."
+                : exportFailure === 'handoff'
+                  ? "Melo couldn't hand that file over"
+                  : exportFailure === 'no-target'
+                    ? 'No app can take the file right now.'
+                    : 'Your file is ready'}
+            </Text>
+            <Text style={[styles.body, { color: t.ink }]}>
+              {exportFailure === 'generation'
+                ? 'Nothing was changed. You can try again.'
+                : exportFailure === 'handoff'
+                  ? "Your file was made, but Android didn't take it. Nothing was sent and nothing changed."
+                  : exportFailure === 'no-target'
+                    ? 'No app on this device can take the file right now.'
+                    : "Melo handed the file to Android. Android doesn't tell Melo where it went, so check it saved where you wanted."}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text accessibilityRole="header" style={[styles.resetTitle, { color: t.ink }]}>
+              {resetStep === 'review' ? 'Review what will clear' : 'Clear this device now?'}
+            </Text>
+            {resetStep === 'review' ? (
+              <>
+                <Text style={[styles.body, { color: t.ink }]}>
+                  All local workspaces: {workspaceNames}.
+                </Text>
+                <Text style={[styles.body, { color: t.ink }]}>
+                  In {activeWorkspace.name}: {savedRecordCount}{' '}
+                  {savedRecordCount === 1 ? 'transaction' : 'transactions'}, {savedBillCount}{' '}
+                  {savedBillCount === 1 ? 'bill' : 'bills'}, {savedDebtCount}{' '}
+                  {savedDebtCount === 1 ? 'debt' : 'debts'}, {savedSourceCount}{' '}
+                  {savedSourceCount === 1 ? 'original file' : 'original files'} and{' '}
+                  {savedHistory.summary}.
+                </Text>
+                <Text style={[styles.body, { color: t.muted }]}>
+                  Money, setup details, statements, history, widgets and app-owned export files will
+                  be cleared. Sign-in, cloud backup and bank connections stay separate and
+                  unchanged.
+                </Text>
+                <Text style={[styles.body, { color: t.muted }]}>
+                  Export first if you want a copy. Save it outside Melo before continuing; exports
+                  stored only inside Melo will also clear. Export covers the active workspace.
+                </Text>
+                <Text style={[styles.body, { color: t.muted }]}>
+                  Clearing removes both workspaces and every file kept here. Export covers the
+                  active workspace only.
+                </Text>
+              </>
+            ) : (
+              <Text style={[styles.body, { color: t.muted }]}>
+                This removes the local data you reviewed. There is no Undo after clearing. Only a
+                copy you kept outside Melo or a separate cloud backup can restore it.
+              </Text>
+            )}
+          </>
+        )}
+      </Sheet>
+      <Sheet
+        visible={businessExportOptions}
+        dismissible
+        onClose={() => setBusinessExportOptions(false)}
+        scrollKey="business-export-options"
+        footer={
+          <View style={styles.resetActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setBusinessExportOptions(false)}
+              style={styles.resetButton}
+            >
+              <Text style={[styles.primaryLabel, { color: t.ink }]}>Cancel</Text>
+            </Pressable>
           </View>
         }
       >
         <Text accessibilityRole="header" style={[styles.resetTitle, { color: t.ink }]}>
-          {resetStep === 'review' ? 'Review what will clear' : 'Clear this device now?'}
+          Export Business records
         </Text>
-        {resetStep === 'review' ? (
-          <>
-            <Text style={[styles.body, { color: t.ink }]}>
-              All local workspaces: {workspaceNames}.
-            </Text>
-            <Text style={[styles.body, { color: t.ink }]}>
-              In {activeWorkspace.name}: {savedRecordCount}{' '}
-              {savedRecordCount === 1 ? 'transaction' : 'transactions'}, {savedBillCount}{' '}
-              {savedBillCount === 1 ? 'bill' : 'bills'}, {savedDebtCount}{' '}
-              {savedDebtCount === 1 ? 'debt' : 'debts'}, {savedSourceCount}{' '}
-              {savedSourceCount === 1 ? 'original file' : 'original files'} and{' '}
-              {savedHistory.summary}.
-            </Text>
-            <Text style={[styles.body, { color: t.muted }]}>
-              Money, setup details, statements, history, widgets and app-owned export files will be
-              cleared. Sign-in, cloud backup and bank connections stay separate and unchanged.
-            </Text>
-            <Text style={[styles.body, { color: t.muted }]}>
-              Export first if you want a copy. Save it outside Melo before continuing; exports
-              stored only inside Melo will also clear. Export covers the active workspace.
-            </Text>
-          </>
-        ) : (
-          <Text style={[styles.body, { color: t.muted }]}>
-            This removes the local data you reviewed. There is no Undo after clearing. Only a copy
-            you kept outside Melo or a separate cloud backup can restore it.
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => runBusinessExport('accountant-csv')}
+          style={[styles.exportChoice, { borderColor: t.hairline }]}
+        >
+          <Text style={[styles.actionTitle, { color: t.ink }]}>Accountant summary (CSV)</Text>
+          <Text style={[styles.actionSubtitle, { color: t.muted }]}>
+            a readable summary — not a backup
           </Text>
-        )}
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => runBusinessExport('backup-json')}
+          style={[styles.exportChoice, { borderColor: t.hairline }]}
+        >
+          <Text style={[styles.actionTitle, { color: t.ink }]}>Full backup file (JSON)</Text>
+          <Text style={[styles.actionSubtitle, { color: t.muted }]}>
+            the file Melo can restore from
+          </Text>
+        </Pressable>
       </Sheet>
+      {restoreReceiptSheet ? (
+        <RestoreReceiptSheet
+          presentation={restoreResultPresentation(
+            restoreReceiptSheet.receipt,
+            activeWorkspace.name,
+          )}
+          acknowledgementFailed={restoreReceiptSheet.acknowledgementFailed}
+          announceNotice={restoreReceiptSheet.announceNotice}
+          acknowledging={acknowledgingRestore}
+          onAcknowledge={() => acknowledgeRestoreReceipt(restoreReceiptSheet.receipt)}
+          onClose={() => {
+            if (!acknowledgingRestore) setRestoreReceiptSheet(null);
+          }}
+          onSeeSaved={() => nav.go('timeline')}
+        />
+      ) : null}
+      {stagedRestore && restoreConsentStep ? (
+        <RestoreConsentSheet
+          staged={stagedRestore}
+          step={restoreConsentStep}
+          workspaceName={activeWorkspace.name}
+          restoring={restoring}
+          onCancel={() => {
+            if (!restoring && !restoringGuardRef.current) {
+              setRestoreConsentStep(null);
+              setStagedRestore(null);
+            }
+          }}
+          onContinue={() => setRestoreConsentStep('confirm')}
+          onRestore={beginConfirmedRestore}
+        />
+      ) : null}
     </View>
+  );
+}
+
+function RestoreReceiptSheet({
+  presentation,
+  acknowledgementFailed,
+  announceNotice,
+  acknowledging,
+  onAcknowledge,
+  onClose,
+  onSeeSaved,
+}: {
+  presentation: RestoreResultPresentation;
+  acknowledgementFailed: boolean;
+  announceNotice: boolean;
+  acknowledging: boolean;
+  onAcknowledge: () => void;
+  onClose: () => void;
+  onSeeSaved: () => void;
+}) {
+  const t = useTheme();
+  const hasSecondaryAction =
+    presentation.mixed ||
+    presentation.partialWithMissingOriginals ||
+    presentation.inventorylessLinkLoss;
+  const button = (label: string, onPress: () => void, primary = false) => (
+    <Pressable
+      key={label}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: acknowledging, busy: acknowledging }}
+      disabled={acknowledging}
+      onPress={onPress}
+      style={[
+        styles.resetButton,
+        primary ? { backgroundColor: t.calmStrong } : { borderColor: t.hairline, borderWidth: 1 },
+      ]}
+    >
+      <Text style={[styles.primaryLabel, { color: primary ? t.inverse : t.ink }]}>{label}</Text>
+    </Pressable>
+  );
+  const actions = acknowledgementFailed
+    ? [
+        button('Try again', onAcknowledge, true),
+        ...(hasSecondaryAction ? [button("See what's saved", onSeeSaved)] : []),
+        button('OK', onAcknowledge),
+      ]
+    : presentation.mixed || presentation.inventorylessLinkLoss
+      ? [button("See what's saved", onSeeSaved), button('OK', onAcknowledge, true)]
+      : [
+          button('OK', onAcknowledge, true),
+          ...(presentation.partialWithMissingOriginals
+            ? [button("See what's saved", onSeeSaved)]
+            : []),
+        ];
+  return (
+    <Sheet
+      visible
+      dismissible={!acknowledging}
+      onClose={onClose}
+      scrollKey="restore-result"
+      directScrollContent
+      footer={<View style={styles.resetActions}>{actions}</View>}
+    >
+      <Text accessibilityRole="header" style={[styles.resetTitle, { color: t.ink }]}>
+        {presentation.title}
+      </Text>
+      <Text style={[styles.body, { color: t.muted }]}>{presentation.message}</Text>
+      {acknowledgementFailed ? (
+        <Text
+          accessibilityLiveRegion={announceNotice ? 'polite' : 'none'}
+          style={[styles.body, { color: t.muted }]}
+        >
+          Melo couldn&apos;t put this result away just now. It&apos;s still here, and your restored
+          data is untouched.
+        </Text>
+      ) : null}
+    </Sheet>
+  );
+}
+
+function RestoreConsentSheet({
+  staged,
+  step,
+  workspaceName,
+  restoring,
+  onCancel,
+  onContinue,
+  onRestore,
+}: {
+  staged: StagedRestore;
+  step: 'preview' | 'confirm';
+  workspaceName: string;
+  restoring: boolean;
+  onCancel: () => void;
+  onContinue: () => void;
+  onRestore: () => void;
+}) {
+  const t = useTheme();
+  const counted = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const previewBody = `${staged.fileName} holds ${counted(staged.summary.transactions, 'transaction')}, ${counted(staged.summary.subs, 'subscription')} and ${counted(staged.summary.pots, 'pot')} for ${workspaceName}. Loading it replaces everything in your ${workspaceName} workspace — your other workspace is not touched. Export your current data first if you want to keep it.`;
+  const confirmBody = `What's in your ${workspaceName} workspace now is overwritten by the file. This cannot be undone.`;
+  const action = (
+    actionKey: string,
+    label: string,
+    onPress: () => void,
+    primary: boolean,
+    destructive = false,
+  ) => (
+    <Pressable
+      key={actionKey}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: restoring, busy: restoring }}
+      disabled={restoring}
+      onPress={onPress}
+      style={[
+        styles.resetButton,
+        {
+          backgroundColor: primary ? (destructive ? t.repair : t.calmStrong) : t.surface,
+          borderColor: t.hairline,
+          borderWidth: primary ? 0 : 1,
+          opacity: restoring && primary ? 0.6 : 1,
+        },
+      ]}
+    >
+      <Text style={[styles.primaryLabel, { color: primary ? t.inverse : t.ink }]}>{label}</Text>
+    </Pressable>
+  );
+  return (
+    <Sheet
+      visible
+      dismissible={!restoring}
+      onClose={onCancel}
+      scrollKey={`restore-consent-${step}`}
+      footer={
+        <View style={styles.resetActions}>
+          {step === 'preview'
+            ? [
+                action('cancel', 'Cancel', onCancel, false),
+                action('continue', 'Continue', onContinue, true),
+              ]
+            : [
+                action('cancel', 'Cancel', onCancel, false),
+                action('restore', restoring ? 'Restoring…' : 'Restore', onRestore, true, true),
+              ]}
+        </View>
+      }
+    >
+      <Text accessibilityRole="header" style={[styles.resetTitle, { color: t.ink }]}>
+        {step === 'preview' ? 'Restore from this export?' : 'Replace this workspace now?'}
+      </Text>
+      <Text style={[styles.body, { color: t.ink }]}>
+        {step === 'preview' ? previewBody : confirmBody}
+      </Text>
+      {step === 'preview' ? (
+        <Text style={[styles.body, { color: t.muted }]}>
+          A backup file holds your money records, not your original statements and photos. Those
+          stay only on the device that read them.
+        </Text>
+      ) : null}
+    </Sheet>
   );
 }
 
@@ -656,6 +1287,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.lg,
     paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+  },
+  exportChoice: {
+    minHeight: 64,
+    justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
     paddingVertical: gap.sm,
   },
   resetTitle: { fontFamily: serif.display, fontSize: 28, lineHeight: 32 },

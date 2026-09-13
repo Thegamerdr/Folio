@@ -87,7 +87,11 @@ import {
   type WorkspaceManifest,
 } from './workspacePartition';
 import { validateRestoreJson } from './restore';
-import type { RestoreReceiptStore, RestoreResult } from './restoreResult';
+import {
+  normalizeRestoreResult,
+  type RestoreReceiptStore,
+  type RestoreResult,
+} from './restoreResult';
 import {
   createBusinessWorkspace,
   createPersonalWorkspaceRoot,
@@ -1059,6 +1063,11 @@ function receiptKey(workspaceId: WorkspaceId): string {
   return String(workspaceId);
 }
 
+function receiptIdentity(value: unknown, workspaceId: WorkspaceId): string | null {
+  const normalized = normalizeRestoreResult(value, String(workspaceId));
+  return normalized === null ? null : JSON.stringify(normalized);
+}
+
 /**
  * Durable restore-result handoff for MF10. Receipts live inside the encrypted workspace partition,
  * so one workspace can never hydrate or acknowledge another workspace's result. `acknowledge`
@@ -1071,14 +1080,24 @@ export function createRestoreReceiptStore(): RestoreReceiptStore {
       const checked = checkedReceiptWorkspaceId(workspaceId);
       const current = getState();
       if (String(current.activeWorkspaceId) !== String(checked)) return null;
-      return current.restoreReceipts?.[receiptKey(checked)] ?? null;
+      return normalizeRestoreResult(
+        current.restoreReceipts?.[receiptKey(checked)] ?? null,
+        String(checked),
+      );
     },
-    async save(result: RestoreResult): Promise<void> {
+    async save(result: RestoreResult, expectedPrevious?: RestoreResult): Promise<void> {
       const checked = checkedReceiptWorkspaceId(result.workspaceId);
       await runWithQuiescedPersistence(async () => {
         const current = getState();
         if (String(current.activeWorkspaceId) !== String(checked)) {
           throw new Error('Restore receipt workspace is no longer active.');
+        }
+        if (
+          expectedPrevious !== undefined &&
+          receiptIdentity(current.restoreReceipts?.[receiptKey(checked)], checked) !==
+            receiptIdentity(expectedPrevious, checked)
+        ) {
+          throw new Error('Restore receipt changed before its failure notice could be saved.');
         }
         setPartial({
           restoreReceipts: {
@@ -1089,14 +1108,21 @@ export function createRestoreReceiptStore(): RestoreReceiptStore {
         await persistCurrentStateNow(checked);
       });
     },
-    async acknowledge(workspaceId: string): Promise<void> {
+    async acknowledge(workspaceId: string, expectedReceipt?: RestoreResult): Promise<void> {
       const checked = checkedReceiptWorkspaceId(workspaceId);
       await runWithQuiescedPersistence(async () => {
         const current = getState();
         if (String(current.activeWorkspaceId) !== String(checked)) {
           throw new Error('Restore receipt workspace is no longer active.');
         }
-        if (current.restoreReceipts?.[receiptKey(checked)] === undefined) return;
+        const currentReceipt = current.restoreReceipts?.[receiptKey(checked)];
+        if (currentReceipt === undefined) return;
+        if (
+          expectedReceipt !== undefined &&
+          receiptIdentity(currentReceipt, checked) !== receiptIdentity(expectedReceipt, checked)
+        ) {
+          throw new Error('Restore receipt changed before acknowledgement.');
+        }
         const before = getPersistBlob(checked);
         const parsed = JSON.parse(before) as Record<string, unknown>;
         const receipts =
@@ -1109,6 +1135,16 @@ export function createRestoreReceiptStore(): RestoreReceiptStore {
         parsed.restoreReceipts = receipts;
         const acknowledged = JSON.stringify(parsed);
         await persistCurrentStateNow(checked, undefined, { plaintextOverride: acknowledged });
+
+        // A newer receipt may have been queued by another mounted screen while the native write
+        // was in flight. Never hydrate the receipt-free snapshot over that newer result.
+        if (
+          expectedReceipt !== undefined &&
+          receiptIdentity(getState().restoreReceipts?.[receiptKey(checked)], checked) !==
+            receiptIdentity(expectedReceipt, checked)
+        ) {
+          throw new Error('Restore receipt acknowledgement was superseded by a newer receipt.');
+        }
 
         // If a user mutation arrived while the native write was in flight, preserve that newer
         // state and its receipt instead of hydrating an old snapshot over it. The caller must see

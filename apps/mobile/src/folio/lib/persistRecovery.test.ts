@@ -296,12 +296,17 @@ const manifestTmpUri = `${DOC_DIR}melo.workspace-manifest.v1.tmp.json`;
 
 const restoreReceiptFixture: RestoreResult = {
   workspaceId: String(PERSONAL_WORKSPACE_ID),
-  status: 'partial',
+  status: 'degraded',
   degraded: true,
   attemptedTransactionCount: 2,
   restoredTransactionCount: 1,
   intactTransactionCount: 0,
+  notRestoredTransactionCount: 2,
   restoredAccountCount: 1,
+  changedAccountCount: 0,
+  changedDebtCount: 0,
+  changedSubscriptionCount: 0,
+  changedPotCount: 0,
   restoredOriginalFileCount: 0,
   missingOriginalFileCount: 1,
   unlinkedRecordCount: 1,
@@ -1898,7 +1903,18 @@ describe('MF10 restore receipt durability', () => {
       await firstWrite;
       return { generation: 1 };
     });
-    const secondReceipt = { ...restoreReceiptFixture, status: 'success' as const, degraded: false };
+    const secondReceipt: RestoreResult = {
+      ...restoreReceiptFixture,
+      status: 'success',
+      degraded: false,
+      restoredTransactionCount: 2,
+      intactTransactionCount: 2,
+      notRestoredTransactionCount: 0,
+      missingTransactionIds: [],
+      missingOriginalFileCount: 0,
+      unlinkedRecordCount: 0,
+      missingOriginalTransactionIds: [],
+    };
     const first = restoreReceiptStore.save(restoreReceiptFixture);
     await Promise.resolve();
     const second = restoreReceiptStore.save(secondReceipt);
@@ -1939,6 +1955,47 @@ describe('MF10 restore receipt durability', () => {
     await restoreReceiptStore.acknowledge(String(PERSONAL_WORKSPACE_ID));
     expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toBeNull();
     expect(JSON.parse(getPersistBlob(PERSONAL_WORKSPACE_ID)).restoreReceipts).toEqual({});
+  });
+
+  it('refuses to acknowledge or overwrite a receipt replaced since presentation', async () => {
+    resetToEmpty();
+    await restoreReceiptStore.save(restoreReceiptFixture);
+    const newerReceipt: RestoreResult = {
+      ...restoreReceiptFixture,
+      status: 'success',
+      degraded: false,
+      restoredTransactionCount: 2,
+      restoredTransactionIds: ['txn-restored', 'txn-second'],
+      missingTransactionIds: [],
+      missingOriginalTransactionIds: [],
+      missingOriginalFileCount: 0,
+      unlinkedRecordCount: 0,
+      notRestoredTransactionCount: 0,
+      intactTransactionCount: 2,
+    };
+
+    await expect(
+      restoreReceiptStore.acknowledge(String(PERSONAL_WORKSPACE_ID), newerReceipt),
+    ).rejects.toThrow(/changed/i);
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(restoreReceiptFixture);
+
+    await restoreReceiptStore.save(newerReceipt);
+    const failedOldReceipt: RestoreResult = {
+      ...restoreReceiptFixture,
+      acknowledgementFailed: true,
+      acknowledgementNoticeAnnounced: true,
+    };
+    await expect(
+      restoreReceiptStore.save(failedOldReceipt, restoreReceiptFixture),
+    ).rejects.toThrow(/changed/i);
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(newerReceipt);
+
+    await expect(
+      restoreReceiptStore.acknowledge(String(PERSONAL_WORKSPACE_ID), restoreReceiptFixture),
+    ).rejects.toThrow(/changed/i);
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(newerReceipt);
+    await restoreReceiptStore.acknowledge(String(PERSONAL_WORKSPACE_ID), newerReceipt);
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toBeNull();
   });
 
   it('reports a superseded acknowledgement while preserving a concurrent money edit and receipt', async () => {
