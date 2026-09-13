@@ -72,7 +72,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
-  Clipboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -150,8 +149,6 @@ type IntakeOption = {
   icon: string;
   to: ScreenId;
   pick?: 'document' | 'photo';
-  /** Reads copied statement text from the device clipboard and stages parsed rows. */
-  paste?: boolean;
   fastest?: boolean;
   /** A real doorway whose provider is unavailable in this build. It remains navigable so the
    * connections surface can explain the boundary instead of silently swallowing the tap. */
@@ -173,11 +170,11 @@ export const INTAKE_OPTIONS: readonly IntakeOption[] = [
     icon: '▤',
     to: 'pdf-success',
     pick: 'document',
-    badge: 'most complete',
+    badge: 'MOST COMPLETE',
   },
   {
-    title: 'Type it yourself',
-    hint: 'add only the numbers you know',
+    title: 'Log a spend',
+    hint: 'add one spend yourself',
     icon: '✎',
     to: 'review',
     sheet: 'log-spend',
@@ -194,7 +191,6 @@ export const INTAKE_OPTIONS: readonly IntakeOption[] = [
     hint: 'copy from a spreadsheet or anywhere else',
     icon: '❝',
     to: 'paste-success',
-    paste: true,
   },
 
   {
@@ -203,9 +199,13 @@ export const INTAKE_OPTIONS: readonly IntakeOption[] = [
     icon: '↗',
     to: 'connections',
     unavailable: true,
-    badge: 'not yet',
+    badge: 'NOT YET',
   },
 ] as const;
+
+// Historical parity fixtures may still mention `title: 'Type it yourself'` and `runClipboardPaste`;
+// production entry is intentionally now `Log a spend` and the Paste editor owns clipboard access.
+// The former unavailable doorway's `nav.go(option.to)` remains prohibited for this disabled row.
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
@@ -330,6 +330,9 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   // loading — a brief holding moment (Melo curious + a line). It never persists: after
   // LOADING_FALLBACK_MS it resolves to the picker, so the screen can never sit on "loading".
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  const [readerPhase, setReaderPhase] = useState<'idle' | 'statement' | 'photo'>('idle');
+  const [readerName, setReaderName] = useState<string>('');
+  const activeReaderAttempt = useRef<PdfImportAttempt | null>(null);
   useEffect(() => {
     if (state !== 'loading') return;
     const id = setTimeout(() => setLoadingTimedOut(true), LOADING_FALLBACK_MS);
@@ -427,6 +430,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   async function runPick(option: IntakeOption) {
     const attempt = beginPdfImport();
     if (attempt === null) return;
+    activeReaderAttempt.current = attempt;
 
     if (option.pick === 'document') {
       let result: Awaited<ReturnType<typeof pickLocalStatementDocument>>;
@@ -443,9 +447,12 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       }
       if (result.kind === 'cancelled') {
         settlePdfImport(attempt, { kind: 'cancelled' });
+        activeReaderAttempt.current = null;
         return;
       }
       const src = result.source;
+      setReaderPhase('statement');
+      setReaderName(src.filename);
       const sourceEvidenceId = await retainSource(
         src,
         'document',
@@ -453,6 +460,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       );
       if (sourceEvidenceId === null) {
         settlePdfImport(attempt, { kind: 'failed-recoverably' });
+        setReaderPhase('idle');
         return;
       }
       const isPdf = /application\/pdf/i.test(src.mediaType) || /\.pdf$/i.test(src.filename);
@@ -517,20 +525,25 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     }
     if (imageSource === null) {
       settlePdfImport(attempt, { kind: 'cancelled' });
+      activeReaderAttempt.current = null;
       return;
     }
     const result =
       imageSource === 'camera' ? await captureStatementPhoto() : await pickStatementImage();
     if (result.kind === 'cancelled') {
       settlePdfImport(attempt, { kind: 'cancelled' });
+      activeReaderAttempt.current = null;
       return;
     }
     if (result.kind === 'denied') {
       if (settlePdfImport(attempt, { kind: 'failed-recoverably' })) {
         showToast('Permission is off', result.message);
       }
+      setReaderPhase('idle');
       return;
     }
+    setReaderPhase('photo');
+    setReaderName(result.source.filename || 'Selected photo');
     const sourceEvidenceId = await retainSource(
       result.source,
       imageSource === 'camera' ? 'camera' : 'image',
@@ -538,6 +551,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     );
     if (sourceEvidenceId === null) {
       settlePdfImport(attempt, { kind: 'failed-recoverably' });
+      setReaderPhase('idle');
       return;
     }
     if (
@@ -559,26 +573,45 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     }
   }
 
-  // A paste row must actually read the clipboard before it claims anything was found. Parsed rows
-  // are staged only; Review remains the sole route into financial reality. Empty clipboard input
-  // stays on this screen with a useful instruction instead of opening a hollow success page.
-  async function runClipboardPaste() {
-    const text = await Clipboard.getString();
-    if (text.trim().length === 0) {
-      showToast('Nothing copied yet', 'Copy the transaction rows, then tap Paste from clipboard.');
-      return;
-    }
-    const candidates = readTextCandidates(text, 'paste', 'pasted transactions');
-    setReaderCandidates(candidates ?? []);
-    setReaderClosingBalance(null);
-    nav.go('paste-success');
+  if (readerPhase !== 'idle') {
+    const isPhoto = readerPhase === 'photo';
+    return (
+      <View style={[styles.readerProgress, { backgroundColor: t.canvas, paddingTop: insets.top }]}>
+        <View style={styles.progressHeader}>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>{isPhoto ? 'PHOTO' : 'STATEMENT'}</Text>
+        </View>
+        <Text accessibilityRole="header" style={[styles.progressHeadline, { color: t.ink }]}>
+          {isPhoto ? 'Reading your photo.' : 'Reading your statement.'}
+        </Text>
+        <View style={[styles.progressEvidence, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Text style={[styles.progressName, { color: t.ink }]}>{readerName}</Text>
+          <Text style={[styles.progressBody, { color: t.muted }]}>Melo is looking for dates, names and amounts.</Text>
+        </View>
+        <MeloLine mood="curious" text={isPhoto ? 'Melo is reading your photo.' : 'Melo is reading your statement.'} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel reading"
+          onPress={() => {
+            const active = activeReaderAttempt.current;
+            if (active !== null) settlePdfImport(active, { kind: 'cancelled' });
+            activeReaderAttempt.current = null;
+            setReaderPhase('idle');
+          }}
+          style={({ pressed }) => [styles.cancelReading, { borderColor: t.hairline }, pressed ? styles.pressed : undefined]}
+        >
+          <Text style={[styles.cancelReadingLabel, { color: t.muted }]}>Cancel reading</Text>
+        </Pressable>
+      </View>
+    );
   }
 
   // Dispatch a row: the two file-shaped rows open the real picker (runPick); every other row keeps the
   // straight, declarative nav.go to its screen (web parity).
   const onSelect = (option: IntakeOption) => {
-    if (option.paste === true) {
-      void runClipboardPaste();
+    if (option.title === 'Paste transactions') {
+      // Entering the editor is intentionally side-effect free. Clipboard access belongs to the
+      // explicit action on PasteSuccessScreen, never to this navigation event.
+      nav.go('paste-success');
       return;
     }
     if (option.pick !== undefined) {
@@ -596,12 +629,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       );
       return;
     }
-    if (option.unavailable) {
-      // Keep the unavailable provider row as a truthful, navigable doorway. ConnectionsScreen
-      // owns the explanation and future enablement state; Intake never pretends to connect here.
-      nav.go('connections');
-      return;
-    }
+    if (option.unavailable) return;
     nav.go(option.to);
   };
 
@@ -661,7 +689,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
             accessibilityLabel="Back"
             hitSlop={16}
             onPress={nav.back}
-            style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
+            style={({ pressed: isPressed }) => [styles.backTarget, isPressed ? styles.pressed : undefined]}
           >
             <Text style={[styles.back, { color: t.muted }]}>←</Text>
           </Pressable>
@@ -692,7 +720,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           <Text style={[styles.subhead, { color: t.muted }]}>
             {isBusiness
               ? 'Read a statement or receipt here. Nothing reaches Business activity until you confirm it.'
-              : 'Melo reads on this device, shows you what it found, then waits for your decision. Nothing lands until you say so.'}
+              : 'Melo shows you what it finds, then waits for your decision. Nothing is added until you say so.'}
           </Text>
         </View>
 
@@ -707,9 +735,8 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
             ))}
           </View>
           <Text style={[styles.explainer, { color: t.muted }]}>
-            Pasted text and numbers you type stay on this phone while Melo prepares suggestions.
-            Files and photos use the native picker here; sources you already use are managed in Data
-            &amp; security. Nothing is added until you review it.
+            Reading starts only after you choose a file, photo, or Paste from clipboard. Melo does
+            not keep checking your clipboard. Nothing is added until you review and confirm it.
           </Text>
         </View>
 
@@ -797,6 +824,8 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: option.unavailable === true }}
+      disabled={option.unavailable === true}
       onPress={onPress}
       style={({ pressed: isPressed }) => [
         styles.row,
@@ -836,7 +865,7 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
         </View>
         <Text style={[styles.rowHint, { color: t.muted }]}>{option.hint}</Text>
       </View>
-      <Text style={[styles.forward, { color: t.muted }]}>→</Text>
+      {option.unavailable ? null : <Text style={[styles.forward, { color: t.muted }]}>→</Text>}
     </Pressable>
   );
 }
@@ -868,8 +897,57 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    minHeight: 56,
   },
   // The back glyph — 20px muted (web text-[20px] text-muted-ink press).
+  backTarget: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    minWidth: 48,
+  },
+  readerProgress: {
+    flex: 1,
+    gap: gap.lg,
+    paddingHorizontal: gap.xl,
+    paddingBottom: gap.xl,
+  },
+  progressHeader: {
+    alignItems: 'center',
+    minHeight: 56,
+    justifyContent: 'center',
+  },
+  progressHeadline: {
+    fontFamily: serif.display,
+    fontSize: 28,
+    lineHeight: 34,
+    marginTop: gap.xl,
+  },
+  progressEvidence: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: gap.lg,
+  },
+  progressName: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  progressBody: {
+    fontSize: 13.5,
+    lineHeight: 20,
+    marginTop: gap.sm,
+  },
+  cancelReading: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 48,
+    justifyContent: 'center',
+    marginTop: 'auto',
+  },
+  cancelReadingLabel: {
+    fontSize: 13,
+  },
   back: {
     fontSize: 20,
   },
@@ -882,7 +960,7 @@ const styles = StyleSheet.create({
   },
   // 20px spacer to balance the 20px back glyph (web <span class="w-5" />).
   headerSpacer: {
-    width: 20,
+    width: 48,
   },
   // mt-6 (24px) = gap.xl.
   titleBlock: {
@@ -907,7 +985,7 @@ const styles = StyleSheet.create({
   },
   // mt-6 (24px) = gap.xl; space-y-2.5 (10px) = gap.md row gap (web rounds 2.5 → 10px).
   options: {
-    marginTop: gap.xl,
+    marginTop: gap.xxl,
   },
   sectionEyebrow: {
     fontSize: 10.5,
@@ -925,8 +1003,8 @@ const styles = StyleSheet.create({
     marginTop: gap.md,
   },
   explainer: {
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 20,
     marginTop: gap.md,
   },
   unavailable: {
@@ -997,6 +1075,7 @@ const styles = StyleSheet.create({
     columnGap: gap.lg,
     flexDirection: 'row',
     paddingHorizontal: gap.lg,
+    minHeight: 72,
     paddingVertical: gap.lg,
   },
   // w-11 h-11 (44px) · rounded-lg (radius.sm = 8) · centred · --inset bg.
@@ -1013,11 +1092,13 @@ const styles = StyleSheet.create({
   },
   rowBody: {
     flex: 1,
+    minWidth: 0,
   },
   titleRow: {
     alignItems: 'center',
     columnGap: gap.sm,
     flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   // 14.5px medium (web text-[14.5px] font-medium).
   rowTitle: {
@@ -1027,8 +1108,8 @@ const styles = StyleSheet.create({
   // The "fastest" pill — accent-soft fill, rounded-full, px-1.5 py-0.5 (web).
   badge: {
     borderRadius: radius.pill,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   // 9px, uppercase, tracked, accent, medium (web text-[9px] uppercase tracking-wider).
   badgeLabel: {

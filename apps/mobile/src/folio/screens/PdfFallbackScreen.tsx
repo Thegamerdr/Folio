@@ -47,7 +47,7 @@
 // hitSlop. Copy is VERBATIM: the headline uses the keyed add.fallback.pdf; the eyebrow / body /
 // note / Melo line / CTAs are @copy FROZEN inline literals (the web keeps them inline).
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -60,13 +60,11 @@ import Animated, {
 
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
-import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { openEvidenceDocument } from '@/folio/lib/documentVault';
 import {
   consumeReaderFallbackEvidenceId,
-  consumeReaderFallbackReason,
 } from '@/folio/lib/readerFallbackReason';
 import { useAppStore } from '@/folio/store';
 import type { Nav } from '@/folio/types';
@@ -109,20 +107,6 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
-// Split a frozen copy string on its single **accent** marker into lead / accent / tail.
-function splitAccent(source: string): { lead: string; accent: string; tail: string } {
-  const open = source.indexOf('**');
-  const close = source.indexOf('**', open + 2);
-  if (open === -1 || close === -1) {
-    return { lead: source, accent: '', tail: '' };
-  }
-  return {
-    lead: source.slice(0, open),
-    accent: source.slice(open + 2, close),
-    tail: source.slice(close + 2),
-  };
-}
-
 export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbackScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -142,14 +126,12 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
     transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
   }));
 
-  const { lead, accent, tail } = useMemo(() => splitAccent(copy.add.fallback.pdf), []);
 
   // Consumed ONCE on mount — when the reader (IntakeScreen) knew a specific reason the read failed
   // (long export, timeout, gateway trouble), it carries over here via a module-level handoff (see
   // readerFallbackReason.ts) rather than being lost once its toast dismisses. `undefined` when the
   // reader had nothing more specific to say (or on a cold/direct nav here) — the body line below
   // falls back to the honest generic copy in that case, exactly as before.
-  const [readerReason] = useState(() => consumeReaderFallbackReason());
   const [readerEvidenceId] = useState(() => consumeReaderFallbackEvidenceId());
   const workspace = useAppStore((current) =>
     current.workspaces.find((candidate) => candidate.id === current.activeWorkspaceId),
@@ -165,7 +147,7 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
       (document) => document.workspaceId === workspaceId && document.sourceType === 'document',
     );
   });
-  const fileName = file?.fileName ?? evidenceDocument?.filename ?? 'Saved file';
+  const fileName = file?.fileName ?? evidenceDocument?.filename ?? 'Selected file';
 
   const openSource = () => {
     if (workspace === undefined || evidenceDocument === undefined) {
@@ -226,21 +208,20 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
           >
             <BackArrow color={t.muted} />
           </Pressable>
-          <Text style={[styles.headerLabel, { color: t.muted }]}>PDF</Text>
+          <Text style={[styles.headerLabel, { color: t.muted }]}>STATEMENT</Text>
           <View style={styles.headerSpacer} />
         </View>
 
         {/* Intro — italic "Saved" eyebrow, headline with the single accent word "saved.", calm body. */}
         <View style={styles.intro}>
-          <Text style={[styles.eyebrow, { color: t.muted }]}>Saved</Text>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>NOTHING READY TO CHECK</Text>
           <Text accessibilityRole="header" style={[styles.headline, { color: t.ink }]}>
-            {lead}
-            <Text style={[styles.headlineAccent, { color: t.calm }]}>{accent}</Text>
-            {tail}
+            {state === 'error' ? "Melo couldn't read this file." : "Melo couldn't find clear transactions."}
           </Text>
           <Text style={[styles.body, { color: t.muted }]}>
-            {readerReason ??
-              'I could not read this statement clearly enough to show things to check.'}
+            {state === 'error'
+              ? 'The file was not added. Try another copy, or add one spend yourself.'
+              : 'Try another copy, or add one spend yourself.'}
           </Text>
         </View>
 
@@ -250,10 +231,10 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
             <FileGlyph color={t.ink} />
           </View>
           <View style={styles.fileMeta}>
-            <Text numberOfLines={1} style={[styles.fileName, { color: t.ink }]}>
+            <Text style={[styles.fileName, { color: t.ink }]}>
               {fileName}
             </Text>
-            <Text style={[styles.fileSub, { color: t.muted }]}>saved in Melo</Text>
+            <Text style={[styles.fileSub, { color: t.muted }]}>selected file</Text>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -319,7 +300,7 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Add one thing myself"
+            accessibilityLabel="Log a spend"
             accessibilityHint="Opens the manual entry form"
             onPress={() => nav.openSheet('log-spend')}
             style={({ pressed: isPressed }) => [
@@ -328,7 +309,19 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
               isPressed ? styles.pressed : undefined,
             ]}
           >
-            <Text style={[styles.secondaryLabel, { color: t.muted }]}>Add one thing myself</Text>
+            <Text style={[styles.secondaryLabel, { color: t.muted }]}>Log a spend</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to ways to add"
+            onPress={() => nav.go('intake')}
+            style={({ pressed: isPressed }) => [
+              styles.secondaryCell,
+              { backgroundColor: t.surface, borderColor: t.hairline },
+              isPressed ? styles.pressed : undefined,
+            ]}
+          >
+            <Text style={[styles.secondaryLabel, { color: t.muted }]}>Back to ways to add</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -388,12 +381,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    minHeight: 56,
   },
   pressIcon: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
-    minWidth: 20,
+    minHeight: 48,
+    minWidth: 48,
   },
   // PDF — uppercase, tracked, 12px, muted (web text-[12px] uppercase tracking-[0.14em]).
   headerLabel: {
@@ -402,7 +396,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   headerSpacer: {
-    width: 20,
+    width: 48,
   },
   // mt-6 (24) → gap.xl.
   intro: {
@@ -491,7 +485,7 @@ const styles = StyleSheet.create({
   primary: {
     alignItems: 'center',
     borderRadius: radius.xl,
-    height: 54,
+    minHeight: 56,
     justifyContent: 'center',
     marginBottom: gap.sm,
   },
@@ -501,16 +495,15 @@ const styles = StyleSheet.create({
   },
   // Secondary row — two cells, gap-2.5.
   secondaryRow: {
-    columnGap: gap.md - gap.xxs,
-    flexDirection: 'row',
+    flexDirection: 'column',
+    gap: gap.md,
   },
   // h-12 (48) rounded-xl, surface, hairline. flex:1 so the two share the row evenly.
   secondaryCell: {
     alignItems: 'center',
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    flex: 1,
-    height: 48,
+    minHeight: 48,
     justifyContent: 'center',
   },
   secondaryLabel: {

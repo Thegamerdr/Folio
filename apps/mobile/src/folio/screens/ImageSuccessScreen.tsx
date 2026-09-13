@@ -282,9 +282,9 @@ export function ImageSuccessScreen({
     return (
       <EmptyState
         mood="calm"
-        headline="Image saved."
-        body="Melo couldn't read this one clearly. Try a different image."
-        cta={{ label: 'Use a different image', onPress: () => nav.go('intake') }}
+        headline="Melo couldn't read this photo."
+        body="The photo was not added. Try another photo, or add one spend yourself."
+        cta={{ label: 'Try another photo', onPress: () => nav.go('intake') }}
       />
     );
   }
@@ -356,7 +356,7 @@ export function ImageSuccessScreen({
           >
             <BackArrow color={t.muted} />
           </Pressable>
-          <Text style={[styles.headerLabel, { color: t.muted }]}>Image</Text>
+          <Text style={[styles.headerLabel, { color: t.muted }]}>PHOTO</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -379,10 +379,10 @@ export function ImageSuccessScreen({
           <View style={styles.imageRow}>
             <View style={[styles.thumb, { backgroundColor: t.inset, borderColor: t.hairline }]} />
             <View style={styles.imageMeta}>
-              <Text numberOfLines={1} style={[styles.imageName, { color: t.ink }]}>
+              <Text style={[styles.imageName, { color: t.ink }]}>
                 {image.imageName}
               </Text>
-              <Text style={[styles.imageSub, { color: t.muted }]}>saved in Melo</Text>
+              <Text style={[styles.imageSub, { color: t.muted }]}>selected photo</Text>
             </View>
           </View>
 
@@ -397,7 +397,7 @@ export function ImageSuccessScreen({
                 <View key={item.id} style={styles.foundRow}>
                   <View style={[styles.dot, { backgroundColor: t.calm }]} />
                   <View style={styles.foundMeta}>
-                    <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
+                    <Text style={[styles.merchant, { color: t.ink }]}>
                       {item.merchant}
                     </Text>
                     <Text style={[styles.hint, { color: t.muted }]}>{item.hint}</Text>
@@ -529,12 +529,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    minHeight: 56,
   },
   pressIcon: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
-    minWidth: 20,
+    minHeight: 48,
+    minWidth: 48,
   },
   // Image — uppercase, tracked, 12px, muted (web text-[12px] uppercase tracking-[0.14em]).
   headerLabel: {
@@ -543,7 +544,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   headerSpacer: {
-    width: 20,
+    width: 48,
   },
   // mt-6 (24) → gap.xl.
   intro: {

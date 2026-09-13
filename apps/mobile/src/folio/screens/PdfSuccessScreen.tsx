@@ -320,9 +320,9 @@ export function PdfSuccessScreen({
     return (
       <EmptyState
         mood="calm"
-        headline="File saved."
-        body="Melo couldn't read this one. It's saved as a note — try a different file."
-        cta={{ label: 'Use a different file', onPress: () => nav.go('intake') }}
+        headline="Melo couldn't read this file."
+        body="The file was not added. Try another copy, or add one spend yourself."
+        cta={{ label: 'Try another file', onPress: () => nav.go('intake') }}
       />
     );
   }
@@ -413,7 +413,7 @@ export function PdfSuccessScreen({
               <FileGlyph color={t.calm} />
             </View>
             <View style={styles.fileMeta}>
-              <Text numberOfLines={1} style={[styles.fileName, { color: t.ink }]}>
+              <Text style={[styles.fileName, { color: t.ink }]}>
                 {statement.fileName}
               </Text>
               <Text style={[styles.fileSub, { color: t.muted }]}>
@@ -435,7 +435,7 @@ export function PdfSuccessScreen({
                 <View key={item.id} style={styles.foundRow}>
                   <View style={[styles.dot, { backgroundColor: t.calm }]} />
                   <View style={styles.foundMeta}>
-                    <Text numberOfLines={1} style={[styles.merchant, { color: t.ink }]}>
+                    <Text style={[styles.merchant, { color: t.ink }]}>
                       {item.merchant}
                     </Text>
                     <Text style={[styles.hint, { color: t.muted }]}>{item.hint}</Text>
@@ -678,12 +678,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    minHeight: 56,
   },
   pressIcon: {
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: ICON_CHIP,
-    minWidth: 20,
+    minWidth: 48,
   },
   // PDF — uppercase, tracked, 12px, muted (web text-[12px] uppercase tracking-[0.14em]).
   headerLabel: {
@@ -693,7 +694,7 @@ const styles = StyleSheet.create({
   },
   // Balances the 20px back glyph so the label stays centred (web w-5).
   headerSpacer: {
-    width: 20,
+    width: 48,
   },
   // mt-6 (24) → gap.xl.
   intro: {
