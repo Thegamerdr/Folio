@@ -550,6 +550,9 @@ export function readCanonicalAppStateMoneyProjection(
       source: aggregateObservation.sourceVariant as BalanceSource,
       confidence: aggregateObservation.sourceConfidence,
       setAt: String(aggregateObservation.observedAt ?? aggregateBalance.updatedAt),
+      ...(availableAggregateMinor === 0 && aggregateObservation.authorityState !== 'estimated'
+        ? { provided: true }
+        : {}),
     },
     accounts: projectedAccounts,
     transactions: orderedTransactions.map((row) => row.transaction),
@@ -1171,6 +1174,9 @@ function normalizedSourceMoneyProjection(
       source: state.currentBalance.source,
       confidence: state.currentBalance.confidence,
       setAt: state.currentBalance.setAt,
+      ...(state.currentBalance.amount === 0 && state.currentBalance.provided === true
+        ? { provided: true }
+        : {}),
     },
     accounts,
     transactions,

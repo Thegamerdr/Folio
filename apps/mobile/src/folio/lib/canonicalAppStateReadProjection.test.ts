@@ -18,6 +18,32 @@ function personalWorkspace(state: AppState): PersistedWorkspace {
 }
 
 describe('canonical AppState read projection', () => {
+  it.each([true, false])('round-trips explicit zero-balance provenance (%s)', (provided) => {
+    const base = emptyState();
+    const workspace = personalWorkspace(base);
+    const state: AppState = {
+      ...base,
+      currentBalance: {
+        ...base.currentBalance,
+        amount: 0,
+        provided,
+        source: 'user-entered',
+        confidence: 'rough',
+      },
+    };
+    const canonical = createCanonicalAppStateProjection(
+      state,
+      workspace,
+      '2026-09-09T12:00:00.000Z',
+    );
+    const read = readCanonicalAppStateMoneyProjection(
+      canonical.repositorySnapshot,
+      String(workspace.id),
+    );
+
+    expect(read.currentBalance.provided ?? false).toBe(provided);
+  });
+
   it('round-trips the live cash-posting marker used by edit and undo', () => {
     const base = emptyState();
     const workspace = personalWorkspace(base);
