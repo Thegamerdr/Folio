@@ -39,7 +39,7 @@ vi.mock('@/folio/lib/persistenceRuntime', () => ({ persistenceFailureStageOf: ()
 vi.mock('@/folio/lib/bulkLanding', () => ({
   acknowledgeStatementReviewSession: vi.fn(),
   nextBulkLandingOffer: () => null,
-  statementReviewSessionWithReceipt: vi.fn(),
+  statementReviewSessionWithReceipt: vi.fn((session: any, receipt: any) => ({ ...session, receipt })),
 }));
 vi.mock('@/folio/lib/statementReviewModel', () => ({
   statementReviewSourceKey: (items: any[]) => items.map((item) => item.id).join('|'),
@@ -54,7 +54,7 @@ vi.mock('@/folio/store', () => ({
   getState: () => state,
   hydrateFromBlob: vi.fn(),
   importedTransactionId: (candidate: any) => candidate.id,
-  removeStatementReviewSession: vi.fn(),
+  removeStatementReviewSession: vi.fn((sourceKey: string) => { sessions = sessions.filter((session) => session.sourceKey !== sourceKey); }),
   setAccountBalance: vi.fn(),
   upsertStatementReviewSession: vi.fn((session: any) => { sessions = [session]; listeners.forEach((listener) => listener()); }),
   useAppStore: (selector: (value: typeof state) => unknown) => selector(state),
@@ -87,6 +87,22 @@ describe('BulkStatementLanding mounted persistence regression', () => {
     act(() => { tree = renderer.create(React.createElement(BulkStatementLanding, { nav, candidates: [candidate], sessionKey: 'row-1', onAdded: vi.fn() })); });
     expect(tree.root.findByProps({ accessibilityLabel: 'Back' })).toBeTruthy();
     expect(sessions).toHaveLength(1);
+    act(() => tree.unmount());
+  });
+
+  it('acknowledges the immutable session source after corrected candidates are added', async () => {
+    const bulkLanding = await import('@/folio/lib/bulkLanding');
+    vi.mocked(bulkLanding.acknowledgeStatementReviewSession).mockReturnValue(null);
+    sessions = [
+      { sourceKey: 'corrected-source', candidates: [candidate], selectedIds: [], asideIds: [], resolvedRepeatIds: [], accountId: 'account-1', receipt: { added: 1, duplicatesSkipped: 0, failed: [], totalInPence: 1000, totalOutPence: 0, dateRange: null } },
+      { sourceKey: 'other-source', candidates: [candidate], selectedIds: [], asideIds: [], resolvedRepeatIds: [] },
+    ];
+    let tree!: renderer.ReactTestRenderer;
+    act(() => { tree = renderer.create(React.createElement(BulkStatementLanding, { nav, candidates: [candidate], sessionKey: 'corrected-source', onAdded: vi.fn() })); });
+    const doneButton = tree.root.findAllByType('Pressable').find((node) => node.findAllByType('Text').some((text) => text.children.join(' ') === 'Done'))!;
+    await act(async () => { doneButton.props.onPress(); await Promise.resolve(); });
+    expect(vi.mocked((await import('@/folio/store')).removeStatementReviewSession)).toHaveBeenCalledWith('corrected-source', 'workspace-1');
+    expect(sessions.map((session) => session.sourceKey)).toEqual(['other-source']);
     act(() => tree.unmount());
   });
 });

@@ -885,7 +885,7 @@ export function BulkStatementLanding({
     setReceiptRecoveryAction('ack');
     setReceiptWorkspaceId(workspaceId);
     if (acknowledgedSession === null) {
-      removeStatementReviewSession(statementReviewSourceKey(candidates), workspaceId);
+      removeStatementReviewSession(receiptSession.sourceKey ?? statementReviewSourceKey(candidates), workspaceId);
     } else {
       upsertStatementReviewSession(acknowledgedSession);
     }
