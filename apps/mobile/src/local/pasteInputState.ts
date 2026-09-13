@@ -1,5 +1,16 @@
 export type TextSelection = Readonly<{ start: number; end: number }>;
 
+export type PasteBackAction = 'dismiss-keyboard' | 'go-to-intake' | 'confirm-discard';
+
+/** The paste editor's Back contract, shared by the hardware and visible Back actions. */
+export function resolvePasteBackAction(input: {
+  draftNonEmpty: boolean;
+  keyboardVisible: boolean;
+}): PasteBackAction {
+  if (input.keyboardVisible) return 'dismiss-keyboard';
+  return input.draftNonEmpty ? 'confirm-discard' : 'go-to-intake';
+}
+
 /** Insert clipboard text at the native selection without changing the surrounding draft. */
 export function insertClipboardAtSelection(
   draft: string,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { readTextImport } from './textImportCandidates';
-import { insertClipboardAtSelection } from './pasteInputState';
+import { insertClipboardAtSelection, resolvePasteBackAction } from './pasteInputState';
 import {
   beginPdfImportTransaction,
   createInitialPdfImportTransaction,
@@ -9,6 +9,12 @@ import {
 } from './pdfImportTransaction';
 
 describe('paste editor input flow', () => {
+  it('dismisses the keyboard before applying the draft Back contract', () => {
+    expect(resolvePasteBackAction({ draftNonEmpty: true, keyboardVisible: true })).toBe('dismiss-keyboard');
+    expect(resolvePasteBackAction({ draftNonEmpty: false, keyboardVisible: false })).toBe('go-to-intake');
+    expect(resolvePasteBackAction({ draftNonEmpty: true, keyboardVisible: false })).toBe('confirm-discard');
+  });
+
   it('inserts clipboard text at the current selection and leaves the caret after it', () => {
     expect(insertClipboardAtSelection('date,merchant,amount', '2026-09-01,Shop,-4', { start: 0, end: 0 })).toEqual({
       text: '2026-09-01,Shop,-4date,merchant,amount',

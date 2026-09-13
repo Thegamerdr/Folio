@@ -88,6 +88,7 @@ import { applyMemoryToCandidates } from '@/folio/lib/merchantMemory';
 import { readTextImport } from '../../local/textImportCandidates';
 import {
   insertClipboardAtSelection,
+  resolvePasteBackAction,
   type TextSelection,
 } from '../../local/pasteInputState';
 import { isBulkStatement } from '@/folio/lib/bulkLanding';
@@ -220,7 +221,7 @@ export function PasteSuccessScreen({
     sourceReturn?.selection ?? { start: initialDraft.length, end: initialDraft.length },
   );
   const [focused, setFocused] = useState(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(() => Keyboard.metrics()?.height ?? 0);
   const [clipboardReading, setClipboardReading] = useState(false);
   const [sourceReturnActive, setSourceReturnActive] = useState(sourceReturn !== undefined);
   const inputRef = useRef<TextInput>(null);
@@ -232,6 +233,7 @@ export function PasteSuccessScreen({
   const previewRequestRef = useRef(0);
   const keyboardVisibleRef = useRef(false);
   const itemsLengthRef = useRef(0);
+  const editorBackRef = useRef<() => boolean>(() => false);
 
   const updateDraft = (next: string) => {
     draftRef.current = next;
@@ -279,11 +281,11 @@ export function PasteSuccessScreen({
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => {
       keyboardVisibleRef.current = true;
-      setKeyboardVisible(true);
+      setKeyboardHeight(Keyboard.metrics()?.height ?? 0);
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => {
       keyboardVisibleRef.current = false;
-      setKeyboardVisible(false);
+      setKeyboardHeight(0);
     });
     return () => {
       show.remove();
@@ -293,9 +295,12 @@ export function PasteSuccessScreen({
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (itemsOverride !== undefined || itemsLengthRef.current > 0 || keyboardVisibleRef.current === false) return false;
-      Keyboard.dismiss();
-      return true;
+      if (itemsOverride !== undefined || itemsLengthRef.current > 0) return false;
+      if (resolvePasteBackAction({ draftNonEmpty: true, keyboardVisible: keyboardVisibleRef.current }) === 'dismiss-keyboard') {
+        Keyboard.dismiss();
+        return true;
+      }
+      return editorBackRef.current();
     });
     return () => subscription.remove();
   }, [itemsOverride]);
@@ -426,14 +431,18 @@ export function PasteSuccessScreen({
         ? 'Melo couldn\'t find a complete transaction yet. Check the date, name and amount, then preview again.'
         : statusMessage;
     const goBack = () => {
-      if (!hasDraft) {
+      if (resolvePasteBackAction({ draftNonEmpty: hasDraft, keyboardVisible: false }) === 'go-to-intake') {
         nav.go('intake');
         return;
       }
-      Alert.alert('Discard this text and go back?', 'Your draft will be cleared from this editor.', [
+      Alert.alert('Leave this draft?', 'Discard this text and go back?', [
         { text: 'Keep editing', style: 'cancel' },
         { text: 'Discard draft', style: 'destructive', onPress: () => nav.go('intake') },
       ]);
+    };
+    editorBackRef.current = () => {
+      goBack();
+      return true;
     };
     const pasteFromClipboard = async () => {
       if (clipboardReading) return;
@@ -482,7 +491,7 @@ export function PasteSuccessScreen({
     const editorMinHeight = PixelRatio.getFontScale() >= 1.5 ? 192 : 160;
     const keyboardReducedViewport = Math.max(
       editorMinHeight,
-      dimensions.height - insets.top - insets.bottom - (keyboardVisible ? 300 : 0),
+      dimensions.height - insets.top - insets.bottom - keyboardHeight,
     );
     const editorMaxHeight = Math.max(editorMinHeight, Math.round(keyboardReducedViewport * 0.4));
     return (
@@ -565,20 +574,22 @@ export function PasteSuccessScreen({
           >
             <Text style={[styles.secondaryLabel, { color: t.ink }]}>Paste from clipboard</Text>
           </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Preview sheet"
-            accessibilityState={{ disabled: !hasDraft || previewing, busy: previewing }}
-            disabled={!hasDraft || previewing}
-            onPress={previewDraft}
-            style={({ pressed: isPressed }) => [
-              styles.primary,
-              { marginTop: gap.md, backgroundColor: t.calm, opacity: hasDraft && !previewing ? 1 : 0.45 },
-              isPressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.primaryLabel, { color: t.inverse }]}>{previewing ? 'Reading…' : 'Preview sheet'}</Text>
-          </Pressable>
+          {!previewed ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Preview sheet"
+              accessibilityState={{ disabled: !hasDraft || previewing, busy: previewing }}
+              disabled={!hasDraft || previewing}
+              onPress={previewDraft}
+              style={({ pressed: isPressed }) => [
+                styles.primary,
+                { marginTop: gap.md, backgroundColor: t.calm, opacity: hasDraft && !previewing ? 1 : 0.45 },
+                isPressed ? styles.pressed : undefined,
+              ]}
+            >
+              <Text style={[styles.primaryLabel, { color: t.inverse }]}>{previewing ? 'Reading…' : 'Preview sheet'}</Text>
+            </Pressable>
+          ) : null}
           <Text accessibilityLiveRegion={previewing ? 'polite' : 'none'} style={[styles.progressLabel, { color: t.muted }]}>
             {previewing ? 'Melo is reading the pasted text' : ''}
           </Text>
@@ -607,14 +618,25 @@ export function PasteSuccessScreen({
               ) : null}
             </>
           ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Cancel"
-            onPress={goBack}
-            style={({ pressed }) => [styles.secondary, { marginTop: gap.md, borderColor: t.hairline }, pressed ? styles.pressed : undefined]}
-          >
-            <Text style={[styles.secondaryLabel, { color: t.muted }]}>Cancel</Text>
-          </Pressable>
+          {previewed && items.length === 0 && (state === 'error' || parseError) ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Back to ways to add"
+              onPress={() => nav.go('intake')}
+              style={({ pressed }) => [styles.secondary, { marginTop: gap.md, borderColor: t.hairline }, pressed ? styles.pressed : undefined]}
+            >
+              <Text style={[styles.secondaryLabel, { color: t.muted }]}>Back to ways to add</Text>
+            </Pressable>
+          ) : !previewed ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+              onPress={goBack}
+              style={({ pressed }) => [styles.secondary, { marginTop: gap.md, borderColor: t.hairline }, pressed ? styles.pressed : undefined]}
+            >
+              <Text style={[styles.secondaryLabel, { color: t.muted }]}>Cancel</Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
       </Animated.View>
     );
