@@ -94,7 +94,7 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showStatusDialog } from '@/folio/ui/statusDialogs';
-import { parseSheet, type CandidateMoneyItem } from '@/folio/lib/importSheet';
+import type { CandidateMoneyItem } from '@/folio/lib/importSheet';
 import { isOnboardingFirstRun } from '@/folio/lib/onboardingMutations';
 import {
   addEvidenceDocument,
@@ -117,7 +117,7 @@ import { showToast } from '@/folio/ui/Toast';
 import { pickLocalStatementDocument } from '../../local/nativeDocumentImport';
 import { captureStatementPhoto, pickStatementImage } from '../../local/nativeImageIntake';
 import { parseLocalDocumentCandidates } from '../../local/localDocumentCandidates';
-import { parseLocalOcrCandidates } from '../../local/localOcrCandidates';
+import { readTextImport } from '../../local/textImportCandidates';
 import type { ExtractedText } from '../../local/nativeTextExtraction';
 import {
   beginPdfImportTransaction,
@@ -271,20 +271,8 @@ function readTextCandidates(
   source: Extract<CandidateMoneyItem['source'], 'csv' | 'paste'>,
   filename: string,
 ): CandidateMoneyItem[] | null {
-  const { candidates, issues } = parseSheet(text, { source });
-  const hasHardIssue = issues.some(
-    (issue) =>
-      issue.code === 'missing-amount' ||
-      issue.code === 'missing-merchant' ||
-      issue.code === 'empty-input',
-  );
-  if (candidates.length > 0 && !hasHardIssue) return candidates;
-
-  // Common bank clipboard/TXT exports are line-oriented rather than spreadsheets (for example
-  // `25 Jun Tesco -42.00`). The shipping import engine already parses that shape for local OCR.
-  // Reuse it as a review-only fallback instead of sending the user to a blank manual form.
-  const unstructured = parseLocalOcrCandidates({ text, source, filename });
-  return unstructured.candidates.length > 0 ? unstructured.candidates : null;
+  const result = readTextImport(text, source, filename);
+  return result.candidates.length > 0 ? result.candidates : null;
 }
 
 export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {

@@ -75,8 +75,9 @@ import { MeloLine } from '@/folio/melo/MeloLine';
 import { copy } from '@/folio/copy/copy';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showToast } from '@/folio/ui/Toast';
-import { parseSheet, type CandidateMoneyItem, type ColumnIssue } from '@/folio/lib/importSheet';
+import { type CandidateMoneyItem, type ColumnIssue } from '@/folio/lib/importSheet';
 import { applyMemoryToCandidates } from '@/folio/lib/merchantMemory';
+import { readTextImport } from '../../local/textImportCandidates';
 import { isBulkStatement } from '@/folio/lib/bulkLanding';
 import {
   clearReaderCandidates,
@@ -216,7 +217,7 @@ export function PasteSuccessScreen({
       };
     }
     if (submittedDraft.trim()) {
-      const parsed = parseSheet(submittedDraft, { source: 'paste' });
+      const parsed = readTextImport(submittedDraft, 'paste', 'pasted transactions');
       // RECALL (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): this is the
       // one paste path that never touches setReaderCandidates (the file/photo
       // reader's choke point), so a remembered merchant category is applied here
