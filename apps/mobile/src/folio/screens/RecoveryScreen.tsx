@@ -65,7 +65,15 @@ import { MeloFigure } from '@/folio/melo/MeloFigure';
 // smart / provenance / source record / indexed) are absent from every visible string.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -307,6 +315,8 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const largeText = fontScale >= 1.3;
   const reduceMotion = useReduceMotion();
 
   // The full app state — the same stable `useSyncExternalStore` snapshot the shared route bridge
@@ -690,16 +700,24 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
         {/* Shortfall card — Melo (mood softens when the move closes the gap) + the live after figure.
             Label is mode-tinted (BREAKS-PARITY fix). */}
         <View
-          style={[styles.shortfallCard, { backgroundColor: t.surface, borderColor: t.hairline }]}
+          style={[
+            styles.shortfallCard,
+            largeText ? styles.shortfallCardLarge : undefined,
+            { backgroundColor: t.surface, borderColor: t.hairline },
+          ]}
         >
           <MeloFigure scrollOwner role="inline" mood={previewPresentation.mood} />
-          <View style={styles.shortfallBody} accessibilityLiveRegion="polite">
+          <View
+            style={[styles.shortfallBody, largeText ? styles.shortfallBodyLarge : undefined]}
+            accessibilityLiveRegion="polite"
+          >
             <Text style={[styles.cardLabel, { color: t.muted }]}>
               {pickedMove ? modeCopy.afterLabel : modeCopy.shortfallLabel}
             </Text>
             <Text
               style={[
                 styles.afterValue,
+                largeText ? styles.afterValueLarge : undefined,
                 { color: previewPresentation.canReassure ? t.positiveInk : t.repairInk },
               ]}
             >
@@ -1214,6 +1232,16 @@ const styles = StyleSheet.create({
   shortfallBody: {
     flex: 1,
   },
+  shortfallCardLarge: {
+    alignItems: 'stretch',
+    flexDirection: 'column',
+    rowGap: gap.md,
+  },
+  shortfallBodyLarge: {
+    alignItems: 'center',
+    flex: 0,
+    width: '100%',
+  },
   // 11px uppercase tracked muted (web tracking-[0.12em] ≈ 1.4px).
   cardLabel: {
     fontSize: 11,
@@ -1228,6 +1256,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.8,
     marginTop: 2,
+  },
+  afterValueLarge: {
+    textAlign: 'center',
+    width: '100%',
   },
   // The route comparison is a meaningful object in Recovery: a single contained before/after shape,
   // not a dashboard chart. It uses the native route points and stops at the payday horizon.
