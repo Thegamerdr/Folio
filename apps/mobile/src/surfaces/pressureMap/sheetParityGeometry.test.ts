@@ -16,4 +16,9 @@ describe('shared sheet parity geometry', () => {
     expect(source).toContain('paddingTop: gap.md');
     expect(source).toContain('marginBottom: gap.md');
   });
+
+  it('keeps shared Sheet default-off and isolates Melo terminal scrolling to its opt-in', () => {
+    expect(source).toContain("imeOverflowPolicy = 'resizeSiblings'");
+    expect(source).toContain("imeOverflowPolicy === 'scrollBodyToFocusedTerminal'");
+  });
 });

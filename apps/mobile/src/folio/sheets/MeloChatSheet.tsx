@@ -217,6 +217,14 @@ export type MeloChatSheetProps = {
 
 export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloChatSheetProps) {
   const reduceMotion = useReduceMotion();
+  const bodyScrollRef = useRef<ScrollView>(null);
+  const terminalRef = useRef<View>(null);
+  const terminalAlignmentRef = useRef(true);
+  const bodyHandlersRef = useRef<{
+    onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+    onContentSizeChange?: (width: number, height: number) => void;
+    onLayout?: (event: LayoutChangeEvent) => void;
+  }>({});
 
   const state = useAppStore((s) => s);
   const subs = useAppStore((s) => s.subs);
@@ -294,7 +302,21 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
   // is intentionally dropped (spec `moods` row + fidelity note). One avatar instance, re-keyed on
   // visible so it remounts fresh each open (matches the web mount lifecycle).
   return (
-    <Sheet visible={visible} onClose={onClose} reduceMotion={reduceMotion} scrollable={false}>
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      reduceMotion={reduceMotion}
+      scrollRef={bodyScrollRef}
+      directScrollContent
+      imeOverflowPolicy="scrollBodyToFocusedTerminal"
+      onBodyScroll={(event) => bodyHandlersRef.current.onScroll?.(event)}
+      onBodyContentSizeChange={(widthValue, heightValue) =>
+        bodyHandlersRef.current.onContentSizeChange?.(widthValue, heightValue)
+      }
+      onBodyLayout={(event) => bodyHandlersRef.current.onLayout?.(event)}
+      terminalRef={terminalRef}
+      terminalAlignmentEnabledRef={terminalAlignmentRef}
+    >
       <MeloChat
         snapshot={snapshot}
         prefill={prefill}
@@ -306,6 +328,10 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
         subscriptionState={subscriptionState}
         sourceRows={buildMeloSourceFigures(state).rows}
         voiceActive={visible}
+        bodyScrollRef={bodyScrollRef}
+        bodyHandlersRef={bodyHandlersRef}
+        terminalAlignmentRef={terminalAlignmentRef}
+        terminalRef={terminalRef}
       />
     </Sheet>
   );
@@ -326,6 +352,10 @@ function MeloChat({
   subscriptionState,
   sourceRows,
   voiceActive,
+  bodyScrollRef,
+  bodyHandlersRef,
+  terminalAlignmentRef,
+  terminalRef,
 }: {
   snapshot: MeloLocalFinancialSnapshot;
   prefill?: string | undefined;
@@ -337,6 +367,14 @@ function MeloChat({
   subscriptionState: Parameters<LocalMeloSubscriptionActionResolver>[1];
   sourceRows: ReturnType<typeof buildMeloSourceFigures>['rows'];
   voiceActive: boolean;
+  bodyScrollRef: React.RefObject<ScrollView | null>;
+  bodyHandlersRef: React.MutableRefObject<{
+    onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+    onContentSizeChange?: (width: number, height: number) => void;
+    onLayout?: (event: LayoutChangeEvent) => void;
+  }>;
+  terminalAlignmentRef: React.MutableRefObject<boolean>;
+  terminalRef: React.RefObject<View | null>;
 }) {
   const t = useTheme();
   const { fontScale, width } = useWindowDimensions();
@@ -350,6 +388,7 @@ function MeloChat({
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const [draftHeight, setDraftHeight] = useState(0);
+  const draftActionRef = useRef(false);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
@@ -406,6 +445,7 @@ function MeloChat({
   const toneLabel = TONES.find((tn) => tn.id === savedTone)?.label ?? 'Calm';
   const starters = meloChatStarters(snapshot.workspaceKind ?? 'personal');
   function replaceDraft(text: string) {
+    draftActionRef.current = true;
     setInput(text);
     inputRef.current?.focus();
   }
@@ -771,7 +811,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
   }
 
   // --- Stick-to-bottom transcript + scroll-to-bottom affordance. ----------------------------------
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = bodyScrollRef;
   const hasDraft = input.length > 0;
   const [atBottom, setAtBottom] = useState(true);
   const scrollOffsetRef = useRef(0);
@@ -811,8 +851,21 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
     scrollOffsetRef.current = contentOffset.y;
     const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    if (distanceFromBottom > SCROLL_BOTTOM_EPSILON) draftActionRef.current = false;
     setAtBottom(distanceFromBottom <= SCROLL_BOTTOM_EPSILON);
   }
+
+  bodyHandlersRef.current = {
+    onScroll,
+    onContentSizeChange: (_w, h) => {
+      contentHeight.current = h;
+      if (atBottom && !showSettings) scrollToEnd(false);
+    },
+    onLayout: (e) => {
+      viewportHeight.current = e.nativeEvent.layout.height;
+    },
+  };
+  terminalAlignmentRef.current = atBottom || draftActionRef.current || isLoading || voice.phase !== 'idle';
 
   const showEmpty = messages.length === 0 && !isLoading;
   // The opening money question remains readable while its first reply is being typed.
@@ -844,7 +897,10 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
       <TextInput
         ref={inputRef}
         value={input}
-        onChangeText={setInput}
+        onChangeText={(text) => {
+          draftActionRef.current = true;
+          setInput(text);
+        }}
         placeholder="Say anything to Melo…"
         placeholderTextColor={t.muted}
         editable={!isLoading && voice.phase === 'idle'}
@@ -901,22 +957,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
             : undefined,
         ]}
       >
-        <ScrollView
-          ref={scrollRef}
-          style={s.scroll}
-          contentContainerStyle={[s.scrollContent, { paddingBottom: gap.xl }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          scrollEventThrottle={16}
-          onScroll={onScroll}
-          onContentSizeChange={(_w, h) => {
-            contentHeight.current = h;
-            if (atBottom && !showSettings) scrollToEnd(false);
-          }}
-          onLayout={(e: LayoutChangeEvent) => {
-            viewportHeight.current = e.nativeEvent.layout.height;
-          }}
-        >
+        <View style={s.scrollContent}>
       {typingContext ? (
         <View style={{ flexShrink: 0, paddingVertical: gap.sm }}>
           <Text style={{ color: t.ink, fontSize: 14, lineHeight: 20 }}>{typingContext}</Text>
@@ -1262,10 +1303,9 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
             </View>
           ) : null}
 
-          {/* Error — accent-coloured line. */}
-        </ScrollView>
+        {/* Error — accent-coloured line. */}
+        </View>
 
-        {/* Scroll-to-bottom FAB — only when not already at the bottom. */}
         {!atBottom ? (
           <Pressable
             accessibilityRole="button"
@@ -1274,12 +1314,12 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
               setAtBottom(true);
               scrollToEnd(true);
             }}
-            style={s.scrollFab}
-            hitSlop={8}
+            style={s.scrollLatest}
           >
-            <Text style={s.scrollFabGlyph}>↓</Text>
+            <Text style={s.scrollLatestLabel}>Scroll to latest</Text>
           </Pressable>
         ) : null}
+
       </View>
 
       {showEmpty && keyboardVisible ? (
@@ -1448,6 +1488,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
           </>
         )}
       </View>
+      <View ref={terminalRef} collapsable={false} style={s.terminalSpacer} />
     </View>
   );
 }
@@ -1926,7 +1967,7 @@ function makeStyles(t: Palette) {
       // Use a zero flex basis so the transcript is the part that yields when the measured
       // keyboard viewport gets shorter. With an auto basis, the draft/header content can make the
       // body shrink while its stacked composer keeps its natural position below the IME.
-      flex: 1,
+      flexGrow: 1,
       minHeight: 0,
     },
     composer: {
@@ -2017,29 +2058,9 @@ function makeStyles(t: Palette) {
       paddingHorizontal: gap.xs,
       paddingVertical: gap.lg,
     },
-    scrollFab: {
-      alignItems: 'center',
-      backgroundColor: t.surface,
-      borderColor: t.hairline,
-      borderRadius: radius.pill,
-      borderWidth: StyleSheet.hairlineWidth,
-      bottom: gap.sm,
-      elevation: 3,
-      height: 32,
-      justifyContent: 'center',
-      position: 'absolute',
-      right: gap.sm,
-      shadowColor: '#2A2018',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.12,
-      shadowRadius: 10,
-      width: 32,
-    },
-    scrollFabGlyph: {
-      color: t.ink,
-      fontSize: 16,
-      lineHeight: 18,
-    },
+    terminalSpacer: { height: gap.md, flexShrink: 0 },
+    scrollLatest: { alignItems: 'center', minHeight: 44, justifyContent: 'center' },
+    scrollLatestLabel: { color: t.calmStrong, fontSize: 13, fontWeight: '600' },
     sectionLabel: {
       color: t.muted,
       fontSize: 12,
@@ -2289,7 +2310,7 @@ function makeStyles(t: Palette) {
     },
     transcript: {
       overflow: 'hidden',
-      flex: 1,
+      flexGrow: 1,
       minHeight: 0,
     },
     tune: {

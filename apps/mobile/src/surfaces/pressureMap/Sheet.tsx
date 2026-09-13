@@ -42,6 +42,8 @@ import {
   type KeyboardEvent,
   type StyleProp,
   type ViewStyle,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion as useSystemReducedMotion } from 'react-native-reanimated';
@@ -117,6 +119,14 @@ type SheetProps = {
   closeAccessibilityLabel?: string;
   /** Resting sheet height as a fraction of its window; defaults to the shared 92% shell. */
   maxHeightFraction?: number;
+  /** Local geometry policy; existing sheets retain sibling resizing by default. */
+  imeOverflowPolicy?: 'resizeSiblings' | 'scrollBodyToFocusedTerminal';
+  onBodyScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onBodyContentSizeChange?: (width: number, height: number) => void;
+  onBodyLayout?: (event: NativeSyntheticEvent<any>) => void;
+  terminalRef?: RefObject<View | null>;
+  terminalAlignmentEnabled?: boolean;
+  terminalAlignmentEnabledRef?: { current: boolean };
 };
 
 type SheetPortalApi = {
@@ -342,6 +352,13 @@ export function Sheet({
   contentMinHeight,
   closeAccessibilityLabel = 'Close',
   maxHeightFraction = MAX_HEIGHT_FRACTION,
+  imeOverflowPolicy = 'resizeSiblings',
+  onBodyScroll,
+  onBodyContentSizeChange,
+  onBodyLayout,
+  terminalRef,
+  terminalAlignmentEnabled = true,
+  terminalAlignmentEnabledRef,
 }: SheetProps) {
   const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -398,6 +415,10 @@ export function Sheet({
   const maxHeight = viewport.maxHeight;
   const panelBottomOffset = viewport.bottom;
   const panelBottomPadding = viewport.keyboardOccludesBottom ? gap.md : restingPanelBottomPadding;
+  const effectivePanelBottomPadding =
+    imeOverflowPolicy === 'scrollBodyToFocusedTerminal' && viewport.keyboardOccludesBottom
+      ? 0
+      : panelBottomPadding;
   // translateY animates the panel up from below; scrimOpacity fades the ink ground in.
   // Both are refs so they survive re-renders and we can drive them imperatively.
   const translateY = useRef(new Animated.Value(height)).current;
@@ -405,9 +426,12 @@ export function Sheet({
   const internalScrollRef = useRef<ScrollView>(null);
   const contentRef = useRef<View>(null);
   const bodyScrollRef = scrollRef ?? internalScrollRef;
+  const bodyScrollable = scrollable || imeOverflowPolicy === 'scrollBodyToFocusedTerminal';
   const scrollY = useRef(0);
   const focusFrame = useRef<number | null>(null);
   const focusMeasurement = useRef(0);
+  const lastKeyboardVisible = useRef(false);
+  const anchorOffset = useRef(0);
   const keepFocusedInputVisible = useCallback(() => {
     const generation = ++focusMeasurement.current;
     if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
@@ -428,11 +452,24 @@ export function Sheet({
           }),
         );
       }
-      if (!visible || !scrollable || !focused || !body) return;
+      if (!visible || !bodyScrollable || !body) return;
+      if (imeOverflowPolicy === 'scrollBodyToFocusedTerminal' &&
+          !(terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled)) return;
       const bodyNative = body.getNativeScrollRef();
       const content = contentRef.current;
       if (!bodyNative || !content) return;
       bodyNative.measureInWindow((_bodyX, bodyTop, _bodyWidth, bodyHeight) => {
+        if (imeOverflowPolicy === 'scrollBodyToFocusedTerminal' && terminalRef?.current && (terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled)) {
+          terminalRef.current.measureLayout(
+            content,
+            (_x, terminalTop, _width, terminalHeight) => {
+              const nextY = Math.max(0, terminalTop + terminalHeight - bodyHeight);
+              if (Math.abs(nextY - scrollY.current) > 1) body.scrollTo({ y: nextY, animated: false });
+            },
+            () => undefined,
+          );
+          return;
+        }
         focused.measureLayout(
           content,
           (_inputX, inputContentTop, _inputWidth, inputHeight) => {
@@ -489,7 +526,7 @@ export function Sheet({
     scrollKey,
     focusContextBefore,
     focusContextAfter,
-    scrollable,
+    bodyScrollable,
     shouldReduceMotion,
     visible,
   ]);
@@ -505,6 +542,10 @@ export function Sheet({
     );
   }, [keepFocusedInputVisible]);
   useEffect(() => {
+    if (!keyboardMetrics && lastKeyboardVisible.current && bodyScrollable) {
+      bodyScrollRef.current?.scrollTo({ y: anchorOffset.current, animated: false });
+    }
+    lastKeyboardVisible.current = Boolean(keyboardMetrics);
     if (visible && keyboardMetrics) settleFocusedInput();
     return () => focusSettleTimers.current.forEach(clearTimeout);
   }, [visible, keyboardMetrics, settleFocusedInput]);
@@ -674,8 +715,8 @@ export function Sheet({
               importantForAccessibility="yes"
               style={[
                 s.panel,
-                { maxHeight, paddingBottom: panelBottomPadding },
-                !scrollable && { height: maxHeight },
+                { maxHeight, paddingBottom: effectivePanelBottomPadding },
+                !bodyScrollable && { height: maxHeight },
                 { transform: [{ translateY }] },
               ]}
             >
@@ -697,7 +738,7 @@ export function Sheet({
                 ) : null}
               </View>
               {header ? <View style={{ flexShrink: 0 }}>{header}</View> : null}
-              {scrollable ? (
+              {bodyScrollable ? (
                 <ScrollView
                   key={`sheet-body-${scrollKey ?? 'stable'}`}
                   ref={bodyScrollRef}
@@ -709,12 +750,14 @@ export function Sheet({
                   // entire S9 typing area and collapse intrinsic form rows.
                   contentContainerStyle={[
                     layout.scrollContent,
+                    imeOverflowPolicy === 'scrollBodyToFocusedTerminal' ? { paddingBottom: 0 } : undefined,
                     contentMinHeight != null ? { minHeight: contentMinHeight } : undefined,
                   ]}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="none"
                   automaticallyAdjustKeyboardInsets={false}
                   onLayout={(event) => {
+                    onBodyLayout?.(event);
                     keepFocusedInputVisible();
                     if (geometryLogging) {
                       console.info(
@@ -728,6 +771,7 @@ export function Sheet({
                     }
                   }}
                   onContentSizeChange={(widthValue, heightValue) => {
+                    onBodyContentSizeChange?.(widthValue, heightValue);
                     keepFocusedInputVisible();
                     if (geometryLogging) {
                       console.info(
@@ -742,7 +786,9 @@ export function Sheet({
                     }
                   }}
                   onScroll={(event) => {
+                    onBodyScroll?.(event);
                     scrollY.current = event.nativeEvent.contentOffset.y;
+                    anchorOffset.current = scrollY.current;
                     if (geometryLogging) {
                       console.info(
                         'MeloSheetGeometry',
@@ -759,22 +805,17 @@ export function Sheet({
                   scrollEventThrottle={16}
                   showsVerticalScrollIndicator
                 >
-                  {directScrollContent ? (
+                  {directScrollContent && imeOverflowPolicy === 'resizeSiblings' ? (
                     <>
-                      {bodyContentInset > 0 ? (
-                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
-                      ) : null}
+                      {bodyContentInset > 0 ? <View style={{ height: bodyContentInset, flexShrink: 0 }} /> : null}
                       {children}
-                      {bodyContentInset > 0 ? (
-                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
-                      ) : null}
+                      {bodyContentInset > 0 ? <View style={{ height: bodyContentInset, flexShrink: 0 }} /> : null}
                     </>
-                  ) : (
-                    <View
-                      ref={contentRef}
-                      collapsable={false}
-                      onFocus={settleFocusedInput}
-                      onLayout={(event) => {
+                  ) : <View
+                    ref={contentRef}
+                    collapsable={false}
+                    onFocus={settleFocusedInput}
+                    onLayout={(event) => {
                         if (geometryLogging) {
                           console.info(
                             'MeloSheetGeometry',
@@ -785,18 +826,17 @@ export function Sheet({
                             }),
                           );
                         }
-                      }}
-                      style={{ flexShrink: 0, width: '100%' }}
-                    >
-                      {bodyContentInset > 0 ? (
-                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
-                      ) : null}
-                      {children}
-                      {bodyContentInset > 0 ? (
-                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
-                      ) : null}
-                    </View>
-                  )}
+                    }}
+                    style={{ flexShrink: 0, width: '100%' }}
+                  >
+                    {bodyContentInset > 0 ? (
+                      <View style={{ height: bodyContentInset, flexShrink: 0 }} />
+                    ) : null}
+                    {children}
+                    {bodyContentInset > 0 ? (
+                      <View style={{ height: bodyContentInset, flexShrink: 0 }} />
+                    ) : null}
+                  </View>}
                 </ScrollView>
               ) : (
                 <View style={layout.sheetContent}>{children}</View>
@@ -826,12 +866,20 @@ export function Sheet({
       maxHeight,
       panelBottomOffset,
       panelBottomPadding,
+      effectivePanelBottomPadding,
       s,
       scrimOpacity,
       translateY,
       usesAndroidPortal,
       visible,
-      scrollable,
+      bodyScrollable,
+      imeOverflowPolicy,
+      onBodyScroll,
+      onBodyContentSizeChange,
+      onBodyLayout,
+      terminalRef,
+      terminalAlignmentEnabled,
+      terminalAlignmentEnabledRef,
       scrollKey,
     ],
   );
