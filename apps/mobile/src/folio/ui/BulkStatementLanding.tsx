@@ -415,6 +415,21 @@ export function BulkStatementLanding({
     () => filterStatementReviewRows(model.rows, filter, query, asideIds),
     [asideIds, filter, model.rows, query],
   );
+  const filterCounts = useMemo<Record<StatementReviewFilter, number>>(
+    () => ({
+      all: filterStatementReviewRows(model.rows, 'all', '', asideIds).length,
+      ready: filterStatementReviewRows(model.rows, 'ready', '', asideIds).length,
+      issues: filterStatementReviewRows(model.rows, 'issues', '', asideIds).length,
+      duplicates: filterStatementReviewRows(model.rows, 'duplicates', '', asideIds).length,
+      'already-added': filterStatementReviewRows(model.rows, 'already-added', '', asideIds).length,
+      aside: filterStatementReviewRows(model.rows, 'aside', '', asideIds).length,
+      transfers: filterStatementReviewRows(model.rows, 'transfers', '', asideIds).length,
+      income: filterStatementReviewRows(model.rows, 'income', '', asideIds).length,
+      bills: filterStatementReviewRows(model.rows, 'bills', '', asideIds).length,
+      debt: filterStatementReviewRows(model.rows, 'debt', '', asideIds).length,
+    }),
+    [asideIds, model.rows],
+  );
   const [accountConfirmed, setAccountConfirmed] = useState(
     () => resumeSession?.accountId !== undefined,
   );
@@ -1298,26 +1313,13 @@ export function BulkStatementLanding({
   const hiddenCount = [...selectedIds].filter(
     (id) => !rows.some((row) => row.candidate.id === id),
   ).length;
-  const filterCount = (key: StatementReviewFilter) =>
-    key === 'all'
-      ? model.counts.total - asideIds.size
-      : key === 'ready'
-        ? model.counts.ready
-        : key === 'issues'
-          ? model.counts.issues
-          : key === 'duplicates'
-            ? model.counts.duplicates
-            : key === 'already-added'
-              ? model.counts.alreadyAdded
-              : key === 'aside'
-                ? asideIds.size
-                : model.counts.transfers;
+  const filterCount = (key: StatementReviewFilter) => filterCounts[key];
   const emptyTitle =
     query.trim().length > 0
       ? `No transactions match “${query.trim()}”.`
-      : filter === 'issues' && model.counts.ready > 0
+      : filter === 'issues' && filterCounts.ready > 0
         ? 'Nothing needs checking.'
-        : filter === 'ready' && model.counts.issues > 0
+        : filter === 'ready' && filterCounts.issues > 0
           ? 'Nothing is ready yet.'
           : filter === 'duplicates'
             ? 'No possible repeats in this statement.'
@@ -1331,10 +1333,10 @@ export function BulkStatementLanding({
   const emptyBody =
     query.trim().length > 0
       ? undefined
-      : filter === 'issues' && model.counts.ready > 0
-        ? `${model.counts.ready} are ready to add.`
-        : filter === 'ready' && model.counts.issues > 0
-          ? `Check ${model.counts.issues} transactions before adding them.`
+      : filter === 'issues' && filterCounts.ready > 0
+        ? `${filterCounts.ready} are ready to add.`
+        : filter === 'ready' && filterCounts.issues > 0
+          ? `Check ${filterCounts.issues} transactions before adding them.`
           : undefined;
   return (
     <View
@@ -1374,16 +1376,16 @@ export function BulkStatementLanding({
             >
               <Text
                 style={[styles.summaryStat, { color: t.positiveInk }]}
-              >{`${model.counts.ready} ready`}</Text>
+              >{`${filterCounts.ready} ready`}</Text>
               <Text
                 style={[styles.summaryStat, { color: t.repairInk }]}
-              >{`${model.counts.issues} need checking`}</Text>
+              >{`${filterCounts.issues} need checking`}</Text>
               <Text
                 style={[styles.summaryStat, { color: t.muted }]}
-              >{`${model.counts.duplicates} possible repeats`}</Text>
+              >{`${filterCounts.duplicates} possible repeats`}</Text>
               <Text
                 style={[styles.summaryStat, { color: t.muted }]}
-              >{`${model.counts.alreadyAdded} already added`}</Text>
+              >{`${filterCounts['already-added']} already added`}</Text>
               <Text
                 style={[styles.summaryMoney, { color: t.ink }]}
               >{`From readable amounts: ${pounds(model.moneyIn)} in · ${pounds(model.moneyOut)} out`}</Text>
@@ -1492,9 +1494,9 @@ export function BulkStatementLanding({
                 {query.trim().length > 0
                   ? 'Clear search'
                   : filter === 'issues'
-                    ? `Show ready ${model.counts.ready}`
+                    ? `Show ready ${filterCounts.ready}`
                     : filter === 'ready'
-                      ? `Show needs checking ${model.counts.issues}`
+                      ? `Show needs checking ${filterCounts.issues}`
                       : filter === 'already-added'
                         ? 'Show all'
                         : 'Show all'}
