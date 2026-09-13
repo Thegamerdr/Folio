@@ -644,7 +644,9 @@ export function FolioShell() {
     setLogSpendAmount(undefined);
     setAffordAmount(undefined);
     setScreen(next);
-    setScreenPayload(next === 'today-after' ? payload : undefined);
+    setScreenPayload(
+      next === 'today-after' || next === 'paste-success' ? payload : undefined,
+    );
   }, []);
 
   const back = useCallback(() => {
@@ -1357,7 +1359,9 @@ function ScreenView({
   if (screen === 'pdf-fallback') return <PdfFallbackScreen nav={nav} />;
   if (screen === 'image-success') return <ImageSuccessScreen nav={nav} />;
   if (screen === 'image-fallback') return <ImageFallbackScreen nav={nav} />;
-  if (screen === 'paste-success') return <PasteSuccessScreen nav={nav} />;
+  if (screen === 'paste-success') {
+    return <PasteSuccessScreen nav={nav} sourceReturn={payload?.importSource} />;
+  }
   // The pinned owner routes `visualizer` to the Timeline family's "What Melo saw" view. Keep the
   // transient reader preview behind the intake flow, but make the shipping route honor its actual
   // source owner instead of presenting an unrelated empty import state.

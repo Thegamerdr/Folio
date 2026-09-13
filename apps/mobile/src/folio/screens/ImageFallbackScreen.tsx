@@ -66,6 +66,7 @@ import { showStatusDialog } from '@/folio/ui/statusDialogs';
 import { openEvidenceDocument } from '@/folio/lib/documentVault';
 import {
   consumeReaderFallbackEvidenceId,
+  consumeReaderFallbackReason,
 } from '@/folio/lib/readerFallbackReason';
 import { useAppStore } from '@/folio/store';
 import type { Nav } from '@/folio/types';
@@ -134,6 +135,7 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
   // reader had nothing more specific to say (or on a cold/direct nav here) — the body line below
   // falls back to the honest generic copy in that case, exactly as before.
   const [readerEvidenceId] = useState(() => consumeReaderFallbackEvidenceId());
+  const [readerFailureReason] = useState(() => consumeReaderFallbackReason());
   const workspace = useAppStore((current) =>
     current.workspaces.find((candidate) => candidate.id === current.activeWorkspaceId),
   );
@@ -226,6 +228,11 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
               ? 'The photo was not added. Try another photo, or add one spend yourself.'
               : 'Try a clearer photo, or add one spend yourself.'}
           </Text>
+          {readerFailureReason ? (
+            <Text style={[styles.body, styles.failureDetail, { color: t.muted }]}>
+              {readerFailureReason}
+            </Text>
+          ) : null}
         </View>
 
         {/* Image card — thumb + truncating name + "saved in Melo" + a quiet View. */}
@@ -410,6 +417,9 @@ const styles = StyleSheet.create({
     marginTop: gap.md,
     maxWidth: 300,
   },
+  failureDetail: {
+    marginTop: gap.sm,
+  },
   // Image card — surface, hairline, 2xl radius, p-3, row, gap-3, mt-5.
   imageCard: {
     alignItems: 'center',
@@ -438,6 +448,7 @@ const styles = StyleSheet.create({
   },
   // 13.5px medium, truncating.
   imageName: {
+    flexShrink: 1,
     fontSize: 13.5,
     fontWeight: '500',
   },

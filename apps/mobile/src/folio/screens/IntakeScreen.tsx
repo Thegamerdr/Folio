@@ -17,8 +17,8 @@
 // @copy         FROZEN — no "import" / "OCR" / "parser" wording allowed.
 // @tokens       --surface (Surface) · --hairline (Hairline) · --accent (calm) · --muted-ink (muted)
 //               · --inset (icon tiles + Melo panel) · --accent-soft (calmSoft, fastest badge)
-// @motion       slide-in-r (whole screen) · press 0.97/120ms (back + every option row) · Melo
-//               breathe + blink (calm mood, inside MeloLine — the only continuous motion)
+// @motion       slide-in-r (whole screen) · press 0.97/120ms (back + every option row) · calm
+//               native reading indicator while a local source is being processed
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/store sources):
 //   • This screen is a NAVIGATION / DISPATCH MENU that now also fires the REAL on-device pickers
@@ -72,6 +72,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -202,10 +203,6 @@ export const INTAKE_OPTIONS: readonly IntakeOption[] = [
     badge: 'NOT YET',
   },
 ] as const;
-
-// Historical parity fixtures may still mention `title: 'Type it yourself'` and `runClipboardPaste`;
-// production entry is intentionally now `Log a spend` and the Paste editor owns clipboard access.
-// The former unavailable doorway's `nav.go(option.to)` remains prohibited for this disabled row.
 
 // Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1).
 const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
@@ -587,7 +584,15 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
           <Text style={[styles.progressName, { color: t.ink }]}>{readerName}</Text>
           <Text style={[styles.progressBody, { color: t.muted }]}>Melo is looking for dates, names and amounts.</Text>
         </View>
-        <MeloLine mood="curious" text={isPhoto ? 'Melo is reading your photo.' : 'Melo is reading your statement.'} />
+        <View accessibilityLiveRegion="polite" style={styles.progressIndicator}>
+          <ActivityIndicator
+            color={t.calm}
+            accessibilityLabel={isPhoto ? 'Reading your photo' : 'Reading your statement'}
+          />
+          <Text style={[styles.progressBody, { color: t.muted }]}>
+            {isPhoto ? 'Melo is reading your photo.' : 'Melo is reading your statement.'}
+          </Text>
+        </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Cancel reading"
@@ -936,6 +941,11 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 20,
     marginTop: gap.sm,
+  },
+  progressIndicator: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: gap.sm,
   },
   cancelReading: {
     alignItems: 'center',

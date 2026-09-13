@@ -21,9 +21,8 @@
 //
 // @rn-engine text-reader — WIRED. The found list is now the real pure `parseSheet` engine
 //   (apps/mobile/src/folio/lib/importSheet.ts, ENGINES.md §6) output, not a hand-built array.
-// Compatibility assertion: parseSheet(submittedDraft, { source: 'paste' }) remains the contract
-// represented by readTextImport below; parse-only normalization never rewrites the visible draft.
-//   Only user-pasted text or the real reader staging slot supplies candidates. An empty input
+// `readTextImport` is the production adapter for the existing parser; parse-only normalization never
+// rewrites the visible draft. Only user-pasted text or the real reader staging slot supplies candidates. An empty input
 //   remains empty; examples belong in test fixtures. Review still precedes every ledger write.
 //
 // FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
@@ -56,14 +55,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Alert,
+  ActivityIndicator,
+  BackHandler,
   Clipboard,
+  findNodeHandle,
   Keyboard,
+  PixelRatio,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -82,6 +86,10 @@ import { showToast } from '@/folio/ui/Toast';
 import { type CandidateMoneyItem, type ColumnIssue } from '@/folio/lib/importSheet';
 import { applyMemoryToCandidates } from '@/folio/lib/merchantMemory';
 import { readTextImport } from '../../local/textImportCandidates';
+import {
+  insertClipboardAtSelection,
+  type TextSelection,
+} from '../../local/pasteInputState';
 import { isBulkStatement } from '@/folio/lib/bulkLanding';
 import {
   clearReaderCandidates,
@@ -92,7 +100,7 @@ import {
 } from '@/folio/store';
 import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import { formatReviewDate } from '@/folio/screens/reviewFormat';
-import type { Nav } from '@/folio/types';
+import type { ImportSourceReturn, Nav } from '@/folio/types';
 
 // One thing Folio found in the pasted text — `id` is the candidate's own identity (the list keys on
 // THIS, never `merchant`, so two rows for the same merchant never collapse into one — phase ⑦
@@ -117,6 +125,8 @@ export type PasteSuccessScreenProps = {
   /** Pre-derived found list. Overrides the engine derivation when supplied (e.g. for a fixture). */
   items?: readonly PastedItem[];
   state?: PasteSuccessState;
+  /** Raw editor state returned by a review flow. This is an in-memory nav handoff only. */
+  sourceReturn?: ImportSourceReturn | undefined;
 };
 
 // Format a bare GBP magnitude the way the web preformatted it: whole pounds, thousands grouped, no
@@ -189,46 +199,145 @@ export function PasteSuccessScreen({
   pasteText,
   items: itemsOverride,
   state = 'populated',
+  sourceReturn,
 }: PasteSuccessScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const dimensions = useWindowDimensions();
   const reduceMotion = useReduceMotion();
   // Intake stages clipboard and CSV reads in the transient reader slot before navigating here.
   // Read that slot when no prop/fixture is supplied; otherwise the native paste path appeared to
   // succeed and then rendered a misleading empty doorway. The slot is still review-only and is
   // cleared only after the candidates move into the persisted review queue.
   const staged = useReaderCandidates();
-  const [draft, setDraft] = useState(pasteText ?? '');
+  const initialDraft = sourceReturn?.rawText ?? pasteText ?? '';
+  const [draft, setDraft] = useState(initialDraft);
   const [submittedDraft, setSubmittedDraft] = useState(pasteText ?? '');
   const [previewed, setPreviewed] = useState(Boolean(pasteText?.trim()));
   const [previewing, setPreviewing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const [selection, setSelection] = useState<TextSelection>(
+    sourceReturn?.selection ?? { start: initialDraft.length, end: initialDraft.length },
+  );
   const [focused, setFocused] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [clipboardReading, setClipboardReading] = useState(false);
+  const [sourceReturnActive, setSourceReturnActive] = useState(sourceReturn !== undefined);
   const inputRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const headingRef = useRef<Text>(null);
+  const draftRef = useRef(draft);
+  const selectionRef = useRef(selection);
+  const clipboardRequestRef = useRef(0);
+  const previewRequestRef = useRef(0);
+  const keyboardVisibleRef = useRef(false);
+  const itemsLengthRef = useRef(0);
+
+  const updateDraft = (next: string) => {
+    draftRef.current = next;
+    setDraft(next);
+  };
+  const updateSelection = (next: TextSelection) => {
+    selectionRef.current = next;
+    setSelection(next);
+  };
 
   useEffect(() => {
     if (pasteText !== undefined) {
-      setDraft(pasteText);
+      updateDraft(pasteText);
       setSubmittedDraft(pasteText);
       setPreviewed(true);
+      setSourceReturnActive(false);
     }
   }, [pasteText]);
+
+  useEffect(() => {
+    if (sourceReturn === undefined) return;
+    updateDraft(sourceReturn.rawText);
+    draftRef.current = sourceReturn.rawText;
+    updateSelection(sourceReturn.selection);
+    setSubmittedDraft('');
+    setPreviewed(false);
+    setStatusMessage(null);
+    setSourceReturnActive(true);
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, sourceReturn.scrollOffset), animated: false });
+      const node = findNodeHandle(headingRef.current);
+      if (node !== null) AccessibilityInfo.setAccessibilityFocus(node);
+    });
+  }, [sourceReturn]);
+
+  useEffect(() => {
+    if (sourceReturn !== undefined) return;
+    const frame = requestAnimationFrame(() => {
+      const node = findNodeHandle(headingRef.current);
+      if (node !== null) AccessibilityInfo.setAccessibilityFocus(node);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [sourceReturn]);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      keyboardVisibleRef.current = true;
+      setKeyboardVisible(true);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      keyboardVisibleRef.current = false;
+      setKeyboardVisible(false);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (itemsOverride !== undefined || itemsLengthRef.current > 0 || keyboardVisibleRef.current === false) return false;
+      Keyboard.dismiss();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [itemsOverride]);
+
+  useEffect(() => () => {
+    clipboardRequestRef.current += 1;
+    previewRequestRef.current += 1;
+  }, []);
 
   // The real engine derivation. User-pasted text is read by `parseSheet`. An
   // explicit `items` prop still wins for fixtures. `issues` are the engine's honest fix prompts.
   // `candidates` keeps the raw parse output so the primary CTA can enqueue exactly what the card
   // showed (an `items` fixture carries no raw candidates, so it enqueues nothing — tests only).
-  const { items, issues, candidates } = useMemo(() => {
+  const { items, issues, candidates, parseError } = useMemo(() => {
+    if (sourceReturnActive) {
+      return {
+        items: [] as readonly PastedItem[],
+        issues: [] as readonly ColumnIssue[],
+        candidates: [] as readonly CandidateMoneyItem[],
+        parseError: false,
+      };
+    }
     if (itemsOverride) {
       return {
         items: itemsOverride,
         issues: [] as readonly ColumnIssue[],
         candidates: [] as readonly CandidateMoneyItem[],
+        parseError: false,
       };
     }
     if (submittedDraft.trim()) {
-      const parsed = readTextImport(submittedDraft, 'paste', 'pasted transactions');
+      let parsed: ReturnType<typeof readTextImport>;
+      try {
+        parsed = readTextImport(submittedDraft, 'paste', 'pasted transactions');
+      } catch {
+        return {
+          items: [] as readonly PastedItem[],
+          issues: [] as readonly ColumnIssue[],
+          candidates: [] as readonly CandidateMoneyItem[],
+          parseError: true,
+        };
+      }
       // RECALL (lib/merchantMemory.ts, DATA_INTELLIGENCE.md phase ③): this is the
       // one paste path that never touches setReaderCandidates (the file/photo
       // reader's choke point), so a remembered merchant category is applied here
@@ -238,6 +347,7 @@ export function PasteSuccessScreen({
         items: toPastedItems(withMemory),
         issues: parsed.issues,
         candidates: withMemory,
+        parseError: false,
       };
     }
     if (staged.length > 0) {
@@ -245,6 +355,7 @@ export function PasteSuccessScreen({
         items: toPastedItems(staged),
         issues: [] as readonly ColumnIssue[],
         candidates: staged,
+        parseError: false,
       };
     }
     // Nothing pasted (a cold open from the nav): show the empty doorway below, never a fabricated
@@ -253,8 +364,12 @@ export function PasteSuccessScreen({
       items: [] as readonly PastedItem[],
       issues: [] as readonly ColumnIssue[],
       candidates: [] as readonly CandidateMoneyItem[],
+      parseError: false,
     };
-  }, [submittedDraft, itemsOverride, staged]);
+  }, [submittedDraft, itemsOverride, staged, sourceReturnActive]);
+
+  itemsLengthRef.current = items.length;
+
 
   // slide-in-r — drives the whole screen. Under reduce-motion we resolve straight to final state.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -297,14 +412,15 @@ export function PasteSuccessScreen({
       <View
         style={[styles.loading, { backgroundColor: t.canvas, paddingTop: insets.top + gap.xxl }]}
       >
-        <MeloLine mood="curious" text="Melo is reading…" />
+        <ActivityIndicator color={t.calm} accessibilityLabel="Melo is reading the pasted text" />
+        <Text style={[styles.progressLabel, { color: t.muted }]}>Melo is reading the pasted text</Text>
       </View>
     );
   }
 
   if (items.length === 0) {
     const hasDraft = draft.trim().length > 0;
-    const editorStatus = state === 'error'
+    const editorStatus = state === 'error' || parseError
       ? 'Melo couldn\'t read this text just now. Your draft is still here.'
       : previewed && (hasHardIssue || submittedDraft.trim().length > 0)
         ? 'Melo couldn\'t find a complete transaction yet. Check the date, name and amount, then preview again.'
@@ -320,22 +436,29 @@ export function PasteSuccessScreen({
       ]);
     };
     const pasteFromClipboard = async () => {
+      if (clipboardReading) return;
+      const requestId = clipboardRequestRef.current + 1;
+      clipboardRequestRef.current = requestId;
+      setClipboardReading(true);
       try {
         const clip = await Clipboard.getString();
+        if (clipboardRequestRef.current !== requestId) return;
         if (clip.trim().length === 0) {
           setStatusMessage('Nothing copied yet. Copy the transactions, then try again.');
           inputRef.current?.focus();
           return;
         }
-        const start = Math.min(selection.start, draft.length);
-        const end = Math.min(Math.max(start, selection.end), draft.length);
-        const next = `${draft.slice(0, start)}${clip}${draft.slice(end)}`;
-        setDraft(next);
-        setSelection({ start: start + clip.length, end: start + clip.length });
+        const inserted = insertClipboardAtSelection(draftRef.current, clip, selectionRef.current);
+        updateDraft(inserted.text);
+        updateSelection(inserted.selection);
         setStatusMessage(null);
         inputRef.current?.focus();
       } catch {
-        setStatusMessage("Melo couldn't paste from the clipboard. Touch and hold in the box to paste, or type here.");
+        if (clipboardRequestRef.current === requestId) {
+          setStatusMessage("Melo couldn't paste from the clipboard. Touch and hold in the box to paste, or type here.");
+        }
+      } finally {
+        if (clipboardRequestRef.current === requestId) setClipboardReading(false);
       }
     };
     const previewDraft = () => {
@@ -343,17 +466,29 @@ export function PasteSuccessScreen({
       Keyboard.dismiss();
       setStatusMessage(null);
       setPreviewing(true);
-      setPreviewed(true);
+      const requestId = previewRequestRef.current + 1;
+      previewRequestRef.current = requestId;
+      const draftAtPreview = draftRef.current;
       // Keep the editor mounted while the existing local parser runs. No candidates or money
       // state are changed by this operation; valid output is handed to the existing D2 route.
       setTimeout(() => {
-        setSubmittedDraft(draft);
+        if (previewRequestRef.current !== requestId) return;
+        setSubmittedDraft(draftAtPreview);
+        setSourceReturnActive(false);
+        setPreviewed(true);
         setPreviewing(false);
       }, 0);
     };
+    const editorMinHeight = PixelRatio.getFontScale() >= 1.5 ? 192 : 160;
+    const keyboardReducedViewport = Math.max(
+      editorMinHeight,
+      dimensions.height - insets.top - insets.bottom - (keyboardVisible ? 300 : 0),
+    );
+    const editorMaxHeight = Math.max(editorMinHeight, Math.round(keyboardReducedViewport * 0.4));
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.content,
             { paddingTop: insets.top + gap.lg, paddingBottom: insets.bottom + gap.lg },
@@ -371,7 +506,7 @@ export function PasteSuccessScreen({
             >
               <BackArrow color={t.muted} />
             </Pressable>
-            <Text accessibilityRole="header" style={[styles.headerLabel, { color: t.muted }]}>BRING MY SHEET ACROSS</Text>
+            <Text ref={headingRef} accessibilityRole="header" style={[styles.headerLabel, { color: t.muted }]}>BRING MY SHEET ACROSS</Text>
             <View style={styles.headerSpacer} />
           </View>
 
@@ -394,15 +529,23 @@ export function PasteSuccessScreen({
             autoCorrect={false}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            onChangeText={setDraft}
-            onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
+            onChangeText={updateDraft}
+            onSelectionChange={(event) => updateSelection(event.nativeEvent.selection)}
             placeholder="Paste dates, names and amounts, separated by commas, tabs or new lines."
             placeholderTextColor={t.muted}
             selectionColor={t.calm}
             spellCheck={false}
+            editable={!previewing}
+            selection={selection}
             style={[
               styles.pasteInput,
-              { backgroundColor: t.inset, borderColor: focused ? t.calm : t.hairline, color: t.ink },
+              {
+                backgroundColor: t.inset,
+                borderColor: focused ? t.calm : t.hairline,
+                color: t.ink,
+                maxHeight: editorMaxHeight,
+                minHeight: editorMinHeight,
+              },
             ]}
             textAlignVertical="top"
             value={draft}
@@ -415,8 +558,8 @@ export function PasteSuccessScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Paste from clipboard"
-            accessibilityState={{ disabled: previewing }}
-            disabled={previewing}
+            accessibilityState={{ disabled: previewing || clipboardReading, busy: clipboardReading }}
+            disabled={previewing || clipboardReading}
             onPress={() => void pasteFromClipboard()}
             style={({ pressed }) => [styles.secondary, { marginTop: gap.lg, borderColor: t.hairline }, pressed ? styles.pressed : undefined]}
           >
@@ -443,19 +586,19 @@ export function PasteSuccessScreen({
             <>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={state === 'error' ? 'Try again' : 'Preview again'}
+                accessibilityLabel={state === 'error' || parseError ? 'Try again' : 'Preview again'}
                 onPress={previewDraft}
                 style={({ pressed }) => [styles.secondary, { marginTop: gap.md, borderColor: t.hairline }, pressed ? styles.pressed : undefined]}
               >
-                <Text style={[styles.secondaryLabel, { color: t.ink }]}>{state === 'error' ? 'Try again' : 'Preview again'}</Text>
+                <Text style={[styles.secondaryLabel, { color: t.ink }]}>{state === 'error' || parseError ? 'Try again' : 'Preview again'}</Text>
               </Pressable>
-              {state !== 'error' ? (
+              {state !== 'error' && !parseError ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Clear text"
                   onPress={() => Alert.alert('Clear this text?', "You won't be able to bring it back here.", [
                     { text: 'Keep editing', style: 'cancel' },
-                    { text: 'Clear text', style: 'destructive', onPress: () => { setDraft(''); setSubmittedDraft(''); setPreviewed(false); setStatusMessage('Text cleared'); inputRef.current?.focus(); } },
+                    { text: 'Clear text', style: 'destructive', onPress: () => { updateDraft(''); setSubmittedDraft(''); setPreviewed(false); setStatusMessage('Text cleared'); updateSelection({ start: 0, end: 0 }); inputRef.current?.focus(); } },
                   ])}
                   style={({ pressed }) => [styles.secondary, { marginTop: gap.md, borderColor: t.hairline }, pressed ? styles.pressed : undefined]}
                 >

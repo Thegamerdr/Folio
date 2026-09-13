@@ -21,7 +21,22 @@
 // Every screen the shell can show. Mirrors the web ScreenId union, name-for-name.
 import type { RecoveryReceipt } from './lib/recoveryReceipt';
 
-export type ScreenPayload = Readonly<{ recovery?: RecoveryReceipt }>;
+/**
+ * The in-memory source handoff used when a review flow returns to the paste editor.  It is
+ * deliberately data-only: D2/session persistence owns durable metadata and no callback may cross
+ * the navigation boundary.
+ */
+export type ImportSourceReturn = Readonly<{
+  sourceKey: string;
+  rawText: string;
+  selection: Readonly<{ start: number; end: number }>;
+  scrollOffset: number;
+}>;
+
+export type ScreenPayload = Readonly<{
+  recovery?: RecoveryReceipt;
+  importSource?: ImportSourceReturn;
+}>;
 
 export type ScreenId =
   | 'start'
