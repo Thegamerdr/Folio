@@ -648,15 +648,44 @@ function StatTile({
   styles: ReturnType<typeof makeStyles>;
   positive?: boolean;
 }) {
+  const valuePanRef = useRef<ScrollView>(null);
+  const [valueOverflows, setValueOverflows] = useState(false);
+  useEffect(() => setValueOverflows(false), [value]);
+
   if (value === undefined) return null;
+
+  const valuePanActions = valueOverflows
+    ? [
+        { name: 'increment' as const, label: 'Show trailing digits' },
+        { name: 'decrement' as const, label: 'Show leading sign and currency' },
+      ]
+    : undefined;
+
   return (
     <View
       style={styles.metricTile}
       accessible
       accessibilityLabel={`${label}, ${value}${supportingText ? `, ${supportingText}` : ''}`}
+      accessibilityActions={valuePanActions}
+      onAccessibilityAction={
+        valueOverflows
+          ? (event) => {
+              valuePanRef.current?.scrollTo({
+                x: event.nativeEvent.actionName === 'increment' ? Number.MAX_SAFE_INTEGER : 0,
+                animated: true,
+              });
+            }
+          : undefined
+      }
     >
       <Text style={styles.metricLabel}>{label}</Text>
-      <MetricValue value={value} positive={positive} styles={styles} />
+      <MetricValue
+        value={value}
+        positive={positive}
+        styles={styles}
+        onOverflowChange={setValueOverflows}
+        scrollRef={valuePanRef}
+      />
       {supportingText ? <Text style={styles.metricSupport}>{supportingText}</Text> : null}
     </View>
   );
@@ -666,16 +695,21 @@ function MetricValue({
   value,
   positive,
   styles,
+  onOverflowChange,
+  scrollRef,
 }: {
   value: string;
   positive: boolean;
   styles: ReturnType<typeof makeStyles>;
+  onOverflowChange: (overflows: boolean) => void;
+  scrollRef: { current: ScrollView | null };
 }) {
   const [tokenWidth, setTokenWidth] = useState<number | undefined>();
   const onTextLayout = (event: TextLayoutEvent) => {
     const width = Math.ceil(Math.max(0, ...event.nativeEvent.lines.map((line) => line.width)));
     if (width > 0) {
       setTokenWidth((previous) => (previous === width ? previous : width));
+      onOverflowChange(width > METRIC_VALUE_VIEWPORT);
     }
   };
   const valueText = (
@@ -695,6 +729,7 @@ function MetricValue({
 
   return (
     <ScrollView
+      ref={scrollRef}
       accessible={false}
       bounces={false}
       horizontal
