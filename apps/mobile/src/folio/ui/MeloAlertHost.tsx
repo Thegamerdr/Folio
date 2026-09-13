@@ -43,6 +43,7 @@ export function MeloAlertHost() {
       dismissible={current.options?.cancelable !== false}
       onClose={() => dismissMeloAlert(current.id)}
       bodyContentInset={gap.lg}
+      directScrollContent
       {...(geometryDiagnostics ? { scrollKey: 'melo-alert' } : {})}
       footer={
         <View style={styles.actions}>

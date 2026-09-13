@@ -109,6 +109,8 @@ type SheetProps = {
   focusContextAfter?: number;
   /** Authored line-box breathing room around a long form's scroll content. */
   bodyContentInset?: number;
+  /** Let text-only scroll surfaces own their native content range without an intermediate ref box. */
+  directScrollContent?: boolean;
 };
 
 type SheetPortalApi = {
@@ -330,6 +332,7 @@ export function Sheet({
   focusContextBefore = 0,
   focusContextAfter = 0,
   bodyContentInset = 0,
+  directScrollContent = false,
 }: SheetProps) {
   const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -744,32 +747,44 @@ export function Sheet({
                   scrollEventThrottle={16}
                   showsVerticalScrollIndicator
                 >
-                  <View
-                    ref={contentRef}
-                    collapsable={false}
-                    onFocus={settleFocusedInput}
-                    onLayout={(event) => {
-                      if (geometryLogging) {
-                        console.info(
-                          'MeloSheetGeometry',
-                          JSON.stringify({
-                            event: 'content-layout',
-                            step: scrollKey,
-                            ...event.nativeEvent.layout,
-                          }),
-                        );
-                      }
-                    }}
-                    style={{ flexShrink: 0, width: '100%' }}
-                  >
-                    {bodyContentInset > 0 ? (
-                      <View style={{ height: bodyContentInset, flexShrink: 0 }} />
-                    ) : null}
-                    {children}
-                    {bodyContentInset > 0 ? (
-                      <View style={{ height: bodyContentInset, flexShrink: 0 }} />
-                    ) : null}
-                  </View>
+                  {directScrollContent ? (
+                    <>
+                      {bodyContentInset > 0 ? (
+                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
+                      ) : null}
+                      {children}
+                      {bodyContentInset > 0 ? (
+                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
+                      ) : null}
+                    </>
+                  ) : (
+                    <View
+                      ref={contentRef}
+                      collapsable={false}
+                      onFocus={settleFocusedInput}
+                      onLayout={(event) => {
+                        if (geometryLogging) {
+                          console.info(
+                            'MeloSheetGeometry',
+                            JSON.stringify({
+                              event: 'content-layout',
+                              step: scrollKey,
+                              ...event.nativeEvent.layout,
+                            }),
+                          );
+                        }
+                      }}
+                      style={{ flexShrink: 0, width: '100%' }}
+                    >
+                      {bodyContentInset > 0 ? (
+                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
+                      ) : null}
+                      {children}
+                      {bodyContentInset > 0 ? (
+                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
+                      ) : null}
+                    </View>
+                  )}
                 </ScrollView>
               ) : (
                 <View style={layout.sheetContent}>{children}</View>
@@ -786,6 +801,7 @@ export function Sheet({
       dismissible,
       bodyScrollRef,
       bodyContentInset,
+      directScrollContent,
       handleClose,
       insets.bottom,
       insets.top,
