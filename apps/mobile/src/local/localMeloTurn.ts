@@ -15,6 +15,7 @@ import {
   parseLocalFinanceProposal,
 } from './financeProposal';
 import { hasLocalMeloPromptInjectionLanguage, resolveLocalMeloSafety } from './localMeloSafety';
+import type { StrategyMemory } from './meloStrategyChat';
 
 export type LocalMeloTurn = Readonly<{
   reply: string;
@@ -27,6 +28,7 @@ export type LocalMeloTurn = Readonly<{
 }>;
 
 export type LocalMeloConversationContext = Readonly<{
+  strategy?: StrategyMemory;
   lastIntent: MeloLocalIntent;
   lastDetectedAmountMinor: number | null;
   lastDebtStrategy?: 'highest-rate-first' | 'lowest-balance-first' | undefined;

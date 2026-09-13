@@ -111,7 +111,8 @@ export async function installLocalLanguagePack(
     }
     if (existing.kind === 'invalid') await removeIfPresent(destination);
 
-    const temporary = `${destination}.partial`;
+    // Native verification deliberately requires the model format suffix even before promotion.
+    const temporary = `${destination}.partial.litertlm`;
     await removeIfPresent(temporary);
     const download = FileSystem.createDownloadResumable(
       MELO_LOCAL_LANGUAGE_PACK.sourceUrl,
@@ -181,6 +182,7 @@ export async function removeLocalLanguagePack(): Promise<void> {
   if (destination === null) return;
   await removeIfPresent(destination);
   await removeIfPresent(`${destination}.partial`);
+  await removeIfPresent(`${destination}.partial.litertlm`);
 }
 
 function initializationResult(

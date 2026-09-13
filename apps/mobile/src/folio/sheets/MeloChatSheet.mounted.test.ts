@@ -22,7 +22,7 @@ vi.mock('react-native', async () => {
   const el = (name: string) => (props: any) => ReactModule.createElement(name, props, props.children);
   return ({
   AccessibilityInfo: { isReduceMotionEnabled: vi.fn(async () => false), addEventListener: vi.fn((n: string, cb: any) => { kb.set(n, cb); return { remove: () => kb.delete(n) }; }), announceForAccessibility: vi.fn(), setAccessibilityFocus: focusSpy },
-  Animated: { Value: class { setValue(_: number) {} }, timing: vi.fn(() => ({ start: vi.fn() })), parallel: vi.fn(() => ({ start: vi.fn() })), View: el('Animated.View') },
+  Animated: { Value: class { setValue(_: number) {} interpolate(_: unknown) { return 0; } }, timing: vi.fn(() => ({ start: vi.fn() })), loop: vi.fn(() => ({ start: vi.fn(), stop: vi.fn() })), parallel: vi.fn(() => ({ start: vi.fn() })), View: el('Animated.View') },
   Easing: { inOut: (x:any) => x, cubic: (x:any) => x, bezier: (x:number,y:number,z:number,w:number) => [x,y,z,w] }, Keyboard: { addListener: vi.fn((n:string,cb:any) => { kb.set(n,cb); return { remove:()=>kb.delete(n) }; }), dismiss: vi.fn() },
   Linking: { openSettings, openURL: vi.fn(async()=>undefined) }, Pressable: el('Pressable'), ScrollView: el('ScrollView'),
   StyleSheet: { create: (x:any)=>x, hairlineWidth: 1 }, Text: el('Text'), TextInput: el('TextInput'), View: el('View'), findNodeHandle: vi.fn(()=>1), useWindowDimensions: vi.fn(()=>dims),
@@ -46,8 +46,20 @@ vi.mock('@/folio/lib/useMeloVoiceTranscript', () => ({ useMeloVoiceTranscript:()
 vi.mock('@/folio/sheets/meloLocalAction', () => ({ filterMeloFollowUpChips:(_:any,c:any)=>c, resolveMeloLocalAction:()=>({kind:'prompt',prompt:'What can I ask you?'}) }));
 vi.mock('@/folio/sheets/meloPresentation', () => ({ presentMeloReply:(x:any)=>x.reply }));
 vi.mock('@/local/localMeloTurn', () => ({ buildLocalMeloTurn:vi.fn((x:any)=>{ buildTurnSpy(x); return { reply:x.prompt.includes('suggest')?'Proposal ready.':'Draft response.', suggestions:x.prompt.includes('suggest')?[{id:'spend-1',name:'log_spend',args:{amount:3,merchant:'Test Merchant'}}]:[], intent:'explain_position',actions:[],followUpChips:['Try a suggested check'],context:null,control:'none' }; }) }));
-vi.mock('@/local/localMeloLanguage', () => ({ enrichLocalMeloTurn:vi.fn(async({turn}:any)=>{ enrichTurnSpy(turn); return turn; }) }));
+vi.mock('@/local/localMeloLanguage', () => ({ completeLocalMeloStrategy: (system:string,prompt:string)=>strategyHarness.complete(system,prompt), enrichLocalMeloTurn:vi.fn(async({turn}:any)=>{ enrichTurnSpy(turn); return turn; }) }));
 vi.mock('@/local/localLanguagePack', () => ({ getLocalLanguagePackState:vi.fn(async()=>({kind:'not-installed'})), installLocalLanguagePack:vi.fn() }));
+
+const strategyHarness = vi.hoisted(() => ({ cash: 400000, complete: vi.fn(async (_system:string,_prompt:string): Promise<string | null> => null) }));
+vi.mock('@/folio/lib/meloStrategyContext', () => ({ buildMeloStrategySource: () => ({
+  workspaceId: 'personal', unknowns: [], caution: null, plans: [], pots: [],
+  provenance: { balance: 'user-entered', balanceUpdatedAt: '2026-09-13', asOf: '2026-09-13' },
+  input: { asOf: '2026-09-13', accounts: { main: strategyHarness.cash }, bufferMinor: 20000,
+    nextIncomeDate: '2026-09-25', horizonEndDate: '2026-12-31',
+    income: [{ id: 'salary', date: '2026-09-25', amountMinor: 200000 }],
+    commitments: [{ id: 'rent', label: 'Rent', date: '2026-09-20', amountMinor: 100000 }],
+    debts: [{ id: 'card', name: 'Card', balanceMinor: 300000, aprBps: 2400, minimumPaymentMinor: 10000, dueDate: '2026-09-20' }],
+  },
+}) }));
 
 import { MeloChatSheet } from './MeloChatSheet';
 const props = (prefill = 'hello', seed?: string) => ({ visible:true, onClose:vi.fn(), nav:{go:vi.fn(),openSheet:vi.fn(),back:vi.fn()} as any, pressure:'steady' as any, intent:{prefill, seed} as any });
@@ -79,5 +91,49 @@ describe('controller real-helper interaction checks', () => {
     act(() => { undo(); undo(); });
     expect(undoSpy).toHaveBeenCalledTimes(1);
     act(() => tree.unmount());
+  });
+});
+
+describe('Strategy Chat mounted integration', () => {
+  beforeEach(() => { strategyHarness.cash = 400000; strategyHarness.complete.mockReset().mockResolvedValue(null); applyTool.mockClear(); });
+  afterEach(() => { for (const tree of mountedTrees.splice(0)) act(() => tree.unmount()); });
+  async function send(tree: renderer.ReactTestRenderer, text: string) {
+    act(() => tree.root.findByProps({ accessibilityLabel: 'Message Melo' }).props.onChangeText(text));
+    await act(async () => { await labelled(tree, 'Send message')[0]!.props.onPress(); });
+  }
+  it('keeps multi-turn buffer preference local until the existing Confirm button is pressed', async () => {
+    const { tree } = renderChat('');
+    await send(tree, 'What if I put £500 extra toward my highest APR debt?');
+    await send(tree, 'No, keep £500 as my buffer and try again.');
+    await send(tree, 'Do that.');
+    expect(applyTool).not.toHaveBeenCalled();
+    expect(labelled(tree, 'Confirm set buffer amount suggestion')).toHaveLength(1);
+    act(() => labelled(tree, 'Confirm set buffer amount suggestion')[0]!.props.onPress());
+    expect(applyTool).toHaveBeenCalledTimes(1);
+    expect(labelled(tree, 'Undo this change')).toHaveLength(1);
+  });
+  it('rejects a result if current money changes during model inference', async () => {
+    let resolve!: (value: string | null) => void;
+    strategyHarness.complete.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    const { tree } = renderChat('Compare my debt strategies');
+    let pending!: Promise<void>;
+    act(() => { pending = labelled(tree, 'Send message')[0]!.props.onPress(); });
+    strategyHarness.cash = 10000;
+    await act(async () => { resolve(null); await pending; });
+    expect(JSON.stringify(tree.toJSON())).toContain('money picture changed while I was checking');
+    expect(applyTool).not.toHaveBeenCalled();
+  });
+  it('Stop discards late strategy replies and does not fall through to another model call', async () => {
+    let resolve!: (value: string | null) => void;
+    strategyHarness.complete.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    const { tree } = renderChat('Compare my debt strategies');
+    const priorCalls = enrichTurnSpy.mock.calls.length;
+    let pending!: Promise<void>;
+    act(() => { pending = labelled(tree, 'Send message')[0]!.props.onPress(); });
+    act(() => labelled(tree, 'Stop')[0]!.props.onPress());
+    await act(async () => { resolve(null); await pending; });
+    expect(enrichTurnSpy).toHaveBeenCalledTimes(priorCalls);
+    expect(JSON.stringify(tree.toJSON())).not.toContain('Highest APR first:');
+    expect(labelled(tree, 'Send message')).toHaveLength(1);
   });
 });

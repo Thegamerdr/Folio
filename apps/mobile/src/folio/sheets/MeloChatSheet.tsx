@@ -102,7 +102,9 @@ import {
   type LocalMeloSubscriptionActionResolver,
   type LocalMeloTurn,
 } from '@/local/localMeloTurn';
-import { enrichLocalMeloTurn } from '@/local/localMeloLanguage';
+import { completeLocalMeloStrategy, enrichLocalMeloTurn } from '@/local/localMeloLanguage';
+import { buildMeloStrategyTurn, isStrategyChatRequest } from '@/local/meloStrategyChat';
+import { buildMeloStrategySource } from '@/folio/lib/meloStrategyContext';
 import {
   getLocalLanguagePackState,
   installLocalLanguagePack,
@@ -724,8 +726,21 @@ function MeloChat({
       });
     const deterministic = buildTurn(trimmed);
     let result = deterministic;
+    const strategyRequested = snapshot.workspaceKind !== 'business' &&
+      isStrategyChatRequest(trimmed, conversationContext?.strategy ?? null);
     try {
-      result = await enrichLocalMeloTurn({
+      const source = strategyRequested ? buildMeloStrategySource(getState()) : null;
+      const strategyTurn = source ? await buildMeloStrategyTurn({
+        prompt: trimmed,
+        source,
+        memory: conversationContext?.strategy ?? null,
+        complete: completeLocalMeloStrategy,
+        isCurrent: () => turnRequestRef.current === requestId,
+      }) : null;
+      if (turnRequestRef.current !== requestId) return;
+      if (strategyTurn && JSON.stringify(source) !== JSON.stringify(buildMeloStrategySource(getState()))) {
+        result = { ...strategyTurn, reply: 'Your recorded money picture changed while I was checking. Please ask again so I can use the current figures.', suggestions: [], actions: [], followUpChips: [], context: null };
+      } else result = strategyTurn ?? await enrichLocalMeloTurn({
         prompt: trimmed,
         turn: deterministic,
         tone: savedTone,
@@ -735,7 +750,7 @@ function MeloChat({
     } catch {
       // Local model installation, initialization or inference can fail without weakening the
       // deterministic Companion. The original authoritative turn remains the answer.
-      result = deterministic;
+      result = strategyRequested ? { ...deterministic, reply: 'The strategy calculation is unavailable right now. I have not estimated a result or changed anything. Please try again.', suggestions: [], actions: [], followUpChips: [], context: null } : deterministic;
     }
     if (turnRequestRef.current !== requestId) return;
     if (result.control === 'cancel' || result.control === 'back') {

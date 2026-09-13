@@ -28,6 +28,13 @@ async function ensureLocalLanguageReady(): Promise<boolean> {
   return initialization.kind === 'ready';
 }
 
+/** Same private model runtime; strategy tools and proposal authority stay outside the model. */
+export async function completeLocalMeloStrategy(system: string, prompt: string): Promise<string | null> {
+  if (!(await ensureLocalLanguageReady())) return null;
+  const result = await completeLocally(system, prompt);
+  return result.kind === 'ok' ? result.text : null;
+}
+
 /**
  * Local language can improve interpretation and phrasing, but the returned money facts, actions and
  * write suggestions still come only from the deterministic turn builder.
