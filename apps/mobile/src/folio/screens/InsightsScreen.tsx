@@ -84,6 +84,40 @@ function reportInsightsH1TextLayout(fontScale: number, event: TextLayoutEvent): 
   );
 }
 
+function reportMetricValueTextLayout(
+  value: string,
+  fontScale: number,
+  shapedWidth: number,
+  actualViewportWidth: number | undefined,
+  event: TextLayoutEvent,
+): void {
+  if (!INSIGHTS_TEXT_LAYOUT_DIAGNOSTIC) return;
+  const lines = event.nativeEvent.lines.map((line) => ({
+    ascender: line.ascender,
+    capHeight: line.capHeight,
+    descender: line.descender,
+    height: line.height,
+    text: line.text,
+    width: line.width,
+    x: line.x,
+    xHeight: line.xHeight,
+    y: line.y,
+  }));
+  // This marker records the native shaped token measurement used by MetricValue's overflow
+  // decision. It is intentionally gated out of ordinary builds.
+  console.log(
+    `[MF11_A04_METRIC_VALUE_LAYOUT] ${JSON.stringify({
+      value,
+      fontScale,
+      shapedWidth,
+      nominalViewportWidth: METRIC_VALUE_VIEWPORT,
+      actualViewportWidth,
+      lineCount: lines.length,
+      lines,
+    })}`,
+  );
+}
+
 type ReadableReview = Pick<
   CycleRecord,
   'closedAt' | 'label' | 'spare' | 'tightPoint' | 'setAside' | 'note'
@@ -706,12 +740,14 @@ function MetricValue({
   scrollRef: { current: ScrollView | null };
 }) {
   const { fontScale } = useWindowDimensions();
+  const actualViewportWidthRef = useRef<number | undefined>(undefined);
   const [measurement, setMeasurement] = useState<
     { value: string; width: number; fontScale: number } | undefined
   >();
   const onTextLayout = (event: TextLayoutEvent) => {
     const width = Math.ceil(Math.max(0, ...event.nativeEvent.lines.map((line) => line.width)));
     if (width > 0) {
+      reportMetricValueTextLayout(value, fontScale, width, actualViewportWidthRef.current, event);
       setMeasurement((previous) =>
         previous?.value === value && previous.width === width && previous.fontScale === fontScale
           ? previous
@@ -743,6 +779,9 @@ function MetricValue({
       accessible={false}
       bounces={false}
       horizontal
+      onLayout={(event) => {
+        actualViewportWidthRef.current = event.nativeEvent.layout.width;
+      }}
       showsHorizontalScrollIndicator={false}
       style={styles.metricValuePan}
     >
