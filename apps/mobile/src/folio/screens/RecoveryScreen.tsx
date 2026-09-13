@@ -158,7 +158,7 @@ const RECOVERY_COPY: Record<MoneyMode, RecoveryCopy> = {
     shortfallLabel: 'Blocking chip',
     afterLabel: 'After the give',
     meloDefault: "The chip goes through. That's what matters this cycle.",
-    cta: 'Protect the chip',
+    cta: 'Rebuild the plan',
   },
   irregular: {
     eyebrow: 'Extend runway',
