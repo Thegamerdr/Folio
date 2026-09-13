@@ -162,18 +162,22 @@ export function TodayAfterScreen({
 
   // slide-in-r — the whole screen enters from the right (translateX 28→0) over 360ms.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
+  const [entranceSettled, setEntranceSettled] = useState(reduceMotion);
   useEffect(() => {
     if (reduceMotion) {
       enter.value = 1;
+      setEntranceSettled(true);
       return;
     }
+    const fallback = setTimeout(() => setEntranceSettled(true), 450);
     enter.value = withTiming(1, { duration: 360, easing: EASE_OUT_EXPO });
+    return () => clearTimeout(fallback);
   }, [enter, reduceMotion]);
   // Visibility must not depend on the entrance animation completing. Native animation scheduling can
   // be delayed or dropped during a route replacement; the saved result remains readable immediately.
   // Keep the authored horizontal settle as a visual refinement only.
   const enterStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: 28 * (1 - enter.value) }],
+    transform: [{ translateX: entranceSettled ? 0 : 28 * (1 - enter.value) }],
   }));
 
   // route-draw — the NEW accent line strokes on over 2200ms (strokeDashoffset 1200 → 0). ONLY the
