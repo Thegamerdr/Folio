@@ -1289,10 +1289,9 @@ const SELF_HOSTING_SHEETS: ReadonlySet<NonNullable<SheetId>> = new Set([
 ]);
 
 // ---------------------------------------------------------------------------
-// Today mode dispatch — the single `today` ScreenId fans out to one of three screens by the active
-// Money Mode (Lens), mirroring the web's HeroPhone `effectiveMode` switch: Survival keeps its own
-// money-path hero (TodayScreen), Stability gets its calm Safe Zone shell (TodayStabilityScreen), and
-// the other eight parked lenses share one per-lens hero shell (TodayModeScreen).
+// Today mode dispatch — the single `today` ScreenId fans out to one of two screens by the active
+// Money Mode (Lens). Stability shares TodayScreen's compact verdict/money/path hierarchy; its
+// existing detailed rhythm/month-shape surface remains reachable from that screen's disclosure.
 // ---------------------------------------------------------------------------
 
 function TodayByMode({ nav, pressure }: { nav: Nav; pressure: Pressure }) {
@@ -1304,8 +1303,9 @@ function TodayByMode({ nav, pressure }: { nav: Nav; pressure: Pressure }) {
   // Survival" copy TRUE (TodayScreen shows that chip when the STORE mode is a locked paid lens),
   // and what makes the trial relock mean anything at all.
   const effectiveMode = lens.canAccess(moneyMode) ? moneyMode : 'survival';
-  if (effectiveMode === 'survival') return <TodayScreen nav={nav} pressure={pressure} />;
-  if (effectiveMode === 'stability') return <TodayStabilityScreen nav={nav} />;
+  if (effectiveMode === 'survival' || effectiveMode === 'stability') {
+    return <TodayScreen nav={nav} pressure={pressure} />;
+  }
   return <TodayModeScreen nav={nav} />;
 }
 

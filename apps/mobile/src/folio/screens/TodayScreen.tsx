@@ -956,6 +956,17 @@ export function TodayScreen({
           </View>
         ) : null}
 
+        {effectiveMode === 'stability' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="See stability details"
+            onPress={() => nav.go('today-stability')}
+            style={styles.workingLink}
+          >
+            <Text style={{ fontSize: 12, color: t.calmStrong }}>See stability details →</Text>
+          </Pressable>
+        ) : null}
+
         {/* The route is the proof for the headline. Actions and recent activity follow it instead
             of interrupting the answer before the user has seen why the number is true. */}
         <WhatChangedRow nav={nav} />
