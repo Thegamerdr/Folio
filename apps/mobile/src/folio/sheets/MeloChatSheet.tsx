@@ -218,6 +218,8 @@ export type MeloChatSheetProps = {
 export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloChatSheetProps) {
   const reduceMotion = useReduceMotion();
   const bodyScrollRef = useRef<ScrollView>(null);
+  const terminalRef = useRef<View>(null);
+  const terminalAlignmentRef = useRef(true);
   const bodyHandlersRef = useRef<{
     onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     onContentSizeChange?: (width: number, height: number) => void;
@@ -312,6 +314,8 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
         bodyHandlersRef.current.onContentSizeChange?.(widthValue, heightValue)
       }
       onBodyLayout={(event) => bodyHandlersRef.current.onLayout?.(event)}
+      terminalRef={terminalRef}
+      terminalAlignmentEnabledRef={terminalAlignmentRef}
     >
       <MeloChat
         snapshot={snapshot}
@@ -326,6 +330,8 @@ export function MeloChatSheet({ visible, onClose, nav, pressure, intent }: MeloC
         voiceActive={visible}
         bodyScrollRef={bodyScrollRef}
         bodyHandlersRef={bodyHandlersRef}
+        terminalAlignmentRef={terminalAlignmentRef}
+        terminalRef={terminalRef}
       />
     </Sheet>
   );
@@ -348,6 +354,8 @@ function MeloChat({
   voiceActive,
   bodyScrollRef,
   bodyHandlersRef,
+  terminalAlignmentRef,
+  terminalRef,
 }: {
   snapshot: MeloLocalFinancialSnapshot;
   prefill?: string | undefined;
@@ -365,6 +373,8 @@ function MeloChat({
     onContentSizeChange?: (width: number, height: number) => void;
     onLayout?: (event: LayoutChangeEvent) => void;
   }>;
+  terminalAlignmentRef: React.MutableRefObject<boolean>;
+  terminalRef: React.RefObject<View | null>;
 }) {
   const t = useTheme();
   const { fontScale, width } = useWindowDimensions();
@@ -852,6 +862,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
       viewportHeight.current = e.nativeEvent.layout.height;
     },
   };
+  terminalAlignmentRef.current = atBottom || hasDraft || isLoading || voice.phase !== 'idle';
 
   const showEmpty = messages.length === 0 && !isLoading;
   // The opening money question remains readable while its first reply is being typed.
@@ -1289,21 +1300,6 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
           {/* Error — accent-coloured line. */}
         </View>
 
-        {/* Scroll-to-bottom FAB — only when not already at the bottom. */}
-        {!atBottom ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Scroll to latest"
-            onPress={() => {
-              setAtBottom(true);
-              scrollToEnd(true);
-            }}
-            style={s.scrollFab}
-            hitSlop={8}
-          >
-            <Text style={s.scrollFabGlyph}>↓</Text>
-          </Pressable>
-        ) : null}
       </View>
 
       {showEmpty && keyboardVisible ? (
@@ -1472,6 +1468,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
           </>
         )}
       </View>
+      <View ref={terminalRef} collapsable={false} style={s.terminalSpacer} />
     </View>
   );
 }
@@ -2041,29 +2038,7 @@ function makeStyles(t: Palette) {
       paddingHorizontal: gap.xs,
       paddingVertical: gap.lg,
     },
-    scrollFab: {
-      alignItems: 'center',
-      backgroundColor: t.surface,
-      borderColor: t.hairline,
-      borderRadius: radius.pill,
-      borderWidth: StyleSheet.hairlineWidth,
-      bottom: gap.sm,
-      elevation: 3,
-      height: 32,
-      justifyContent: 'center',
-      position: 'absolute',
-      right: gap.sm,
-      shadowColor: '#2A2018',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.12,
-      shadowRadius: 10,
-      width: 32,
-    },
-    scrollFabGlyph: {
-      color: t.ink,
-      fontSize: 16,
-      lineHeight: 18,
-    },
+    terminalSpacer: { height: gap.md, flexShrink: 0 },
     sectionLabel: {
       color: t.muted,
       fontSize: 12,

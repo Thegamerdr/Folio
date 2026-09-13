@@ -124,6 +124,9 @@ type SheetProps = {
   onBodyScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onBodyContentSizeChange?: (width: number, height: number) => void;
   onBodyLayout?: (event: NativeSyntheticEvent<any>) => void;
+  terminalRef?: RefObject<View | null>;
+  terminalAlignmentEnabled?: boolean;
+  terminalAlignmentEnabledRef?: { current: boolean };
 };
 
 type SheetPortalApi = {
@@ -353,6 +356,9 @@ export function Sheet({
   onBodyScroll,
   onBodyContentSizeChange,
   onBodyLayout,
+  terminalRef,
+  terminalAlignmentEnabled = true,
+  terminalAlignmentEnabledRef,
 }: SheetProps) {
   const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -445,6 +451,17 @@ export function Sheet({
       const content = contentRef.current;
       if (!bodyNative || !content) return;
       bodyNative.measureInWindow((_bodyX, bodyTop, _bodyWidth, bodyHeight) => {
+        if (imeOverflowPolicy === 'scrollBodyToFocusedTerminal' && terminalRef?.current && (terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled)) {
+          terminalRef.current.measureLayout(
+            content,
+            (_x, terminalTop, _width, terminalHeight) => {
+              const nextY = Math.max(0, terminalTop + terminalHeight - bodyHeight);
+              if (Math.abs(nextY - scrollY.current) > 1) body.scrollTo({ y: nextY, animated: false });
+            },
+            () => undefined,
+          );
+          return;
+        }
         focused.measureLayout(
           content,
           (_inputX, inputContentTop, _inputWidth, inputHeight) => {
@@ -774,22 +791,11 @@ export function Sheet({
                   scrollEventThrottle={16}
                   showsVerticalScrollIndicator
                 >
-                  {directScrollContent ? (
-                    <>
-                      {bodyContentInset > 0 ? (
-                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
-                      ) : null}
-                      {children}
-                      {bodyContentInset > 0 ? (
-                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
-                      ) : null}
-                    </>
-                  ) : (
-                    <View
-                      ref={contentRef}
-                      collapsable={false}
-                      onFocus={settleFocusedInput}
-                      onLayout={(event) => {
+                  <View
+                    ref={contentRef}
+                    collapsable={false}
+                    onFocus={settleFocusedInput}
+                    onLayout={(event) => {
                         if (geometryLogging) {
                           console.info(
                             'MeloSheetGeometry',
@@ -800,18 +806,17 @@ export function Sheet({
                             }),
                           );
                         }
-                      }}
-                      style={{ flexShrink: 0, width: '100%' }}
-                    >
-                      {bodyContentInset > 0 ? (
-                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
-                      ) : null}
-                      {children}
-                      {bodyContentInset > 0 ? (
-                        <View style={{ height: bodyContentInset, flexShrink: 0 }} />
-                      ) : null}
-                    </View>
-                  )}
+                    }}
+                    style={{ flexShrink: 0, width: '100%' }}
+                  >
+                    {bodyContentInset > 0 ? (
+                      <View style={{ height: bodyContentInset, flexShrink: 0 }} />
+                    ) : null}
+                    {children}
+                    {bodyContentInset > 0 ? (
+                      <View style={{ height: bodyContentInset, flexShrink: 0 }} />
+                    ) : null}
+                  </View>
                 </ScrollView>
               ) : (
                 <View style={layout.sheetContent}>{children}</View>
@@ -851,6 +856,9 @@ export function Sheet({
       onBodyScroll,
       onBodyContentSizeChange,
       onBodyLayout,
+      terminalRef,
+      terminalAlignmentEnabled,
+      terminalAlignmentEnabledRef,
       scrollKey,
     ],
   );
