@@ -227,6 +227,53 @@ describe('Sheet mounted focus lifecycle', () => {
     act(() => tree.unmount());
   });
 
+  it('keeps terminal restoration active through a late post-IME viewport layout', () => {
+    let bodyNode: any;
+    let bodyHeight = 304;
+    const terminalAlignmentEnabledRef = { current: true };
+    const terminalTop = 1200;
+    const terminalHeight = 80;
+    const terminalRef = { current: { measureLayout: (_relative: any, cb: any) => cb(0, terminalTop, 390, terminalHeight) } as any };
+    const scrollTo = vi.fn();
+    let tree!: renderer.ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(
+        React.createElement(Sheet, {
+          visible: true,
+          onClose: vi.fn(),
+          scrollable: true,
+          imeOverflowPolicy: 'scrollBodyToFocusedTerminal',
+          terminalAlignmentEnabledRef,
+          terminalRef,
+          children: React.createElement(View, { style: { height: 80 } }),
+        }),
+        { createNodeMock: (element: any) => {
+          if (element.type === 'ScrollView') {
+            bodyNode = {
+              getNativeScrollRef: () => bodyNode,
+              measureInWindow: (cb: any) => cb(0, 0, 390, bodyHeight),
+              scrollTo,
+            };
+            return bodyNode;
+          }
+          if (element.type === 'View' || element.type === 'Animated.View') return { measure: vi.fn(), measureInWindow: vi.fn(), measureLayout: vi.fn() };
+          return {};
+        } },
+      );
+    });
+    const scroll = tree.root.findAll((node) => (node.type as any) === 'ScrollView')[0]!;
+    act(() => keyboardListeners.get('keyboardDidShow')?.({ endCoordinates: { height: 540 } }));
+    act(() => keyboardListeners.get('keyboardDidHide')?.());
+    bodyHeight = 500;
+    // The stale post-dismissal scroll event can make Melo's live ref non-terminal by the time
+    // this layout callback arrives; the pending restore request must still win.
+    terminalAlignmentEnabledRef.current = false;
+    // A late body layout is the event that exposed the native first-Back regression.
+    act(() => scroll.props.onLayout({ nativeEvent: { layout: { width: 390, height: bodyHeight } } }));
+    expect(scrollTo).toHaveBeenCalledWith({ y: terminalTop + terminalHeight - bodyHeight, animated: false });
+    act(() => tree.unmount());
+  });
+
   it('does not force a focused reader to scroll while terminal alignment is disabled', () => {
     const focusedInput = { measureLayout: vi.fn() } as any;
     vi.mocked(TextInput.State.currentlyFocusedInput).mockReturnValue(focusedInput);

@@ -487,7 +487,10 @@ export function Sheet({
             (_x, terminalTop, _width, terminalHeight) => {
               const nextY = Math.max(0, terminalTop + terminalHeight - bodyHeight);
               if (Math.abs(nextY - scrollY.current) > 1) body.scrollTo({ y: nextY, animated: false });
-              if (terminalImeRestore.current) terminalImeRestore.current = false;
+              // Keep restoration active until a deliberate reader drag clears it. Android can
+              // deliver this measurement before the post-IME body layout settles; consuming the
+              // request here lets the late layout reintroduce the reader offset and push controls
+              // below the newly expanded viewport.
             },
             () => undefined,
           );
