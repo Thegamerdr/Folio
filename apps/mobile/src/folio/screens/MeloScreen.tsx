@@ -387,55 +387,6 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
           <View style={styles.headerSpacer} />
         </View>
 
-        {/* Plumage — word + segmented meter + one honest whisper. */}
-        <View style={[styles.section, { marginTop: 20 }]}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: t.ink }]}>Your money picture</Text>
-            <Text style={[styles.sectionHint, { color: t.muted }]}>FROM YOUR NUMBERS</Text>
-          </View>
-          <View style={styles.plumageRow}>
-            <Text
-              style={[
-                styles.plumageWord,
-                { color: t.ink, textTransform: health.scored ? 'capitalize' : 'none' },
-              ]}
-            >
-              {health.scored
-                ? plumage
-                : health.presentation.complete
-                  ? health.presentation.label
-                  : 'Based on what you’ve added so far.'}
-            </Text>
-            {health.scored ? (
-              <View
-                style={styles.plumageMeter}
-                accessibilityLabel={`plumage ${plumage}, ${dotCount} of 4`}
-              >
-                <Text style={[styles.plumageCount, { color: t.muted }]}>{dotCount}/4</Text>
-                <View style={styles.plumageTrack}>
-                  {[0, 1, 2, 3].map((i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.plumageSegment,
-                        { backgroundColor: i < dotCount ? t.calm : t.inset },
-                      ]}
-                    />
-                  ))}
-                </View>
-              </View>
-            ) : null}
-          </View>
-          <Text style={[styles.plumageCaption, { color: t.muted }]}>{health.caption}</Text>
-          {!melo.quietMode ? (
-            <Text style={[styles.plumageCaption, { color: t.muted, fontStyle: 'italic' }]}>
-              {mood === 'concern' || mood === 'protect'
-                ? 'Holding still with you.'
-                : 'A quiet moment to look ahead, together.'}
-            </Text>
-          ) : null}
-        </View>
-
         {/* Presence — editorial masthead. */}
         <View style={styles.titleBlock}>
           <Text style={[styles.kicker, { color: t.muted }]}>
@@ -532,7 +483,9 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               >
                 <Text style={[styles.tapToTalkLabel, { color: t.inverse }]}>Chat with Melo →</Text>
               </Pressable>
-              <Text style={[styles.actionHelper, { color: t.muted }]}>Ask, check or create a change to review.</Text>
+              <Text style={[styles.actionHelper, { color: t.muted }]}>
+                Ask, check or create a change to review.
+              </Text>
             </View>
 
             <View style={styles.chatActionBlock}>
@@ -549,29 +502,71 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               >
                 <Text style={[styles.holdLabel, { color: t.muted }]}>Voice in chat</Text>
               </Pressable>
-              <Text style={[styles.actionHelper, { color: t.muted }]}>Speak, then review the transcript before anything is sent.</Text>
+              <Text style={[styles.actionHelper, { color: t.muted }]}>
+                Speak, then review the transcript before anything is sent.
+              </Text>
             </View>
           </View>
         </View>
+
+        {/* Plumage — word + segmented meter + one honest whisper. */}
+        {!melo.quietMode ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: t.ink }]}>Plumage</Text>
+              <Text style={[styles.sectionHint, { color: t.muted }]}>LIVE · MONEY HEALTH</Text>
+            </View>
+            <View style={styles.plumageRow}>
+              <Text
+                style={[
+                  styles.plumageWord,
+                  { color: t.ink, textTransform: health.scored ? 'capitalize' : 'none' },
+                ]}
+              >
+                {health.scored
+                  ? plumage
+                  : health.presentation.complete
+                    ? health.presentation.label
+                    : 'Based on what you’ve added so far.'}
+              </Text>
+              {health.scored ? (
+                <View
+                  style={styles.plumageMeter}
+                  accessibilityLabel={`plumage ${plumage}, ${dotCount} of 4`}
+                >
+                  <Text style={[styles.plumageCount, { color: t.muted }]}>{dotCount}/4</Text>
+                  <View style={styles.plumageTrack}>
+                    {[0, 1, 2, 3].map((i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.plumageSegment,
+                          { backgroundColor: i < dotCount ? t.calm : t.inset },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+            </View>
+            <Text style={[styles.plumageCaption, { color: t.muted }]}>{health.caption}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: t.ink }]}>What he’s reading</Text>
           <View style={[styles.readingGrid, stackReading ? styles.readingGridStacked : undefined]}>
             <ReadingCell
               label="balance"
-              value={health.presentation.balanceKnown ? formatWholePounds(currentBalance.amount) : 'Not available'}
+              value={
+                health.presentation.balanceKnown
+                  ? formatWholePounds(currentBalance.amount)
+                  : 'Not available'
+              }
               palette={t}
             />
-            <ReadingCell
-              label="live bills"
-              value={String(activeSubs)}
-              palette={t}
-            />
-            <ReadingCell
-              label="funded pots"
-              value={String(fundedPots)}
-              palette={t}
-            />
+            <ReadingCell label="live bills" value={String(activeSubs)} palette={t} />
+            <ReadingCell label="funded pots" value={String(fundedPots)} palette={t} />
           </View>
         </View>
 
