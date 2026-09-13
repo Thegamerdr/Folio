@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const harness = vi.hoisted(() => ({
+  freeBytes: 4_000_000_000,
   files: new Set<string>(),
   initialize: vi.fn(),
   verify: vi.fn(),
@@ -7,6 +8,7 @@ const harness = vi.hoisted(() => ({
   download: vi.fn(),
 }));
 vi.mock('expo-file-system/legacy', () => ({
+  getFreeDiskStorageAsync: async () => harness.freeBytes,
   documentDirectory: 'file:///data/user/0/com.folio.v2.greenfield/files/',
   getInfoAsync: async (uri: string) => ({ exists: harness.files.has(uri) }),
   deleteAsync: async (uri: string) => {
@@ -37,6 +39,7 @@ vi.mock('../../modules/folio-local-language', () => ({
 import { installLocalLanguagePack, MELO_LOCAL_LANGUAGE_PACK } from './localLanguagePack';
 
 beforeEach(() => {
+  harness.freeBytes = 4_000_000_000;
   harness.files.clear();
   harness.moves.mockReset();
   harness.download.mockReset();
@@ -55,6 +58,24 @@ beforeEach(() => {
     );
 });
 describe('Private language pack installation', () => {
+  it('rejects low storage before downloading or entering the native runtime', async () => {
+    harness.freeBytes = 2_600_000;
+    const result = await installLocalLanguagePack();
+    expect(result).toMatchObject({ kind: 'error', message: expect.stringContaining('2 GB') });
+    expect(harness.download).not.toHaveBeenCalled();
+    expect(harness.initialize).not.toHaveBeenCalled();
+  });
+  it('does not initialize if working space disappears during download', async () => {
+    harness.download.mockImplementation(() => {
+      harness.freeBytes = 2_600_000;
+    });
+    expect(await installLocalLanguagePack()).toMatchObject({
+      kind: 'error',
+      message: expect.stringContaining('2 GB'),
+    });
+    expect(harness.moves).toHaveBeenCalledTimes(1);
+    expect(harness.initialize).not.toHaveBeenCalled();
+  });
   it('verifies the downloaded temporary file under a native-compatible suffix before promoting or initializing it', async () => {
     const result = await installLocalLanguagePack();
     expect(result.kind).toBe('ready');

@@ -19,6 +19,7 @@ export type StrategyMemory = Readonly<{
   rejectedOptions: readonly StrategyChoice[];
   compared: readonly Readonly<{ scenario: StrategyScenario; payoffDate: string | null }>[];
   lastTool: StrategyTool;
+  lastTargetDebtId: string | null;
   // Prior numerical results are historical scenarios, never current financial authority.
   lastUserMessage: string;
   lastReply: string;
@@ -277,8 +278,11 @@ export async function buildMeloStrategyTurn(
     ) &&
     prior
   ) {
-    const current = runStrategyTool(source, 'simulate_extra_debt_payment', base);
-    const debt = (source.input.debts ?? []).find((item) => item.id === current.targetDebtId);
+    const debt = (source.input.debts ?? []).find((item) => item.id === prior.lastTargetDebtId);
+    const current = runStrategyTool(source, 'simulate_extra_debt_payment', {
+      ...base,
+      debtId: prior.lastTargetDebtId,
+    });
     if (base.amountMinor <= 0 || base.cadence !== 'once' || !debt || current.status !== 'ok')
       return turn(
         'Tell me the actual payment amount and named debt so I can prepare the existing payment review accurately. Nothing changed.',
@@ -452,6 +456,7 @@ export async function buildMeloStrategyTurn(
     ],
     compared: [...(prior?.compared ?? []), { scenario, payoffDate: result.payoffDate }].slice(-6),
     lastTool: decision.tool,
+    lastTargetDebtId: result.targetDebtId,
     lastUserMessage: prompt.slice(0, 1500),
     lastReply: reply,
   };

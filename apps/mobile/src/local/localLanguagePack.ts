@@ -33,6 +33,24 @@ export const MELO_LOCAL_LANGUAGE_PACK: LocalLanguagePackManifest = {
   licence: 'Apache-2.0',
 };
 
+// The CPU runtime expands a weights cache. A native out-of-space abort cannot be caught by JS.
+// Reserve working space before download and again immediately before initialization.
+const MODEL_WORKING_SPACE_BYTES = 2_000_000_000;
+async function hasModelWorkingSpace(includeDownload: boolean): Promise<boolean> {
+  try {
+    const available = await FileSystem.getFreeDiskStorageAsync();
+    return (
+      Number.isFinite(available) &&
+      available >=
+        MODEL_WORKING_SPACE_BYTES + (includeDownload ? MELO_LOCAL_LANGUAGE_PACK.bytes : 0)
+    );
+  } catch {
+    return false;
+  }
+}
+const MODEL_SPACE_MESSAGE =
+  'The on-device language model needs at least 2 GB of free working space, plus space for its download. Free some phone storage, then try again. Your money records have not changed.';
+
 export type LocalLanguagePackProgress = Readonly<{
   receivedBytes: number;
   totalBytes: number;
@@ -102,6 +120,8 @@ export async function installLocalLanguagePack(
     await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
     const existing = await getLocalLanguagePackState();
     if (existing.kind === 'installed') {
+      if (!(await hasModelWorkingSpace(false)))
+        return { kind: 'error', message: MODEL_SPACE_MESSAGE };
       const initialized = await initializeLocalLanguageModel(
         existing.uri,
         MELO_LOCAL_LANGUAGE_PACK.sha256,
@@ -110,6 +130,8 @@ export async function installLocalLanguagePack(
       return initializationResult(initialized, existing.uri);
     }
     if (existing.kind === 'invalid') await removeIfPresent(destination);
+
+    if (!(await hasModelWorkingSpace(true))) return { kind: 'error', message: MODEL_SPACE_MESSAGE };
 
     // Native verification deliberately requires the model format suffix even before promotion.
     const temporary = `${destination}.partial.litertlm`;
@@ -144,6 +166,8 @@ export async function installLocalLanguagePack(
 
     await removeIfPresent(destination);
     await FileSystem.moveAsync({ from: temporary, to: destination });
+    if (!(await hasModelWorkingSpace(false)))
+      return { kind: 'error', message: MODEL_SPACE_MESSAGE };
     const initialized = await initializeLocalLanguageModel(
       destination,
       MELO_LOCAL_LANGUAGE_PACK.sha256,
@@ -169,6 +193,7 @@ export async function initializeInstalledLocalLanguagePack(): Promise<LocalLangu
           : 'The local language pack is not installed.',
     };
   }
+  if (!(await hasModelWorkingSpace(false))) return { kind: 'error', message: MODEL_SPACE_MESSAGE };
   return initializeLocalLanguageModel(
     state.uri,
     MELO_LOCAL_LANGUAGE_PACK.sha256,

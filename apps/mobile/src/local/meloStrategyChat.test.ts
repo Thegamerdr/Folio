@@ -235,6 +235,31 @@ describe('Strategy Chat acceptance with real deterministic engines', () => {
 });
 
 describe('Read-only tools and model authority', () => {
+  it('keeps a completed-payment reference attached to the originally discussed debt when APR ranking changes', async () => {
+    const first = await buildMeloStrategyTurn({
+      prompt: 'What if I pay £500 extra to my highest APR debt?',
+      source,
+      memory: null,
+      complete: noModel,
+    });
+    expect(first!.context!.strategy!.lastTargetDebtId).toBe('card');
+    const changed = {
+      ...source,
+      input: {
+        ...source.input,
+        debts: source.input.debts!.map((debt) =>
+          debt.id === 'loan' ? { ...debt, aprBps: 5000 } : debt,
+        ),
+      },
+    };
+    const paid = await buildMeloStrategyTurn({
+      prompt: 'I paid it',
+      source: changed,
+      memory: first!.context!.strategy!,
+      complete: noModel,
+    });
+    expect(paid!.suggestions[0]!.args).toEqual({ amount: 500, debtName: 'Card' });
+  });
   it('resolves natural follow-ups via the model using bounded current context and memory', async () => {
     const first = await buildMeloStrategyTurn({
       prompt: 'Compare my debt strategies',
