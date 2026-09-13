@@ -99,7 +99,7 @@ describe('BulkStatementLanding mounted persistence regression', () => {
     ];
     let tree!: renderer.ReactTestRenderer;
     act(() => { tree = renderer.create(React.createElement(BulkStatementLanding, { nav, candidates: [candidate], sessionKey: 'corrected-source', onAdded: vi.fn() })); });
-    const doneButton = tree.root.findAllByType('Pressable').find((node) => node.findAllByType('Text').some((text) => text.children.join(' ') === 'Done'))!;
+    const doneButton = tree.root.findAll((node) => (node.type as string) === 'Pressable').find((node) => node.findAll((child) => (child.type as string) === 'Text').some((text) => text.children.join(' ') === 'Done'))!;
     await act(async () => { doneButton.props.onPress(); await Promise.resolve(); });
     expect(vi.mocked((await import('@/folio/store')).removeStatementReviewSession)).toHaveBeenCalledWith('corrected-source', 'workspace-1');
     expect(sessions.map((session) => session.sourceKey)).toEqual(['other-source']);
