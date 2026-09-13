@@ -130,6 +130,12 @@ describe('Sheet mounted focus lifecycle', () => {
     act(() => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 240 } } }));
     act(() => scroll.props.onScrollBeginDrag?.());
     terminalAlignmentIntentRef.current += 1;
+    act(() => tree.update(React.createElement(Sheet, {
+      visible: true, onClose: vi.fn(), scrollable: true,
+      imeOverflowPolicy: 'scrollBodyToFocusedTerminal', terminalAlignmentEnabledRef, terminalAlignmentIntentRef, terminalAlignmentIntentVersion: 1, terminalRef,
+      children: React.createElement(View, { style: { height: 80 } }),
+    })));
+    expect(scrollTo).toHaveBeenCalledWith({ y: 880, animated: false });
     act(() => keyboardListeners.get('keyboardDidHide')?.());
     expect(scrollTo).toHaveBeenLastCalledWith({ y: 880, animated: false });
     act(() => tree.unmount());

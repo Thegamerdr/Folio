@@ -128,6 +128,7 @@ type SheetProps = {
   terminalAlignmentEnabled?: boolean;
   terminalAlignmentEnabledRef?: { current: boolean };
   terminalAlignmentIntentRef?: { current: number };
+  terminalAlignmentIntentVersion?: number;
 };
 
 type SheetPortalApi = {
@@ -361,6 +362,7 @@ export function Sheet({
   terminalAlignmentEnabled = true,
   terminalAlignmentEnabledRef,
   terminalAlignmentIntentRef,
+  terminalAlignmentIntentVersion = 0,
 }: SheetProps) {
   const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -438,6 +440,7 @@ export function Sheet({
   const terminalImeRestore = useRef(false);
   const terminalImeReaderOverride = useRef(false);
   const terminalImeIntentVersion = useRef(terminalAlignmentIntentRef?.current ?? 0);
+  const consumedTerminalIntentVersion = useRef(terminalAlignmentIntentVersion);
   const keepFocusedInputVisible = useCallback(() => {
     const generation = ++focusMeasurement.current;
     if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
@@ -565,6 +568,13 @@ export function Sheet({
       setTimeout(keepFocusedInputVisible, delay),
     );
   }, [keepFocusedInputVisible]);
+  useEffect(() => {
+    if (terminalAlignmentIntentVersion === consumedTerminalIntentVersion.current) return;
+    consumedTerminalIntentVersion.current = terminalAlignmentIntentVersion;
+    terminalImeReaderOverride.current = false;
+    terminalImeIntent.current = true;
+    if (visible && imeOverflowPolicy === 'scrollBodyToFocusedTerminal') settleFocusedInput();
+  }, [terminalAlignmentIntentVersion, visible, imeOverflowPolicy, settleFocusedInput]);
   useEffect(() => {
     const terminalAlignmentEnabledNow =
       terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled;
