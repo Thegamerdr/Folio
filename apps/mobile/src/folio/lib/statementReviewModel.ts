@@ -74,9 +74,46 @@ const REVIEW_KIND_LABEL: Record<CandidateMoneyItem['kind'], string> = {
   unknown: 'needs review',
 };
 
+function visibleStateText(row: StatementReviewRow): string {
+  if (row.status === 'possible-repeat')
+    return 'Possible repeat in this statement. Same name, date and amount.';
+  if (row.status === 'already-added') return 'Already added. Same name, date and amount.';
+  switch (row.issue) {
+    case 'missing-name':
+      return 'Needs checking: add a name.';
+    case 'missing-amount':
+      return 'Needs checking: add an amount.';
+    case 'invalid-amount':
+      return 'Needs checking: enter a valid amount.';
+    case 'missing-date':
+      return 'Needs checking: add a date.';
+    case 'invalid-date':
+      return 'Needs checking: enter a valid date.';
+    case 'unknown':
+      return 'Needs checking: choose a type.';
+    case 'low-confidence':
+      return "Melo isn't certain about this one. Check it before selecting it.";
+    case 'transfer':
+      return 'Ready to add';
+    default:
+      return 'Ready to add';
+  }
+}
+
 /** Exact natural key only. It deliberately does not claim fuzzy matches are duplicates. */
 export function statementReviewNaturalKey(candidate: CandidateMoneyItem): string {
-  return `${candidate.date ?? 'no-date'}\u001f${candidate.amount.toFixed(2)}\u001f${normaliseMerchant(candidate.merchant)}`;
+  const amount =
+    typeof candidate.amount === 'number' && Number.isFinite(candidate.amount)
+      ? candidate.amount.toFixed(2)
+      : String(candidate.amount ?? '');
+  return `${candidate.date ?? 'no-date'}\u001f${amount}\u001f${normaliseMerchant(candidate.merchant)}`;
+}
+
+/** Stable identity for a review session. Candidate IDs are reader-owned and remain stable across
+ * edits, so a new source cannot accidentally resume an older persisted review. */
+export function statementReviewSourceKey(candidates: readonly CandidateMoneyItem[]): string {
+  if (candidates.length === 0) return '';
+  return `${candidates[0]?.source ?? 'unknown'}:${candidates.map((candidate) => candidate.id).join('|')}`;
 }
 
 /**
@@ -133,9 +170,9 @@ export function buildStatementReviewModel(
     else if (candidate.date === undefined || candidate.date.trim().length === 0)
       issue = 'missing-date';
     else if (!isValidISODate(candidate.date)) issue = 'invalid-date';
-    else if (candidate.kind === 'transfer') issue = 'transfer';
     else if (candidate.kind === 'unknown') issue = 'unknown';
     else if (candidate.confidence === 'low') issue = 'low-confidence';
+    else if (candidate.kind === 'transfer') issue = 'transfer';
     const status: StatementReviewStatus = isAlreadyAdded
       ? 'already-added'
       : duplicate
@@ -221,7 +258,7 @@ export function filterStatementReviewRows(
     if (needle.length === 0) return true;
     return `${candidate.merchant} ${candidate.date ?? ''} ${candidate.amount} ${
       Number.isFinite(candidate.amount) ? candidate.amount.toFixed(2) : ''
-    } ${REVIEW_KIND_LABEL[candidate.kind]} ${row.status} ${row.issue ?? ''}`
+    } ${REVIEW_KIND_LABEL[candidate.kind]} ${row.status} ${row.status === 'issue' ? 'Needs checking' : ''} ${row.issue ?? ''} ${visibleStateText(row)}`
       .toLocaleLowerCase('en-GB')
       .includes(needle);
   });

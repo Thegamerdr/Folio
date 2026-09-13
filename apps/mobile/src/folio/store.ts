@@ -509,6 +509,7 @@ export type Account = {
  * backgrounding or cold relaunch. */
 export type StatementReviewSession = {
   candidates: CandidateMoneyItem[];
+  sourceKey?: string;
   accountId?: string;
   selectedIds: string[];
   asideIds: string[];

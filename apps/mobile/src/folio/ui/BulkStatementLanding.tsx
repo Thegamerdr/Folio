@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Alert,
   FlatList,
@@ -8,14 +8,17 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { gap, radius, serif, Sheet, useTheme } from '@/folio/theme';
+import { Melo } from '@/folio/melo/Melo';
 import { formatReviewDate } from '@/folio/screens/reviewFormat';
 import {
   buildStatementReviewModel,
   filterStatementReviewRows,
+  statementReviewSourceKey,
   statementReviewNaturalKey,
   type StatementReviewFilter,
   type StatementReviewRow,
@@ -27,7 +30,6 @@ import type { CandidateKind, CandidateMoneyItem } from '@/folio/lib/importSheet'
 import {
   addAccount,
   addStatementAsHistory,
-  clearStatementReviewSession,
   DEFAULT_ACCOUNT_ID,
   getState,
   importedTransactionId,
@@ -43,6 +45,23 @@ import {
 import type { Nav } from '@/folio/types';
 
 type FolioTheme = ReturnType<typeof useTheme>;
+
+function ReceiptViewport({ children, theme: t }: { children: ReactNode; theme: FolioTheme }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <ScrollView
+      style={[styles.root, { backgroundColor: t.canvas }]}
+      contentContainerStyle={[
+        styles.receiptViewport,
+        { paddingTop: insets.top + gap.xl, paddingBottom: insets.bottom + gap.xl },
+      ]}
+      keyboardShouldPersistTaps="handled"
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
 export type BulkStatementLandingProps = {
   nav: Nav;
   candidates: readonly CandidateMoneyItem[];
@@ -132,6 +151,7 @@ type ReviewRowProps = {
   onRepeat: (candidate: CandidateMoneyItem) => void;
   onSaved: () => void;
   theme: FolioTheme;
+  largeText: boolean;
 };
 const ReviewRow = memo(function ReviewRow({
   row,
@@ -142,11 +162,30 @@ const ReviewRow = memo(function ReviewRow({
   onRepeat,
   onSaved,
   theme: t,
+  largeText,
 }: ReviewRowProps) {
   const candidate = row.candidate;
   const selectable = row.status === 'ready' && !aside;
   const state = aside ? 'Kept aside' : issueReason(row);
   const summary = `${candidate.merchant}, ${money(candidate.amount)}, ${formatReviewDate(candidate.date)}, ${KIND_LABEL[candidate.kind]}, ${state}.`;
+  const actionLabel =
+    row.status === 'already-added'
+      ? 'View saved'
+      : row.status === 'possible-repeat'
+        ? 'Review repeat'
+        : 'Edit';
+  const actionAccessibilityLabel =
+    row.status === 'already-added'
+      ? 'View saved'
+      : row.status === 'possible-repeat'
+        ? 'Review repeat'
+        : `Edit ${candidate.merchant}`;
+  const onAction =
+    row.status === 'already-added'
+      ? onSaved
+      : row.status === 'possible-repeat'
+        ? () => onRepeat(candidate)
+        : () => onEdit(candidate);
   return (
     <View style={[styles.row, { borderBottomColor: t.hairline }]}>
       <Pressable
@@ -171,7 +210,20 @@ const ReviewRow = memo(function ReviewRow({
         </View>
       </Pressable>
       <View style={styles.rowCopy}>
-        <Text style={[styles.merchant, { color: t.ink }]}>{candidate.merchant || 'Unnamed'}</Text>
+        <View style={largeText ? styles.largeTop : undefined}>
+          <Text style={[styles.merchant, { color: t.ink }]}>{candidate.merchant || 'Unnamed'}</Text>
+          {largeText ? (
+            <Text
+              style={[
+                styles.amount,
+                styles.largeAmount,
+                { color: candidate.amount >= 0 ? t.positiveInk : t.ink },
+              ]}
+            >
+              {money(candidate.amount)}
+            </Text>
+          ) : null}
+        </View>
         <Text
           style={[styles.meta, { color: t.muted }]}
         >{`${formatReviewDate(candidate.date)} · ${KIND_LABEL[candidate.kind]}`}</Text>
@@ -180,38 +232,20 @@ const ReviewRow = memo(function ReviewRow({
         >
           {state}
         </Text>
-        {row.status === 'already-added' ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View saved"
-            onPress={onSaved}
-            style={styles.rowAction}
-          >
-            <Text style={[styles.actionLabel, { color: t.calm }]}>View saved</Text>
-          </Pressable>
-        ) : row.status === 'possible-repeat' ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Review repeat"
-            onPress={() => onRepeat(candidate)}
-            style={styles.rowAction}
-          >
-            <Text style={[styles.actionLabel, { color: t.calm }]}>Review repeat</Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Edit ${candidate.merchant}`}
-            onPress={() => onEdit(candidate)}
-            style={styles.rowAction}
-          >
-            <Text style={[styles.actionLabel, { color: t.calm }]}>Edit</Text>
-          </Pressable>
-        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={actionAccessibilityLabel}
+          onPress={onAction}
+          style={styles.editButton}
+        >
+          <Text style={[styles.actionLabel, { color: t.calm }]}>{actionLabel}</Text>
+        </Pressable>
       </View>
-      <Text style={[styles.amount, { color: candidate.amount >= 0 ? t.positiveInk : t.ink }]}>
-        {money(candidate.amount)}
-      </Text>
+      {!largeText ? (
+        <Text style={[styles.amount, { color: candidate.amount >= 0 ? t.positiveInk : t.ink }]}>
+          {money(candidate.amount)}
+        </Text>
+      ) : null}
     </View>
   );
 });
@@ -257,11 +291,18 @@ export function BulkStatementLanding({
 }: BulkStatementLandingProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const largeText = fontScale >= 1.3;
   const transactions = useAppStore((s) => s.transactions);
   const existingAccounts = useAppStore((s) => s.accounts ?? []);
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId);
   const persistedSession = useStatementReviewSession();
-  const seedCandidates = persistedSession?.candidates ?? initialCandidates;
+  const incomingSessionKey = statementReviewSourceKey(initialCandidates);
+  const canResumePersistedSession =
+    persistedSession !== null &&
+    (initialCandidates.length === 0 || persistedSession.sourceKey === incomingSessionKey);
+  const resumeSession = canResumePersistedSession ? persistedSession : null;
+  const seedCandidates = resumeSession?.candidates ?? initialCandidates;
   const existingImportIds = useMemo(
     () => new Set(transactions.map((transaction) => transaction.id)),
     [transactions],
@@ -277,7 +318,7 @@ export function BulkStatementLanding({
   );
   const [candidates, setCandidates] = useState<readonly CandidateMoneyItem[]>(seedCandidates);
   const [resolvedRepeatIds, setResolvedRepeatIds] = useState<ReadonlySet<string>>(
-    () => new Set(persistedSession?.resolvedRepeatIds ?? []),
+    () => new Set(resumeSession?.resolvedRepeatIds ?? []),
   );
   const model = useMemo(
     () =>
@@ -292,12 +333,12 @@ export function BulkStatementLanding({
   );
   const [query, setQuery] = useState('');
   const [asideIds, setAsideIds] = useState<ReadonlySet<string>>(
-    () => new Set(persistedSession?.asideIds ?? []),
+    () => new Set(resumeSession?.asideIds ?? []),
   );
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
     () =>
       new Set(
-        persistedSession?.selectedIds ??
+        resumeSession?.selectedIds ??
           buildStatementReviewModel(seedCandidates, { alreadyAddedIds })
             .rows.filter((row) => row.status === 'ready')
             .map((row) => row.candidate.id),
@@ -308,11 +349,11 @@ export function BulkStatementLanding({
     [asideIds, filter, model.rows, query],
   );
   const [accountConfirmed, setAccountConfirmed] = useState(
-    () => persistedSession?.accountId !== undefined,
+    () => resumeSession?.accountId !== undefined,
   );
   const detection = useMemo(() => detectAccountName(candidates), [candidates]);
   const [selectedOption, setSelectedOption] = useState<string>(
-    persistedSession?.accountId ?? existingAccounts[0]?.id ?? NEW_ACCOUNT_OPTION,
+    resumeSession?.accountId ?? existingAccounts[0]?.id ?? NEW_ACCOUNT_OPTION,
   );
   const [newAccountName, setNewAccountName] = useState(detection.name ?? '');
   const [newAccountKind, setNewAccountKind] = useState<AccountKind>(
@@ -320,7 +361,7 @@ export function BulkStatementLanding({
   );
   const [accountError, setAccountError] = useState<string | null>(null);
   const [resolvedAccountId, setResolvedAccountId] = useState<string | null>(
-    persistedSession?.accountId ?? null,
+    resumeSession?.accountId ?? null,
   );
   const [editing, setEditing] = useState<CandidateMoneyItem | null>(null);
   const [editMerchant, setEditMerchant] = useState('');
@@ -345,22 +386,23 @@ export function BulkStatementLanding({
     [model.rows, repeatCandidate],
   );
   const [summary, setSummary] = useState<AddStatementAsHistoryResult | null>(
-    () => persistedSession?.receipt ?? null,
+    () => resumeSession?.receipt ?? null,
   );
   const [receiptAcknowledged, setReceiptAcknowledged] = useState(false);
   const [receiptPending, setReceiptPending] = useState(false);
   const [receiptPersistenceError, setReceiptPersistenceError] = useState(false);
+  const [commitError, setCommitError] = useState(false);
   const [receiptDelivery, setReceiptDelivery] = useState<{
     accountId: string;
     selectedCandidateIds: readonly string[];
     keptAsideIds: readonly string[];
   } | null>(() =>
-    persistedSession?.receipt === undefined
+    resumeSession?.receipt === undefined
       ? null
       : {
-          accountId: persistedSession.accountId ?? DEFAULT_ACCOUNT_ID,
-          selectedCandidateIds: persistedSession.selectedIds,
-          keptAsideIds: persistedSession.asideIds,
+          accountId: resumeSession?.accountId ?? DEFAULT_ACCOUNT_ID,
+          selectedCandidateIds: resumeSession?.selectedIds ?? [],
+          keptAsideIds: resumeSession?.asideIds ?? [],
         },
   );
   const [adding, setAdding] = useState(false);
@@ -373,6 +415,7 @@ export function BulkStatementLanding({
     if (summary !== null) return;
     setStatementReviewSession({
       candidates: [...candidates],
+      sourceKey: statementReviewSourceKey(candidates),
       ...(resolvedAccountId === null ? {} : { accountId: resolvedAccountId }),
       selectedIds: [...selectedIds],
       asideIds: [...asideIds],
@@ -492,6 +535,7 @@ export function BulkStatementLanding({
   }
   async function addSelected() {
     if (adding) return;
+    setCommitError(false);
     const selected = candidates.filter(
       (candidate) =>
         selectedIds.has(candidate.id) &&
@@ -516,6 +560,7 @@ export function BulkStatementLanding({
       // write in onReceiptReady before releasing any source resources.
       setStatementReviewSession({
         candidates: [...candidates],
+        sourceKey: statementReviewSourceKey(candidates),
         accountId,
         selectedIds: [...selectedIds],
         asideIds: [...asideIds],
@@ -545,6 +590,11 @@ export function BulkStatementLanding({
         setReceiptPersistenceError(true);
         setReceiptPending(false);
       }
+    } catch {
+      setSummary(null);
+      setReceiptPending(false);
+      setReceiptPersistenceError(false);
+      setCommitError(true);
     } finally {
       setAdding(false);
     }
@@ -568,6 +618,49 @@ export function BulkStatementLanding({
       });
     } catch {
       setReceiptPending(false);
+      setReceiptPersistenceError(true);
+    }
+  }
+  async function acknowledgeReceipt() {
+    if (summary === null) return;
+    const workspaceId = activeWorkspaceId;
+    const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
+    const remaining = candidates.filter((candidate) => asideIds.has(candidate.id));
+    const acknowledgedSession =
+      remaining.length === 0
+        ? null
+        : {
+            candidates: remaining,
+            sourceKey: statementReviewSourceKey(remaining),
+            accountId,
+            selectedIds: [],
+            asideIds: remaining.map((candidate) => candidate.id),
+            resolvedRepeatIds: [...resolvedRepeatIds].filter((id) =>
+              remaining.some((candidate) => candidate.id === id),
+            ),
+          };
+    const receiptSession = {
+      candidates: [...candidates],
+      sourceKey: statementReviewSourceKey(candidates),
+      accountId,
+      selectedIds: [...selectedIds],
+      asideIds: [...asideIds],
+      resolvedRepeatIds: [...resolvedRepeatIds],
+      receipt: summary,
+    };
+    setReceiptAcknowledged(true);
+    setReceiptPending(true);
+    setReceiptPersistenceError(false);
+    setStatementReviewSession(acknowledgedSession);
+    try {
+      await persistReceiptDurably(workspaceId);
+      setReceiptPending(false);
+      onAdded();
+      nav.go('today');
+    } catch {
+      setStatementReviewSession(receiptSession);
+      setReceiptPending(false);
+      setReceiptAcknowledged(false);
       setReceiptPersistenceError(true);
     }
   }
@@ -600,7 +693,7 @@ export function BulkStatementLanding({
   }
   function leaveToIntake() {
     onSourceReturn?.();
-    nav.go('intake');
+    if (onSourceReturn === undefined) nav.go('intake');
   }
   const renderItem = useCallback(
     ({ item }: { item: StatementReviewRow }) => (
@@ -616,6 +709,7 @@ export function BulkStatementLanding({
         }}
         onSaved={() => nav.go('timeline')}
         theme={t}
+        largeText={largeText}
       />
     ),
     [asideIds, nav, openEditor, selectedIds, t, toggle],
@@ -744,13 +838,7 @@ export function BulkStatementLanding({
   }
   if (receiptPending) {
     return (
-      <View
-        style={[
-          styles.root,
-          styles.receiptRoot,
-          { backgroundColor: t.canvas, paddingTop: insets.top + gap.xl },
-        ]}
-      >
+      <ReceiptViewport theme={t}>
         <View style={[styles.receipt, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <Text accessibilityRole="header" style={[styles.receiptTitle, { color: t.ink }]}>
             Adding…
@@ -759,18 +847,35 @@ export function BulkStatementLanding({
             Saving the statement and its receipt.
           </Text>
         </View>
-      </View>
+      </ReceiptViewport>
+    );
+  }
+  if (commitError) {
+    return (
+      <ReceiptViewport theme={t}>
+        <View style={[styles.receipt, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+          <Text accessibilityRole="header" style={[styles.receiptTitle, { color: t.ink }]}>
+            Statement not added
+          </Text>
+          <Text
+            accessibilityLiveRegion="assertive"
+            style={[styles.receiptBody, { color: t.muted }]}
+          >
+            Nothing changed. Your corrections and choices are still here.
+          </Text>
+          <Pressable onPress={addSelected} style={[styles.primary, { backgroundColor: t.calm }]}>
+            <Text style={[styles.primaryLabel, { color: t.inverse }]}>Try again</Text>
+          </Pressable>
+          <Pressable onPress={() => setCommitError(false)} style={styles.secondary}>
+            <Text style={[styles.secondaryLabel, { color: t.muted }]}>Back to review</Text>
+          </Pressable>
+        </View>
+      </ReceiptViewport>
     );
   }
   if (receiptPersistenceError && summary !== null && !receiptAcknowledged) {
     return (
-      <View
-        style={[
-          styles.root,
-          styles.receiptRoot,
-          { backgroundColor: t.canvas, paddingTop: insets.top + gap.xl },
-        ]}
-      >
+      <ReceiptViewport theme={t}>
         <View style={[styles.receipt, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <Text accessibilityRole="header" style={[styles.receiptTitle, { color: t.ink }]}>
             Receipt not saved
@@ -789,7 +894,7 @@ export function BulkStatementLanding({
             <Text style={[styles.primaryLabel, { color: t.inverse }]}>Try again</Text>
           </Pressable>
         </View>
-      </View>
+      </ReceiptViewport>
     );
   }
   if (summary !== null && !receiptAcknowledged) {
@@ -801,21 +906,14 @@ export function BulkStatementLanding({
     const name =
       existingAccounts.find((account) => account.id === resolvedAccountId)?.name ?? 'your account';
     return (
-      <View
-        style={[
-          styles.root,
-          styles.receiptRoot,
-          {
-            backgroundColor: t.canvas,
-            paddingTop: insets.top + gap.xl,
-            paddingBottom: insets.bottom + gap.xl,
-          },
-        ]}
-      >
+      <ReceiptViewport theme={t}>
         <View style={[styles.receipt, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          <Text accessibilityRole="header" style={[styles.receiptTitle, { color: t.ink }]}>
-            {zero ? 'Nothing new to add' : partial ? 'Statement partly added' : 'Statement added'}
-          </Text>
+          <View style={styles.receiptHeading}>
+            <Melo mood={zero || partial ? 'calm' : 'cheer'} size={44} frozen />
+            <Text accessibilityRole="header" style={[styles.receiptTitle, { color: t.ink }]}>
+              {zero ? 'Nothing new to add' : partial ? 'Statement partly added' : 'Statement added'}
+            </Text>
+          </View>
           <Text accessibilityLiveRegion="polite" style={[styles.receiptBody, { color: t.muted }]}>
             {zero
               ? `All ${skipped} selected transactions were already in ${name}. Nothing was added again.`
@@ -831,15 +929,7 @@ export function BulkStatementLanding({
             {aside > 0 ? <Text style={{ color: t.muted }}>{`${aside} kept aside`}</Text> : null}
           </View>
           <Pressable
-            onPress={() => {
-              setReceiptAcknowledged(true);
-              const next = summary !== null ? nextBulkLandingOffer(summary, shownOffers) : null;
-              clearStatementReviewSession();
-              onAdded();
-              if (next === null) {
-                nav.go('today');
-              }
-            }}
+            onPress={() => void acknowledgeReceipt()}
             style={[styles.primary, { backgroundColor: t.calm }]}
           >
             <Text style={[styles.primaryLabel, { color: t.inverse }]}>Done</Text>
@@ -876,7 +966,7 @@ export function BulkStatementLanding({
             </Pressable>
           ) : null}
         </View>
-      </View>
+      </ReceiptViewport>
     );
   }
   if (currentOffer !== null && summary !== null) {
@@ -885,13 +975,7 @@ export function BulkStatementLanding({
       existingAccounts.find((account) => account.id === (offer?.accountId ?? resolvedAccountId))
         ?.name ?? 'your account';
     return (
-      <View
-        style={[
-          styles.root,
-          styles.receiptRoot,
-          { backgroundColor: t.canvas, paddingTop: insets.top + gap.xl },
-        ]}
-      >
+      <ReceiptViewport theme={t}>
         <View style={[styles.receipt, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <Text accessibilityRole="header" style={[styles.receiptTitle, { color: t.ink }]}>
             {offer !== undefined ? 'Closing balance found' : 'One thing to check'}
@@ -925,7 +1009,7 @@ export function BulkStatementLanding({
             <Text style={[styles.secondaryLabel, { color: t.muted }]}>Not now</Text>
           </Pressable>
         </View>
-      </View>
+      </ReceiptViewport>
     );
   }
   const selectedCount = [...selectedIds].filter(
@@ -1069,7 +1153,7 @@ export function BulkStatementLanding({
             <Text style={[styles.batchLabel, { color: t.muted }]}>Keep selected aside</Text>
           </Pressable>
           {asideIds.size > 0 ? (
-            <Pressable onPress={() => setFilter('aside')} style={styles.batchButton}>
+            <Pressable onPress={() => setFilter('aside')} style={styles.quietAction}>
               <Text style={[styles.batchLabel, { color: t.muted }]}>
                 {`Show ${asideIds.size} kept aside`}
               </Text>
@@ -1419,7 +1503,9 @@ const styles = StyleSheet.create({
   },
   primaryLabel: { fontSize: 15, fontWeight: '700' },
   receiptRoot: { justifyContent: 'center', paddingHorizontal: gap.xl },
+  receiptViewport: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: gap.xl },
   receipt: { borderRadius: radius.xl, borderWidth: StyleSheet.hairlineWidth, padding: gap.xl },
+  receiptHeading: { alignItems: 'center', flexDirection: 'row', gap: gap.md },
   receiptTitle: { fontFamily: serif.display, fontSize: 28, lineHeight: 34 },
   receiptBody: { fontSize: 16, lineHeight: 25, marginTop: gap.md },
   receiptCounts: { gap: gap.sm, marginTop: gap.xl },
@@ -1467,6 +1553,13 @@ const styles = StyleSheet.create({
   batchButton: {
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 48,
+    minWidth: 48,
+    paddingHorizontal: gap.sm,
+  },
+  quietAction: {
+    alignItems: 'center',
+    justifyContent: 'center',
     minHeight: 44,
     paddingHorizontal: gap.sm,
   },
@@ -1478,7 +1571,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: gap.xl,
     paddingVertical: gap.lg,
   },
-  checkTarget: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
+  checkTarget: {
+    alignItems: 'center',
+    flexShrink: 0,
+    justifyContent: 'center',
+    minHeight: 48,
+    minWidth: 48,
+  },
   check: {
     alignItems: 'center',
     borderRadius: 6,
@@ -1490,12 +1589,16 @@ const styles = StyleSheet.create({
   checkGlyph: { fontSize: 14, fontWeight: '800' },
   rowCopy: { flex: 1, minWidth: 0, paddingHorizontal: gap.sm },
   merchant: { fontSize: 16, fontWeight: '600', lineHeight: 24 },
+  largeTop: { width: '100%' },
+  largeAmount: { marginLeft: 0, paddingTop: 0 },
   meta: { fontSize: 12.5, lineHeight: 19, marginTop: gap.xs },
   state: { fontSize: 12.5, lineHeight: 19, marginTop: gap.xs },
-  rowAction: {
+  editButton: {
     alignSelf: 'flex-start',
+    flexShrink: 0,
     justifyContent: 'center',
-    minHeight: 44,
+    minHeight: 48,
+    minWidth: 48,
     marginTop: gap.xs,
   },
   actionLabel: { fontSize: 13, fontWeight: '700' },
