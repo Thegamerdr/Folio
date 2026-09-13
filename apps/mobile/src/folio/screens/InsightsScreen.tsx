@@ -9,6 +9,7 @@ import {
   Text,
   View,
   useWindowDimensions,
+  type TextLayoutEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, {
@@ -54,7 +55,33 @@ const CHART_HEIGHT_LARGE = 288;
 const ROUTE_DASH = 1200;
 const ROUTE_DRAW_MS = 2200;
 const COUNT_MS = 700;
+const INSIGHTS_TEXT_LAYOUT_DIAGNOSTIC =
+  process.env.EXPO_PUBLIC_MELO_INSIGHTS_TEXT_LAYOUT_DIAGNOSTIC === 'true';
 const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+function reportInsightsH1TextLayout(fontScale: number, event: TextLayoutEvent): void {
+  if (!INSIGHTS_TEXT_LAYOUT_DIAGNOSTIC) return;
+  const lines = event.nativeEvent.lines.map((line) => ({
+    ascender: line.ascender,
+    capHeight: line.capHeight,
+    descender: line.descender,
+    height: line.height,
+    text: line.text,
+    width: line.width,
+    x: line.x,
+    xHeight: line.xHeight,
+    y: line.y,
+  }));
+  // This marker contains only the static H1 and native line geometry. It is intentionally gated
+  // out of ordinary builds so no account, review, or user content is logged by the product.
+  console.log(
+    `[MF11_A02_H1_LAYOUT] ${JSON.stringify({
+      heading: 'Your recorded reviews.',
+      fontScale,
+      lines,
+    })}`,
+  );
+}
 
 type ReadableReview = Pick<
   CycleRecord,
@@ -297,6 +324,7 @@ export function InsightsScreen({ nav }: InsightsScreenProps) {
 }
 
 function EmptyBranch({ nav, styles }: { nav: Nav; styles: ReturnType<typeof makeStyles> }) {
+  const { fontScale } = useWindowDimensions();
   return (
     <View style={styles.emptyContent}>
       <View style={styles.titleBlock}>
@@ -305,6 +333,11 @@ function EmptyBranch({ nav, styles }: { nav: Nav; styles: ReturnType<typeof make
           accessibilityRole="header"
           android_hyphenationFrequency="none"
           textBreakStrategy="simple"
+          onTextLayout={
+            INSIGHTS_TEXT_LAYOUT_DIAGNOSTIC
+              ? (event) => reportInsightsH1TextLayout(fontScale, event)
+              : undefined
+          }
           style={styles.headline}
         >
           Your <Text style={styles.headlineAccent}>recorded</Text> reviews{`\u2060`}.
@@ -413,6 +446,11 @@ function PopulatedBranch({
           accessibilityRole="header"
           android_hyphenationFrequency="none"
           textBreakStrategy="simple"
+          onTextLayout={
+            INSIGHTS_TEXT_LAYOUT_DIAGNOSTIC
+              ? (event) => reportInsightsH1TextLayout(fontScale, event)
+              : undefined
+          }
           style={styles.headline}
         >
           Your <Text style={styles.headlineAccent}>recorded</Text> reviews{`\u2060`}.
