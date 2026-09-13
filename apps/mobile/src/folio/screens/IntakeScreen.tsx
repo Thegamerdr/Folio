@@ -300,6 +300,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     [activeWorkspaceId, statementSessions],
   );
   const waitingRef = useRef<View>(null);
+  const firstWaitingRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
   const waitingAnnouncedRef = useRef(false);
   const needsInitialSetup = useAppStore(isOnboardingFirstRun);
@@ -819,9 +820,16 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
               accessibilityRole="button"
               accessibilityLabel="Open what's waiting"
               onPress={() => {
-                scrollRef.current?.scrollToEnd({ animated: true });
-                const node = findNodeHandle(waitingRef.current);
+                const node = findNodeHandle(firstWaitingRef.current);
                 if (node !== null) AccessibilityInfo.setAccessibilityFocus(node);
+                const first = waitingStatementSessions[0];
+                if (first !== undefined) {
+                  const source = first.candidates[0]?.source ?? first.sourceKey?.split(':')[0] ?? 'pdf';
+                  const label = first.sourceLabel ?? waitingSourceLabel(source);
+                  AccessibilityInfo.announceForAccessibility(
+                    `${label}. ${first.candidates.length} suggested. ${first.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`,
+                  );
+                }
               }}
               style={[styles.waitingNoticeAction, { backgroundColor: t.calm }]}
             >
@@ -845,6 +853,7 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
                   <View key={`statement:${session.workspaceId ?? ''}:${session.sourceKey ?? index}`}>
                     {index > 0 ? <View style={[styles.divider, { backgroundColor: t.hairline }]} /> : null}
                     <Pressable
+                      ref={index === 0 ? firstWaitingRef : undefined}
                       accessibilityRole="button"
                       accessibilityLabel={`${label}. ${count} suggested. ${session.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`}
                       onPress={() => openStatementReview(session)}

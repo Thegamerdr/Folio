@@ -37,7 +37,7 @@
 //   • Press feedback is the kit `pressed` feel (scale 0.97 / lowered opacity) via Pressable.
 //   • Push-to-bottom: a ScrollView whose contentContainer is flexGrow:1 with a flex:1 spacer pins
 //     the CTAs to the bottom; bottom safe-area replaces the web's trailing margin.
-//   • The retained original can be opened through one "View image" affordance when available; it
+//   • The retained original can be opened through one "View photo" affordance when available; it
 //     decrypts into a short-lived cache file and invokes the native
 //     viewer/share surface, and remove that plaintext cache in `finally`.
 //
@@ -147,11 +147,7 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
         (document) => document.id === readerEvidenceId && document.workspaceId === workspaceId,
       );
     }
-    return current.evidenceDocuments?.find(
-      (document) =>
-        document.workspaceId === workspaceId &&
-        (document.sourceType === 'image' || document.sourceType === 'camera'),
-    );
+    return undefined;
   });
   const imageName = image?.imageName ?? evidenceDocument?.filename ?? 'Selected photo';
 
@@ -285,7 +281,7 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
         <View style={styles.secondaryRow}>
           {evidenceDocument !== undefined ? <Pressable
             accessibilityRole="button"
-            accessibilityLabel="View image"
+            accessibilityLabel="View photo"
             onPress={openSource}
             style={({ pressed: isPressed }) => [
               styles.secondaryCell,
@@ -293,7 +289,7 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
               isPressed ? styles.pressed : undefined,
             ]}
           >
-            <Text style={[styles.secondaryLabel, { color: t.ink }]}>View image</Text>
+            <Text style={[styles.secondaryLabel, { color: t.ink }]}>View photo</Text>
           </Pressable> : null}
           <Pressable
             accessibilityRole="button"

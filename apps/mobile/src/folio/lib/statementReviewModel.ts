@@ -207,8 +207,9 @@ export function buildStatementReviewModel(
     if (candidate.kind === 'bill' || candidate.kind === 'subscription') bills += 1;
     if (candidate.kind === 'debt-payment') debt += 1;
     if (
-      candidate.reviewed !== true &&
-      (candidate.confidence === 'low' || candidate.kind === 'unknown' || !amountReadable)
+      (candidate.confidence === 'low' && candidate.reviewed !== true) ||
+      candidate.kind === 'unknown' ||
+      !amountReadable
     )
       uncertain += 1;
     if (candidate.date !== undefined) {

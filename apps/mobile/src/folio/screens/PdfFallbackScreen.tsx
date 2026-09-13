@@ -146,9 +146,7 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
         (document) => document.id === readerEvidenceId && document.workspaceId === workspaceId,
       );
     }
-    return current.evidenceDocuments?.find(
-      (document) => document.workspaceId === workspaceId && document.sourceType === 'document',
-    );
+    return undefined;
   });
   const fileName = file?.fileName ?? evidenceDocument?.filename ?? 'Selected file';
 

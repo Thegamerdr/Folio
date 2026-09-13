@@ -432,7 +432,7 @@ export function PasteSuccessScreen({
   if (isPasteSource && reviewSourceKey === undefined && pasteSourceIdentityRef.current === undefined) {
     pasteSourceIdentityRef.current = `paste:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
   }
-  const activeReviewSourceKey = reviewSourceKey ?? (isPasteSource ? pasteSourceIdentityRef.current : undefined);
+  const activeReviewSourceKey = reviewSourceKey ?? sourceReturn?.sourceKey ?? (isPasteSource ? pasteSourceIdentityRef.current : undefined);
   const reviewSourceReturn = useMemo<ImportSourceReturn | undefined>(
     () =>
       isPasteSource
@@ -726,6 +726,7 @@ export function PasteSuccessScreen({
           candidates={canResumeReview ? [] : candidates}
           {...(canResumeReview ? { sessionKey: reviewSourceKey } : {})}
           {...(activeReviewSourceKey !== undefined && !canResumeReview ? { sourceKey: activeReviewSourceKey } : {})}
+          {...(sourceReturn !== undefined ? { resumeExisting: false } : {})}
           {...(reviewSourceReturn === undefined ? {} : { sourceReturn: reviewSourceReturn })}
           sourceIssues={issues}
           onAdded={() => clearReaderCandidates()}
@@ -822,6 +823,7 @@ export function PasteSuccessScreen({
             candidates={candidates}
             sourceIssues={issues}
             {...(activeReviewSourceKey !== undefined && !canResumeReview ? { sourceKey: activeReviewSourceKey } : {})}
+            {...(sourceReturn !== undefined ? { resumeExisting: false } : {})}
             {...(reviewSourceReturn === undefined ? {} : { sourceReturn: reviewSourceReturn })}
             onAdded={() => clearReaderCandidates()}
             {...(isPasteSource ? { onSourceReturn: returnToSource } : {})}
