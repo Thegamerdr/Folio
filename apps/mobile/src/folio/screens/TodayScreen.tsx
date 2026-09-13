@@ -828,44 +828,15 @@ export function TodayScreen({
 
         {/* Melo enters the money story after the answer, never between chrome and
             the decision. First-run primer and one-move are mutually exclusive. */}
-        {financialPlan.safeToSpendMinor < 0 ? (
-          <View
-            style={[
-              styles.companionCard,
-              { backgroundColor: t.surface, borderColor: t.hairline },
-              fontScale > 1.3 ? { flexDirection: 'column' } : undefined,
-            ]}
-          >
-            <MeloFigure scrollOwner role="inline" mood="concern" />
-            <View
-              style={[
-                styles.companionCardBody,
-                fontScale > 1.3 ? { flex: undefined, alignSelf: 'stretch' } : undefined,
-              ]}
-            >
-              <Text style={[styles.companionCardCopy, { color: t.ink }]}>
-                Let's look at what could ease this gap.
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => nav.go('recovery')}
-                style={{ minHeight: 48, justifyContent: 'center' }}
-              >
-                <Text style={[styles.companionPrimaryAction, { color: t.calm }]}>
-                  Open Recovery →
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : !meloPrimerSeen ? (
+        {financialPlan.safeToSpendMinor >= 0 && !meloPrimerSeen ? (
           <MeloPrimerCard onDone={() => setMeloPrimerSeen(true)} />
-        ) : oneMove ? (
+        ) : financialPlan.safeToSpendMinor >= 0 && oneMove ? (
           <OneMoveCard oneMove={oneMove} />
-        ) : (
+        ) : financialPlan.safeToSpendMinor >= 0 ? (
           <View style={{ marginHorizontal: 28 }}>
             <MeloPerch screen="today" nav={nav} plan={financialPlan} />
           </View>
-        )}
+        ) : null}
 
         {/* The path is the signature object: plain ground, one hairline chapter
             break, no card shell or decorative analytics grid. */}
@@ -975,6 +946,15 @@ export function TodayScreen({
             buffer.
           </Text>
         </View>
+
+        {/* Keep the companion beside the route explanation, after the path has established the
+            financial answer. The anchor primitive owns the concern copy and Recovery action for a
+            negative plan without adding a second large recovery card above the chart. */}
+        {financialPlan.safeToSpendMinor < 0 ? (
+          <View style={{ marginHorizontal: 28 }}>
+            <MeloPerch screen="today" nav={nav} plan={financialPlan} />
+          </View>
+        ) : null}
 
         {/* The route is the proof for the headline. Actions and recent activity follow it instead
             of interrupting the answer before the user has seen why the number is true. */}
