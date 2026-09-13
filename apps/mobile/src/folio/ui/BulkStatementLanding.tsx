@@ -101,6 +101,7 @@ export type BulkStatementLandingProps = {
   onSourceReturn?: (sourceReturn?: ImportSourceReturn) => void;
 };
 const NEW_ACCOUNT_OPTION = '__new__';
+const EMPTY_SOURCE_ISSUES: readonly ColumnIssue[] = [];
 const KINDS: readonly CandidateKind[] = [
   'income',
   'spend',
@@ -325,7 +326,7 @@ export function BulkStatementLanding({
   resumeExisting = true,
   sourceLabel: initialSourceLabel,
   sourceReturn: initialSourceReturn,
-  sourceIssues: initialSourceIssues = [],
+  sourceIssues: initialSourceIssues = EMPTY_SOURCE_ISSUES,
   closingBalance,
   onAdded,
   onReceiptReady,
