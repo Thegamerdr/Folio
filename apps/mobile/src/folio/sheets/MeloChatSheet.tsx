@@ -1950,7 +1950,7 @@ function makeStyles(t: Palette) {
       // Use a zero flex basis so the transcript is the part that yields when the measured
       // keyboard viewport gets shorter. With an auto basis, the draft/header content can make the
       // body shrink while its stacked composer keeps its natural position below the IME.
-      flex: 1,
+      flexGrow: 1,
       minHeight: 0,
     },
     composer: {
@@ -2313,7 +2313,7 @@ function makeStyles(t: Palette) {
     },
     transcript: {
       overflow: 'hidden',
-      flex: 1,
+      flexGrow: 1,
       minHeight: 0,
     },
     tune: {
