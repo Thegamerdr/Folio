@@ -1343,121 +1343,130 @@ export function BulkStatementLanding({
         { backgroundColor: t.canvas, paddingTop: insets.top, paddingBottom: insets.bottom },
       ]}
     >
-      <View style={styles.reviewHeader}>
-        <View style={styles.titleRow}>
-          <Pressable
-            onPress={leaveToIntake}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            style={styles.backTarget}
-          >
-            <Text style={[styles.back, { color: t.ink }]}>←</Text>
-          </Pressable>
-          <View style={styles.titleCopy}>
-            <Text accessibilityRole="header" style={[styles.workspaceTitle, { color: t.ink }]}>
-              Check this statement
-            </Text>
-            <Text
-              style={[styles.sourceLine, { color: t.muted }]}
-            >{`${(candidates[0]?.source ?? 'file').toUpperCase()} · ${shortDateRange(model.dateFrom, model.dateTo)}`}</Text>
-            <Text
-              style={[styles.foundCount, { color: t.muted }]}
-            >{`${model.counts.total} ${model.counts.total === 1 ? 'transaction' : 'transactions'} found`}</Text>
-          </View>
-        </View>
-        <View style={[styles.summaryBand, { backgroundColor: t.surface, borderColor: t.hairline }]}>
-          <Text
-            style={[styles.summaryStat, { color: t.positiveInk }]}
-          >{`${model.counts.ready} ready`}</Text>
-          <Text
-            style={[styles.summaryStat, { color: t.repairInk }]}
-          >{`${model.counts.issues} need checking`}</Text>
-          <Text
-            style={[styles.summaryStat, { color: t.muted }]}
-          >{`${model.counts.duplicates} possible repeats`}</Text>
-          <Text
-            style={[styles.summaryStat, { color: t.muted }]}
-          >{`${model.counts.alreadyAdded} already added`}</Text>
-          <Text
-            style={[styles.summaryMoney, { color: t.ink }]}
-          >{`From readable amounts: ${pounds(model.moneyIn)} in · ${pounds(model.moneyOut)} out`}</Text>
-          {model.counts.uncertain > 0 ? (
-            <Text
-              style={[styles.exclusion, { color: t.muted }]}
-            >{`Totals exclude ${model.counts.uncertain} amounts that need checking.`}</Text>
-          ) : null}
-          {sourceIssues.length > 0 ? (
-            <Text
-              accessibilityLiveRegion="polite"
-              style={[styles.exclusion, { color: t.repairInk }]}
-            >{`${sourceIssues.length} source ${sourceIssues.length === 1 ? 'line needs' : 'lines need'} checking and was left out rather than guessed.`}
-            </Text>
-          ) : null}
-        </View>
-        <TextInput
-          accessibilityRole="search"
-          accessibilityLabel="Search name, date, amount or type"
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search name, date, amount or type"
-          placeholderTextColor={t.muted}
-          style={[
-            styles.search,
-            { color: t.ink, backgroundColor: t.inset, borderColor: t.hairline },
-          ]}
-        />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
-        >
-          {FILTERS.map((item) => (
-            <Pressable
-              key={item.key}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: filter === item.key }}
-              onPress={() => setFilter(item.key)}
-              style={[styles.filter, { backgroundColor: filter === item.key ? t.calm : t.inset }]}
+      <FlatList
+        style={styles.reviewList}
+        data={rows}
+        ListHeaderComponent={
+          <View style={styles.reviewHeader}>
+            <View style={styles.titleRow}>
+              <Pressable
+                onPress={leaveToIntake}
+                accessibilityRole="button"
+                accessibilityLabel="Back"
+                style={styles.backTarget}
+              >
+                <Text style={[styles.back, { color: t.ink }]}>←</Text>
+              </Pressable>
+              <View style={styles.titleCopy}>
+                <Text accessibilityRole="header" style={[styles.workspaceTitle, { color: t.ink }]}>
+                  Check this statement
+                </Text>
+                <Text
+                  style={[styles.sourceLine, { color: t.muted }]}
+                >{`${(candidates[0]?.source ?? 'file').toUpperCase()} · ${shortDateRange(model.dateFrom, model.dateTo)}`}</Text>
+                <Text
+                  style={[styles.foundCount, { color: t.muted }]}
+                >{`${model.counts.total} ${model.counts.total === 1 ? 'transaction' : 'transactions'} found`}</Text>
+              </View>
+            </View>
+            <View
+              style={[styles.summaryBand, { backgroundColor: t.surface, borderColor: t.hairline }]}
             >
               <Text
-                style={{ color: filter === item.key ? t.inverse : t.ink }}
-              >{`${item.label} ${filterCount(item.key)}`}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        <View style={styles.selectionActions}>
-          <Pressable onPress={selectReady} style={styles.batchButton}>
-            <Text style={[styles.batchLabel, { color: t.calm }]}>
-              {query.trim().length > 0 ? 'Select all shown' : 'Select all ready'}
-            </Text>
-          </Pressable>
-          <Pressable onPress={() => setSelectedIds(new Set())} style={styles.batchButton}>
-            <Text style={[styles.batchLabel, { color: t.calm }]}>Clear selection</Text>
-          </Pressable>
-          <Pressable onPress={keepSelectedAside} style={styles.batchButton}>
-            <Text style={[styles.batchLabel, { color: t.muted }]}>Keep selected aside</Text>
-          </Pressable>
-          {asideUndoIds !== null ? (
-            <View accessibilityLiveRegion="polite" style={styles.asideUndoRow}>
-              <Text style={[styles.batchLabel, { color: t.muted }]}>
-                {`${asideUndoIds.length} kept aside.`}
-              </Text>
-              <Pressable onPress={undoKeepAside} style={styles.quietAction}>
-                <Text style={[styles.batchLabel, { color: t.calm }]}>Undo</Text>
-              </Pressable>
+                style={[styles.summaryStat, { color: t.positiveInk }]}
+              >{`${model.counts.ready} ready`}</Text>
+              <Text
+                style={[styles.summaryStat, { color: t.repairInk }]}
+              >{`${model.counts.issues} need checking`}</Text>
+              <Text
+                style={[styles.summaryStat, { color: t.muted }]}
+              >{`${model.counts.duplicates} possible repeats`}</Text>
+              <Text
+                style={[styles.summaryStat, { color: t.muted }]}
+              >{`${model.counts.alreadyAdded} already added`}</Text>
+              <Text
+                style={[styles.summaryMoney, { color: t.ink }]}
+              >{`From readable amounts: ${pounds(model.moneyIn)} in · ${pounds(model.moneyOut)} out`}</Text>
+              {model.counts.uncertain > 0 ? (
+                <Text
+                  style={[styles.exclusion, { color: t.muted }]}
+                >{`Totals exclude ${model.counts.uncertain} amounts that need checking.`}</Text>
+              ) : null}
+              {sourceIssues.length > 0 ? (
+                <Text
+                  accessibilityLiveRegion="polite"
+                  style={[styles.exclusion, { color: t.repairInk }]}
+                >
+                  {`${sourceIssues.length} source ${sourceIssues.length === 1 ? 'line needs' : 'lines need'} checking and was left out rather than guessed.`}
+                </Text>
+              ) : null}
             </View>
-          ) : null}
-          {asideIds.size > 0 ? (
-            <Pressable onPress={() => setFilter('aside')} style={styles.quietAction}>
-              <Text style={[styles.batchLabel, { color: t.muted }]}>
-                {`Show ${asideIds.size} kept aside`}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-      <FlatList
-        data={rows}
+            <TextInput
+              accessibilityRole="search"
+              accessibilityLabel="Search name, date, amount or type"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search name, date, amount or type"
+              placeholderTextColor={t.muted}
+              style={[
+                styles.search,
+                { color: t.ink, backgroundColor: t.inset, borderColor: t.hairline },
+              ]}
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filters}
+            >
+              {FILTERS.map((item) => (
+                <Pressable
+                  key={item.key}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: filter === item.key }}
+                  onPress={() => setFilter(item.key)}
+                  style={[
+                    styles.filter,
+                    { backgroundColor: filter === item.key ? t.calm : t.inset },
+                  ]}
+                >
+                  <Text
+                    style={{ color: filter === item.key ? t.inverse : t.ink }}
+                  >{`${item.label} ${filterCount(item.key)}`}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <View style={styles.selectionActions}>
+              <Pressable onPress={selectReady} style={styles.batchButton}>
+                <Text style={[styles.batchLabel, { color: t.calm }]}>
+                  {query.trim().length > 0 ? 'Select all shown' : 'Select all ready'}
+                </Text>
+              </Pressable>
+              <Pressable onPress={() => setSelectedIds(new Set())} style={styles.batchButton}>
+                <Text style={[styles.batchLabel, { color: t.calm }]}>Clear selection</Text>
+              </Pressable>
+              <Pressable onPress={keepSelectedAside} style={styles.batchButton}>
+                <Text style={[styles.batchLabel, { color: t.muted }]}>Keep selected aside</Text>
+              </Pressable>
+              {asideUndoIds !== null ? (
+                <View accessibilityLiveRegion="polite" style={styles.asideUndoRow}>
+                  <Text style={[styles.batchLabel, { color: t.muted }]}>
+                    {`${asideUndoIds.length} kept aside.`}
+                  </Text>
+                  <Pressable onPress={undoKeepAside} style={styles.quietAction}>
+                    <Text style={[styles.batchLabel, { color: t.calm }]}>Undo</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {asideIds.size > 0 ? (
+                <Pressable onPress={() => setFilter('aside')} style={styles.quietAction}>
+                  <Text style={[styles.batchLabel, { color: t.muted }]}>
+                    {`Show ${asideIds.size} kept aside`}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        }
         keyExtractor={(row) => row.candidate.id}
         renderItem={renderItem}
         initialNumToRender={12}
@@ -1841,6 +1850,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: gap.lg,
   },
   secondaryLabel: { fontSize: 14, fontWeight: '600' },
+  reviewList: { flex: 1 },
   reviewHeader: { paddingHorizontal: gap.xl },
   titleRow: { alignItems: 'center', flexDirection: 'row', gap: gap.sm },
   titleCopy: { flex: 1 },
