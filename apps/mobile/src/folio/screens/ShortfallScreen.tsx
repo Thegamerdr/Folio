@@ -882,8 +882,11 @@ const styles = StyleSheet.create({
   commit: {
     alignItems: 'center',
     borderRadius: radius.md,
-    height: 44,
     justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: gap.sm,
+    paddingVertical: gap.xs,
+    width: '100%',
   },
   commitLabel: {
     fontSize: 14,
@@ -905,9 +908,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    height: 44,
     justifyContent: 'center',
     marginTop: gap.lg,
+    minHeight: 44,
+    paddingHorizontal: gap.xs,
+    paddingVertical: gap.xs,
+    width: '100%',
   },
   refusalLabel: {
     fontSize: 13,

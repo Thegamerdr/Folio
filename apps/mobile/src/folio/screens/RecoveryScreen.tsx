@@ -577,7 +577,7 @@ export function RecoveryScreen({ nav, state = 'populated' }: RecoveryScreenProps
             accessibilityRole="button"
             onPress={empty.setup ? () => nav.openSheet('onboarding') : () => nav.go('plan')}
             style={{
-              minHeight: 54,
+              minHeight: 56,
               padding: gap.md,
               borderRadius: radius.pill,
               backgroundColor: t.surface,
@@ -942,7 +942,7 @@ function RecoveryPathPreview({
     >
       <View style={styles.pathHeader}>
         <Text style={[styles.pathLabel, { color: t.muted }]}>Path preview</Text>
-        <Text numberOfLines={1} style={[styles.pathCaption, { color: t.muted }]}>
+        <Text style={[styles.pathCaption, { color: t.muted }]}>
           {caption}
         </Text>
       </View>
@@ -1080,13 +1080,18 @@ function SignpostLink({ label, url, t }: { label: string; url: string; t: Palett
 
 const signpostLinkStyles = StyleSheet.create({
   label: {
+    flexShrink: 1,
     fontSize: 12,
+    textAlign: 'center',
   },
   pill: {
+    maxWidth: '100%',
+    minHeight: 44,
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
     paddingHorizontal: gap.md,
-    paddingVertical: 6,
+    paddingVertical: gap.xs,
   },
 });
 
@@ -1235,6 +1240,8 @@ const styles = StyleSheet.create({
   pathHeader: {
     alignItems: 'baseline',
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: gap.xs,
     justifyContent: 'space-between',
   },
   pathLabel: {
@@ -1245,14 +1252,18 @@ const styles = StyleSheet.create({
   },
   pathCaption: {
     flex: 1,
+    flexShrink: 1,
     fontSize: 11,
     marginLeft: gap.sm,
+    minWidth: 0,
     textAlign: 'right',
   },
   pathLegend: {
     columnGap: gap.md,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingBottom: gap.md,
+    rowGap: gap.xs,
   },
   pathLegendText: {
     fontSize: 10,
@@ -1288,20 +1299,27 @@ const styles = StyleSheet.create({
   moveTopRow: {
     alignItems: 'baseline',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
+    rowGap: gap.xs,
   },
   // 10.5px uppercase tracked muted (web tracking-[0.12em]).
   moveKind: {
+    flexShrink: 1,
     fontSize: 10.5,
     fontWeight: '600',
     letterSpacing: 1.3,
+    maxWidth: '100%',
     textTransform: 'uppercase',
   },
   // 12px tabular delta — terracotta when active, calm green otherwise.
   moveDelta: {
+    flexShrink: 1,
     fontSize: 12,
     fontVariant: ['tabular-nums'],
     fontWeight: '600',
+    maxWidth: '100%',
+    textAlign: 'right',
   },
   // 14.5px medium move title, mt-0.5.
   moveTitle: {
@@ -1327,8 +1345,10 @@ const styles = StyleSheet.create({
   // The talk-through link — mt-3, self-start, underlined offset (web underline-offset-2).
   talkLink: {
     alignSelf: 'flex-start',
+    justifyContent: 'center',
     marginTop: gap.md,
-    paddingVertical: 4,
+    minHeight: 44,
+    paddingVertical: gap.xs,
   },
   talkLinkText: {
     fontSize: 12,
@@ -1338,25 +1358,31 @@ const styles = StyleSheet.create({
   meloAside: {
     marginTop: gap.lg,
   },
-  // Primary CTA — full width, h-[54px], 2xl radius (the fill is applied inline by picked state).
+  // Primary CTA — full width, min h-[56px], 2xl radius (the fill is applied inline by picked state).
   primary: {
     alignItems: 'center',
     borderRadius: radius.xxl,
-    height: 54,
     justifyContent: 'center',
     marginBottom: gap.md,
     marginTop: gap.lg + gap.xs,
+    minHeight: 56,
+    paddingHorizontal: gap.md,
+    paddingVertical: gap.sm,
+    width: '100%',
   },
   primaryLabel: {
     fontSize: 15,
     fontWeight: '500',
   },
-  // Secondary — h-[44px], a quiet muted label.
+  // Secondary — min h-[44px], a quiet muted label.
   secondary: {
     alignItems: 'center',
-    height: 44,
     justifyContent: 'center',
     marginBottom: gap.xl,
+    minHeight: 44,
+    paddingHorizontal: gap.xs,
+    paddingVertical: gap.xs,
+    width: '100%',
   },
   secondaryLabel: {
     fontSize: 13,
