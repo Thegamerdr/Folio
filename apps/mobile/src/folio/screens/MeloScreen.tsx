@@ -511,44 +511,44 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
 
         {/* Plumage — word + segmented meter + one honest whisper. */}
         <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: t.ink }]}>Plumage</Text>
-              <Text style={[styles.sectionHint, { color: t.muted }]}>LIVE · MONEY HEALTH</Text>
-            </View>
-            <View style={styles.plumageRow}>
-              <Text
-                style={[
-                  styles.plumageWord,
-                  { color: t.ink, textTransform: health.scored ? 'capitalize' : 'none' },
-                ]}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: t.ink }]}>Plumage</Text>
+            <Text style={[styles.sectionHint, { color: t.muted }]}>LIVE · MONEY HEALTH</Text>
+          </View>
+          <View style={styles.plumageRow}>
+            <Text
+              style={[
+                styles.plumageWord,
+                { color: t.ink, textTransform: health.scored ? 'capitalize' : 'none' },
+              ]}
+            >
+              {health.scored
+                ? plumage
+                : health.presentation.complete
+                  ? health.presentation.label
+                  : 'Based on what you’ve added so far.'}
+            </Text>
+            {health.scored ? (
+              <View
+                style={styles.plumageMeter}
+                accessibilityLabel={`plumage ${plumage}, ${dotCount} of 4`}
               >
-                {health.scored
-                  ? plumage
-                  : health.presentation.complete
-                    ? health.presentation.label
-                    : 'Based on what you’ve added so far.'}
-              </Text>
-              {health.scored ? (
-                <View
-                  style={styles.plumageMeter}
-                  accessibilityLabel={`plumage ${plumage}, ${dotCount} of 4`}
-                >
-                  <Text style={[styles.plumageCount, { color: t.muted }]}>{dotCount}/4</Text>
-                  <View style={styles.plumageTrack}>
-                    {[0, 1, 2, 3].map((i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.plumageSegment,
-                          { backgroundColor: i < dotCount ? t.calm : t.inset },
-                        ]}
-                      />
-                    ))}
-                  </View>
+                <Text style={[styles.plumageCount, { color: t.muted }]}>{dotCount}/4</Text>
+                <View style={styles.plumageTrack}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.plumageSegment,
+                        { backgroundColor: i < dotCount ? t.calm : t.inset },
+                      ]}
+                    />
+                  ))}
                 </View>
-              ) : null}
-            </View>
-            <Text style={[styles.plumageCaption, { color: t.muted }]}>{health.caption}</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={[styles.plumageCaption, { color: t.muted }]}>{health.caption}</Text>
         </View>
 
         <View style={styles.section}>
