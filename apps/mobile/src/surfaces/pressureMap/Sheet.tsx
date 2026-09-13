@@ -111,6 +111,8 @@ type SheetProps = {
   bodyContentInset?: number;
   /** Let text-only scroll surfaces own their native content range without an intermediate ref box. */
   directScrollContent?: boolean;
+  /** Optional measured floor for an alert's native scroll content; ordinary sheets leave it off. */
+  contentMinHeight?: number | undefined;
 };
 
 type SheetPortalApi = {
@@ -333,6 +335,7 @@ export function Sheet({
   focusContextAfter = 0,
   bodyContentInset = 0,
   directScrollContent = false,
+  contentMinHeight,
 }: SheetProps) {
   const { height, width } = useWindowDimensions();
   const localInsets = useSafeAreaInsets();
@@ -698,7 +701,10 @@ export function Sheet({
                   // The footer is already a sibling below this viewport. Adding
                   // its full height again as content padding can consume the
                   // entire S9 typing area and collapse intrinsic form rows.
-                  contentContainerStyle={layout.scrollContent}
+                  contentContainerStyle={[
+                    layout.scrollContent,
+                    contentMinHeight != null ? { minHeight: contentMinHeight } : undefined,
+                  ]}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="none"
                   automaticallyAdjustKeyboardInsets={false}
@@ -802,6 +808,7 @@ export function Sheet({
       bodyScrollRef,
       bodyContentInset,
       directScrollContent,
+      contentMinHeight,
       handleClose,
       insets.bottom,
       insets.top,
