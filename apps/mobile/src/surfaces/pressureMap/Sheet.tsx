@@ -434,6 +434,7 @@ export function Sheet({
   const anchorOffset = useRef(0);
   const terminalImeIntent = useRef(false);
   const terminalImeRestore = useRef(false);
+  const terminalImeReaderOverride = useRef(false);
   const keepFocusedInputVisible = useCallback(() => {
     const generation = ++focusMeasurement.current;
     if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
@@ -444,7 +445,8 @@ export function Sheet({
       const terminalAlignmentRequested =
         imeOverflowPolicy === 'scrollBodyToFocusedTerminal' &&
         ((terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled) ||
-          terminalImeRestore.current);
+          terminalImeRestore.current) &&
+        !terminalImeReaderOverride.current;
       if (geometryLogging) {
         console.info(
           'MeloSheetGeometry',
@@ -461,6 +463,9 @@ export function Sheet({
       // Layout/keyboard callbacks can arrive after navigation has released focus.
       // Never enter native measurement with a stale null input handle.
       if (!visible || !bodyScrollable || !body || (!terminalAlignmentRequested && !focused)) return;
+      // The local terminal policy owns scrolling only while terminal alignment is active.
+      // A focused reader must retain its anchor during IME/layout settlement.
+      if (imeOverflowPolicy === 'scrollBodyToFocusedTerminal' && !terminalAlignmentRequested) return;
       const bodyNative = body.getNativeScrollRef();
       const content = contentRef.current;
       if (!bodyNative || !content) return;
@@ -553,13 +558,14 @@ export function Sheet({
     const terminalAlignmentEnabledNow =
       terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled;
     if (keyboardMetrics && imeOverflowPolicy === 'scrollBodyToFocusedTerminal') {
+      terminalImeReaderOverride.current = false;
       terminalImeIntent.current = terminalAlignmentEnabledNow;
     }
     if (!keyboardMetrics && lastKeyboardVisible.current && bodyScrollable) {
       const terminalAlignmentRequested =
         imeOverflowPolicy === 'scrollBodyToFocusedTerminal' &&
         (terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled);
-      if (terminalAlignmentRequested || terminalImeIntent.current) {
+      if (!terminalImeReaderOverride.current && (terminalAlignmentRequested || terminalImeIntent.current)) {
         terminalImeRestore.current = true;
         keepFocusedInputVisible();
         terminalImeIntent.current = false;
@@ -833,6 +839,12 @@ export function Sheet({
                         }),
                       );
                     }
+                  }}
+                  onScrollBeginDrag={() => {
+                    // A deliberate reader drag supersedes the terminal intent captured at IME open.
+                    terminalImeReaderOverride.current = true;
+                    terminalImeIntent.current = false;
+                    terminalImeRestore.current = false;
                   }}
                   scrollEventThrottle={16}
                   showsVerticalScrollIndicator
