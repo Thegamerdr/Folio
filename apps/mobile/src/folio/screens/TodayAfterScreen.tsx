@@ -169,8 +169,10 @@ export function TodayAfterScreen({
     }
     enter.value = withTiming(1, { duration: 360, easing: EASE_OUT_EXPO });
   }, [enter, reduceMotion]);
+  // Visibility must not depend on the entrance animation completing. Native animation scheduling can
+  // be delayed or dropped during a route replacement; the saved result remains readable immediately.
+  // Keep the authored horizontal settle as a visual refinement only.
   const enterStyle = useAnimatedStyle(() => ({
-    opacity: enter.value,
     transform: [{ translateX: 28 * (1 - enter.value) }],
   }));
 
