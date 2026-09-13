@@ -271,6 +271,7 @@ export function PdfSuccessScreen({
   // `statement` prop still wins for fixtures/tests.
   const staged = useReaderCandidates();
   const firstEvidenceId = staged[0]?.sourceEvidenceId;
+  const activeWorkspaceId = useAppStore((current) => current.activeWorkspaceId);
   const evidenceFilename = useAppStore(
     (current) =>
       current.evidenceDocuments?.find((document) => document.id === firstEvidenceId)?.filename,
@@ -283,7 +284,12 @@ export function PdfSuccessScreen({
   const reviewSessions = useStatementReviewSessions();
   const canResumeReview =
     reviewSourceKey !== undefined &&
-    reviewSessions.some((session) => session.sourceKey === reviewSourceKey && session.candidates.length > 0);
+    reviewSessions.some(
+      (session) =>
+        session.sourceKey === reviewSourceKey &&
+        session.candidates.length > 0 &&
+        (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)),
+    );
   const statement: FoundStatement =
     statementProp ??
     (staged.length > 0 ? liveStatementFrom(staged, evidenceFilename) : EMPTY_FOUND);

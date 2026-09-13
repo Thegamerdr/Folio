@@ -288,10 +288,16 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
       'business',
   );
   const waiting = useAppStore((current) => current.reviewQueue ?? []);
+  const activeWorkspaceId = useAppStore((current) => current.activeWorkspaceId);
   const statementSessions = useStatementReviewSessions();
   const waitingStatementSessions = useMemo(
-    () => statementSessions.filter((session) => session.candidates.length > 0 || session.receipt !== undefined),
-    [statementSessions],
+    () =>
+      statementSessions.filter(
+        (session) =>
+          (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)) &&
+          (session.candidates.length > 0 || session.receipt !== undefined),
+      ),
+    [activeWorkspaceId, statementSessions],
   );
   const waitingRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);

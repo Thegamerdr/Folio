@@ -152,7 +152,12 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
     (state) => (state.reviewQueue?.length ?? 0) + (state.reviewQueueSpillover?.length ?? 0),
   );
   const statementReviewSessions = useStatementReviewSessions();
-  const resumableStatements = statementReviewSessions.filter((session) => session.candidates.length > 0);
+  const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const resumableStatements = statementReviewSessions.filter(
+    (session) =>
+      (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)) &&
+      session.candidates.length > 0,
+  );
   const pendingCount = queueCount + resumableStatements.reduce((total, session) => total + session.candidates.length, 0);
   const hiddenCount = useAppStore((state) => state.ignoredReviewSigs?.length ?? 0);
   const transactions = useAppStore((state) => state.transactions);

@@ -239,6 +239,7 @@ export function ImageSuccessScreen({
   // prop still wins (fixtures / tests).
   const staged = useReaderCandidates();
   const firstEvidenceId = staged[0]?.sourceEvidenceId;
+  const activeWorkspaceId = useAppStore((current) => current.activeWorkspaceId);
   const evidenceFilename = useAppStore(
     (current) =>
       current.evidenceDocuments?.find((document) => document.id === firstEvidenceId)?.filename,
@@ -249,7 +250,12 @@ export function ImageSuccessScreen({
   const reviewSessions = useStatementReviewSessions();
   const canResumeReview =
     reviewSourceKey !== undefined &&
-    reviewSessions.some((session) => session.sourceKey === reviewSourceKey && session.candidates.length > 0);
+    reviewSessions.some(
+      (session) =>
+        session.sourceKey === reviewSourceKey &&
+        session.candidates.length > 0 &&
+        (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)),
+    );
   const image: FoundImage =
     imageProp ??
     (staged.length > 0

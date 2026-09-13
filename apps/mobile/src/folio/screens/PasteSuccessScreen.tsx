@@ -97,6 +97,7 @@ import {
   enqueueReviewItems,
   getState,
   queueInputFromCandidates,
+  useAppStore,
   useReaderCandidates,
   useStatementReviewSessions,
 } from '@/folio/store';
@@ -215,10 +216,16 @@ export function PasteSuccessScreen({
   // cleared only after the candidates move into the persisted review queue.
   const staged = useReaderCandidates();
   const reviewSessions = useStatementReviewSessions();
+  const activeWorkspaceId = useAppStore((current) => current.activeWorkspaceId);
   const canResumeReview =
     sourceReturn === undefined &&
     reviewSourceKey !== undefined &&
-    reviewSessions.some((session) => session.sourceKey === reviewSourceKey && session.candidates.length > 0);
+    reviewSessions.some(
+      (session) =>
+        session.sourceKey === reviewSourceKey &&
+        session.candidates.length > 0 &&
+        (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)),
+    );
   const initialDraft = sourceReturn?.rawText ?? pasteText ?? '';
   const [draft, setDraft] = useState(initialDraft);
   const [submittedDraft, setSubmittedDraft] = useState(pasteText ?? '');
@@ -417,7 +424,10 @@ export function PasteSuccessScreen({
     candidates[0]?.source === 'paste' ||
     (canResumeReview &&
       reviewSessions.some(
-        (session) => session.sourceKey === reviewSourceKey && session.candidates[0]?.source === 'paste',
+        (session) =>
+          session.sourceKey === reviewSourceKey &&
+          session.candidates[0]?.source === 'paste' &&
+          (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)),
       ));
   if (isPasteSource && reviewSourceKey === undefined && pasteSourceIdentityRef.current === undefined) {
     pasteSourceIdentityRef.current = `paste:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
