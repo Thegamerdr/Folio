@@ -63,7 +63,7 @@ import { gap, radius, serif, useTheme } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { showStatusDialog } from '@/folio/ui/statusDialogs';
-import { openEvidenceDocument } from '@/folio/lib/documentVault';
+import { openEvidenceDocument, verifyEvidenceDocument } from '@/folio/lib/documentVault';
 import {
   consumeReaderFallbackEvidenceId,
   consumeReaderFallbackReason,
@@ -148,6 +148,16 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
     }
     return undefined;
   });
+  const [evidenceReadable, setEvidenceReadable] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setEvidenceReadable(false);
+    if (workspace === undefined || evidenceDocument === undefined) return () => { active = false; };
+    void verifyEvidenceDocument(workspace, evidenceDocument).then((readable) => {
+      if (active) setEvidenceReadable(readable);
+    });
+    return () => { active = false; };
+  }, [evidenceDocument, workspace]);
   const fileName = file?.fileName ?? evidenceDocument?.filename ?? 'Selected file';
 
   const openSource = () => {
@@ -279,7 +289,7 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
 
         {/* Secondary row — encrypted original + the manual last-resort workbench. */}
         <View style={styles.secondaryRow}>
-          {evidenceDocument !== undefined ? <Pressable
+          {evidenceDocument !== undefined && evidenceReadable ? <Pressable
             accessibilityRole="button"
             accessibilityLabel="View file"
             onPress={openSource}

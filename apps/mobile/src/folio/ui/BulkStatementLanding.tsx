@@ -533,15 +533,19 @@ export function BulkStatementLanding({
     summary,
   ]);
 
-  async function persistReceiptDurably(workspaceId: typeof activeWorkspaceId) {
-    const resumePersistence = await quiescePersistenceWrites();
+  async function persistReceiptDurably(
+    workspaceId: typeof activeWorkspaceId,
+    heldResumePersistence?: () => void,
+  ) {
+    const ownsResumePersistence = heldResumePersistence === undefined;
+    const resumePersistence = heldResumePersistence ?? (await quiescePersistenceWrites());
     try {
       await persistCurrentStateNow(workspaceId);
       if (getState().activeWorkspaceId !== workspaceId) {
         throw new Error('Statement review workspace changed before receipt durability completed.');
       }
     } finally {
-      resumePersistence();
+      if (ownsResumePersistence) resumePersistence();
     }
   }
 
@@ -719,9 +723,16 @@ export function BulkStatementLanding({
     setReceiptPending(true);
     setReceiptPersistenceError(false);
     setReceiptWorkspaceId(activeWorkspaceId);
-    const beforeCommitBlob = getPersistBlob(activeWorkspaceId);
+    let beforeCommitBlob = getPersistBlob(activeWorkspaceId);
     let attemptBlob = beforeCommitBlob;
+    let resumePersistence: (() => void) | null = null;
     try {
+      // Admission is acquired before the synchronous ledger mutation. This prevents an explicit
+      // workspace switch/receipt operation from taking the persistence boundary while this add is
+      // publishing its receipt and history rows.
+      resumePersistence = await quiescePersistenceWrites();
+      beforeCommitBlob = getPersistBlob(activeWorkspaceId);
+      attemptBlob = beforeCommitBlob;
       const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;
       const result = addStatementAsHistory(
         selected,
@@ -747,7 +758,7 @@ export function BulkStatementLanding({
         keptAsideIds: [...asideIds],
       });
       try {
-        await persistReceiptDurably(activeWorkspaceId);
+        await persistReceiptDurably(activeWorkspaceId, resumePersistence);
         if (getState().activeWorkspaceId !== activeWorkspaceId) {
           throw new Error(
             'Statement review workspace changed before receipt durability completed.',
@@ -798,6 +809,7 @@ export function BulkStatementLanding({
       setReceiptPersistenceError(false);
       setCommitError(true);
     } finally {
+      resumePersistence?.();
       setAdding(false);
     }
   }

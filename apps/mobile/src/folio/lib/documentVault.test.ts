@@ -92,6 +92,7 @@ import {
   evidenceRetentionFailureCopy,
   openEvidenceDocument,
   retainEvidenceDocument,
+  verifyEvidenceDocument,
 } from './documentVault';
 import { workspaceEvidenceFilename } from './workspacePartition';
 import { createPersonalWorkspaceRoot } from './workspaceRoot';
@@ -175,6 +176,25 @@ describe('encrypted document vault', () => {
     for (const listener of native.appStateListeners) listener('active');
     await Promise.resolve();
     expect([...native.files.keys()].some((uri) => uri.includes('melo-evidence-view-'))).toBe(false);
+  });
+
+  it('reports readability only for the selected authenticated retained source', async () => {
+    const document = await retainEvidenceDocument({
+      workspace,
+      source: {
+        uri: sourceUri,
+        filename: 'current-account-june.pdf',
+        mediaType: 'application/pdf',
+        byteSize: sourceBytes.byteLength,
+        storageState: 'copied_to_app_cache',
+      },
+      sourceType: 'document',
+      extractionStatus: 'read',
+    });
+
+    await expect(verifyEvidenceDocument(workspace, document)).resolves.toBe(true);
+    native.files.delete(`file:///documents/${workspaceEvidenceFilename(workspace.id, document.id)}`);
+    await expect(verifyEvidenceDocument(workspace, document)).resolves.toBe(false);
   });
 
   it('rejects a ciphertext swapped onto a different evidence row before opening it', async () => {
