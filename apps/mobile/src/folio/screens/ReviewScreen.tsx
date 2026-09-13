@@ -60,8 +60,25 @@ import { MeloFigure } from '@/folio/melo/MeloFigure';
 // frame / card labels / chips / CTAs are @copy FROZEN inline literals (not keyed in COPY_DECK); the
 // Melo line is its own frozen literal.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+  type RefObject,
+} from 'react';
+import {
+  AccessibilityInfo,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -186,6 +203,12 @@ export type ReviewScreenProps = {
   state?: ReviewState;
   /** The pinned Review tab mounts this decision surface in place, without a second safe area/header. */
   embedded?: boolean;
+  /** ReviewHub owns the surrounding vertical scroll region when this is true. */
+  embeddedScrollOwner?: boolean;
+  /** When embedded, the parent supplies the single scroll owner for IME reveal. */
+  embeddedScrollRef?: RefObject<ScrollView | null>;
+  embeddedScrollYRef?: MutableRefObject<number>;
+  availableViewportHeight?: number | undefined;
 };
 
 // The stamp's signature curve — the web's cubic-bezier(.34, 1.56, .64, 1) (a soft overshoot).
@@ -374,16 +397,35 @@ export function ReviewScreen({
   candidate: candidateProp,
   state = 'populated',
   embedded = false,
+  embeddedScrollOwner = false,
+  embeddedScrollRef,
+  embeddedScrollYRef,
+  availableViewportHeight,
 }: ReviewScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const reduceMotion = useReduceMotion();
+  const [availableRootHeight, setAvailableRootHeight] = useState<number | null>(null);
   const workspaceKind = useAppStore(
     (current) =>
       current.workspaces.find((workspace) => workspace.id === current.activeWorkspaceId)?.kind ??
       'personal',
   );
   const isBusiness = workspaceKind === 'business';
+  const reservedReviewChrome = embedded ? 68 : 0; // rail plus its reserved top/bottom band
+  const availableHeight =
+    availableViewportHeight ??
+    availableRootHeight ??
+    windowHeight - insets.top - insets.bottom - reservedReviewChrome;
+  const showEmptyCompanion = availableHeight >= 200;
+  const onEmbeddedRootLayout = useCallback(
+    (event: { nativeEvent: { layout: { height: number } } }) => {
+      const height = event.nativeEvent.layout.height;
+      if (height > 0) setAvailableRootHeight(height);
+    },
+    [],
+  );
   const categories: readonly Category[] = isBusiness ? BUSINESS_CATEGORIES : PERSONAL_CATEGORIES;
   const workspace = useAppStore(
     (current) =>
@@ -691,27 +733,33 @@ export function ReviewScreen({
     focusFrame.current = requestAnimationFrame(() => {
       focusFrame.current = null;
       const focused = TextInput.State.currentlyFocusedInput();
-      const body = reviewBody.current;
+      const body = embeddedScrollOwner ? (embeddedScrollRef?.current ?? null) : reviewBody.current;
       const native = body?.getNativeScrollRef();
       if (!embedded || !focused || !body || !native) return;
       native.measureInWindow((_x, bodyTop, _width, bodyHeight) => {
         focused.measureInWindow((_inputX, inputTop, _inputWidth, inputHeight) => {
           if (TextInput.State.currentlyFocusedInput() !== focused) return;
           const nextY = resolveSheetFocusedScroll({
-            scrollY: reviewScrollY.current,
+            scrollY: embeddedScrollOwner
+              ? (embeddedScrollYRef?.current ?? 0)
+              : reviewScrollY.current,
             inputTop,
             inputHeight,
             bodyTop,
             bodyHeight,
           });
-          if (Math.abs(nextY - reviewScrollY.current) > 1) {
+          const currentScrollY = embeddedScrollOwner
+            ? (embeddedScrollYRef?.current ?? 0)
+            : reviewScrollY.current;
+          if (Math.abs(nextY - currentScrollY) > 1) {
             reviewScrollY.current = nextY;
+            if (embeddedScrollOwner && embeddedScrollYRef) embeddedScrollYRef.current = nextY;
             body.scrollTo({ y: nextY, animated: !reduceMotion });
           }
         });
       });
     });
-  }, [embedded, reduceMotion]);
+  }, [embedded, embeddedScrollOwner, embeddedScrollRef, embeddedScrollYRef, reduceMotion]);
   const onReviewInputFocus = useCallback(() => {
     keepReviewInputVisible();
   }, [keepReviewInputVisible]);
@@ -736,16 +784,26 @@ export function ReviewScreen({
 
     if (state === 'empty' || !hasRealCandidate) {
       return (
-        <View style={[sourceStyles.root, { backgroundColor: t.canvas }]}>
-          <MeloScrollView
+        <View
+          style={[
+            sourceStyles.root,
+            embeddedScrollOwner ? sourceStyles.embeddedRoot : undefined,
+            { backgroundColor: t.canvas },
+          ]}
+          onLayout={onEmbeddedRootLayout}
+        >
+          <ReviewBodyContainer
+            scroll={!embeddedScrollOwner}
             contentContainerStyle={sourceStyles.emptyContent}
             showsVerticalScrollIndicator
             persistentScrollbar
           >
             <View style={sourceStyles.emptyRow}>
-              <View style={sourceStyles.emptyMelo}>
-                <MeloFigure scrollOwner role="empty" mood="calm" />
-              </View>
+              {showEmptyCompanion ? (
+                <View style={sourceStyles.emptyCompanion}>
+                  <MeloFigure scrollOwner role="empty" mood="calm" />
+                </View>
+              ) : null}
               <View style={sourceStyles.emptyCopy}>
                 <Text style={[sourceStyles.emptyHeadline, { color: t.ink }]}>
                   Nothing waiting to be <Text style={{ color: t.calm }}>checked</Text>.
@@ -785,7 +843,7 @@ export function ReviewScreen({
                 </Text>
               </Pressable>
             ) : null}
-          </MeloScrollView>
+          </ReviewBodyContainer>
         </View>
       );
     }
@@ -797,10 +855,18 @@ export function ReviewScreen({
     const hidden = (getState().ignoredReviewSigs ?? []).length;
 
     return (
-      <View style={[sourceStyles.root, { backgroundColor: t.canvas }]}>
-        <MeloScrollView
-          ref={reviewBody}
-          style={sourceStyles.body}
+      <View
+        style={[
+          sourceStyles.root,
+          embeddedScrollOwner ? sourceStyles.embeddedRoot : undefined,
+          { backgroundColor: t.canvas },
+        ]}
+        onLayout={onEmbeddedRootLayout}
+      >
+        <ReviewBodyContainer
+          scroll={!embeddedScrollOwner}
+          ref={embeddedScrollOwner ? undefined : reviewBody}
+          style={embeddedScrollOwner ? sourceStyles.nonScrollingBody : sourceStyles.body}
           onLayout={keepReviewInputVisible}
           onScroll={(event) => {
             reviewScrollY.current = event.nativeEvent.contentOffset.y;
@@ -939,7 +1005,7 @@ export function ReviewScreen({
               </Text>
             </View>
           ) : null}
-        </MeloScrollView>
+        </ReviewBodyContainer>
 
         {/* Shell owns keyboard/system insets. This footer stays inside its resized viewport. */}
         <View
@@ -1459,6 +1525,44 @@ function BackArrow({ color }: { color: string }) {
   );
 }
 
+type ReviewBodyContainerProps = {
+  scroll: boolean;
+  children: ReactNode;
+  style?: object;
+  contentContainerStyle?: object;
+  onLayout?: (event: any) => void;
+  onScroll?: (event: any) => void;
+  scrollEventThrottle?: number;
+  keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
+  showsVerticalScrollIndicator?: boolean;
+  persistentScrollbar?: boolean;
+};
+
+/** Embedded ReviewHub uses the parent's ScrollView as its only vertical owner. */
+const ReviewBodyContainer = forwardRef<ScrollView, ReviewBodyContainerProps>(
+  function ReviewBodyContainer({ scroll, children, contentContainerStyle, ...props }, ref) {
+    const assignRef = (node: ScrollView | null) => {
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    };
+    if (!scroll) {
+      return (
+        <View
+          style={[props.style, contentContainerStyle, { flexGrow: 0 }]}
+          onLayout={props.onLayout}
+        >
+          {children}
+        </View>
+      );
+    }
+    return (
+      <MeloScrollView {...props} ref={assignRef} contentContainerStyle={contentContainerStyle}>
+        {children}
+      </MeloScrollView>
+    );
+  },
+);
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -1811,7 +1915,9 @@ const styles = StyleSheet.create({
 // the parity recovery does not mutate shared kit/shell tokens while another lane calibrates them.
 const sourceStyles = StyleSheet.create({
   root: { flex: 1, minHeight: 0 },
+  embeddedRoot: { flex: 0 },
   body: { flex: 1, minHeight: 0 },
+  nonScrollingBody: { flexGrow: 0, flexShrink: 0 },
   actionFooter: {
     flexShrink: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -1834,10 +1940,16 @@ const sourceStyles = StyleSheet.create({
     justifyContent: 'center',
     paddingBottom: gap.xl,
     paddingHorizontal: gap.xl,
-    paddingTop: gap.lg,
+    paddingTop: gap.xl + gap.sm,
   },
-  emptyRow: { alignItems: 'center', gap: 16 },
-  emptyMelo: { alignItems: 'center', height: 112, justifyContent: 'center', width: 112 },
+  emptyRow: { alignItems: 'center' },
+  emptyCompanion: {
+    alignItems: 'center',
+    height: 160,
+    justifyContent: 'center',
+    marginBottom: gap.xl,
+    width: '100%',
+  },
   emptyCopy: { alignSelf: 'stretch', minWidth: 0 },
   emptyHeadline: { fontFamily: serif.display, fontSize: 28, lineHeight: 32, textAlign: 'center' },
   emptyBody: { fontSize: 14, lineHeight: 22, marginTop: gap.md, textAlign: 'center' },

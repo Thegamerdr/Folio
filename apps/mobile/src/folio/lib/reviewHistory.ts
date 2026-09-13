@@ -72,6 +72,9 @@ export type DecisionHistoryRow = {
   field?: StoredTxnEdit['field'];
   before?: StoredTxnEdit['before'];
   after?: StoredTxnEdit['after'];
+  /** Present for an activity row backed by a real transaction; absent for non-money decisions. */
+  amount?: number;
+  category?: Transaction['category'];
   note?: string;
 };
 
@@ -93,6 +96,7 @@ export function buildDecisionHistoryRows(args: {
 }): DecisionHistoryRow[] {
   const { transactions, edits, events, subscriptions } = args;
   const titles = new Map(transactions.map((transaction) => [transaction.id, transaction.merchant]));
+  const transactionById = new Map(transactions.map((transaction) => [transaction.id, transaction]));
 
   const transactionRows: DecisionHistoryRow[] = transactions.map((transaction) => ({
     id: `added:${transaction.id}`,
@@ -103,6 +107,8 @@ export function buildDecisionHistoryRows(args: {
     kind: 'added',
     title: transaction.merchant,
     transactionId: transaction.id,
+    amount: transaction.amount,
+    category: transaction.category,
   }));
 
   const editRows: DecisionHistoryRow[] = edits.map((edit, index) => ({
@@ -114,6 +120,12 @@ export function buildDecisionHistoryRows(args: {
     field: edit.field,
     before: edit.before,
     after: edit.after,
+    ...(transactionById.get(edit.txnId)?.amount !== undefined
+      ? { amount: transactionById.get(edit.txnId)!.amount }
+      : {}),
+    ...(transactionById.get(edit.txnId)?.category !== undefined
+      ? { category: transactionById.get(edit.txnId)!.category }
+      : {}),
   }));
 
   const eventRows: DecisionHistoryRow[] = events.flatMap((event): DecisionHistoryRow[] => {

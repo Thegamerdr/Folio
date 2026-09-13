@@ -51,6 +51,12 @@ describe('review history projections', () => {
     expect(rows[1]).toMatchObject({ kind: 'added', title: 'Cafe' });
   });
 
+  it('carries the real money facts into activity rows for accessible log projections', () => {
+    const tx = transaction('txn-facts', '2026-08-01T10:00:00.000Z', 'Grocer');
+    const row = buildDecisionHistoryRows({ transactions: [tx], edits: [], events: [] })[0]!;
+    expect(row).toMatchObject({ amount: -42, category: 'other' });
+  });
+
   it('maps ignored and subscription events without inventing details', () => {
     const events: TimelineEvent[] = [
       {

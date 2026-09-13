@@ -4,8 +4,17 @@
 // The Review tab is deliberately a small composition: one canonical segmented control and the
 // existing one-decision Review surface mounted in place. It is not a second queue dashboard.
 
-import { memo, useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import {
+  AccessibilityInfo,
+  findNodeHandle,
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
@@ -23,6 +32,9 @@ import { formatGBP } from '@/folio/screens/today/format';
 import { useAppStore, useStatementReviewSessions } from '@/folio/store';
 import { gap, radius, serif, useTheme } from '@/folio/theme';
 import type { Nav } from '@/folio/types';
+import { ReviewTimelineTabRail } from '@/folio/ui/ReviewTimelineTabRail';
+import { useBottomChromeContentPadding } from '@/folio/shell/bottomChromeContext';
+import { useSheetOverlayActive } from '@/surfaces/pressureMap/Sheet';
 
 type ReviewHubTab = 'needs' | 'activity' | 'decisions';
 
@@ -39,7 +51,7 @@ function kindLabel(kind: DecisionHistoryKind): string {
     case 'added':
       return 'Added';
     case 'edited':
-      return 'Changed';
+      return 'Corrected';
     case 'ignored':
       return 'Put aside';
     case 'paused':
@@ -84,26 +96,41 @@ function DestinationLine({
   label,
   meta,
   onPress,
+  innerRef,
 }: {
   label: string;
   meta: string;
   onPress?: () => void;
+  innerRef?: RefObject<View | null> | undefined;
 }) {
   const t = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      disabled={onPress === undefined}
-      onPress={onPress}
-      style={({ pressed }) => [styles.destination, pressed ? styles.pressed : undefined]}
-    >
+  const content = (
+    <>
       <View style={styles.destinationCopy}>
         <Text style={[styles.destinationLabel, { color: t.ink }]}>{label}</Text>
         <Text style={[styles.destinationMeta, { color: t.muted }]}>{meta}</Text>
       </View>
-      <Chevron color={t.muted} />
+      {onPress ? (
+        <View style={styles.chevronSlot} pointerEvents="none">
+          <Chevron color={t.muted} />
+        </View>
+      ) : null}
+    </>
+  );
+  return onPress ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}. ${meta}`}
+      onPress={onPress}
+      ref={innerRef}
+      style={({ pressed }) => [styles.destination, pressed ? styles.pressed : undefined]}
+    >
+      {content}
     </Pressable>
+  ) : (
+    <View accessible accessibilityLabel={`${label}. ${meta}`} style={styles.destination}>
+      {content}
+    </View>
   );
 }
 
@@ -111,43 +138,82 @@ const HistoryRow = memo(function HistoryRow({
   row,
   onPress,
   actionLabel,
+  onBeforePress,
 }: {
   row: DecisionHistoryRow;
   onPress: (() => void) | undefined;
   actionLabel?: string | undefined;
+  onBeforePress?: (node: View | null) => void;
 }) {
   const t = useTheme();
+  const rowRef = useRef<View>(null);
   const detail =
     row.kind === 'edited' && row.field !== undefined
-      ? `${row.field} · ${formatValue(row.before)} → ${formatValue(row.after)}`
-      : row.note;
-  return (
-    <Pressable
-      accessibilityRole={onPress ? 'button' : undefined}
-      disabled={!onPress}
-      onPress={onPress}
-      style={({ pressed }) => [styles.historyRow, pressed ? styles.pressed : undefined]}
-    >
+      ? `${row.field} · ${formatValue(row.before)} → ${formatValue(row.after)}${row.amount !== undefined ? ` · ${formatGBP(row.amount)}` : ''}`
+      : row.kind === 'added' && row.amount !== undefined
+        ? formatGBP(row.amount)
+        : row.note;
+  const content = (
+    <>
       <View style={styles.historyMain}>
         <Text style={[styles.historyTitle, { color: t.ink }]}>{row.title}</Text>
         {detail ? <Text style={[styles.historyDetail, { color: t.muted }]}>{detail}</Text> : null}
-        {actionLabel ? (
-          <Text style={[styles.historyDetail, { color: t.calm }]}>{actionLabel} ›</Text>
-        ) : null}
       </View>
       <Text style={[styles.historyWhen, { color: t.muted }]}>
         {kindLabel(row.kind)} · {formatWhen(row.at)}
       </Text>
-    </Pressable>
+    </>
+  );
+  return onPress ? (
+    <View ref={rowRef} style={styles.historyRow}>
+      {content}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={actionLabel}
+        accessibilityHint={`${kindLabel(row.kind)} ${row.title}${row.amount !== undefined ? `, ${formatGBP(row.amount)}` : ''}, ${formatWhen(row.at)}`}
+        onPress={() => {
+          onBeforePress?.(rowRef.current);
+          onPress();
+        }}
+        style={({ pressed }) => [styles.historyAction, pressed ? styles.pressed : undefined]}
+      >
+        <Text style={[styles.historyActionText, { color: t.calm }]}>{actionLabel} ›</Text>
+      </Pressable>
+    </View>
+  ) : (
+    <View
+      ref={rowRef}
+      accessible
+      accessibilityLabel={`${row.title}. ${row.amount !== undefined ? `${formatGBP(row.amount)}. ` : ''}${kindLabel(row.kind)} · ${formatWhen(row.at)}`}
+      style={styles.historyRow}
+    >
+      {content}
+    </View>
   );
 });
 
 export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
   const t = useTheme();
-  const { width, fontScale } = useWindowDimensions();
-  const stackDestinations = width / fontScale < 280;
   const insets = useSafeAreaInsets();
+  const contentBottomPadding = useBottomChromeContentPadding();
+  const sheetOverlayActive = useSheetOverlayActive();
+  const previousSheetOverlay = useRef(false);
+  const originRef = useRef<View | null>(null);
+  const firstWaitingRef = useRef<View>(null);
+  const waitingAnnouncedRef = useRef(false);
+  const [needsViewportHeight, setNeedsViewportHeight] = useState<number | undefined>();
   const [tab, setTab] = useState<ReviewHubTab>('needs');
+  const tabOffsets = useRef<Record<ReviewHubTab, number>>({ needs: 0, activity: 0, decisions: 0 });
+  const needsScroll = useRef<ScrollView>(null);
+  const needsScrollY = useRef(0);
+  const historyList = useRef<FlatList<DecisionHistoryRow>>(null);
+  useEffect(() => {
+    const offset = tabOffsets.current[tab];
+    requestAnimationFrame(() => {
+      if (tab === 'needs') needsScroll.current?.scrollTo({ y: offset, animated: false });
+      else historyList.current?.scrollToOffset({ offset, animated: false });
+    });
+  }, [tab]);
   const queueCount = useAppStore(
     (state) => (state.reviewQueue?.length ?? 0) + (state.reviewQueueSpillover?.length ?? 0),
   );
@@ -155,10 +221,29 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const resumableStatements = statementReviewSessions.filter(
     (session) =>
-      (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)) &&
-      session.candidates.length > 0,
+      (session.workspaceId === undefined ||
+        String(session.workspaceId) === String(activeWorkspaceId)) &&
+      (session.candidates.length > 0 || session.receipt !== undefined),
   );
-  const pendingCount = queueCount + resumableStatements.reduce((total, session) => total + session.candidates.length, 0);
+  const firstWaiting = resumableStatements[0];
+  useEffect(() => {
+    if (!waitingAnnouncedRef.current && resumableStatements.length > 0) {
+      waitingAnnouncedRef.current = true;
+      AccessibilityInfo.announceForAccessibility(
+        "An earlier statement is still waiting for you. Open what's waiting, button.",
+      );
+    }
+  }, [resumableStatements.length]);
+  useEffect(() => {
+    if (previousSheetOverlay.current && !sheetOverlayActive && originRef.current) {
+      const node = findNodeHandle(originRef.current);
+      if (node !== null) AccessibilityInfo.setAccessibilityFocus(node);
+    }
+    previousSheetOverlay.current = sheetOverlayActive;
+  }, [sheetOverlayActive]);
+  const pendingCount =
+    queueCount +
+    resumableStatements.reduce((total, session) => total + session.candidates.length, 0);
   const hiddenCount = useAppStore((state) => state.ignoredReviewSigs?.length ?? 0);
   const transactions = useAppStore((state) => state.transactions);
   const subscriptions = useAppStore((state) => state.subs);
@@ -194,6 +279,9 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
                 }
               : undefined
           }
+          onBeforePress={(node) => {
+            originRef.current = node;
+          }}
         />
       );
     },
@@ -202,78 +290,109 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
 
   return (
     <View style={[styles.root, { backgroundColor: t.canvas, paddingTop: insets.top + gap.lg }]}>
-      <View style={styles.segmentInset}>
-        <View
-          accessibilityLabel="Review destinations"
-          accessibilityRole="tablist"
-          style={[
-            styles.segmented,
-            { backgroundColor: t.inset },
-            stackDestinations ? { flexDirection: 'column' } : undefined,
-          ]}
+      <ReviewTimelineTabRail
+        accessibilityLabel="Review destinations"
+        value={tab}
+        options={TAB_LABELS.map(({ key, label }) => ({
+          key,
+          label,
+          ...(key === 'needs' && pendingCount > 0 ? { count: pendingCount } : {}),
+        }))}
+        onChange={setTab}
+      />
+
+      {tab === 'needs' ? (
+        <ScrollView
+          ref={needsScroll}
+          style={styles.screenHost}
+          onLayout={(event) => setNeedsViewportHeight(event.nativeEvent.layout.height)}
+          onScroll={(event) => {
+            const offset = event.nativeEvent.contentOffset.y;
+            tabOffsets.current.needs = offset;
+            needsScrollY.current = offset;
+          }}
+          scrollEventThrottle={16}
+          contentContainerStyle={[styles.needsContent, { paddingBottom: contentBottomPadding }]}
+          showsVerticalScrollIndicator={false}
         >
-          {TAB_LABELS.map(({ key, label }) => {
-            const selected = tab === key;
-            return (
+          <View style={styles.scopeBlock}>
+            <Text style={[styles.scopeLine, { color: t.muted }]}>
+              Statements you started. Nothing is added until you say so.
+            </Text>
+          </View>
+          {resumableStatements.length > 0 ? (
+            <View
+              accessibilityLiveRegion="polite"
+              style={[styles.waitingNotice, { borderColor: t.hairline }]}
+            >
+              <Text style={[styles.waitingNoticeText, { color: t.ink }]}>
+                An earlier statement is still waiting for you.
+              </Text>
               <Pressable
-                key={key}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                onPress={() => setTab(key)}
+                accessibilityRole="button"
+                accessibilityLabel="Open what's waiting"
+                onPress={() => {
+                  const node = findNodeHandle(firstWaitingRef.current);
+                  if (node !== null) AccessibilityInfo.setAccessibilityFocus(node);
+                  const first = resumableStatements[0];
+                  if (first !== undefined) {
+                    const source = String(
+                      first.candidates[0]?.source ?? first.sourceKey?.split(':')[0] ?? 'pdf',
+                    );
+                    const label =
+                      first.sourceLabel ?? (source === 'photo' ? 'Photo statement' : 'Statement');
+                    AccessibilityInfo.announceForAccessibility(
+                      `${label}. ${first.candidates.length} suggested. ${first.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`,
+                    );
+                  }
+                }}
                 style={({ pressed }) => [
-                  styles.segment,
-                  stackDestinations ? { flex: 0, alignSelf: 'stretch' } : undefined,
-                  selected
-                    ? {
-                        backgroundColor: t.surface,
-                        borderColor: t.hairline,
-                        borderWidth: StyleSheet.hairlineWidth,
-                      }
-                    : undefined,
+                  styles.waitingNoticeActionButton,
                   pressed ? styles.pressed : undefined,
                 ]}
               >
-                <Text style={[styles.segmentLabel, { color: selected ? t.ink : t.muted }]}>
-                  {label}
-                  {key === 'needs' && pendingCount > 0 ? (
-                    <Text style={[styles.segmentCount, { color: t.muted }]}> {pendingCount}</Text>
-                  ) : null}
+                <Text style={[styles.waitingNoticeAction, { color: t.calm }]}>
+                  Open what's waiting
                 </Text>
               </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {tab === 'needs' ? (
-        <View style={styles.screenHost}>
+            </View>
+          ) : null}
           {resumableStatements.length > 0 ? (
             <View style={styles.destinationList}>
               {resumableStatements.map((session) => {
-                const source = session.candidates[0]?.source ?? 'pdf';
+                const source =
+                  session.candidates[0]?.source ?? session.sourceKey?.split(':')[0] ?? 'pdf';
                 const sourceKind = String(source);
-                const destination = sourceKind === 'paste' || sourceKind === 'csv' || sourceKind === 'txt'
-                  ? 'paste-success'
-                  : sourceKind === 'photo' ? 'image-success' : 'pdf-success';
+                const destination =
+                  sourceKind === 'paste' || sourceKind === 'csv' || sourceKind === 'txt'
+                    ? 'paste-success'
+                    : sourceKind === 'photo'
+                      ? 'image-success'
+                      : 'pdf-success';
+                const sourceLabel =
+                  session.sourceLabel ?? (source === 'photo' ? 'Photo statement' : 'Statement');
+                const sourceMeta = `${session.candidates.length} suggested · ${session.receipt === undefined ? 'not added yet' : 'result not seen yet'}`;
                 return (
-                  <Pressable
+                  <DestinationLine
                     key={`${session.workspaceId ?? ''}:${session.sourceKey ?? ''}`}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${source} statement. ${session.candidates.length} suggested.`}
-                    onPress={() => nav.go(destination, {
-                      ...(session.sourceKey === undefined ? {} : { reviewSourceKey: session.sourceKey }),
-                    })}
-                    style={({ pressed }) => [styles.destination, pressed ? styles.pressed : undefined]}
-                  >
-                    <Text style={[styles.destinationLabel, { color: t.ink }]}>
-                      {session.sourceLabel ?? (source === 'photo' ? 'Photo statement' : 'Statement')}
-                    </Text>
-                    <Text style={[styles.destinationMeta, { color: t.muted }]}>
-                      {`${session.candidates.length} suggested · ${session.receipt === undefined ? 'not added yet' : 'result not seen yet'}`}
-                    </Text>
-                  </Pressable>
+                    label={sourceLabel}
+                    meta={sourceMeta}
+                    onPress={() =>
+                      nav.go(destination, {
+                        ...(session.sourceKey === undefined
+                          ? {}
+                          : { reviewSourceKey: session.sourceKey }),
+                      })
+                    }
+                    innerRef={session === firstWaiting ? firstWaitingRef : undefined}
+                  />
                 );
               })}
+              <DestinationLine
+                label="Add a statement"
+                meta="choose another source to review"
+                onPress={() => nav.go('intake')}
+              />
             </View>
           ) : null}
           {resumableStatements.length === 0 && caught ? (
@@ -296,18 +415,41 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
               </View>
             </View>
           ) : null}
-          <View style={styles.screenHost}>
-            {caught && pendingCount === 0 ? (
-              <Text style={{ color: t.muted, fontSize: 13, lineHeight: 20, padding: gap.xl }}>
-                Nothing else waiting.
-              </Text>
-            ) : (
-              <ReviewScreen embedded nav={nav} />
-            )}
-          </View>
-        </View>
+          {queueCount > 0 ? (
+            <View style={styles.reviewBody}>
+              <ReviewScreen
+                embedded
+                embeddedScrollOwner
+                embeddedScrollRef={needsScroll}
+                embeddedScrollYRef={needsScrollY}
+                {...(needsViewportHeight === undefined
+                  ? {}
+                  : { availableViewportHeight: needsViewportHeight })}
+                nav={nav}
+              />
+            </View>
+          ) : pendingCount === 0 && resumableStatements.length === 0 && !caught ? (
+            <View style={styles.reviewBody}>
+              <ReviewScreen
+                embedded
+                embeddedScrollOwner
+                embeddedScrollRef={needsScroll}
+                embeddedScrollYRef={needsScrollY}
+                {...(needsViewportHeight === undefined
+                  ? {}
+                  : { availableViewportHeight: needsViewportHeight })}
+                nav={nav}
+              />
+            </View>
+          ) : caught ? (
+            <Text style={{ color: t.muted, fontSize: 13, lineHeight: 20, padding: gap.xl }}>
+              Nothing else waiting.
+            </Text>
+          ) : null}
+        </ScrollView>
       ) : (
         <FlatList
+          ref={historyList}
           data={visibleHistory}
           keyExtractor={(row) => row.id}
           renderItem={renderHistoryRow}
@@ -317,10 +459,11 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
           windowSize={7}
           showsVerticalScrollIndicator={false}
           style={styles.screenHost}
-          contentContainerStyle={[
-            styles.historyContent,
-            { paddingBottom: insets.bottom + gap.xxxl },
-          ]}
+          onScroll={(event) => {
+            tabOffsets.current[tab] = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
+          contentContainerStyle={[styles.historyContent, { paddingBottom: contentBottomPadding }]}
           ItemSeparatorComponent={() => (
             <View style={[styles.rule, { backgroundColor: t.hairline }]} />
           )}
@@ -331,11 +474,11 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
           }
           ListHeaderComponent={
             <>
-              <View style={styles.destinationBlock}>
+              <View style={styles.scopeBlock}>
                 {tab === 'activity' ? (
                   <>
                     <Text style={[styles.listEyebrow, { color: t.muted }]}>
-                      Explore your records
+                      EXPLORE YOUR RECORDS
                     </Text>
                     <View style={styles.destinationList}>
                       <DestinationLine
@@ -360,12 +503,12 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
                 ) : (
                   <>
                     <Text style={[styles.listEyebrow, { color: t.muted }]}>
-                      Review your choices
+                      REVIEW YOUR CHOICES
                     </Text>
                     <View style={styles.destinationList}>
                       <DestinationLine
                         label="Hidden items"
-                        meta={hiddenCount ? `${hiddenCount} put aside` : 'nothing hidden'}
+                        meta={hiddenCount ? `${hiddenCount} hidden` : 'nothing hidden'}
                         onPress={() => nav.openSheet('hidden-review')}
                       />
                     </View>
@@ -391,42 +534,40 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  segmentInset: { paddingHorizontal: gap.xl, flexShrink: 0 },
-  segmented: {
-    flexShrink: 0,
-    borderRadius: radius.md,
-    flexDirection: 'row',
-    gap: gap.xs,
-    padding: gap.xs,
-  },
-  segment: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 44,
-    paddingHorizontal: gap.xs,
-  },
-  segmentLabel: { fontSize: 12.5, fontWeight: '500', lineHeight: 19 },
-  segmentCount: { fontVariant: ['tabular-nums'] },
   screenHost: { flex: 1, minHeight: 0 },
+  reviewBody: { minHeight: 0, flexGrow: 0, flexShrink: 0 },
+  needsContent: { paddingHorizontal: gap.lg },
+  scopeBlock: { paddingTop: gap.lg },
+  scopeLine: { fontSize: 13, lineHeight: 20 },
+  waitingNotice: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: gap.sm,
+    marginBottom: gap.xl,
+    marginTop: gap.xl,
+    padding: gap.lg,
+  },
+  waitingNoticeText: { fontSize: 13, lineHeight: 20 },
+  waitingNoticeAction: { fontSize: 13, lineHeight: 20 },
+  waitingNoticeActionButton: { justifyContent: 'center', minHeight: 44 },
   caughtBlock: { paddingHorizontal: gap.xl, paddingTop: gap.md },
   pressureNote: { borderLeftWidth: 2, paddingLeft: gap.md },
   eyebrow: { fontSize: 11, fontWeight: '600', letterSpacing: 1.4, textTransform: 'uppercase' },
   pressureBody: { fontSize: 14, lineHeight: 22, marginTop: gap.xs },
-  destinationBlock: { paddingHorizontal: gap.xl, paddingTop: gap.xs },
   listEyebrow: { fontSize: 11, fontWeight: '600', letterSpacing: 1.4, textTransform: 'uppercase' },
   destinationList: { marginTop: gap.md },
   destination: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: gap.md,
-    minHeight: 44,
-    paddingVertical: 10,
+    minHeight: 64,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   destinationCopy: { flex: 1, minWidth: 0 },
   destinationLabel: { fontSize: 14, lineHeight: 22 },
   destinationMeta: { fontSize: 12.5, lineHeight: 19, marginTop: 2 },
+  chevronSlot: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
   rule: { height: StyleSheet.hairlineWidth },
   timelineInset: { paddingHorizontal: gap.xl, paddingTop: gap.lg },
   timelineKicker: { fontFamily: serif.displayItalic, fontSize: 14 },
@@ -444,6 +585,8 @@ const styles = StyleSheet.create({
   historyTitle: { fontSize: 14, fontWeight: '500' },
   historyDetail: { fontSize: 11.5, marginTop: 3 },
   historyWhen: { fontSize: 11.5 },
+  historyAction: { alignSelf: 'stretch', justifyContent: 'center', minHeight: 44 },
+  historyActionText: { fontSize: 13, lineHeight: 20 },
   emptyHistory: { fontSize: 14, fontStyle: 'italic', marginTop: gap.lg },
   pressed: { opacity: 0.62, transform: [{ scale: 0.98 }] },
 });

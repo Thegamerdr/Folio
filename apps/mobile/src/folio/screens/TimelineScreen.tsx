@@ -70,8 +70,16 @@
 // users / 100% / bank-grade / AI-powered / smart / provenance / source record / indexed) are absent —
 // every derived note is built from calm vocabulary only.
 
-import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  findNodeHandle,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -95,6 +103,9 @@ import {
 import { formatMoney } from '@/folio/lib/financialPresentation';
 import { copy } from '@/folio/copy/copy';
 import type { Nav } from '@/folio/types';
+import { ReviewTimelineTabRail } from '@/folio/ui/ReviewTimelineTabRail';
+import { useBottomChromeContentPadding } from '@/folio/shell/bottomChromeContext';
+import { useSheetOverlayActive } from '@/surfaces/pressureMap/Sheet';
 
 // ---------------------------------------------------------------------------
 // Motion constants — mirror the sibling screens (Insights / TodayAfter / Review)
@@ -183,7 +194,9 @@ function relativeWhen(iso: string, now: Date): string {
 function noteForTransaction(txn: Transaction): string | undefined {
   const amount = Math.abs(txn.amount);
   if (!(amount > 0)) return undefined;
-  const money = `£${amount.toLocaleString('en-GB', { maximumFractionDigits: 2 })}`;
+  const money = `${txn.amount < 0 ? '−' : '+'}£${amount.toLocaleString('en-GB', {
+    maximumFractionDigits: 2,
+  })}`;
   const word = CATEGORY_LABEL[txn.category]?.toLowerCase();
   return word ? `${money} · ${word}` : money;
 }
@@ -268,6 +281,10 @@ export function TimelineScreen({
 }: TimelineScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const contentBottomPadding = useBottomChromeContentPadding();
+  const sheetOverlayActive = useSheetOverlayActive();
+  const previousSheetOverlay = useRef(false);
+  const originRowRef = useRef<View | null>(null);
   const reduceMotion = useReduceMotion();
   const s = useMemo(() => makeStyles(t), [t]);
   const isBusiness = useAppStore(
@@ -289,7 +306,24 @@ export function TimelineScreen({
   // the natural place to disclose the trim honestly rather than let the list simply stop, unexplained.
   const droppedTransactionCount = useAppStore((st) => st.droppedTransactionCount ?? 0);
   const [tab, setTab] = useState<TimelineTab>(initialTab);
+  const tabOffsets = useRef<Record<TimelineTab, number>>({
+    transactions: 0,
+    actions: 0,
+    saw: 0,
+  });
+  const scrollRef = useRef<ScrollView>(null);
   useEffect(() => setTab(initialTab), [initialTab]);
+  useEffect(() => {
+    const offset = tabOffsets.current[tab];
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: offset, animated: false }));
+  }, [tab]);
+  useEffect(() => {
+    if (previousSheetOverlay.current && !sheetOverlayActive && originRowRef.current) {
+      const node = findNodeHandle(originRowRef.current);
+      if (node !== null) AccessibilityInfo.setAccessibilityFocus(node);
+    }
+    previousSheetOverlay.current = sheetOverlayActive;
+  }, [sheetOverlayActive]);
   const [visibleCount, setVisibleCount] = useState(TIMELINE_PAGE_SIZE);
   // A new row should return the user to the recent window. Edits in place keep the current page so
   // correcting an older imported entry does not unexpectedly jump the list.
@@ -342,11 +376,7 @@ export function TimelineScreen({
         : transactions.length;
   const hasOlderRows = visibleCount < totalForTab;
 
-  // error → "falls back": this screen invents no error UI; on failure it routes back to More.
   const fallsBack = state === 'error';
-  useEffect(() => {
-    if (fallsBack) nav.go('more');
-  }, [fallsBack, nav]);
 
   // slide-in-r — drives every branch. Resolves to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
@@ -362,8 +392,51 @@ export function TimelineScreen({
     transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
   }));
 
-  // ----- ERROR (falls back to More) --------------------------------------------------------------
-  if (fallsBack) return null;
+  // ----- ERROR ---------------------------------------------------------------------------------
+  // Keep the route mounted so the failure is understandable and retry remains reachable. The
+  // retry re-enters the existing Timeline route; it does not fabricate a successful refresh.
+  if (fallsBack) {
+    return (
+      <Animated.View style={[s.root, enterStyle]}>
+        <View style={[s.screen, { paddingTop: insets.top + gap.md }]}>
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow={isBusiness ? 'Business activity' : 'Timeline'}
+            arrow="text"
+            spacerWidth={20}
+            backHitWidth={20}
+            backHitHeight={0}
+            eyebrowTracking={1.68}
+          />
+          {!isBusiness ? (
+            <View style={s.railWrap}>
+              <ReviewTimelineTabRail
+                accessibilityLabel="Timeline views"
+                value={tab}
+                options={[
+                  { key: 'transactions' as const, label: 'Transactions' },
+                  { key: 'actions' as const, label: 'Actions' },
+                  { key: 'saw' as const, label: 'What Melo saw' },
+                ]}
+                onChange={setTab}
+              />
+            </View>
+          ) : null}
+          <View style={s.errorBlock}>
+            <Text style={s.errorText}>We couldn't load this timeline.</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Try again"
+              onPress={() => nav.go('timeline')}
+              style={({ pressed }) => [s.paginationButton, pressed ? s.pressed : undefined]}
+            >
+              <Text style={[s.paginationLabel, { color: t.calm }]}>Try again</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Animated.View>
+    );
+  }
 
   // ----- LOADING (Melo curious + one quoted line — never a spinner) -------------------------------
   if (state === 'loading') {
@@ -379,9 +452,36 @@ export function TimelineScreen({
             backHitHeight={0}
             eyebrowTracking={1.68}
           />
-          <View style={s.loadingBlock}>
-            <MeloLine mood="curious" text="Gathering what you've added…" />
-          </View>
+          {!isBusiness ? (
+            <View style={s.railWrap}>
+              <ReviewTimelineTabRail
+                accessibilityLabel="Timeline views"
+                value={tab}
+                options={[
+                  { key: 'transactions' as const, label: 'Transactions' },
+                  { key: 'actions' as const, label: 'Actions' },
+                  { key: 'saw' as const, label: 'What Melo saw' },
+                ]}
+                onChange={setTab}
+              />
+            </View>
+          ) : null}
+          <ScrollView
+            style={s.scrollBody}
+            contentContainerStyle={[s.scrollContent, { paddingBottom: contentBottomPadding }]}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={s.loadingBlock} accessibilityElementsHidden>
+              {[0, 1, 2].map((item) => (
+                <View key={item} style={[s.skeletonRow, { backgroundColor: t.inset }]}>
+                  <View style={[s.skeletonLine, { backgroundColor: t.hairline }]} />
+                  <View
+                    style={[s.skeletonLine, s.skeletonShort, { backgroundColor: t.hairline }]}
+                  />
+                </View>
+              ))}
+            </View>
+          </ScrollView>
         </View>
       </Animated.View>
     );
@@ -401,17 +501,31 @@ export function TimelineScreen({
             backHitHeight={0}
             eyebrowTracking={1.68}
           />
+          {!isBusiness ? (
+            <View style={s.railWrap}>
+              <ReviewTimelineTabRail
+                accessibilityLabel="Timeline views"
+                value={tab}
+                options={[
+                  { key: 'transactions' as const, label: 'Transactions' },
+                  { key: 'actions' as const, label: 'Actions' },
+                  { key: 'saw' as const, label: 'What Melo saw' },
+                ]}
+                onChange={setTab}
+              />
+            </View>
+          ) : null}
 
           <View style={s.titleBlock}>
             <Text accessibilityRole="header" style={s.headline}>
-              {isBusiness ? 'Every business ' : "Everything you've "}
-              <Text style={s.headlineAccent}>{isBusiness ? 'record' : 'added'}</Text>
-              {isBusiness ? ', in order.' : ' or changed.'}
+              {isBusiness
+                ? 'Every business record, in order.'
+                : HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].title}
             </Text>
             <Text style={s.subhead}>
               {isBusiness
                 ? 'Confirmed and corrected records in this workspace only.'
-                : 'Newest first. Nothing is hidden.'}
+                : HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].description}
             </Text>
           </View>
 
@@ -439,13 +553,7 @@ export function TimelineScreen({
   // ----- POPULATED (and offline — identical) -----------------------------------------------------
   return (
     <Animated.View style={[s.root, enterStyle]}>
-      <ScrollView
-        contentContainerStyle={[
-          s.scrollContent,
-          { paddingTop: insets.top + gap.md, paddingBottom: insets.bottom + gap.xxl },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={[s.screen, { paddingTop: insets.top + gap.md }]}>
         <ScreenHeader
           onBack={nav.back}
           eyebrow={isBusiness ? 'Business activity' : 'Timeline'}
@@ -455,170 +563,153 @@ export function TimelineScreen({
           backHitHeight={0}
           eyebrowTracking={1.68}
         />
-
-        {/* Title block — Fraunces 28px, the single upright terracotta accent word. */}
-        <View style={s.titleBlock}>
-          <Text accessibilityRole="header" style={s.headline}>
-            {isBusiness
-              ? 'Every business record, in order.'
-              : HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].title}
-          </Text>
-          <Text style={s.subhead}>
-            {isBusiness
-              ? 'Confirmed and corrected records in this workspace only.'
-              : HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].description}
-          </Text>
-        </View>
-
-        {!isBusiness ? <TimelineTabs value={tab} onChange={setTab} styles={s} palette={t} /> : null}
-
-        {totalForTab === 0 ? (
-          <View style={s.emptyBlock}>
-            <Text style={s.subhead}>
-              {HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].empty}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => nav.go('review')}
-              style={s.paginationButton}
-            >
-              <Text style={[s.paginationLabel, { color: t.calm }]}>Open Review ›</Text>
-            </Pressable>
-          </View>
-        ) : tab === 'transactions' || isBusiness ? (
-          /* Timeline list — a vertical rail behind the nodes, newest first. */
-          <View style={s.list}>
-            <View style={[s.rail, { backgroundColor: t.hairline }]} pointerEvents="none" />
-            {visibleRows.map((row, i) => (
-              <TimelineRowView
-                key={row.id}
-                row={row}
-                styles={s}
-                palette={t}
-                isLast={i === visibleRows.length - 1}
-                nav={nav}
-              />
-            ))}
-          </View>
-        ) : tab === 'actions' ? (
-          <View style={s.actionGroups}>
-            {decisions.slice(0, visibleCount).map((row) => (
-              <TimelineDecision
-                key={row.id}
-                row={row}
-                transactions={transactions}
-                nav={nav}
-                styles={s}
-                palette={t}
-              />
-            ))}
-          </View>
-        ) : (
-          <TimelineActionCards
-            transactions={visibleTransactions}
-            styles={s}
-            palette={t}
-            nav={nav}
-          />
-        )}
-
-        {totalForTab > TIMELINE_PAGE_SIZE ? (
-          <View style={s.pagination}>
-            {hasOlderRows ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Load older timeline entries"
-                onPress={() =>
-                  setVisibleCount((count) => Math.min(totalForTab, count + TIMELINE_PAGE_SIZE))
-                }
-                style={({ pressed }) => [s.paginationButton, pressed ? s.pressed : undefined]}
-              >
-                <Text style={[s.paginationLabel, { color: t.calm }]}>Load 50 more</Text>
-              </Pressable>
-            ) : null}
-            {visibleCount > TIMELINE_PAGE_SIZE ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Return to recent timeline entries"
-                onPress={() => setVisibleCount(TIMELINE_PAGE_SIZE)}
-                style={({ pressed }) => [s.paginationButton, pressed ? s.pressed : undefined]}
-              >
-                <Text style={[s.paginationLabel, { color: t.muted }]}>Back to recent</Text>
-              </Pressable>
-            ) : null}
+        {!isBusiness ? (
+          <View style={s.railWrap}>
+            <ReviewTimelineTabRail
+              accessibilityLabel="Timeline views"
+              value={tab}
+              options={[
+                { key: 'transactions' as const, label: 'Transactions' },
+                { key: 'actions' as const, label: 'Actions' },
+                { key: 'saw' as const, label: 'What Melo saw' },
+              ]}
+              onChange={setTab}
+            />
           </View>
         ) : null}
+        <ScrollView
+          ref={scrollRef}
+          style={s.scrollBody}
+          onScroll={(event) => {
+            tabOffsets.current[tab] = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
+          contentContainerStyle={[s.scrollContent, { paddingBottom: contentBottomPadding }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Title block — Fraunces 28px, the single upright terracotta accent word. */}
+          <View style={s.titleBlock}>
+            <Text accessibilityRole="header" style={s.headline}>
+              {isBusiness
+                ? 'Every business record, in order.'
+                : HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].title}
+            </Text>
+            <Text style={s.subhead}>
+              {isBusiness
+                ? 'Confirmed and corrected records in this workspace only.'
+                : HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].description}
+            </Text>
+          </View>
 
-        {/* DATA_INTELLIGENCE.md phase ④(A) — honest disclosure that the list is cut short by the
+          {totalForTab === 0 ? (
+            <View style={s.emptyBlock}>
+              <Text style={s.subhead}>
+                {HISTORY_SCOPE[tab === 'actions' ? 'decisions' : tab].empty}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.go('review')}
+                style={s.paginationButton}
+              >
+                <Text style={[s.paginationLabel, { color: t.calm }]}>Open Review ›</Text>
+              </Pressable>
+            </View>
+          ) : tab === 'transactions' || isBusiness ? (
+            /* Timeline list — a vertical rail behind the nodes, newest first. */
+            <View style={s.list}>
+              <View style={[s.rail, { backgroundColor: t.hairline }]} pointerEvents="none" />
+              {visibleRows.map((row, i) => (
+                <TimelineRowView
+                  key={row.id}
+                  row={row}
+                  styles={s}
+                  palette={t}
+                  isLast={i === visibleRows.length - 1}
+                  nav={nav}
+                  onBeforeOpen={(node) => {
+                    originRowRef.current = node;
+                  }}
+                />
+              ))}
+            </View>
+          ) : tab === 'actions' ? (
+            <View style={s.actionGroups}>
+              {decisions.slice(0, visibleCount).map((row) => (
+                <TimelineDecision
+                  key={row.id}
+                  row={row}
+                  transactions={transactions}
+                  nav={nav}
+                  styles={s}
+                  palette={t}
+                  onBeforeOpen={(node) => {
+                    originRowRef.current = node;
+                  }}
+                />
+              ))}
+            </View>
+          ) : (
+            <TimelineActionCards
+              transactions={visibleTransactions}
+              styles={s}
+              palette={t}
+              nav={nav}
+              onBeforeOpen={(node) => {
+                originRowRef.current = node;
+              }}
+            />
+          )}
+
+          {totalForTab > TIMELINE_PAGE_SIZE ? (
+            <View style={s.pagination}>
+              {hasOlderRows ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Load older timeline entries"
+                  onPress={() =>
+                    setVisibleCount((count) => Math.min(totalForTab, count + TIMELINE_PAGE_SIZE))
+                  }
+                  style={({ pressed }) => [s.paginationButton, pressed ? s.pressed : undefined]}
+                >
+                  <Text style={[s.paginationLabel, { color: t.calm }]}>Load 50 more</Text>
+                </Pressable>
+              ) : null}
+              {visibleCount > TIMELINE_PAGE_SIZE ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Return to recent timeline entries"
+                  onPress={() => setVisibleCount(TIMELINE_PAGE_SIZE)}
+                  style={({ pressed }) => [s.paginationButton, pressed ? s.pressed : undefined]}
+                >
+                  <Text style={[s.paginationLabel, { color: t.muted }]}>Back to recent</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* DATA_INTELLIGENCE.md phase ④(A) — honest disclosure that the list is cut short by the
             live retention window, so a bulk-imported history's trimmed tail is disclosed rather than
             silently vanishing. Only rendered once anything has actually been evicted. */}
-        {droppedTransactionCount > 0 ? (
-          <View style={s.trimmedBlock}>
-            <Text style={s.trimmedLine}>{copy.timeline.trimmed}</Text>
+          {droppedTransactionCount > 0 ? (
+            <View style={s.trimmedBlock}>
+              <Text style={s.trimmedLine}>{copy.timeline.trimmed}</Text>
+            </View>
+          ) : null}
+
+          {/* The quiet companion line — soft (calm-family) Melo, always-on breathe. */}
+          <View style={s.meloBlock}>
+            <MeloLine
+              mood="calm"
+              text={
+                isBusiness
+                  ? 'Tap a confirmed transaction to inspect or correct it; the original value stays in history.'
+                  : 'Open a transaction to inspect or correct it. Undo is available just after supported changes; saved corrections stay in history.'
+              }
+            />
           </View>
-        ) : null}
-
-        {/* The quiet companion line — soft (calm-family) Melo, always-on breathe. */}
-        <View style={s.meloBlock}>
-          <MeloLine
-            mood="calm"
-            text={
-              isBusiness
-                ? 'Tap a confirmed transaction to inspect or correct it; the original value stays in history.'
-                : 'Open a transaction to inspect or correct it. Undo is available just after supported changes; saved corrections stay in history.'
-            }
-          />
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </Animated.View>
-  );
-}
-
-function TimelineTabs({
-  value,
-  onChange,
-  styles,
-  palette,
-}: {
-  value: TimelineTab;
-  onChange: (value: TimelineTab) => void;
-  styles: Styles;
-  palette: Palette;
-}) {
-  const options: readonly { value: TimelineTab; label: string }[] = [
-    { value: 'transactions', label: 'Transactions' },
-    { value: 'actions', label: 'Actions' },
-    { value: 'saw', label: 'What Melo saw' },
-  ];
-  return (
-    <View style={[styles.tabs, { backgroundColor: palette.inset }]}>
-      {options.map((option) => {
-        const selected = option.value === value;
-        return (
-          <Pressable
-            key={option.value}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            onPress={() => onChange(option.value)}
-            style={({ pressed }) => [
-              styles.tab,
-              selected
-                ? {
-                    backgroundColor: palette.surface,
-                    borderColor: palette.hairline,
-                    borderWidth: 1,
-                  }
-                : undefined,
-              pressed ? styles.pressed : undefined,
-            ]}
-          >
-            <Text style={[styles.tabLabel, { color: selected ? palette.ink : palette.muted }]}>
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
   );
 }
 
@@ -635,11 +726,13 @@ function TimelineActionCards({
   styles,
   palette,
   nav,
+  onBeforeOpen,
 }: {
   transactions: readonly Transaction[];
   styles: Styles;
   palette: Palette;
   nav: Nav;
+  onBeforeOpen?: (node: View | null) => void;
 }) {
   const groups = useMemo(() => {
     const grouped = new Map<string, Transaction[]>();
@@ -664,6 +757,7 @@ function TimelineActionCards({
             ]}
           >
             {items.map((transaction, index) => {
+              let rowNode: View | null = null;
               const incoming = transaction.amount >= 0;
               const amount = Math.abs(transaction.amount).toLocaleString('en-GB', {
                 minimumFractionDigits: Number.isInteger(transaction.amount) ? 0 : 2,
@@ -672,9 +766,15 @@ function TimelineActionCards({
               return (
                 <Pressable
                   key={transaction.id}
+                  ref={(node) => {
+                    rowNode = node;
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={`${transaction.merchant}, ${formatMoney(transaction.amount, true)}. View details and correct`}
-                  onPress={() => nav.openSheet('edit-txn', { id: transaction.id })}
+                  onPress={() => {
+                    onBeforeOpen?.(rowNode);
+                    nav.openSheet('edit-txn', { id: transaction.id });
+                  }}
                   style={[
                     styles.actionRow,
                     index > 0 ? { borderTopColor: palette.hairline, borderTopWidth: 1 } : undefined,
@@ -717,20 +817,23 @@ function TimelineDecision({
   nav,
   styles,
   palette,
+  onBeforeOpen,
 }: {
   row: DecisionHistoryRow;
   transactions: readonly Transaction[];
   nav: Nav;
   styles: Styles;
   palette: Palette;
+  onBeforeOpen?: (node: View | null) => void;
 }) {
+  const rowRef = useRef<View>(null);
   const destination = historyDestination(row, transactions);
   const value = (value: string | number | undefined) =>
     typeof value === 'number' ? formatMoney(value, true) : value || 'blank';
   const detail =
     row.kind === 'edited'
       ? `${row.field === 'when' ? 'Date' : row.field === 'merchant' ? 'Name' : row.field === 'amount' ? 'Amount' : 'Category'} · ${value(row.before)} → ${value(row.after)}`
-      : row.note;
+      : (row.note ?? (row.amount !== undefined ? formatMoney(row.amount, true) : undefined));
   const verb = {
     edited: 'Corrected',
     paused: 'Paused',
@@ -740,21 +843,12 @@ function TimelineDecision({
     'debt-removed': 'Removed from tracking',
     'debt-restored': 'Tracking restored',
   }[row.kind];
-  return (
-    <Pressable
-      accessibilityRole={destination ? 'button' : undefined}
-      disabled={!destination}
-      onPress={() => {
-        if (destination?.kind === 'transaction') nav.openSheet('edit-txn', { id: destination.id });
-        else if (destination?.kind === 'hidden') nav.openSheet('hidden-review');
-        else if (destination?.kind === 'bills') nav.go('subs');
-        else if (destination?.kind === 'debts') nav.go('debts');
-      }}
-      style={[
-        styles.actionCard,
-        { backgroundColor: palette.surface, borderColor: palette.hairline, padding: gap.lg },
-      ]}
-    >
+  const cardStyle = [
+    styles.actionCard,
+    { backgroundColor: palette.surface, borderColor: palette.hairline, padding: gap.lg },
+  ];
+  const body = (
+    <>
       <Text style={[styles.actionDay, { color: palette.muted }]}>
         {verb} · {actionDayLabel(row.at)}
       </Text>
@@ -762,17 +856,44 @@ function TimelineDecision({
       {detail ? (
         <Text style={[styles.actionCategory, { color: palette.muted }]}>{detail}</Text>
       ) : null}
-      <Text
-        style={[
-          styles.actionCategory,
-          { color: destination ? palette.calm : palette.muted, marginTop: gap.sm },
-        ]}
+    </>
+  );
+  if (destination === null) {
+    return (
+      <View
+        ref={rowRef}
+        accessible
+        accessibilityLabel={`${verb} ${row.title}`}
+        accessibilityValue={{ text: `${detail ? `${detail}, ` : ''}${actionDayLabel(row.at)}` }}
+        style={cardStyle}
       >
-        {destination
-          ? `${destination.label} ›`
-          : 'Saved history · original transaction no longer available'}
-      </Text>
-    </Pressable>
+        {body}
+        <Text style={[styles.actionCategory, { color: palette.muted, marginTop: gap.sm }]}>
+          Saved history · original transaction no longer available
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <View ref={rowRef} style={cardStyle}>
+      {body}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={destination.label}
+        accessibilityHint={`${verb} ${row.title}${detail ? `, ${detail}` : ''}, ${actionDayLabel(row.at)}`}
+        onPress={() => {
+          onBeforeOpen?.(rowRef.current);
+          if (destination.kind === 'transaction' && destination.id !== undefined)
+            nav.openSheet('edit-txn', { id: destination.id });
+          else if (destination.kind === 'hidden') nav.openSheet('hidden-review');
+          else if (destination.kind === 'bills') nav.go('subs');
+          else if (destination.kind === 'debts') nav.go('debts');
+        }}
+        style={({ pressed }) => [styles.decisionAction, pressed ? styles.pressed : undefined]}
+      >
+        <Text style={[styles.actionCategory, { color: palette.calm }]}>{destination.label} ›</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -786,13 +907,16 @@ function TimelineRowView({
   palette,
   isLast,
   nav,
+  onBeforeOpen,
 }: {
   row: DisplayRow;
   styles: Styles;
   palette: Palette;
   isLast: boolean;
   nav: Nav;
+  onBeforeOpen?: (node: View | null) => void;
 }) {
+  const rowRef = useRef<View>(null);
   const tone = verbTone(row.verb, palette);
   const hasCategory = !!row.category;
   const chipLabel = row.category ?? 'Add a label';
@@ -835,10 +959,14 @@ function TimelineRowView({
 
   return (
     <Pressable
+      ref={rowRef}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel}
       accessibilityHint="Opens this entry so you can correct it"
-      onPress={() => nav.openSheet('edit-txn', { id: row.id })}
+      onPress={() => {
+        onBeforeOpen?.(rowRef.current);
+        nav.openSheet('edit-txn', { id: row.id });
+      }}
       style={({ pressed }) => [
         styles.row,
         isLast ? undefined : styles.rowGap,
@@ -939,8 +1067,15 @@ function makeStyles(_t: Palette) {
       flex: 1,
       paddingHorizontal: SCREEN_INSET,
     },
+    railWrap: {
+      marginHorizontal: -SCREEN_INSET,
+    },
+    scrollBody: {
+      flex: 1,
+      minHeight: 0,
+    },
     scrollContent: {
-      paddingHorizontal: SCREEN_INSET,
+      paddingHorizontal: 0,
     },
 
     // Title block — mt-6.
@@ -957,14 +1092,6 @@ function makeStyles(_t: Palette) {
       lineHeight: 32, // leading-tight
       letterSpacing: -0.56, // Fraunces -0.02em at 28px
     },
-    headlineAccent: {
-      // Upright terracotta — the web <em class="not-italic text-accent">. NOT italic.
-      fontFamily: serif.display,
-      fontSize: 28,
-      lineHeight: 32,
-      letterSpacing: -0.56,
-      color: _t.calm,
-    },
     subhead: {
       // Same missing-color bug as the headline above — defaulted to black, invisible on dark canvas.
       color: _t.muted,
@@ -972,28 +1099,27 @@ function makeStyles(_t: Palette) {
       lineHeight: 18,
       marginTop: gap.sm,
     },
-    tabs: {
-      borderRadius: 14,
-      flexDirection: 'row',
-      marginTop: gap.lg,
-      padding: 4,
-    },
-    tab: {
-      alignItems: 'center',
-      borderRadius: 11,
-      flex: 1,
-      justifyContent: 'center',
-      minHeight: 44,
-      paddingHorizontal: 4,
-    },
-    tabLabel: {
-      fontSize: 12.5,
-      textAlign: 'center',
-    },
-
     // Loading branch — the calm "working it out" affordance, centred-ish under the header.
     loadingBlock: {
       marginTop: gap.xxl,
+    },
+    skeletonRow: {
+      borderRadius: radius.md,
+      gap: gap.sm,
+      marginBottom: gap.md,
+      minHeight: 64,
+      padding: gap.md,
+    },
+    skeletonLine: { borderRadius: radius.pill, height: 12, width: '78%' },
+    skeletonShort: { height: 10, width: '46%' },
+    errorBlock: {
+      marginTop: gap.xxl,
+      gap: gap.md,
+    },
+    errorText: {
+      color: _t.muted,
+      fontSize: 14,
+      lineHeight: 22,
     },
 
     // Empty branch — the EmptyState column sits below the same title block.
@@ -1051,6 +1177,12 @@ function makeStyles(_t: Palette) {
     actionCategory: {
       fontSize: 11.5,
       marginTop: 2,
+    },
+    decisionAction: {
+      alignSelf: 'stretch',
+      justifyContent: 'center',
+      minHeight: 44,
+      marginTop: gap.sm,
     },
     actionAmount: {
       fontFamily: serif.display,
