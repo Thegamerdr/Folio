@@ -30,9 +30,11 @@ export function acknowledgeStatementReviewSession(
   if (remaining.length === 0) return null;
   return {
     candidates: remaining,
-    sourceKey: statementReviewSourceKey(remaining),
+    sourceKey: session.sourceKey ?? statementReviewSourceKey(remaining),
     ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
     ...(session.sourceIssues === undefined ? {} : { sourceIssues: session.sourceIssues }),
+    ...(session.sourceLabel === undefined ? {} : { sourceLabel: session.sourceLabel }),
+    ...(session.sourceReturn === undefined ? {} : { sourceReturn: session.sourceReturn }),
     ...(session.accountDraft === undefined ? {} : { accountDraft: session.accountDraft }),
     ...(session.accountId === undefined ? {} : { accountId: session.accountId }),
     selectedIds: [],

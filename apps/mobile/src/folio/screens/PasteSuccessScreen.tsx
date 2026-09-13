@@ -229,6 +229,7 @@ export function PasteSuccessScreen({
     sourceReturn?.selection ?? { start: initialDraft.length, end: initialDraft.length },
   );
   const [focused, setFocused] = useState(false);
+  const [scrollOffset, setScrollOffset] = useState(() => sourceReturn?.scrollOffset ?? 0);
   const [keyboardHeight, setKeyboardHeight] = useState(() => Keyboard.metrics()?.height ?? 0);
   const [clipboardReading, setClipboardReading] = useState(false);
   const [sourceReturnActive, setSourceReturnActive] = useState(sourceReturn !== undefined);
@@ -238,6 +239,7 @@ export function PasteSuccessScreen({
   const draftRef = useRef(draft);
   const selectionRef = useRef(selection);
   const scrollOffsetRef = useRef(sourceReturn?.scrollOffset ?? 0);
+  const pasteSourceIdentityRef = useRef<string | undefined>(undefined);
   const clipboardRequestRef = useRef(0);
   const previewRequestRef = useRef(0);
   const keyboardVisibleRef = useRef(false);
@@ -267,6 +269,8 @@ export function PasteSuccessScreen({
     updateDraft(sourceReturn.rawText);
     draftRef.current = sourceReturn.rawText;
     updateSelection(sourceReturn.selection);
+    scrollOffsetRef.current = sourceReturn.scrollOffset;
+    setScrollOffset(sourceReturn.scrollOffset);
     setSubmittedDraft('');
     setPreviewed(false);
     setStatusMessage(null);
@@ -409,15 +413,39 @@ export function PasteSuccessScreen({
   // Every real candidate, including a one-row read, belongs to the same D2 review contract. The
   // old singleton shortcut bypassed line uncertainty and the durable provisional session.
   const isBulk = canResumeReview || candidates.length > 0;
-  const returnToSource = () => {
+  const isPasteSource =
+    candidates[0]?.source === 'paste' ||
+    (canResumeReview &&
+      reviewSessions.some(
+        (session) => session.sourceKey === reviewSourceKey && session.candidates[0]?.source === 'paste',
+      ));
+  if (isPasteSource && reviewSourceKey === undefined && pasteSourceIdentityRef.current === undefined) {
+    pasteSourceIdentityRef.current = `paste:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
+  }
+  const activeReviewSourceKey = reviewSourceKey ?? (isPasteSource ? pasteSourceIdentityRef.current : undefined);
+  const reviewSourceReturn = useMemo<ImportSourceReturn | undefined>(
+    () =>
+      isPasteSource
+        ? {
+            sourceKey: activeReviewSourceKey ?? statementReviewSourceKey(candidates),
+            rawText: submittedDraft || draft,
+            selection: selectionRef.current,
+            scrollOffset: scrollOffsetRef.current,
+          }
+        : undefined,
+    [activeReviewSourceKey, candidates, draft, scrollOffset, selection.end, selection.start, submittedDraft],
+  );
+  const returnToSource = (returnedSource?: ImportSourceReturn) => {
+    const restored = returnedSource ?? sourceReturn;
     nav.go('paste-success', {
       importSource: {
         sourceKey:
-          sourceReturn?.sourceKey ??
+          restored?.sourceKey ??
+          activeReviewSourceKey ??
           (candidates.length > 0 ? statementReviewSourceKey(candidates) : 'paste-editor'),
-        rawText: draftRef.current,
-        selection: selectionRef.current,
-        scrollOffset: scrollOffsetRef.current,
+        rawText: restored?.rawText ?? draftRef.current,
+        selection: restored?.selection ?? selectionRef.current,
+        scrollOffset: restored?.scrollOffset ?? scrollOffsetRef.current,
       },
     });
   };
@@ -528,7 +556,9 @@ export function PasteSuccessScreen({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           onScroll={(event) => {
-            scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+            const nextOffset = event.nativeEvent.contentOffset.y;
+            scrollOffsetRef.current = nextOffset;
+            setScrollOffset(nextOffset);
           }}
           scrollEventThrottle={16}
         >
@@ -685,9 +715,11 @@ export function PasteSuccessScreen({
           nav={nav}
           candidates={canResumeReview ? [] : candidates}
           {...(canResumeReview ? { sessionKey: reviewSourceKey } : {})}
+          {...(activeReviewSourceKey !== undefined && !canResumeReview ? { sourceKey: activeReviewSourceKey } : {})}
+          {...(reviewSourceReturn === undefined ? {} : { sourceReturn: reviewSourceReturn })}
           sourceIssues={issues}
           onAdded={() => clearReaderCandidates()}
-          onSourceReturn={returnToSource}
+          {...(isPasteSource ? { onSourceReturn: returnToSource } : {})}
         />
       </View>
     );
@@ -779,8 +811,10 @@ export function PasteSuccessScreen({
             nav={nav}
             candidates={candidates}
             sourceIssues={issues}
+            {...(activeReviewSourceKey !== undefined && !canResumeReview ? { sourceKey: activeReviewSourceKey } : {})}
+            {...(reviewSourceReturn === undefined ? {} : { sourceReturn: reviewSourceReturn })}
             onAdded={() => clearReaderCandidates()}
-            onSourceReturn={returnToSource}
+            {...(isPasteSource ? { onSourceReturn: returnToSource } : {})}
             onReviewOneByOne={(accountId) => {
               const { dropped } = enqueueReviewItems(
                 queueInputFromCandidates(candidates, reviewSource, accountId),

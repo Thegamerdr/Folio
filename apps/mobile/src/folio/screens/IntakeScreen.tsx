@@ -270,9 +270,12 @@ function readTextCandidates(
   text: string,
   source: Extract<CandidateMoneyItem['source'], 'csv' | 'paste'>,
   filename: string,
+  sourceFormat: 'csv' | 'tsv' | 'txt' = 'csv',
 ): CandidateMoneyItem[] | null {
   const result = readTextImport(text, source, filename);
-  return result.candidates.length > 0 ? result.candidates : null;
+  return result.candidates.length > 0
+    ? result.candidates.map((candidate) => ({ ...candidate, sourceFormat }))
+    : null;
 }
 
 export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
@@ -303,13 +306,19 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   useEffect(() => {
     if (waitingAnnouncedRef.current || (waiting.length === 0 && waitingStatementSessions.length === 0)) return;
     waitingAnnouncedRef.current = true;
-    AccessibilityInfo.announceForAccessibility('Earlier statement reviews are waiting.');
+    AccessibilityInfo.announceForAccessibility(
+      "An earlier statement is still waiting for you. Open what's waiting, button.",
+    );
   }, [waiting.length, waitingStatementSessions.length]);
 
   function openStatementReview(session: (typeof waitingStatementSessions)[number]) {
     const source = session.candidates[0]?.source ?? session.sourceKey?.split(':')[0] ?? 'pdf';
-    const screen: ScreenId = source === 'paste' || source === 'csv' ? 'paste-success' : source === 'photo' ? 'image-success' : 'pdf-success';
+    const screen: ScreenId = source === 'paste' || source === 'csv' || source === 'txt' ? 'paste-success' : source === 'photo' ? 'image-success' : 'pdf-success';
     const sourceKey = session.sourceKey ?? statementReviewSourceKey(session.candidates);
+    const label = session.sourceLabel ?? waitingSourceLabel(source);
+    AccessibilityInfo.announceForAccessibility(
+      `${label}. ${session.candidates.length} suggested. ${session.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`,
+    );
     nav.go(screen, { reviewSourceKey: sourceKey });
   }
 
@@ -511,7 +520,12 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         /text\/csv|application\/csv|tab-separated|text\/plain/i.test(src.mediaType) ||
         /\.(csv|tsv|txt)$/i.test(src.filename);
       if (result.kind === 'picked' && looksDelimited) {
-        const candidates = readTextCandidates(result.text, 'csv', src.filename);
+        const sourceFormat: 'csv' | 'tsv' | 'txt' = /\.tsv$/i.test(src.filename)
+          ? 'tsv'
+          : /\.txt$/i.test(src.filename)
+            ? 'txt'
+            : 'csv';
+        const candidates = readTextCandidates(result.text, 'csv', src.filename, sourceFormat);
         if (candidates !== null) {
           if (!settlePdfImport(attempt, { kind: 'parsed', reviewItemCount: candidates.length }))
             return;
@@ -820,17 +834,18 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
               {waitingStatementSessions.map((session, index) => {
                 const source = session.candidates[0]?.source ?? session.sourceKey?.split(':')[0] ?? 'pdf';
                 const count = session.candidates.length;
+                const label = session.sourceLabel ?? waitingSourceLabel(source);
                 return (
                   <View key={`statement:${session.workspaceId ?? ''}:${session.sourceKey ?? index}`}>
                     {index > 0 ? <View style={[styles.divider, { backgroundColor: t.hairline }]} /> : null}
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={`${waitingSourceLabel(source)}. ${count} suggested. ${session.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`}
+                      accessibilityLabel={`${label}. ${count} suggested. ${session.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`}
                       onPress={() => openStatementReview(session)}
                       style={({ pressed: isPressed }) => [styles.waitingRow, isPressed ? styles.pressed : undefined]}
                     >
                       <View style={styles.waitingCopy}>
-                        <Text style={[styles.waitingLabel, { color: t.ink }]}>{waitingSourceLabel(source)}</Text>
+                        <Text style={[styles.waitingLabel, { color: t.ink }]}>{label}</Text>
                         <Text style={[styles.waitingMeta, { color: t.muted }]}>
                           {session.receipt === undefined ? 'not added yet' : 'result not seen yet'}
                         </Text>
@@ -966,7 +981,7 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
 function waitingSourceLabel(source: string): string {
   if (source === 'csv' || source === 'txt' || source === 'paste') return 'Sheet or pasted text';
   if (source === 'pdf') return 'Statement';
-  if (source === 'image') return 'Photo';
+  if (source === 'image' || source === 'photo') return 'Photo';
   if (source === 'bank') return 'Connected account';
   return 'Manual entry';
 }

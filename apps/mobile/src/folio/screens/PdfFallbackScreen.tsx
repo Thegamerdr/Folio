@@ -36,7 +36,8 @@
 //   • Press feedback is the kit `pressed` feel (scale 0.97 / lowered opacity) via Pressable.
 //   • Push-to-bottom: a ScrollView whose contentContainer is flexGrow:1 with a flex:1 spacer pins
 //     the CTAs to the bottom on tall screens; bottom safe-area replaces the web's trailing margin.
-//   • Both "View file" affordances decrypt into a short-lived cache file, invoke the native
+//   • The retained original can be opened through one "View file" affordance when available; it
+//     decrypts into a short-lived cache file and invokes the native
 //     viewer/share surface, and remove that plaintext cache in `finally`.
 //
 // STATES (per STATES.md): this file IS the fallback/error branch for the statement reader. All five
@@ -232,7 +233,7 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
           ) : null}
         </View>
 
-        {/* File card — icon chip + truncating filename + "saved in Melo" + a quiet View. */}
+        {/* File card — icon chip + truncating filename + truthful retention label. */}
         <View style={[styles.fileCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <View style={[styles.iconChip, { backgroundColor: t.inset }]}>
             <FileGlyph color={t.ink} />
@@ -243,17 +244,6 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
             </Text>
             <Text style={[styles.fileSub, { color: t.muted }]}>selected file</Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View file"
-            accessibilityState={{ disabled: evidenceDocument === undefined }}
-            disabled={evidenceDocument === undefined}
-            hitSlop={12}
-            onPress={openSource}
-            style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
-          >
-            <Text style={[styles.viewLink, { color: t.muted }]}>View</Text>
-          </Pressable>
         </View>
 
         {/* Note well — the calm advice block. */}
@@ -291,11 +281,9 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
 
         {/* Secondary row — encrypted original + the manual last-resort workbench. */}
         <View style={styles.secondaryRow}>
-          <Pressable
+          {evidenceDocument !== undefined ? <Pressable
             accessibilityRole="button"
             accessibilityLabel="View file"
-            accessibilityState={{ disabled: evidenceDocument === undefined }}
-            disabled={evidenceDocument === undefined}
             onPress={openSource}
             style={({ pressed: isPressed }) => [
               styles.secondaryCell,
@@ -304,7 +292,7 @@ export function PdfFallbackScreen({ nav, file, state = 'populated' }: PdfFallbac
             ]}
           >
             <Text style={[styles.secondaryLabel, { color: t.ink }]}>View file</Text>
-          </Pressable>
+          </Pressable> : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Log a spend"

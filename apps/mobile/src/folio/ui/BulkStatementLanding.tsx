@@ -55,7 +55,7 @@ import {
   type ReaderClosingBalance,
   type StatementReviewSession,
 } from '@/folio/store';
-import type { Nav } from '@/folio/types';
+import type { ImportSourceReturn, Nav } from '@/folio/types';
 
 type FolioTheme = ReturnType<typeof useTheme>;
 
@@ -80,8 +80,13 @@ export type BulkStatementLandingProps = {
   candidates: readonly CandidateMoneyItem[];
   /** Existing source identity used when opening a persisted review after a cold relaunch. */
   sessionKey?: string;
+  /** New source identity, when the acquisition path has no retained evidence ID (for example paste). */
+  sourceKey?: string;
+  sourceLabel?: string;
   /** Parser issues for non-candidate source lines; they remain visible without inventing rows. */
   sourceIssues?: readonly ColumnIssue[];
+  /** Raw paste editor state to restore when returning from this review, including cold resume. */
+  sourceReturn?: ImportSourceReturn;
   closingBalance?: ReaderClosingBalance;
   onAdded: () => void;
   onReviewOneByOne?: (accountId: string) => void;
@@ -91,7 +96,7 @@ export type BulkStatementLandingProps = {
     selectedCandidateIds: readonly string[];
     keptAsideIds: readonly string[];
   }) => void;
-  onSourceReturn?: () => void;
+  onSourceReturn?: (sourceReturn?: ImportSourceReturn) => void;
 };
 const NEW_ACCOUNT_OPTION = '__new__';
 const KINDS: readonly CandidateKind[] = [
@@ -314,6 +319,9 @@ export function BulkStatementLanding({
   nav,
   candidates: initialCandidates,
   sessionKey,
+  sourceKey: initialSourceKey,
+  sourceLabel: initialSourceLabel,
+  sourceReturn: initialSourceReturn,
   sourceIssues: initialSourceIssues = [],
   closingBalance,
   onAdded,
@@ -326,10 +334,11 @@ export function BulkStatementLanding({
   const largeText = fontScale >= 1.3;
   const transactions = useAppStore((s) => s.transactions);
   const existingAccounts = useAppStore((s) => s.accounts ?? []);
+  const evidenceDocuments = useAppStore((s) => s.evidenceDocuments ?? []);
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId);
   const persistedSessions = useStatementReviewSessions();
   const incomingSourceKey =
-    sessionKey ?? (initialCandidates.length > 0 ? statementReviewSourceKey(initialCandidates) : undefined);
+    sessionKey ?? initialSourceKey ?? (initialCandidates.length > 0 ? statementReviewSourceKey(initialCandidates) : undefined);
   const resumeSession =
     persistedSessions.find(
       (session) =>
@@ -337,12 +346,25 @@ export function BulkStatementLanding({
           session.sourceKey === incomingSourceKey ||
           (session.sourceKey === undefined && statementReviewSourceKey(session.candidates) === incomingSourceKey)) &&
         (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)),
-    ) ??
-    (initialCandidates.length === 0 && sessionKey === undefined
-      ? persistedSessions[persistedSessions.length - 1] ?? null
-      : null);
+    ) ?? null;
   const seedCandidates = resumeSession?.candidates ?? initialCandidates;
   const sourceIssues = resumeSession?.sourceIssues ?? initialSourceIssues;
+  const sourceReturn = resumeSession?.sourceReturn ?? initialSourceReturn;
+  const sourceLabel =
+    resumeSession?.sourceLabel ??
+    initialSourceLabel ??
+    (initialCandidates[0]?.sourceEvidenceId === undefined
+      ? undefined
+      : evidenceDocuments.find((document) => document.id === initialCandidates[0]?.sourceEvidenceId)?.filename) ??
+    (initialCandidates[0]?.sourceFormat === 'tsv'
+      ? 'TSV statement'
+      : initialCandidates[0]?.sourceFormat === 'txt'
+        ? 'TXT statement'
+        : initialCandidates[0]?.source === 'photo'
+          ? 'Photo statement'
+          : initialCandidates[0]?.source === 'paste'
+            ? 'Pasted transactions'
+            : 'Statement');
   const existingImportIds = useMemo(
     () => new Set(transactions.map((transaction) => transaction.id)),
     [transactions],
@@ -375,6 +397,8 @@ export function BulkStatementLanding({
   const [asideIds, setAsideIds] = useState<ReadonlySet<string>>(
     () => new Set(resumeSession?.asideIds ?? []),
   );
+  const [asideUndoIds, setAsideUndoIds] = useState<readonly string[] | null>(null);
+  const asideUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
     () =>
       new Set(
@@ -459,13 +483,22 @@ export function BulkStatementLanding({
   const [shownOffers, setShownOffers] = useState<ReadonlySet<BulkLandingOffer>>(new Set());
   const currentOffer = summary !== null ? nextBulkLandingOffer(summary, shownOffers) : null;
 
+  useEffect(
+    () => () => {
+      if (asideUndoTimer.current !== null) clearTimeout(asideUndoTimer.current);
+    },
+    [],
+  );
+
   function makeReviewSession(accountIdOverride?: string): StatementReviewSession {
     const accountId = accountIdOverride ?? resolvedAccountId;
     return {
       candidates: [...candidates],
-      sourceKey: statementReviewSourceKey(candidates),
+      sourceKey: sessionKey ?? initialSourceKey ?? statementReviewSourceKey(candidates),
       workspaceId: activeWorkspaceId,
       ...(sourceIssues.length === 0 ? {} : { sourceIssues: [...sourceIssues] }),
+      sourceLabel,
+      ...(sourceReturn === undefined ? {} : { sourceReturn }),
       ...(selectedOption === NEW_ACCOUNT_OPTION
         ? { accountDraft: { name: newAccountName, kind: newAccountKind } }
         : {}),
@@ -492,6 +525,8 @@ export function BulkStatementLanding({
     selectedIds,
     selectedOption,
     sourceIssues,
+    sourceLabel,
+    sourceReturn,
     summary,
   ]);
 
@@ -550,7 +585,11 @@ export function BulkStatementLanding({
     setFocusRowId(null);
     setEditing(candidate);
     setEditMerchant(candidate.merchant);
-    setEditAmount(Math.abs(candidate.amount).toFixed(2));
+    setEditAmount(
+      typeof candidate.amount === 'number' && Number.isFinite(candidate.amount)
+        ? Math.abs(candidate.amount).toFixed(2)
+        : '',
+    );
     setEditDate(candidate.date ?? '');
     setEditKind(candidate.kind);
     setEditTransferFlow(candidate.amount >= 0 ? 'in' : 'out');
@@ -560,7 +599,10 @@ export function BulkStatementLanding({
     if (editing === null) return;
     const dirty =
       editMerchant !== editing.merchant ||
-      editAmount !== Math.abs(editing.amount).toFixed(2) ||
+      editAmount !==
+        (typeof editing.amount === 'number' && Number.isFinite(editing.amount)
+          ? Math.abs(editing.amount).toFixed(2)
+          : '') ||
       editDate !== (editing.date ?? '') ||
       editKind !== editing.kind ||
       (editKind === 'transfer' && editTransferFlow !== (editing.amount >= 0 ? 'in' : 'out'));
@@ -847,6 +889,21 @@ export function BulkStatementLanding({
     setAsideIds((current) => new Set([...current, ...kept]));
     setSelectedIds((current) => new Set([...current].filter((id) => !kept.has(id))));
     setFilter('aside');
+    setAsideUndoIds([...kept]);
+    if (asideUndoTimer.current !== null) clearTimeout(asideUndoTimer.current);
+    asideUndoTimer.current = setTimeout(() => setAsideUndoIds(null), 8000);
+  }
+  function undoKeepAside() {
+    const ids = asideUndoIds;
+    if (ids === null) return;
+    setAsideIds((current) => new Set([...current].filter((id) => !ids.includes(id))));
+    setSelectedIds((current) => new Set([...current, ...ids]));
+    setAsideUndoIds(null);
+    if (asideUndoTimer.current !== null) {
+      clearTimeout(asideUndoTimer.current);
+      asideUndoTimer.current = null;
+    }
+    setFilter('all');
   }
   function selectReady() {
     const target = query.trim().length > 0 ? rows : model.rows;
@@ -867,7 +924,7 @@ export function BulkStatementLanding({
     setRepeatSelectedIds(new Set());
   }
   function leaveToIntake() {
-    onSourceReturn?.();
+    onSourceReturn?.(sourceReturn);
     if (onSourceReturn === undefined) nav.go('intake');
   }
   const renderItem = useCallback(
@@ -1344,6 +1401,16 @@ export function BulkStatementLanding({
           <Pressable onPress={keepSelectedAside} style={styles.batchButton}>
             <Text style={[styles.batchLabel, { color: t.muted }]}>Keep selected aside</Text>
           </Pressable>
+          {asideUndoIds !== null ? (
+            <View accessibilityLiveRegion="polite" style={styles.asideUndoRow}>
+              <Text style={[styles.batchLabel, { color: t.muted }]}>
+                {`${asideUndoIds.length} kept aside.`}
+              </Text>
+              <Pressable onPress={undoKeepAside} style={styles.quietAction}>
+                <Text style={[styles.batchLabel, { color: t.calm }]}>Undo</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {asideIds.size > 0 ? (
             <Pressable onPress={() => setFilter('aside')} style={styles.quietAction}>
               <Text style={[styles.batchLabel, { color: t.muted }]}>
@@ -1771,6 +1838,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: gap.md,
   },
   selectionActions: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.xs, paddingBottom: gap.sm },
+  asideUndoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: gap.xs,
+    minHeight: 44,
+    paddingHorizontal: gap.sm,
+  },
   batchButton: {
     alignItems: 'center',
     justifyContent: 'center',

@@ -6,6 +6,7 @@ import {
   filterStatementReviewRows,
   statementReviewSessionMatchesSource,
   statementReviewNaturalKey,
+  statementReviewSourceKey,
 } from './statementReviewModel';
 
 describe('statementReviewModel', () => {
@@ -79,6 +80,8 @@ describe('statementReviewModel', () => {
     expect(buildStatementReviewModel([{ ...candidate, reviewed: true }]).rows[0]?.status).toBe(
       'ready',
     );
+    expect(buildStatementReviewModel([{ ...candidate, reviewed: true }]).counts.uncertain).toBe(0);
+    expect(buildStatementReviewModel([candidate]).counts.uncertain).toBe(1);
     expect(
       filterStatementReviewRows(
         buildStatementReviewModel([candidate]).rows,
@@ -98,6 +101,15 @@ describe('statementReviewModel', () => {
     expect(statementReviewSessionMatchesSource(session, [])).toBe(true);
     expect(statementReviewSessionMatchesSource({ ...session, workspaceId: 'personal' }, [], 'business')).toBe(false);
     expect(statementReviewSessionMatchesSource({ ...session, workspaceId: 'personal' }, [], 'personal')).toBe(true);
+  });
+
+  it('keeps retained evidence and text format in the source identity', () => {
+    const candidate = buildScaleFixture(1).candidates[0]!;
+    const csv = statementReviewSourceKey([{ ...candidate, source: 'csv', sourceFormat: 'csv' }]);
+    const tsv = statementReviewSourceKey([{ ...candidate, source: 'csv', sourceFormat: 'tsv' }]);
+    const file = statementReviewSourceKey([{ ...candidate, sourceEvidenceId: 'evidence-2' }]);
+    expect(tsv).not.toBe(csv);
+    expect(file).toContain('evidence-2');
   });
 
   it('projects and filters the full 10k+ corpus within a conservative CI budget', () => {

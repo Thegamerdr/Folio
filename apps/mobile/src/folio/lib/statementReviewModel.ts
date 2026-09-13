@@ -113,7 +113,10 @@ export function statementReviewNaturalKey(candidate: CandidateMoneyItem): string
  * edits, so a new source cannot accidentally resume an older persisted review. */
 export function statementReviewSourceKey(candidates: readonly CandidateMoneyItem[]): string {
   if (candidates.length === 0) return '';
-  return `${candidates[0]?.source ?? 'unknown'}:${candidates.map((candidate) => candidate.id).join('|')}`;
+  const first = candidates[0]!;
+  const identity = first.sourceEvidenceId ?? first.sourceFormat;
+  const identityPart = identity === undefined ? '' : `${identity}:`;
+  return `${first.source ?? 'unknown'}:${identityPart}${candidates.map((candidate) => candidate.id).join('|')}`;
 }
 
 /** A persisted session may resume an empty cold-relaunch route, or the same live source. */
@@ -203,7 +206,10 @@ export function buildStatementReviewModel(
     if (candidate.kind === 'income') income += 1;
     if (candidate.kind === 'bill' || candidate.kind === 'subscription') bills += 1;
     if (candidate.kind === 'debt-payment') debt += 1;
-    if (candidate.confidence === 'low' || candidate.kind === 'unknown' || !amountReadable)
+    if (
+      candidate.reviewed !== true &&
+      (candidate.confidence === 'low' || candidate.kind === 'unknown' || !amountReadable)
+    )
       uncertain += 1;
     if (candidate.date !== undefined) {
       if (dateFrom === undefined || candidate.date < dateFrom) dateFrom = candidate.date;

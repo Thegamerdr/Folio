@@ -514,6 +514,15 @@ export type StatementReviewSession = {
   workspaceId?: WorkspaceId;
   /** Line-level parser uncertainty stays with the review session without inventing a candidate. */
   sourceIssues?: ColumnIssue[];
+  /** Human source identity for the canonical Intake waiting entry (filename or paste label). */
+  sourceLabel?: string;
+  /** Data-only return state for a paste source; never contains picker URIs or callbacks. */
+  sourceReturn?: {
+    sourceKey: string;
+    rawText: string;
+    selection: { start: number; end: number };
+    scrollOffset: number;
+  };
   /** Unresolved account choice draft, retained until the user explicitly creates the account. */
   accountDraft?: { name: string; kind: AccountKind };
   accountId?: string;

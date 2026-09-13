@@ -18,7 +18,6 @@ import {
   type DecisionHistoryRow,
 } from '@/folio/lib/reviewHistory';
 import { ReviewScreen } from '@/folio/screens/ReviewScreen';
-import { BulkStatementLanding } from '@/folio/ui/BulkStatementLanding';
 import { formatGBPExact } from '@/folio/screens/reviewFormat';
 import { formatGBP } from '@/folio/screens/today/format';
 import { useAppStore, useStatementReviewSessions } from '@/folio/store';
@@ -242,16 +241,36 @@ export function ReviewHubScreen({ nav }: ReviewHubScreenProps) {
       </View>
 
       {tab === 'needs' ? (
-          <View style={styles.screenHost}>
-          {resumableStatements.map((session) => (
-            <BulkStatementLanding
-              key={`${session.workspaceId ?? ''}:${session.sourceKey ?? ''}`}
-              nav={nav}
-              candidates={[]}
-              {...(session.sourceKey === undefined ? {} : { sessionKey: session.sourceKey })}
-              onAdded={() => undefined}
-            />
-          ))}
+        <View style={styles.screenHost}>
+          {resumableStatements.length > 0 ? (
+            <View style={styles.destinationList}>
+              {resumableStatements.map((session) => {
+                const source = session.candidates[0]?.source ?? 'pdf';
+                const sourceKind = String(source);
+                const destination = sourceKind === 'paste' || sourceKind === 'csv' || sourceKind === 'txt'
+                  ? 'paste-success'
+                  : sourceKind === 'photo' ? 'image-success' : 'pdf-success';
+                return (
+                  <Pressable
+                    key={`${session.workspaceId ?? ''}:${session.sourceKey ?? ''}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${source} statement. ${session.candidates.length} suggested.`}
+                    onPress={() => nav.go(destination, {
+                      ...(session.sourceKey === undefined ? {} : { reviewSourceKey: session.sourceKey }),
+                    })}
+                    style={({ pressed }) => [styles.destination, pressed ? styles.pressed : undefined]}
+                  >
+                    <Text style={[styles.destinationLabel, { color: t.ink }]}>
+                      {session.sourceLabel ?? (source === 'photo' ? 'Photo statement' : 'Statement')}
+                    </Text>
+                    <Text style={[styles.destinationMeta, { color: t.muted }]}>
+                      {`${session.candidates.length} suggested · ${session.receipt === undefined ? 'not added yet' : 'result not seen yet'}`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
           {resumableStatements.length === 0 && caught ? (
             <View style={styles.caughtBlock}>
               <View style={[styles.pressureNote, { borderLeftColor: t.caution }]}>

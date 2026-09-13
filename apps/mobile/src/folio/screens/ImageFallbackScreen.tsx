@@ -37,7 +37,8 @@
 //   • Press feedback is the kit `pressed` feel (scale 0.97 / lowered opacity) via Pressable.
 //   • Push-to-bottom: a ScrollView whose contentContainer is flexGrow:1 with a flex:1 spacer pins
 //     the CTAs to the bottom; bottom safe-area replaces the web's trailing margin.
-//   • Both "View image" affordances decrypt into a short-lived cache file, invoke the native
+//   • The retained original can be opened through one "View image" affordance when available; it
+//     decrypts into a short-lived cache file and invokes the native
 //     viewer/share surface, and remove that plaintext cache in `finally`.
 //
 // STATES (per STATES.md): this file IS the fallback/error branch for the photo reader. All five
@@ -235,7 +236,7 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
           ) : null}
         </View>
 
-        {/* Image card — thumb + truncating name + "saved in Melo" + a quiet View. */}
+        {/* Image card — thumb + truncating name + truthful retention label. */}
         <View style={[styles.imageCard, { backgroundColor: t.surface, borderColor: t.hairline }]}>
           <View style={[styles.thumb, { backgroundColor: t.inset, borderColor: t.hairline }]}>
             <Text style={[styles.thumbCaption, { color: t.muted }]}>photo</Text>
@@ -246,17 +247,6 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
             </Text>
             <Text style={[styles.imageSub, { color: t.muted }]}>selected photo</Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View image"
-            accessibilityState={{ disabled: evidenceDocument === undefined }}
-            disabled={evidenceDocument === undefined}
-            hitSlop={12}
-            onPress={openSource}
-            style={({ pressed: isPressed }) => [isPressed ? styles.pressed : undefined]}
-          >
-            <Text style={[styles.viewLink, { color: t.muted }]}>View</Text>
-          </Pressable>
         </View>
 
         {/* Note well — the calm advice block. */}
@@ -293,11 +283,9 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
 
         {/* Secondary row — encrypted original + the manual last-resort workbench. */}
         <View style={styles.secondaryRow}>
-          <Pressable
+          {evidenceDocument !== undefined ? <Pressable
             accessibilityRole="button"
             accessibilityLabel="View image"
-            accessibilityState={{ disabled: evidenceDocument === undefined }}
-            disabled={evidenceDocument === undefined}
             onPress={openSource}
             style={({ pressed: isPressed }) => [
               styles.secondaryCell,
@@ -306,7 +294,7 @@ export function ImageFallbackScreen({ nav, image, state = 'populated' }: ImageFa
             ]}
           >
             <Text style={[styles.secondaryLabel, { color: t.ink }]}>View image</Text>
-          </Pressable>
+          </Pressable> : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Log a spend"

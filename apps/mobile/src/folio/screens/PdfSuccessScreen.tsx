@@ -376,6 +376,7 @@ export function PdfSuccessScreen({
           nav={nav}
           candidates={canResumeReview ? [] : rawCandidates}
           {...(canResumeReview ? { sessionKey: reviewSourceKey } : {})}
+          {...(evidenceFilename === undefined ? {} : { sourceLabel: evidenceFilename })}
           {...(closingBalance !== undefined ? { closingBalance } : {})}
           onAdded={() => clearReaderCandidates()}
         />

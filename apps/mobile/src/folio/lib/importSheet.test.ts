@@ -59,6 +59,11 @@ describe('parseSheet — CSV', () => {
     expect(candidates.every((c) => c.source === 'csv')).toBe(true);
   });
 
+  it('preserves the selected text format separately from the parser source', () => {
+    const { candidates } = parseSheet(csv, { source: 'csv', sourceFormat: 'txt' });
+    expect(candidates.every((c) => c.source === 'csv' && c.sourceFormat === 'txt')).toBe(true);
+  });
+
   it('keeps a negative amount negative (spend) and a positive one positive (income)', () => {
     const { candidates } = parseSheet(csv);
     expect(byMerchant(candidates, 'Tesco')?.amount).toBe(-42);
