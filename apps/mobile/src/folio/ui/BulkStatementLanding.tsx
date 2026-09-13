@@ -731,6 +731,14 @@ export function BulkStatementLanding({
       // workspace switch/receipt operation from taking the persistence boundary while this add is
       // publishing its receipt and history rows.
       resumePersistence = await quiescePersistenceWrites();
+      if (String(getState().activeWorkspaceId) !== String(activeWorkspaceId)) {
+        // A queued workspace switch may have completed while admission was waiting. Do not apply
+        // candidates/account selection captured from the old partition to the newly active one.
+        setReceiptPending(false);
+        setReceiptPersistenceError(false);
+        setCommitError(true);
+        return;
+      }
       beforeCommitBlob = getPersistBlob(activeWorkspaceId);
       attemptBlob = beforeCommitBlob;
       const accountId = resolvedAccountId ?? DEFAULT_ACCOUNT_ID;

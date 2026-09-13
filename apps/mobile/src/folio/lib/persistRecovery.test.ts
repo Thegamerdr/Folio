@@ -300,6 +300,7 @@ const restoreReceiptFixture: RestoreResult = {
   degraded: true,
   attemptedTransactionCount: 2,
   restoredTransactionCount: 1,
+  intactTransactionCount: 0,
   restoredAccountCount: 1,
   restoredOriginalFileCount: 0,
   missingOriginalFileCount: 1,
@@ -1938,6 +1939,27 @@ describe('MF10 restore receipt durability', () => {
     await restoreReceiptStore.acknowledge(String(PERSONAL_WORKSPACE_ID));
     expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toBeNull();
     expect(JSON.parse(getPersistBlob(PERSONAL_WORKSPACE_ID)).restoreReceipts).toEqual({});
+  });
+
+  it('reports a superseded acknowledgement while preserving a concurrent money edit and receipt', async () => {
+    resetToEmpty();
+    await restoreReceiptStore.save(restoreReceiptFixture);
+    let releaseWrite!: () => void;
+    const delayedWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    saveNativeWorkspaceStateGeneration.mockImplementationOnce(async () => {
+      await delayedWrite;
+      return { generation: 1 };
+    });
+    const ack = restoreReceiptStore.acknowledge(String(PERSONAL_WORKSPACE_ID));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    setPartial({ nextYouNote: 'new money edit during ack' });
+    releaseWrite();
+
+    await expect(ack).rejects.toThrow(/superseded/i);
+    expect(getState().nextYouNote).toBe('new money edit during ack');
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(restoreReceiptFixture);
   });
 
   it('does not expose a Personal receipt while another workspace is active', async () => {

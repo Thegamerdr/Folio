@@ -1111,10 +1111,11 @@ export function createRestoreReceiptStore(): RestoreReceiptStore {
         await persistCurrentStateNow(checked, undefined, { plaintextOverride: acknowledged });
 
         // If a user mutation arrived while the native write was in flight, preserve that newer
-        // state and its receipt instead of hydrating an old snapshot over it.
+        // state and its receipt instead of hydrating an old snapshot over it. The caller must see
+        // a rejected acknowledgement: the receipt is still present and must remain visible.
         if (getPersistBlob(checked) !== before) {
           await persistCurrentStateNow(checked);
-          return;
+          throw new Error('Restore receipt acknowledgement was superseded by a newer local edit.');
         }
         hydrateFromBlob(acknowledged, checked);
       });

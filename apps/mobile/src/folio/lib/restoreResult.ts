@@ -10,6 +10,8 @@ export type RestoreResult = Readonly<{
   degraded: boolean;
   attemptedTransactionCount: number;
   restoredTransactionCount: number;
+  /** Rows whose stable ID and supplied material values survived unchanged. */
+  intactTransactionCount: number;
   restoredAccountCount: number;
   restoredOriginalFileCount: number;
   missingOriginalFileCount: number;
@@ -162,6 +164,7 @@ export function createRestoreResult(input: RestoreResultInput): RestoreResult {
       });
     })
     .map(([id]) => id);
+  const changedTransactionIdSet = new Set(changedTransactionIds);
   const malformedTransactionCount =
     input.attemptedTransactions.filter(isMalformedTransaction).length;
   const duplicateTransactionIdCount = [
@@ -170,6 +173,22 @@ export function createRestoreResult(input: RestoreResultInput): RestoreResult {
   ].reduce((total, rows) => total + Math.max(rows.length - 1, 0), 0);
   const validAttemptedTransactionRows = rowsWithIds(
     input.attemptedTransactions.filter((transaction) => !isMalformedTransaction(transaction)),
+  );
+  const intactTransactionCount = [...validAttemptedTransactionRows.entries()].reduce(
+    (total, [id, attemptedRows]) => {
+      if (changedTransactionIdSet.has(id)) return total;
+      const restoredRows = restoredTransactionRows.get(id);
+      if (!restoredRows || restoredRows.length === 0) return total;
+      const expected = materialFingerprint(attemptedRows[0]);
+      const actual = materialFingerprint(restoredRows[0]);
+      return (
+        total +
+        (expected === null || expected === actual
+          ? Math.min(attemptedRows.length, restoredRows.length)
+          : 0)
+      );
+    },
+    0,
   );
   const droppedTransactionCount =
     malformedTransactionCount +
@@ -193,6 +212,7 @@ export function createRestoreResult(input: RestoreResultInput): RestoreResult {
     degraded: input.degraded,
     attemptedTransactionCount: input.attemptedTransactions.length,
     restoredTransactionCount: input.restoredTransactions.length,
+    intactTransactionCount,
     restoredAccountCount: input.restoredAccountCount,
     restoredOriginalFileCount: input.restoredOriginalFileIds.length,
     missingOriginalFileCount,
