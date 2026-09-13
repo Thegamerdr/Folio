@@ -36,6 +36,7 @@ export function ReviewTimelineTabRail<Key extends string>({
       ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
+      style={styles.viewport}
       contentContainerStyle={styles.scrollContent}
     >
       <View
@@ -85,15 +86,22 @@ export function ReviewTimelineTabRail<Key extends string>({
 
 const styles = StyleSheet.create({
   scrollContent: {
+    alignItems: 'flex-start',
     paddingBottom: gap.md,
     paddingHorizontal: gap.lg,
     paddingTop: gap.sm,
   },
+  viewport: {
+    alignSelf: 'stretch',
+    flexGrow: 0,
+    flexShrink: 0,
+  },
   rail: {
-    alignItems: 'stretch',
+    alignItems: 'center',
     borderRadius: radius.md,
     flexDirection: 'row',
     gap: gap.xs,
+    height: 48,
     minHeight: 48,
     paddingHorizontal: gap.xs,
     paddingVertical: 2,
