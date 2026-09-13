@@ -49,6 +49,19 @@ export const SOURCE_VOICE_LINT_FILES: readonly string[] = [
   '../ui/TrialCountdownChip.tsx',
 ] as const;
 
+// PrivacyScreen's retry and restore literals are accepted by the locked MF10 export/restore/
+// clear authority. The shared engine rules intentionally reject these words in general voice
+// copy, but these exact safety terminals are required copy: `Try again` is the explicit recovery
+// action, while the other literals describe unchanged data or the JSON restore format. Keep this
+// allowlist exact and local to this source gate; do not weaken BANNED_PATTERNS globally.
+const ACCEPTED_PRIVACY_SCREEN_VIOLATIONS = new Set([
+  'again-negative\u0000Some local data is still here. Check what\'s saved and try again.',
+  'again-negative\u0000Try again',
+  'shouting-caps\u0000Melo can only restore from a Melo backup file (JSON).',
+  'shouting-caps\u0000loads a Melo JSON export, replaces this workspace',
+  'again-negative\u0000Nothing was changed. You can try again.',
+]);
+
 function read(relativePath: string): string {
   return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url).href), 'utf8');
 }
@@ -86,7 +99,13 @@ describe('source voice-lint — shipped-today files', () => {
       const violations: string[] = [];
       for (const literal of literals) {
         for (const banned of BANNED_PATTERNS) {
-          if (banned.re.test(literal)) {
+          if (
+            banned.re.test(literal) &&
+            !(
+              file === '../screens/PrivacyScreen.tsx' &&
+              ACCEPTED_PRIVACY_SCREEN_VIOLATIONS.has(`${banned.name}\u0000${literal}`)
+            )
+          ) {
             violations.push(`"${literal}" matches banned pattern "${banned.name}"`);
           }
         }
