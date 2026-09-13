@@ -70,6 +70,29 @@ describe('canonical AppState read projection', () => {
     expect(read.currentBalance.provided ?? false).toBe(false);
   });
 
+  it.each(['inferred', 'hypothetical'] as const)(
+    'does not promote %s canonical authority to provided',
+    (authorityState) => {
+      const base = emptyState();
+      const workspace = personalWorkspace(base);
+      const state: AppState = {
+        ...base,
+        currentBalance: { ...base.currentBalance, amount: 0, provided: false },
+      };
+      const canonical = createCanonicalAppStateProjection(
+        state,
+        workspace,
+        '2026-09-09T12:00:00.000Z',
+      );
+      const snapshot = structuredClone(canonical.repositorySnapshot);
+      const observation = snapshot.collections.balanceObservations[0];
+      if (!observation) throw new Error('Canonical balance observation fixture is missing.');
+      (observation as { authorityState: typeof authorityState }).authorityState = authorityState;
+      const read = readCanonicalAppStateMoneyProjection(snapshot, String(workspace.id));
+      expect(read.currentBalance.provided ?? false).toBe(false);
+    },
+  );
+
   it('preserves confirmed provenance across a live spend and canonical re-read', () => {
     resetToEmpty();
     setCurrentBalance({ amount: 100, source: 'user-entered', confidence: 'rough' });
