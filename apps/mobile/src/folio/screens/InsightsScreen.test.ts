@@ -1,19 +1,17 @@
-// InsightsScreen — Node-safe coverage for the DATA_INTELLIGENCE.md phase ④ reconstructed-cycle
+// InsightsScreen — Node-safe coverage for the recorded-review and reconstructed-cycle
 // wiring (screens/InsightsScreen.tsx).
 //
 // InsightsScreen.tsx imports react-native/react-native-svg/reanimated and JSX, so it cannot load
 // under the Node test runner (the repo's vitest glob is `apps/**/*.test.ts`, .tsx is never
 // collected — same constraint every sibling screen test in this repo documents, e.g.
 // TodayNudges.ritual.test.ts). This file restates the screen's two pure derivations 1:1 and
-// exercises them against the REAL `synthesizeHistoryCycles`/`getRetrospect` engines, so the
-// contract under test is "what the screen actually computes", not a reimplementation of the engines
-// themselves:
+// exercises them against the REAL `synthesizeHistoryCycles`/`selectRecordedReviews` engines, so the
+// contract under test is the screen's data boundary, not a reimplementation of the engines:
 //
-//   1. Stat tiles / trend chart aggregate ALL cycles (lived + reconstructed) — no filtering, since
-//      `getRetrospect`/the trend `useMemo` both read the raw `cycles` slice unfiltered.
+//   1. Headline/chart records use only recorded reviews; reconstructed cycles remain a separate
+//      approximate-history branch.
 //   2. "Notes from past you" (`livedNotes`) filters OUT reconstructed cycles entirely.
-//   3. The chart's reconstructed-caption trigger (`trend.some(isReconstructed)`) fires only when the
-//      6-month trend window actually contains a reconstructed month.
+//   3. The chart window is the six latest eligible recorded reviews, rendered oldest-first.
 
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -21,7 +19,7 @@ import { URL } from 'node:url';
 
 import type { CycleRecord } from '../store';
 import { synthesizeHistoryCycles, type ReconstructedCycleRecord } from '../lib/historyCycles';
-import { getRetrospect } from '../lib/modes/retrospect';
+import { selectRecordedReviews } from '../lib/recordedReviews';
 import { buildInsightsRead } from './insightsRead';
 
 // 1:1 restatement of the screen's local helper (InsightsScreen.tsx `isReconstructed`).
@@ -36,7 +34,7 @@ function livedNotesOf(cycles: readonly CycleRecord[]): CycleRecord[] {
 
 // 1:1 restatement of the screen's `trend` derivation (oldest → newest, windowed to 6).
 function trendOf(cycles: readonly CycleRecord[]): CycleRecord[] {
-  return cycles.slice(0, 6).reverse();
+  return selectRecordedReviews(cycles).filter((cycle) => Number.isFinite(cycle.tightPoint)).slice(0, 6).reverse();
 }
 
 function txn(
@@ -66,8 +64,8 @@ function fiveRowsIn(monthPrefix: string) {
 
 const TODAY = '2026-07-06';
 
-describe('InsightsScreen — reconstructed-cycle aggregation (DATA_INTELLIGENCE.md phase ④)', () => {
-  it('retrospect excludes reconstructed estimates while retaining them in the labelled chart', () => {
+describe('InsightsScreen — recorded and reconstructed cycle boundaries', () => {
+  it('headline and chart selection exclude reconstructed estimates', () => {
     const lived: CycleRecord = {
       closedAt: '2026-05-25',
       label: 'May (lived)',
@@ -79,16 +77,12 @@ describe('InsightsScreen — reconstructed-cycle aggregation (DATA_INTELLIGENCE.
     const withReconstructed = synthesizeHistoryCycles(fiveRowsIn('2026-06'), [], [lived], TODAY);
     expect(withReconstructed.length).toBe(2);
 
-    // getRetrospect (the real engine InsightsScreen calls) must count BOTH cycles — the reconstructed
-    // month is real spend/income history, just not a ritual-sealed one.
-    const retro = getRetrospect('survival', withReconstructed, 0);
-    expect(retro.eyebrow).toContain('1 recorded review');
+    const recorded = selectRecordedReviews(withReconstructed);
+    expect(recorded).toEqual([lived]);
 
     // Same story for the trend chart window: both cycles appear, oldest-first.
     const trend = trendOf(withReconstructed);
-    expect(trend.length).toBe(2);
-    expect(trend[0]!.closedAt).toBe('2026-05-25');
-    expect(trend[1]!.closedAt).toBe('2026-06-30');
+    expect(trend).toEqual([lived]);
   });
 
   it('"Notes from past you" excludes every reconstructed cycle, keeping only lived ones', () => {
@@ -135,7 +129,7 @@ describe('InsightsScreen — reconstructed-cycle aggregation (DATA_INTELLIGENCE.
     expect(notes.every((c) => !isReconstructed(c))).toBe(true);
   });
 
-  it('the chart reconstructed-caption trigger fires only when the trend window contains a reconstructed month', () => {
+  it('the chart window contains only eligible recorded reviews', () => {
     const lived: CycleRecord = {
       closedAt: '2026-05-25',
       label: 'May (lived)',
@@ -144,13 +138,11 @@ describe('InsightsScreen — reconstructed-cycle aggregation (DATA_INTELLIGENCE.
       setAside: 0,
       note: 'n',
     };
-    const noReconstructed = trendOf([lived]);
-    expect(noReconstructed.some(isReconstructed)).toBe(false);
-
     const withReconstructed = trendOf(
       synthesizeHistoryCycles(fiveRowsIn('2026-06'), [], [lived], TODAY),
     );
-    expect(withReconstructed.some(isReconstructed)).toBe(true);
+    expect(withReconstructed.some(isReconstructed)).toBe(false);
+    expect(withReconstructed.every((cycle) => !cycle.reconstructed)).toBe(true);
   });
 
   it('keeps one lived cycle as a fact, not a fabricated pattern', () => {
@@ -199,24 +191,22 @@ describe('actual same-day review comparison', () => {
 describe('empty Insights preserves the recorded-review prerequisite', () => {
   const source = readFileSync(new URL('./InsightsScreen.tsx', import.meta.url), 'utf8');
   const emptyBranch = source.slice(
-    source.indexOf('if (cycles.length === 0)'),
-    source.indexOf('// ----- POPULATED'),
+    source.indexOf('function EmptyBranch'),
+    source.indexOf('function ReadFailure'),
   );
 
   it('describes missing forecast reviews without claiming a completed month is required', () => {
     expect(emptyBranch).toContain('No reviews recorded yet');
-    expect(emptyBranch).toContain('No forecast reviews yet');
+    expect(emptyBranch).toContain('headlineAccent');
+    expect(emptyBranch).toContain('No reviews yet');
     expect(emptyBranch).toContain(
-      'After you save a forecast review, its summary and any note will appear here.',
+      'After you record a payday review, its saved figures and any note will appear here.',
     );
     expect(emptyBranch).not.toMatch(/copy\.insights\.empty|wrapped up|real cycle|payday-to-payday/);
   });
 
   it('retains the setup doorway and return to Today without inventing a chart', () => {
-    expect(emptyBranch).toContain('const needsSetup = !onboardingDone');
-    expect(emptyBranch).toContain('Add your numbers first');
-    expect(emptyBranch).toContain("nav.openSheet('onboarding')");
-    expect(emptyBranch).toContain("label: 'Back to today', onPress: () => nav.go('today')");
+    expect(emptyBranch).toContain("label: 'Back to Today', onPress: () => nav.go('today')");
     expect(emptyBranch).not.toContain('<TrendChart');
   });
 });

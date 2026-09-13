@@ -1,60 +1,16 @@
-// InsightsScreen — the faithful 1:1 React Native port of the web retrospective screen
-// (folio-melo/.claude/worktrees/design-main/src/components/folio/screens/ScreenInsights.tsx).
-//
-// @rn-screen    InsightsScreen
-// @rn-stack     More > Insights
-// @purpose      The shape of your months — 6-month tight-point chart, saved-across-cycles delta,
-//               past cycle notes. A retrospective screen: gentle, never predictive. Read-only.
-// @reads        cycles · pots · subPaused  (the doc-block @reads says only `cycles`, but the web
-//               body also reads pots + subPaused; per the spec DOC-BLOCK DRIFT note the RN port wires
-//               all THREE store slices — the real reads, not the doc block.)
-// @writes       — none. Strictly read-only; no store mutation. Side effects only via nav.
-// @opens-sheet  share  (footer CTA → nav.openSheet('share'))
-// @copy         FROZEN — gentle, retrospective, never predictive.
-// @tokens       surface · hairline · calm (accent) · positive · repair (negative) · muted · ink ·
-//               inverse (CTA label on the ink button) · inset (via EmptyState) — all from the kit via
-//               '@/folio/theme'. No new token.
-// @motion       route-draw on the chart line (2200ms ease-out) · count-up on the figures (700ms
-//               easeOutCubic) · slide-in-r (whole screen, 360ms ease-out-expo) · press 0.97 on the
-//               back arrow + footer CTA. Reduced motion = final state everywhere (route fully drawn,
-//               count-up snapped, slide resolved). NO spinners.
-//
-// FIDELITY DECISIONS (each grounded in the spec + the confirmed kit/source):
-//   • Tokens map web → kit: --surface→surface · --hairline→hairline · --accent→calm · --positive→
-//     positive · --negative→repair · --muted-ink→muted · --ink→ink · --paper→inverse (the on-ink CTA
-//     label) · --inset→inset (inside EmptyState). The chart gradient/line/last-dot use `calm`.
-//   • formatGBP is ported VERBATIM from the web source (spec rnPrimitiveMap): a U+2212 MINUS for
-//     negatives + '£' + en-GB grouping. It is defined locally in this file (only this file may be
-//     created) so the money reads identically. The cycle figures are whole pounds, so this never
-//     touches the minor-unit kit `money()`; that is intentional — the web used these same whole-pound
-//     `formatGBP` values.
-//   • count-up: the four stat-tile figures and the avg subtitle settle via the kit `useCountUp` (700ms,
-//     re-exported through '@/folio/theme'), snapping under reduce-motion — same easeOutCubic the rest
-//     of the surface uses.
-//   • route-draw: the chart line path animates strokeDashoffset 1200 → 0 over 2200ms ease-out, ONCE
-//     per visit (never a loop). Under reduce-motion it renders fully drawn (offset 0). Mirrors the
-//     web .route-draw (strokeDasharray 1200 → strokeDashoffset 0).
-//   • slide-in-r: translateX 28→0 + fade over 360ms ease-out-expo, gated to FINAL STATE under
-//     reduce-motion, mirroring ReviewScreen / Melo / StartScreen.
-//   • The chart math (W=320 H=96 padX=12 padY=14, stepX, minT/maxT/range, y, avgY, last-point label
-//     anchor) is ported COORDINATE-FOR-COORDINATE from the web so the line never distorts.
-//   • Single-point case (n<=1): the area fill AND the route-draw line are BOTH omitted — only the
-//     dashed avg line + one dot + the label render (spec sub-branch (b)).
-//   • The accent word is UPRIGHT terracotta inside the Fraunces line (web <em class="not-italic
-//     text-accent">) — built as three Text runs so the accented word is the single coloured run.
-//   • The empty state preserves the review prerequisite. Its copy describes saved forecast reviews,
-//     which can share a date; it does not imply that recording one completes a payday-to-payday month.
-//   • Melo presence: the populated branch instantiates Melo ONLY via the conditional cheer MeloLine
-//     (paused subs); no standalone calm Melo is added (spec: "No mood = no Melo"). The empty branch's
-//     Melo is the EmptyState's own curious Melo.
-//
-// Banned visible words (import / rows / parser / extraction / OCR / sync / dashboard / analytics /
-// users / 100% / bank-grade / AI-powered / smart / provenance / source record / indexed) are absent.
-
-import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+// Native recorded-review Insights surface. The screen is read-only: all figures and branches come
+// from the existing recorded-review read and store; navigation and sharing remain existing owners.
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { tinyWinMessage } from '@/folio/lib/wins';
 import Svg, {
   Circle,
   Defs,
@@ -72,62 +28,39 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { gap, radius, serif, useCountUp, useTheme, type Palette } from '@/folio/theme';
+import { gap, radius, serif, useTheme, type Palette } from '@/folio/theme';
 import { MeloLine } from '@/folio/melo/MeloLine';
 import { EmptyState } from '@/folio/ui/EmptyState';
 import { ScreenHeader } from '@/folio/ui/ScreenHeader';
-import { copy } from '@/folio/copy/copy';
 import { useAppStore, type CycleRecord } from '@/folio/store';
-import { getRetrospect } from '@/folio/lib/modes/retrospect';
 import { formatMoney, formatFinancialDate } from '@/folio/lib/financialPresentation';
 import { selectRecordedReviews } from '@/folio/lib/recordedReviews';
-import { expectedMonthLabel, useCaughtAnnual } from '@/folio/lib/caughtAnnual';
-import { computeGreenStreak } from '@/folio/lib/streaks';
 import { buildInsightsRead, type InsightsRead } from './insightsRead';
+import { MODE_LABEL } from '@/folio/lib/modes/types';
+import { tinyWinMessage } from '@/folio/lib/wins';
+import { useCaughtAnnual, expectedMonthLabel } from '@/folio/lib/caughtAnnual';
+import { copy } from '@/folio/copy/copy';
 import type { Nav } from '@/folio/types';
+import { PERSONAL_WORKSPACE_ID } from '@/folio/lib/workspaceRoot';
+import { chartLabelPositions } from './insightsChartLayout';
 
-// DATA_INTELLIGENCE.md phase ④ — true only for a cycle synthesized from bulk-imported statement
-// history (lib/historyCycles.ts), never for a real, ritual-sealed cycle. Local helper so every
-// reconstructed-cycle check in this screen reads identically (chart caption, notes-list filter).
-function isReconstructed(c: CycleRecord): boolean {
-  return c.reconstructed === true;
-}
-
-// ---------------------------------------------------------------------------
-// formatGBP — ported VERBATIM from the web source (spec rnPrimitiveMap):
-//   sign '−' (U+2212) for negatives; '£' + Math.abs(n) with en-GB grouping, no decimals.
-// ---------------------------------------------------------------------------
-function formatGBP(n: number): string {
-  return formatMoney(n);
-}
-
-// ---------------------------------------------------------------------------
-// Motion constants
-// ---------------------------------------------------------------------------
-
-// Shared ease-out-expo — the web's cubic-bezier(.16, 1, .3, 1) — for the slide-in.
-const EASE_OUT_EXPO = Easing.bezier(0.16, 1, 0.3, 1);
-
-// slide-in-r geometry (web .slide-in-r): the whole screen enters from +28px on X with a fade, 360ms.
-const SLIDE_FROM_X = 28;
-const SLIDE_MS = 360;
-
-// route-draw (web .route-draw): strokeDasharray 1200, strokeDashoffset 1200 → 0 over 2200ms ease-out.
+const BOTTOM_NAV_HEIGHT = 60;
+const CONTENT_BOTTOM_BUFFER = 32;
+const CHART_PAD_X = 20;
+const CHART_PAD_Y = 20;
+const DEFAULT_CHART_WIDTH = 312;
+const CHART_HEIGHT = 232;
+const CHART_HEIGHT_LARGE = 288;
 const ROUTE_DASH = 1200;
 const ROUTE_DRAW_MS = 2200;
-
-// count-up (web useCountUp(..., 700)).
 const COUNT_MS = 700;
-
-// Chart geometry — coordinate-for-coordinate with the web (W=320 H=96 padX=12 padY=14).
-const CHART_W = 320;
-const CHART_H = 96;
-const CHART_PAD_X = 12;
-const CHART_PAD_Y = 14;
-
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-// Local reduce-motion read, mirroring Melo.tsx / ReviewScreen.tsx exactly: read once, then subscribe.
+type ReadableReview = Pick<
+  CycleRecord,
+  'closedAt' | 'label' | 'spare' | 'tightPoint' | 'setAside' | 'note'
+>;
+
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
   useEffect(() => {
@@ -144,427 +77,464 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
-export type InsightsScreenProps = {
-  nav: Nav;
-};
+function isFiniteMoney(value: number): boolean {
+  return Number.isFinite(value);
+}
+
+function displayMoney(value: number): string | undefined {
+  return isFiniteMoney(value) ? formatMoney(value) : undefined;
+}
+
+function recordedForPersonal(
+  cycles: readonly CycleRecord[],
+  activeWorkspaceId: string,
+): CycleRecord[] {
+  if (activeWorkspaceId !== PERSONAL_WORKSPACE_ID) return [];
+  const workspaceCycles = cycles.filter(
+    (cycle) => cycle.workspaceId === undefined || cycle.workspaceId === activeWorkspaceId,
+  );
+  return selectRecordedReviews(workspaceCycles);
+}
+
+export type InsightsScreenProps = { nav: Nav };
 
 export function InsightsScreen({ nav }: InsightsScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
-  const s = useMemo(() => makeStyles(t), [t]);
+  const styles = useMemo(() => makeStyles(t), [t]);
+  const [readAttempt, setReadAttempt] = useState(0);
 
-  // All real store slices (spec DOC-BLOCK DRIFT: wire the real reads, not the doc block). moneyMode /
-  // transactions / tinyWins added for the mode-tinted retrospect + weekly digest + tiny-wins section.
-  const cycles = useAppStore((st) => st.cycles);
-  const pots = useAppStore((st) => st.pots);
-  const subPaused = useAppStore((st) => st.subPaused);
-  const moneyMode = useAppStore((st) => st.moneyMode ?? 'survival');
-  const transactions = useAppStore((st) => st.transactions);
-  const tinyWins = useAppStore((st) => st.tinyWins ?? []);
-  const cancelledSubs = useAppStore((st) => st.cancelledSubs ?? []);
-  const onboardingDone = useAppStore((st) => st.onboarding.done);
-
-  // Annual-radar candidates (DATA_INTELLIGENCE.md phase ⑥ item 5) — NOT part of the frozen web
-  // source; see the quiet card below (and lib/caughtAnnual.ts's own "SURFACE CHOICE" note) for why
-  // this lives here rather than on CalendarScreen. Only the first candidate is surfaced (a single
-  // quiet row, never a list) — mirrors every "caught" sheet's own caught[0] convention.
+  const cycles = useAppStore((state) => state.cycles);
+  const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
+  const pots = useAppStore((state) => state.pots);
+  const moneyMode = useAppStore((state) => state.moneyMode ?? 'survival');
+  const subPaused = useAppStore((state) => state.subPaused);
+  const tinyWins = useAppStore((state) => state.tinyWins ?? []);
+  const cancelledSubs = useAppStore((state) => state.cancelledSubs ?? []);
+  const transactions = useAppStore((state) => state.transactions);
   const annualCandidates = useCaughtAnnual();
   const annualCandidate = annualCandidates[0];
 
-  // Derived aggregates — ported 1:1 from the web body. Summary tiles aggregate ALL cycles; the chart
-  // windows to 6; the notes list windows to 4 (spec: three different windows, do not unify).
-  //
-  // AVERAGE POLLUTION FIX (DATA_INTELLIGENCE.md phase ④): avgTight / the "Average set aside" tile /
-  // spareDelta are headline FIGURES, not the chart — so they must never blend a reconstructed
-  // month's approximation (setAside hardcoded 0, tightPoint a rough spend-minus-income proxy) into
-  // a number presented as fact. Computed from LIVED cycles only, mirroring the `livedNotes` filter
-  // below. The chart itself is unaffected — it keeps plotting every cycle (already captioned).
-  const livedCycles = useMemo(() => selectRecordedReviews(cycles), [cycles]);
-  const hasReconstructedInAll = useMemo(() => cycles.some(isReconstructed), [cycles]);
-
-  const avgTight = livedCycles.length
-    ? livedCycles.reduce((acc, c) => acc + c.tightPoint, 0) / livedCycles.length
-    : 0;
+  const reviews = useMemo(
+    () => recordedForPersonal(cycles, activeWorkspaceId),
+    [activeWorkspaceId, cycles],
+  );
+  const reconstructedReviews = useMemo(
+    () =>
+      activeWorkspaceId === PERSONAL_WORKSPACE_ID
+        ? cycles.filter(
+            (cycle) =>
+              cycle.reconstructed === true &&
+              (cycle.workspaceId === undefined || cycle.workspaceId === activeWorkspaceId),
+          )
+        : [],
+    [activeWorkspaceId, cycles],
+  );
+  const validReviews = useMemo(
+    () => reviews.filter((review) => isFiniteMoney(review.tightPoint)),
+    [reviews],
+  );
+  const latest = reviews[0];
+  const prior = reviews[1];
+  const potsTotal = useMemo(() => {
+    if (activeWorkspaceId !== PERSONAL_WORKSPACE_ID) return undefined;
+    const scopedPots = pots.filter(
+      (pot) => pot.workspaceId === undefined || pot.workspaceId === activeWorkspaceId,
+    );
+    if (scopedPots.some((pot) => !isFiniteMoney(pot.saved))) return undefined;
+    return scopedPots.reduce((sum, pot) => sum + pot.saved, 0);
+  }, [activeWorkspaceId, pots]);
+  const averageLow =
+    reviews.length > 0 && validReviews.length === reviews.length
+      ? reviews.reduce((sum, review) => sum + review.tightPoint, 0) / reviews.length
+      : undefined;
+  const latestContribution = latest && isFiniteMoney(latest.setAside) ? latest.setAside : undefined;
   const pausedCount = Object.values(subPaused).filter(Boolean).length;
-  const greenStreak = useMemo(() => computeGreenStreak(cycles), [cycles]);
-  const cancelSavingsMonthly = Math.round(
-    cancelledSubs.reduce((sum, subscription) => sum + subscription.monthlyAmount, 0),
+  const scopedTransactions = useMemo(
+    () =>
+      activeWorkspaceId === PERSONAL_WORKSPACE_ID
+        ? transactions.filter(
+            (transaction) =>
+              transaction.workspaceId === undefined ||
+              transaction.workspaceId === activeWorkspaceId,
+          )
+        : [],
+    [activeWorkspaceId, transactions],
   );
-  const potsTotal = pots.reduce((acc, p) => acc + p.saved, 0);
-  // spareDelta compares the two most recent LIVED cycles — a reconstructed month sitting between
-  // them (or as the latest entry) must never enter this comparison, since its `spare` is derived
-  // from the same honest-estimate approximation as tightPoint/setAside.
-  const latestLived = livedCycles[0];
-  const priorLived = livedCycles[1];
-
-  // Mode-tinted retrospective framing (web `getRetrospect(mode, cycles, potsTotal)`) — the eyebrow,
-  // headline, both KPI cards, the trend caption, and the Melo note all vary by moneyMode.
-  const retro = useMemo(
-    () => getRetrospect(moneyMode, livedCycles, potsTotal),
-    [moneyMode, livedCycles, potsTotal],
-  );
-
-  // Weekly digest — trailing 7 days of user-visible spend + quiet days (web `weekly` memo).
-  const weekly = useMemo(() => {
+  const weeklySpent = useMemo(() => {
     const now = Date.now();
     const weekAgo = now - 7 * 86_400_000;
-    const week = transactions.filter(
-      (t) =>
-        new Date(t.when).getTime() >= weekAgo &&
-        new Date(t.when).getTime() <= now &&
-        t.amount < 0 &&
-        t.financialAction?.kind !== 'transfer',
-    );
-    const spent = week.reduce((acc, t) => acc + Math.abs(t.amount), 0);
-    const daysWithSpend = new Set(week.map((t) => new Date(t.when).toISOString().slice(0, 10)))
-      .size;
-    const quietDays = Math.max(0, 7 - daysWithSpend);
-    return { spent, quietDays };
-  }, [transactions]);
+    return scopedTransactions
+      .filter((transaction) => {
+        const when = new Date(transaction.when).getTime();
+        return (
+          when >= weekAgo &&
+          when <= now &&
+          transaction.amount < 0 &&
+          transaction.financialAction?.kind !== 'transfer'
+        );
+      })
+      .reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
+  }, [scopedTransactions]);
+  const modeLabel = MODE_LABEL[moneyMode];
+  const retroMelo = useMemo(() => {
+    // This note is authored from review count only. Do not coerce an unknown pot total into a
+    // user-visible financial value merely to satisfy the retrospect helper's legacy parameter.
+    if (reviews.length < 2) {
+      return reviews.length === 1
+        ? 'Your first review is recorded. One snapshot is not a trend.'
+        : 'Imported estimates remain reference history. Record a review to save your current forecast.';
+    }
+    return 'Each review saves the forecast as it looked then. It does not record a bank payment or prove a month has passed.';
+  }, [reviews]);
+  const readState = useMemo(() => {
+    try {
+      return {
+        read: buildInsightsRead({ latest, prior, weeklySpent, quietDays: 0 }),
+        failed: false,
+      };
+    } catch {
+      return { read: undefined, failed: true };
+    }
+  }, [latest, prior, readAttempt, weeklySpent]);
 
-  const authoredRead = useMemo<InsightsRead>(
-    () =>
-      buildInsightsRead({
-        latest: latestLived,
-        prior: priorLived,
-        weeklySpent: weekly.spent,
-        quietDays: weekly.quietDays,
-      }),
-    [latestLived, priorLived, weekly.quietDays, weekly.spent],
-  );
+  const branchKey = readState.failed ? 'failure' : reviews.length === 0 ? 'empty' : 'populated';
+  const announcedBranch = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (announcedBranch.current === undefined) {
+      announcedBranch.current = branchKey;
+      return;
+    }
+    if (announcedBranch.current === branchKey) return;
+    announcedBranch.current = branchKey;
+    const message =
+      branchKey === 'empty'
+        ? 'No reviews recorded yet.'
+        : branchKey === 'failure'
+          ? "Insights aren't available just now."
+          : `${reviews.length} recorded ${reviews.length === 1 ? 'review' : 'reviews'}.`;
+    AccessibilityInfo.announceForAccessibility(message);
+  }, [branchKey, reviews.length]);
 
-  // Tight-point trend: one point per closed cycle, oldest → newest (web: slice(0,6).reverse()).
-  const trend = useMemo(() => cycles.slice(0, 6).reverse(), [cycles]);
-
-  // "Notes from past you" — LIVED cycles only (DATA_INTELLIGENCE.md phase ④): a reconstructed month
-  // has no ritual note to show, so it is filtered out entirely rather than rendered with an
-  // empty/placeholder note. `.slice(0,4)` mirrors the original web window, applied AFTER filtering so
-  // four real notes show whenever they exist, instead of the window being padded out by reconstructed
-  // entries that render nothing.
-  const livedNotes = useMemo(() => livedCycles.slice(0, 4), [livedCycles]);
-
-  // slide-in-r — drives the whole screen on both branches. Resolves to final state under reduce-motion.
   const enter = useSharedValue(reduceMotion ? 1 : 0);
   useEffect(() => {
     if (reduceMotion) {
       enter.value = 1;
-      return;
+    } else {
+      enter.value = withTiming(1, {
+        duration: 360,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+      });
     }
-    enter.value = withTiming(1, { duration: SLIDE_MS, easing: EASE_OUT_EXPO });
   }, [enter, reduceMotion]);
   const enterStyle = useAnimatedStyle(() => ({
     opacity: enter.value,
-    transform: [{ translateX: (1 - enter.value) * SLIDE_FROM_X }],
+    transform: [{ translateX: (1 - enter.value) * 28 }],
   }));
 
-  // ----- EMPTY (cycles.length === 0) -------------------------------------------------------------
-  if (cycles.length === 0) {
-    const needsSetup = !onboardingDone;
-    return (
-      <Animated.View style={[s.root, enterStyle]}>
-        <View style={[s.screen, { paddingTop: insets.top + gap.sm }]}>
-          <ScreenHeader
-            onBack={nav.back}
-            eyebrow="Insights"
-            backHitWidth={24}
-            eyebrowTracking={1.68}
-          />
+  const chartReviews = useMemo(() => validReviews.slice(0, 6).reverse(), [validReviews]);
+  const chartAverage = chartReviews.length
+    ? chartReviews.reduce((sum, review) => sum + review.tightPoint, 0) / chartReviews.length
+    : undefined;
+  const contentPadding = {
+    paddingTop: gap.xl,
+    paddingBottom: BOTTOM_NAV_HEIGHT + insets.bottom + CONTENT_BOTTOM_BUFFER,
+  };
 
-          <View style={s.titleBlock}>
-            <Text style={s.eyebrowItalic}>No reviews recorded yet</Text>
-            <Text accessibilityRole="header" style={s.headline}>
-              {retro.title.lead}
-              <Text style={s.headlineAccent}>{retro.title.accent}</Text>
-              {retro.title.tail}
-            </Text>
-          </View>
-
-          <View style={s.emptyBlock}>
-            <EmptyState
-              mood="curious"
-              headline={needsSetup ? 'Add your numbers first' : 'No forecast reviews yet'}
-              body={
-                needsSetup
-                  ? 'Add your numbers first. After you save a forecast review, its summary will appear here.'
-                  : 'After you save a forecast review, its summary and any note will appear here.'
-              }
-              cta={
-                needsSetup
-                  ? { label: 'Add my numbers', onPress: () => nav.openSheet('onboarding') }
-                  : { label: 'Back to today', onPress: () => nav.go('today') }
-              }
-            />
-          </View>
-        </View>
-      </Animated.View>
-    );
-  }
-
-  // ----- POPULATED (cycles.length > 0) -----------------------------------------------------------
   return (
-    <Animated.View style={[s.root, enterStyle]}>
-      <ScrollView
-        contentContainerStyle={[
-          s.scrollContent,
-          { paddingTop: insets.top + gap.sm, paddingBottom: insets.bottom + gap.xxl },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
+    <Animated.View style={[styles.root, enterStyle]}>
+      <View style={[styles.header, { paddingTop: insets.top + gap.sm }]}>
         <ScreenHeader
           onBack={nav.back}
           eyebrow="Insights"
-          backHitWidth={24}
+          spacerWidth={44}
+          backHitWidth={44}
+          backHitHeight={44}
           eyebrowTracking={1.68}
         />
-
-        <View style={s.titleBlock}>
-          <Text style={s.eyebrowItalic}>{retro.eyebrow}</Text>
-          <Text accessibilityRole="header" style={s.headline}>
-            {retro.title.lead}
-            <Text style={s.headlineAccent}>{retro.title.accent}</Text>
-            {retro.title.tail}
-          </Text>
-        </View>
-
-        {/* The authored read is the primary interpretation; the figures below remain supporting
-            evidence. Each line names its epistemic level so a fact is not dressed up as certainty. */}
-        <InsightReadBlock read={authoredRead} styles={s} onOpenToday={() => nav.go('today')} />
-
-        {/* 2×2 stat tiles. The primary/secondary cards are mode-tinted (web `retro.primary` /
-            `retro.secondary`) — label, value, and tone all vary by moneyMode. The other two
-            ("In pots right now" / "Average set aside") stay generic across every mode. */}
-        <View style={s.grid}>
-          <StatTile
-            label={retro.primary.label}
-            value={retro.primary.value}
-            tone={retro.primary.tone === 'ink' ? undefined : retro.primary.tone}
-            styles={s}
+      </View>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, contentPadding]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {readState.failed ? (
+          <ReadFailure
+            onRetry={() => setReadAttempt((value) => value + 1)}
+            onBack={nav.back}
+            styles={styles}
           />
-          <StatTile
-            label="In pots right now"
-            value={formatGBP(potsTotal)}
-            styles={s}
+        ) : reviews.length === 0 ? (
+          <EmptyBranch nav={nav} styles={styles} />
+        ) : (
+          <PopulatedBranch
+            nav={nav}
+            styles={styles}
+            reviews={reviews}
+            reconstructedReviews={reconstructedReviews}
+            chartReviews={chartReviews}
+            chartAverage={chartAverage}
+            totalEligibleReviews={validReviews.length}
+            latest={latest}
+            averageLow={averageLow}
+            latestContribution={latestContribution}
+            potsTotal={potsTotal}
+            read={readState.read!}
+            modeLabel={modeLabel}
+            retroMelo={retroMelo}
             reduceMotion={reduceMotion}
-            countUpValue={potsTotal}
+            pausedCount={pausedCount}
+            tinyWins={tinyWins}
+            annualCandidate={annualCandidate}
+            cancelledSubs={cancelledSubs}
+            t={t}
           />
-          <StatTile
-            label={retro.secondary.label}
-            value={retro.secondary.value}
-            tone={retro.secondary.tone === 'ink' ? undefined : retro.secondary.tone}
-            styles={s}
-          />
-          <StatTile
-            label="Pot contributions at latest review"
-            value={latestLived ? formatMoney(latestLived.setAside) : 'Not recorded'}
-            styles={s}
-          />
-        </View>
-
-        <Text style={s.averagesCaption}>
-          Payday cash and low points are saved forecasts, not current available money. Pot
-          contributions cover the 30 days before the latest review; repeated reviews can cover the
-          same deposits. Nothing shown here confirms a bank transfer or debt repayment.
-        </Text>
-
-        {/* Honest averages caption — shown once, directly under the stat grid, whenever the
-            cycles set contains ANY reconstructed (bulk-import synthesized) month. Mirrors the
-            chart's reconstructed-caption pattern (muted, footnote-weight): discloses that the
-            headline averages above are computed from lived months only, never blended with an
-            approximation. DATA_INTELLIGENCE.md phase ④. */}
-        {hasReconstructedInAll ? (
-          <Text style={s.averagesCaption}>Headline forecasts exclude imported estimates.</Text>
-        ) : null}
-
-        {/* Chart card — the only element with a shadow (shadow-card); tiles use hairline only.
-            The trend caption is mode-tinted (web `retro.trendCaption`). */}
-        <View style={s.chartCard}>
-          <View style={s.chartTitleRow}>
-            <Text style={s.chartTitle}>{`Saved low points · ${trend.length} records`}</Text>
-            {livedCycles.length ? (
-              <ChartAvg avgTight={avgTight} styles={s} reduceMotion={reduceMotion} />
-            ) : (
-              <Text style={s.chartAvg}>No recorded review average</Text>
-            )}
-          </View>
-          <TrendChart
-            trend={trend}
-            avgTight={avgTight}
-            showAverage={livedCycles.length > 0}
-            palette={t}
-            reduceMotion={reduceMotion}
-          />
-          <View style={s.axisRow}>
-            {trend.map((c, index) => (
-              <Text key={`${c.closedAt}-${index}`} style={s.axisTick}>
-                {formatFinancialDate(c.closedAt)}
-                {isReconstructed(c) ? '*' : ''}
-              </Text>
-            ))}
-          </View>
-          {/* Honest provenance caption — only rendered when the trend window actually contains a
-              reconstructed (bulk-import synthesized) month, per DATA_INTELLIGENCE.md phase ④. Muted
-              and small so it never competes with the chart itself; the asterisk above ties it to the
-              specific month(s) it applies to. */}
-          {trend.some(isReconstructed) ? (
-            <Text style={s.reconstructedCaption}>{`* ${copy.insights.reconstructed.caption}`}</Text>
-          ) : null}
-        </View>
-
-        {/* Mode-tinted Melo note (web `retro.meloNote`) — directly under the chart, ahead of the
-            weekly digest / tiny wins / notes-from-past-you sections. */}
-        <View style={s.meloNoteBlock}>
-          <MeloLine mood="curious" text={retro.meloNote} />
-        </View>
-
-        {/* Weekly digest — trailing 7 days, a calm 30-second read (web "This week, at a glance"). */}
-        <View style={s.weeklyCard}>
-          <Text style={s.weeklyEyebrow}>This week, at a glance</Text>
-          <View style={s.weeklyGrid}>
-            <View style={s.weeklyCol}>
-              <Text style={s.weeklyLabel}>Recorded money out</Text>
-              <Text style={s.weeklyValue}>{formatGBP(weekly.spent)}</Text>
-            </View>
-            <View style={s.weeklyCol}>
-              <Text style={s.weeklyLabel}>Days without recorded spending</Text>
-              <Text
-                style={[s.weeklyValue, weekly.quietDays >= 3 ? s.tileValuePositive : undefined]}
-              >
-                {`${weekly.quietDays}d`}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {greenStreak >= 2 ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${greenStreak} recorded reviews in a row with forecast cash at £0 or above. Open cycle review.`}
-            onPress={() => nav.go('ritual')}
-            style={({ pressed }) => [s.streakCard, pressed ? s.pressed : undefined]}
-          >
-            <View style={s.streakMarker} />
-            <View style={s.streakCopy}>
-              <Text style={s.streakEyebrow}>Recorded forecasts</Text>
-              <Text style={s.streakLine}>
-                <Text style={s.streakValue}>{greenStreak}</Text> reviews in a row with forecast cash
-                at £0 or above.
-              </Text>
-            </View>
-          </Pressable>
-        ) : null}
-
-        {cancelSavingsMonthly > 0 ? (
-          <View style={s.cancelSavingsBlock}>
-            <MeloLine
-              mood="calm"
-              text={`${formatMoney(cancelSavingsMonthly)} a month was removed from tracking across ${cancelledSubs.length} regular payment${cancelledSubs.length === 1 ? '' : 's'}. Check any cancellation with the provider.`}
-            />
-          </View>
-        ) : null}
-
-        {/* Tiny wins — up to 4, newest first (web `tinyWins.slice(0,4)`). Only renders once the
-            award engine (lib/wins.ts) has actually awarded one; empty state shows nothing, matching
-            the web's `tinyWins.length > 0` guard. */}
-        {tinyWins.length > 0 ? (
-          <View style={s.winsBlock}>
-            <Text style={s.winsEyebrow}>Tiny wins</Text>
-            <View style={s.winsCard}>
-              {tinyWins.slice(0, 4).map((w, i, arr) => (
-                <View
-                  key={w.id}
-                  style={[s.winRow, i < arr.length - 1 ? s.noteRowDivider : undefined]}
-                >
-                  <Text style={s.winMessage}>{tinyWinMessage(w)}</Text>
-                  <Text style={s.winDate}>
-                    {new Date(w.awardedAt).toLocaleDateString('en-GB', { weekday: 'long' })}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : null}
-
-        {/* Annual radar — a single quiet card, NOT part of the frozen web source (DATA_INTELLIGENCE.md
-            phase ⑥ item 5; see lib/caughtAnnual.ts's "SURFACE CHOICE" note for why this lives here
-            rather than on CalendarScreen). Only renders when a candidate exists — never an empty-state
-            placeholder, matching the tiny-wins block's own "nothing to show -> render nothing" guard.
-            Tapping opens the confirm-gated AnnualCaughtSheet; nothing is added to the calendar from
-            this tap alone (review-before-truth). */}
-        {annualCandidate ? (
-          <View style={s.annualBlock}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${annualCandidate.merchant}, roughly once a year`}
-              onPress={() => nav.openSheet('annual-caught')}
-              style={({ pressed }) => [s.annualCard, pressed ? s.pressed : undefined]}
-            >
-              <Text style={s.annualEyebrow}>{copy.annual.card.eyebrow}</Text>
-              <View style={s.annualRow}>
-                <Text style={s.annualMerchant}>{annualCandidate.merchant}</Text>
-                <Text style={s.annualAmount}>{formatGBP(annualCandidate.amount)}</Text>
-              </View>
-              <Text style={s.annualCaption}>
-                {copy.annual.card.body(
-                  formatGBP(annualCandidate.amount),
-                  expectedMonthLabel(annualCandidate.lastSeen),
-                )}
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {/* Notes from past you — up to 4 closed cycles. LIVED-ONLY (DATA_INTELLIGENCE.md phase ④): a
-            reconstructed month has no ritual note to show — its `note` field is the synthesizer's own
-            "estimate" disclosure, not something the user wrote, so it would read as a fabricated diary
-            entry if shown here. Filtered out entirely rather than shown with an empty/placeholder note. */}
-        {livedNotes.length > 0 ? (
-          <View style={s.notesBlock}>
-            <Text style={s.notesEyebrow}>Notes from past you</Text>
-            <View style={s.notesCard}>
-              {livedNotes.map((c, i, arr) => (
-                <View
-                  key={`${c.closedAt}-${i}`}
-                  style={[s.noteRow, i < arr.length - 1 ? s.noteRowDivider : undefined]}
-                >
-                  <View style={s.noteHead}>
-                    <Text style={s.noteLabel}>{formatFinancialDate(c.closedAt)} review</Text>
-                    <Text
-                      style={s.noteSpare}
-                    >{`Payday cash forecast ${formatMoney(c.spare)}`}</Text>
-                  </View>
-                  {c.note ? <Text style={s.noteBody}>{`“${c.note}”`}</Text> : null}
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : null}
-
-        {/* Optional paused-subs Melo line — the ONLY Melo on the populated branch (cheer). */}
-        {pausedCount > 0 ? (
-          <View style={s.meloBlock}>
-            <MeloLine
-              mood="curious"
-              text={`${pausedCount} ${
-                pausedCount === 1 ? 'sub' : 'subs'
-              } paused in your forecast. Provider payments are unchanged.`}
-            />
-          </View>
-        ) : null}
-
-        {/* Footer CTA — opens the share sheet. */}
-        <View style={s.ctaBlock}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Share recorded review"
-            onPress={() => nav.openSheet('share')}
-            style={({ pressed }) => [s.cta, pressed ? s.pressed : undefined]}
-          >
-            <Text style={s.ctaLabel}>Share recorded review</Text>
-          </Pressable>
-        </View>
+        )}
       </ScrollView>
     </Animated.View>
+  );
+}
+
+function EmptyBranch({ nav, styles }: { nav: Nav; styles: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={styles.emptyContent}>
+      <View style={styles.titleBlock}>
+        <Text style={styles.eyebrowItalic}>No reviews recorded yet</Text>
+        <Text accessibilityRole="header" style={styles.headline}>
+          Your <Text style={styles.headlineAccent}>recorded</Text> reviews.
+        </Text>
+      </View>
+      <View style={styles.emptyBlock}>
+        <EmptyState
+          mood="calm"
+          headline="No reviews yet"
+          body="After you record a payday review, its saved figures and any note will appear here."
+          cta={{ label: 'Back to Today', onPress: () => nav.go('today') }}
+        />
+      </View>
+    </View>
+  );
+}
+
+function ReadFailure({
+  onRetry,
+  onBack,
+  styles,
+}: {
+  onRetry: () => void;
+  onBack: () => void;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  return (
+    <View style={styles.failureContent}>
+      <Text accessibilityRole="header" style={styles.failureHeadline}>
+        Insights aren't available just now.
+      </Text>
+      <Text style={styles.failureBody}>Your recorded reviews have not been changed.</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Try again"
+        onPress={onRetry}
+        style={styles.failureAction}
+      >
+        <Text style={styles.failureActionText}>Try again</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+        onPress={onBack}
+        style={styles.failureAction}
+      >
+        <Text style={styles.failureActionText}>Back</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function PopulatedBranch({
+  nav,
+  styles,
+  reviews,
+  reconstructedReviews,
+  chartReviews,
+  chartAverage,
+  totalEligibleReviews,
+  latest,
+  averageLow,
+  latestContribution,
+  potsTotal,
+  read,
+  modeLabel,
+  retroMelo,
+  reduceMotion,
+  pausedCount,
+  tinyWins,
+  annualCandidate,
+  cancelledSubs,
+  t,
+}: {
+  nav: Nav;
+  styles: ReturnType<typeof makeStyles>;
+  reviews: CycleRecord[];
+  reconstructedReviews: CycleRecord[];
+  chartReviews: ReadableReview[];
+  chartAverage: number | undefined;
+  totalEligibleReviews: number;
+  latest: CycleRecord | undefined;
+  averageLow: number | undefined;
+  latestContribution: number | undefined;
+  potsTotal: number | undefined;
+  read: InsightsRead;
+  modeLabel: string;
+  retroMelo: string;
+  reduceMotion: boolean;
+  pausedCount: number;
+  tinyWins: any[];
+  annualCandidate: any;
+  cancelledSubs: any[];
+  t: Palette;
+}) {
+  const { fontScale } = useWindowDimensions();
+  const allValid = chartReviews.length > 0;
+  const historyReviews = reviews.slice(0, 4);
+  return (
+    <>
+      <View style={styles.titleBlock}>
+        <Text
+          style={styles.eyebrowItalic}
+        >{`${reviews.length} recorded ${reviews.length === 1 ? 'review' : 'reviews'} · ${modeLabel}`}</Text>
+        <Text accessibilityRole="header" style={styles.headline}>
+          Your <Text style={styles.headlineAccent}>recorded</Text> reviews.
+        </Text>
+      </View>
+
+      <InsightReadBlock read={read} styles={styles} onOpenToday={() => nav.go('today')} />
+
+      <View style={[styles.metrics, fontScale >= 1.3 ? styles.metricsLarge : undefined]}>
+        <StatTile
+          label="LATEST PAYDAY CASH FORECAST"
+          value={latest ? displayMoney(latest.spare) : undefined}
+          styles={styles}
+        />
+        <StatTile
+          label="IN POTS RIGHT NOW"
+          value={potsTotal === undefined ? undefined : displayMoney(potsTotal)}
+          styles={styles}
+          positive
+        />
+        {reviews.length >= 2 ? (
+          <StatTile
+            label="AVERAGE SAVED FORECAST LOW"
+            value={averageLow === undefined ? undefined : formatMoney(averageLow)}
+            supportingText={
+              totalEligibleReviews > 6
+                ? `Across all ${totalEligibleReviews} recorded reviews.`
+                : undefined
+            }
+            styles={styles}
+          />
+        ) : null}
+        <StatTile
+          label="POT CONTRIBUTIONS · 30 DAYS BEFORE LATEST REVIEW"
+          value={latestContribution === undefined ? undefined : formatMoney(latestContribution)}
+          styles={styles}
+        />
+      </View>
+
+      <Text style={styles.caveat}>
+        Payday cash and low points are saved forecasts, not current available money. Pot
+        contributions cover the 30 days before the latest review; repeated reviews can cover the
+        same deposits. Nothing shown here confirms a bank transfer or debt repayment.
+      </Text>
+
+      {allValid && chartReviews.length >= 2 ? (
+        <TrendChart
+          trend={chartReviews}
+          avgTight={chartAverage!}
+          totalEligible={totalEligibleReviews}
+          styles={styles}
+          palette={t}
+          reduceMotion={reduceMotion}
+          largeText={fontScale >= 1.3}
+          fontScale={fontScale}
+        />
+      ) : null}
+
+      <ReviewHistory reviews={historyReviews} styles={styles} />
+
+      {reconstructedReviews.length > 0 ? (
+        <View style={styles.approximateBlock}>
+          <Text accessibilityRole="header" style={styles.sectionLabel}>
+            Approximate record
+          </Text>
+          <Text style={styles.mutedText}>
+            Imported estimates remain separate from your recorded reviews and headline figures.
+          </Text>
+        </View>
+      ) : null}
+
+      {annualCandidate ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${annualCandidate.merchant}, roughly once a year`}
+          onPress={() => nav.openSheet('annual-caught')}
+          style={styles.annualCard}
+        >
+          <Text style={styles.sectionLabel}>{copy.annual.card.eyebrow}</Text>
+          <View style={styles.annualRow}>
+            <Text style={styles.annualMerchant}>{annualCandidate.merchant}</Text>
+            <Text style={styles.metricValue}>{formatMoney(annualCandidate.amount)}</Text>
+          </View>
+          <Text style={styles.bodyText}>
+            {copy.annual.card.body(
+              formatMoney(annualCandidate.amount),
+              expectedMonthLabel(annualCandidate.lastSeen),
+            )}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {tinyWins.length > 0 ? (
+        <View style={styles.tinyWins}>
+          <Text style={styles.sectionLabel}>Tiny wins</Text>
+          {tinyWins.slice(0, 4).map((win, index, array) => (
+            <View
+              key={win.id}
+              style={[styles.historyRow, index < array.length - 1 ? styles.rowRule : undefined]}
+            >
+              <Text style={styles.bodyText}>{tinyWinMessage(win)}</Text>
+              <Text style={styles.noteDate}>
+                {new Date(win.awardedAt).toLocaleDateString('en-GB', { weekday: 'long' })}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.meloBlock}>
+        <MeloLine mood="curious" text={retroMelo} />
+        {pausedCount > 0 ? (
+          <Text
+            style={styles.mutedText}
+          >{`${pausedCount} ${pausedCount === 1 ? 'subscription' : 'subscriptions'} paused in your forecast. Provider payments are unchanged.`}</Text>
+        ) : null}
+        {cancelledSubs.length > 0 ? (
+          <Text
+            style={styles.mutedText}
+          >{`${cancelledSubs.length} tracked payment${cancelledSubs.length === 1 ? '' : 's'} removed. Check any cancellation with the provider.`}</Text>
+        ) : null}
+      </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Share recorded review"
+        onPress={() => nav.openSheet('share')}
+        style={styles.shareAction}
+      >
+        <Text style={styles.shareActionText}>Share recorded review</Text>
+      </Pressable>
+    </>
   );
 }
 
@@ -579,22 +549,20 @@ function InsightReadBlock({
 }) {
   return (
     <View style={styles.readBlock}>
-      <Text style={styles.readEyebrow}>A closer read</Text>
-      <ReadLine label="Recorded forecast" value={read.fact} styles={styles} />
-      <ReadLine label="Comparison" value={read.pattern} styles={styles} />
-      <ReadLine label="Interpretation" value={read.interpretation} styles={styles} />
-      {read.canOpenToday ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={read.action}
-          onPress={onOpenToday}
-          style={({ pressed }) => [styles.readAction, pressed ? styles.pressed : undefined]}
-        >
-          <Text style={styles.readActionLabel}>{read.action} →</Text>
-        </Pressable>
-      ) : (
-        <ReadLine label="Next move" value={read.action} styles={styles} last />
-      )}
+      <Text accessibilityRole="header" style={styles.sectionLabel}>
+        A CLOSER READ
+      </Text>
+      <ReadLine label="RECORDED FORECAST" value={read.fact} styles={styles} />
+      <ReadLine label="COMPARISON" value={read.pattern} styles={styles} />
+      <ReadLine label="INTERPRETATION" value={read.interpretation} styles={styles} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={read.action}
+        onPress={onOpenToday}
+        style={styles.todayLink}
+      >
+        <Text style={styles.todayLinkText}>{read.action} →</Text>
+      </Pressable>
     </View>
   );
 }
@@ -603,681 +571,468 @@ function ReadLine({
   label,
   value,
   styles,
-  last = false,
 }: {
   label: string;
   value: string;
   styles: ReturnType<typeof makeStyles>;
-  last?: boolean;
 }) {
   return (
-    <View style={[styles.readLine, last ? undefined : styles.readLineRule]}>
-      <Text style={styles.readLabel}>{label}</Text>
-      <Text style={styles.readText}>{value}</Text>
+    <View style={styles.readLine}>
+      <Text accessibilityRole="header" style={styles.sectionLabel}>
+        {label}
+      </Text>
+      <Text style={styles.narrative}>{value}</Text>
     </View>
   );
 }
 
-// ---------------------------------------------------------------------------
-// StatTile — one of the four summary tiles. The figure counts up (kit useCountUp); the value is
-// formatted through formatGBP so the money reads identically to the web.
-// ---------------------------------------------------------------------------
 function StatTile({
   label,
   value,
-  tone,
-  sub,
+  supportingText,
   styles,
-  reduceMotion,
-  countUpValue,
+  positive = false,
 }: {
   label: string;
-  /** Pre-formatted display string (web `Kpi.value` / `formatGBP(...)`) — this tile never formats
-   *  money itself, so mode-tinted retro values (which arrive already formatted, e.g. "£420" or a
-   *  non-money string like a month count) render byte-identical to the web source. */
-  value: string;
-  // COLOUR FIX (insights lane, diagnosis item 2 — DEAD FOOT-GUN): 'negative' used to route to
-  // styles.deltaNegative (t.repair / coral) but no `Kpi.tone` builder in retrospect.ts ever emits
-  // it — a whole KPI tile turning coral is exactly the "no alarming red" violation the kit warns
-  // against. Removed from the tone union entirely (not just left dead) so a future builder can't
-  // silently wire it back in without a deliberate styles addition; every retrospect.ts Kpi.tone
-  // ('ink' | 'positive' | 'accent') still has a real style below.
-  tone?: 'positive' | 'accent' | undefined;
-  sub?: React.ReactNode;
+  value: string | undefined;
+  supportingText?: string | undefined;
   styles: ReturnType<typeof makeStyles>;
-  reduceMotion?: boolean | undefined;
-  /** When provided, the tile counts up to this raw number instead of rendering `value` directly —
-   *  only used by the two mode-invariant tiles ("In pots right now" / "Average set aside") that kept
-   *  their original count-up treatment; the mode-tinted retro tiles render their string as-is. */
-  countUpValue?: number | undefined;
+  positive?: boolean;
 }) {
-  const counted = useCountUp(countUpValue ?? 0, COUNT_MS, reduceMotion ?? true);
-  const display = countUpValue !== undefined ? formatGBP(counted) : value;
+  if (value === undefined) return null;
   return (
-    <View style={styles.tile}>
-      <Text style={styles.tileLabel}>{label}</Text>
-      <Text
-        adjustsFontSizeToFit
-        minimumFontScale={0.6}
-        numberOfLines={1}
-        style={[
-          styles.tileValue,
-          tone === 'positive' ? styles.tileValuePositive : undefined,
-          tone === 'accent' ? styles.tileValueAccent : undefined,
-        ]}
-      >
-        {display}
-      </Text>
-      {sub}
+    <View
+      style={styles.metricTile}
+      accessible
+      accessibilityLabel={`${label}, ${value}${supportingText ? `, ${supportingText}` : ''}`}
+    >
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={[styles.metricValue, positive ? styles.positiveValue : undefined]}>{value}</Text>
+      {supportingText ? <Text style={styles.metricSupport}>{supportingText}</Text> : null}
     </View>
   );
 }
 
-// ---------------------------------------------------------------------------
-// ChartAvg — the "avg £{n}" chart subtitle, counted up.
-// ---------------------------------------------------------------------------
-function ChartAvg({
-  avgTight,
+function ReviewHistory({
+  reviews,
   styles,
-  reduceMotion,
 }: {
-  avgTight: number;
+  reviews: CycleRecord[];
   styles: ReturnType<typeof makeStyles>;
-  reduceMotion: boolean;
 }) {
-  const counted = useCountUp(avgTight, COUNT_MS, reduceMotion);
-  return <Text style={styles.chartAvg}>{`Review average ${formatMoney(counted)}`}</Text>;
+  return (
+    <View style={styles.historyBlock}>
+      <Text accessibilityRole="header" style={styles.sectionLabel}>
+        REVIEW HISTORY
+      </Text>
+      <View style={styles.historyList}>
+        {reviews.map((review, index) => (
+          <View
+            key={`${review.closedAt}-${index}`}
+            style={[styles.historyRow, index < reviews.length - 1 ? styles.rowRule : undefined]}
+          >
+            <Text style={styles.historyDate}>{formatFinancialDate(review.closedAt)} review</Text>
+            {displayMoney(review.spare) ? (
+              <Text
+                style={styles.bodyText}
+              >{`Payday cash forecast ${displayMoney(review.spare)}`}</Text>
+            ) : null}
+            {displayMoney(review.tightPoint) ? (
+              <Text
+                style={styles.mutedText}
+              >{`Saved forecast low ${displayMoney(review.tightPoint)}`}</Text>
+            ) : null}
+            <Text style={styles.narrative}>{review.note || 'No note this cycle.'}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
 }
 
-// ---------------------------------------------------------------------------
-// TrendChart — the inline SVG: dashed average line, optional area fill + route-draw line (n>1),
-// per-point dots (last one accent + larger), and the labelled last point.
-// ---------------------------------------------------------------------------
 function TrendChart({
   trend,
   avgTight,
-  showAverage,
+  totalEligible,
+  styles,
   palette,
   reduceMotion,
+  largeText,
+  fontScale,
 }: {
-  trend: { tightPoint: number; closedAt: string; label: string }[];
+  trend: ReadableReview[];
   avgTight: number;
-  showAverage: boolean;
+  totalEligible: number;
+  styles: ReturnType<typeof makeStyles>;
   palette: Palette;
   reduceMotion: boolean;
+  largeText: boolean;
+  fontScale: number;
 }) {
-  const t = palette;
   const n = trend.length;
-
-  // Geometry — coordinate-for-coordinate with the web.
-  const stepX = n > 1 ? (CHART_W - CHART_PAD_X * 2) / (n - 1) : 0;
-  const minT = Math.min(...trend.map((c) => c.tightPoint), 0);
-  const maxT = Math.max(...trend.map((c) => c.tightPoint), 1);
+  const [measuredWidth, setMeasuredWidth] = useState<number | undefined>(undefined);
+  const plotWidth = measuredWidth ?? DEFAULT_CHART_WIDTH;
+  const plotHeight = largeText ? CHART_HEIGHT_LARGE : CHART_HEIGHT;
+  const minT = Math.min(...trend.map((review) => review.tightPoint), 0);
+  const maxT = Math.max(...trend.map((review) => review.tightPoint), 1);
   const range = Math.max(1, maxT - minT);
-  const ptsArr = trend.map((c, i) => {
-    const x = CHART_PAD_X + i * stepX;
-    const y = CHART_PAD_Y + (CHART_H - CHART_PAD_Y * 2) * (1 - (c.tightPoint - minT) / range);
-    return { x, y, c };
-  });
-  const d = ptsArr
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+  const stepX = n > 1 ? (plotWidth - CHART_PAD_X * 2) / (n - 1) : 0;
+  const points = trend.map((review, index) => ({
+    review,
+    x: CHART_PAD_X + index * stepX,
+    y: CHART_PAD_Y + (plotHeight - CHART_PAD_Y * 2) * (1 - (review.tightPoint - minT) / range),
+  }));
+  const path = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
     .join(' ');
-  const avgY = CHART_PAD_Y + (CHART_H - CHART_PAD_Y * 2) * (1 - (avgTight - minT) / range);
-  const last = ptsArr[ptsArr.length - 1];
-
-  // route-draw — the line draws once (offset 1200 → 0). Final state (0) under reduce-motion.
+  const avgY = CHART_PAD_Y + (plotHeight - CHART_PAD_Y * 2) * (1 - (avgTight - minT) / range);
   const draw = useSharedValue(reduceMotion ? 0 : ROUTE_DASH);
   useEffect(() => {
     if (reduceMotion) {
       draw.value = 0;
-      return;
+    } else {
+      draw.value = ROUTE_DASH;
+      draw.value = withTiming(0, { duration: ROUTE_DRAW_MS, easing: Easing.out(Easing.ease) });
     }
-    draw.value = ROUTE_DASH;
-    draw.value = withTiming(0, { duration: ROUTE_DRAW_MS, easing: Easing.out(Easing.ease) });
-  }, [draw, reduceMotion, d]);
+  }, [draw, path, reduceMotion]);
   const lineProps = useAnimatedProps(() => ({ strokeDashoffset: draw.value }));
-
+  const chartLabelSize = Math.max(12, 12 * fontScale);
+  const isWindowed = totalEligible > n;
+  const summary = isWindowed
+    ? `Latest 6 of ${totalEligible} reviews`
+    : `${n} reviews · average ${formatMoney(avgTight)}`;
+  const guideLabel = isWindowed
+    ? `Average of these 6 ${formatMoney(avgTight)}`
+    : `Review average ${formatMoney(avgTight)}`;
+  const axis = axisLabels(trend);
+  const pointLabelPositions = chartLabelPositions(
+    points.map((point) => ({ x: point.x, y: point.y, text: formatMoney(point.review.tightPoint) })),
+    plotWidth,
+    plotHeight,
+    fontScale,
+    CHART_PAD_X,
+  );
+  const focusWidth = stepX > 0 && stepX < 44 ? stepX : 44;
+  const focusHeight = focusWidth < 44 ? 56 : 44;
   return (
-    <Svg
-      width="100%"
-      height={CHART_H}
-      viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-      accessibilityRole="image"
-      accessibilityLabel={`Saved low-point snapshots over your last ${n} records. These are forecasts or labelled imported estimates, not completed months.`}
-    >
-      {/* COLOUR FIX (insights lane, DATA_INTELLIGENCE.md diagnosis item 1 — TERRACOTTA OVERLOAD):
-          t.calm used to paint the gradient fill AND the drawn line AND the detected-annual-charge
-          amount, on top of already being the headline accent — arbitrary, not honest signal. Per
-          kit.tsx:76-77's own rule ("accent carries the tight-point on the path"), calm now marks
-          ONLY the single tight-point (the last dot below); the line/fill/other dots read in the
-          ink/muted family so the one terracotta moment on this chart stays meaningful. */}
-      <Defs>
-        <LinearGradient id="insFill" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0%" stopColor={t.ink} stopOpacity={0.1} />
-          <Stop offset="100%" stopColor={t.ink} stopOpacity={0} />
-        </LinearGradient>
-      </Defs>
-
-      {/* Dashed average line — always rendered. */}
-      {showAverage ? (
-        <Line
-          x1={CHART_PAD_X}
-          x2={CHART_W - CHART_PAD_X}
-          y1={avgY}
-          y2={avgY}
-          stroke={t.hairline}
-          strokeDasharray="2 4"
-        />
+    <View style={styles.chartBlock}>
+      <Text accessibilityRole="header" style={styles.sectionLabel}>
+        SAVED FORECAST LOW POINTS
+      </Text>
+      <Text
+        accessible
+        accessibilityLabel={`Saved forecast low points, ${summary}`}
+        accessibilityValue={{ text: guideLabel }}
+        style={styles.chartSummary}
+      >
+        {summary}
+      </Text>
+      {isWindowed ? (
+        <Text
+          accessible={false}
+          style={styles.chartSummary}
+        >{`Average of these 6 ${formatMoney(avgTight)}`}</Text>
       ) : null}
-
-      {/* Area fill + route-draw line — only with more than one point (spec sub-branch (b)). Muted
-          ink, not calm: the line is the trend, not the headline moment (see colour-fix note above). */}
-      {n > 1 ? (
-        <Path
-          d={`${d} L ${(CHART_W - CHART_PAD_X).toFixed(1)} ${CHART_H - CHART_PAD_Y} L ${CHART_PAD_X} ${
-            CHART_H - CHART_PAD_Y
-          } Z`}
-          fill="url(#insFill)"
-        />
-      ) : null}
-      {n > 1 ? (
-        <AnimatedPath
-          d={d}
-          fill="none"
-          stroke={t.muted}
-          strokeWidth={1.8}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray={ROUTE_DASH}
-          animatedProps={lineProps}
-        />
-      ) : null}
-
-      {/* Per-point dots — last is the single accent-filled tight-point (larger, no stroke); the rest
-          are surface + ink ring, same as before. */}
-      {ptsArr.map((p, i) => {
-        const isLast = i === ptsArr.length - 1;
-        return (
-          <Circle
-            key={`${p.c.closedAt}-${i}`}
-            cx={p.x}
-            cy={p.y}
-            r={isLast ? 3.5 : 2.4}
-            fill={isLast ? t.calm : t.surface}
-            stroke={t.ink}
-            strokeWidth={isLast ? 0 : 1.1}
-          />
-        );
-      })}
-
-      {/* Labelled last point — £{tightPoint}. */}
-      {last ? (
-        <SvgText
-          x={Math.min(CHART_W - 4, last.x + 6)}
-          y={Math.max(10, last.y - 6)}
-          fontSize={9.5}
-          fontFamily="Inter Tight"
-          fontWeight="600"
-          fill={t.ink}
-          textAnchor={last.x > CHART_W - 40 ? 'end' : 'start'}
+      <View style={styles.chartGuideRow}>
+        <Text
+          testID="insights-chart-guide"
+          accessible={false}
+          style={[
+            styles.chartGuideLabel,
+            {
+              width: Math.max(1, plotWidth - CHART_PAD_X * 2),
+              lineHeight: 16 * fontScale,
+            },
+          ]}
         >
-          {formatMoney(last.c.tightPoint)}
-        </SvgText>
+          {guideLabel}
+        </Text>
+      </View>
+      <View style={[styles.chartViewport, { height: plotHeight }]}>
+        <View
+          testID="insights-chart-canvas"
+          onLayout={(event) => setMeasuredWidth(Math.max(1, event.nativeEvent.layout.width))}
+          style={[styles.chartCanvas, { height: plotHeight }]}
+        >
+          <Svg width={plotWidth} height={plotHeight} viewBox={`0 0 ${plotWidth} ${plotHeight}`}>
+            <Defs>
+              <LinearGradient id="insights-fill" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0%" stopColor={palette.ink} stopOpacity={0.1} />
+                <Stop offset="100%" stopColor={palette.ink} stopOpacity={0} />
+              </LinearGradient>
+            </Defs>
+            <Line
+              x1={CHART_PAD_X}
+              x2={plotWidth - CHART_PAD_X}
+              y1={avgY}
+              y2={avgY}
+              stroke={palette.hairline}
+              strokeDasharray="2 4"
+            />
+            <Path
+              d={`${path} L ${plotWidth - CHART_PAD_X} ${plotHeight - CHART_PAD_Y} L ${CHART_PAD_X} ${plotHeight - CHART_PAD_Y} Z`}
+              fill="url(#insights-fill)"
+            />
+            <AnimatedPath
+              d={path}
+              fill="none"
+              stroke={palette.muted}
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={ROUTE_DASH}
+              animatedProps={lineProps}
+            />
+            {points.map((point, index) => (
+              <Circle
+                key={`${point.review.closedAt}-${index}`}
+                cx={point.x}
+                cy={point.y}
+                r={index === points.length - 1 ? 4 : 3}
+                fill={index === points.length - 1 ? palette.calm : palette.surface}
+                stroke={palette.ink}
+                strokeWidth={index === points.length - 1 ? 0 : 1.1}
+              />
+            ))}
+            {pointLabelPositions.map((label) => {
+              const point = points[label.index]!;
+              return (
+                <SvgText
+                  key={`label-${point.review.closedAt}-${label.index}`}
+                  x={label.x}
+                  y={label.baseline}
+                  fontSize={chartLabelSize}
+                  fontFamily="Inter Tight"
+                  fill={palette.ink}
+                  textAnchor={label.textAnchor}
+                >
+                  {formatMoney(point.review.tightPoint)}
+                </SvgText>
+              );
+            })}
+          </Svg>
+          {points.map((point, index) => (
+            <View
+              key={`focus-${point.review.closedAt}-${index}`}
+              accessible
+              accessibilityLabel={`${index + 1} of ${n} shown, recorded ${formatFinancialDate(point.review.closedAt)}, saved forecast low ${formatMoney(point.review.tightPoint)}`}
+              style={[
+                styles.chartPointFocus,
+                {
+                  width: focusWidth,
+                  height: focusHeight,
+                  marginLeft: -focusWidth / 2,
+                  marginTop: -focusHeight / 2,
+                  left: `${(point.x / plotWidth) * 100}%`,
+                  top: `${(point.y / plotHeight) * 100}%`,
+                },
+              ]}
+            />
+          ))}
+        </View>
+      </View>
+      <View style={styles.axisRow}>
+        {axis.labels.map((label, index) => (
+          <Text key={`${label}-${index}`} style={styles.axisLabel}>
+            {label}
+          </Text>
+        ))}
+      </View>
+      {axis.sharedCaption ? (
+        <Text style={styles.chartSharedCaption}>{axis.sharedCaption}</Text>
       ) : null}
-    </Svg>
+    </View>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Styles — two layers per the DARK-MODE PATTERN. Colour-bearing styles in makeStyles(t); the rest
-// ride along (single source per element). The whole sheet is rebuilt per theme via useMemo.
-// ---------------------------------------------------------------------------
+function axisLabels(reviews: ReadableReview[]): { labels: string[]; sharedCaption?: string } {
+  const dates = reviews.map((review) => review.closedAt.slice(0, 10));
+  const sameDay = dates.length > 1 && dates.every((date) => date === dates[0]);
+  if (sameDay) {
+    if (reviews.length === 2)
+      return {
+        labels: [
+          `Earlier · ${formatFinancialDate(reviews[0]!.closedAt).replace(/ \d{4}$/, '')}`,
+          `Latest · ${formatFinancialDate(reviews[1]!.closedAt).replace(/ \d{4}$/, '')}`,
+        ],
+      };
+    return {
+      labels: reviews.map((_, index) => `Review ${index + 1}`),
+      sharedCaption: `Recorded ${formatFinancialDate(reviews[0]!.closedAt)}`,
+    };
+  }
+  return { labels: reviews.map((review) => formatFinancialDate(review.closedAt)) };
+}
+
 function makeStyles(t: Palette) {
   return StyleSheet.create({
-    root: {
-      flex: 1,
-      backgroundColor: t.canvas,
-    },
-    // Empty branch is non-scrolling (web returns a flex column early). px-7 → gap.xl, like ReviewScreen.
-    screen: {
-      flex: 1,
-      paddingHorizontal: gap.xl,
-    },
-    scrollContent: {
-      flexGrow: 1,
-      paddingHorizontal: gap.xl,
-    },
-
-    // Title block — italic eyebrow + the Fraunces headline with the single accent word.
-    titleBlock: {
-      marginTop: gap.lg + gap.xs, // mt-5 (20)
-    },
+    root: { flex: 1, backgroundColor: t.canvas },
+    header: { paddingHorizontal: gap.xl },
+    scrollContent: { paddingHorizontal: gap.xl, flexGrow: 1 },
+    emptyContent: { flex: 1 },
+    failureContent: { flex: 1, paddingTop: gap.xxl },
+    titleBlock: { marginTop: gap.sm },
     eyebrowItalic: {
       color: t.muted,
       fontFamily: serif.displayItalic,
-      fontSize: 13,
+      fontSize: 17,
+      lineHeight: 24,
     },
     headline: {
       color: t.ink,
       fontFamily: serif.display,
-      fontSize: 28,
-      lineHeight: 29, // web leading-[1.05]
-      marginTop: gap.xs,
+      fontSize: 42,
+      lineHeight: 46,
+      marginTop: gap.sm,
     },
-    // The accent word stays UPRIGHT terracotta (web em.not-italic text-accent).
-    headlineAccent: {
-      color: t.calm,
-      fontFamily: serif.display,
-      fontStyle: 'normal',
+    headlineAccent: { color: t.calm, fontFamily: serif.display, fontStyle: 'normal' },
+    emptyBlock: { flex: 1, minHeight: 360, justifyContent: 'center' },
+    failureHeadline: { color: t.ink, fontFamily: serif.display, fontSize: 34, lineHeight: 40 },
+    failureBody: { color: t.muted, fontSize: 16, lineHeight: 24, marginTop: gap.md },
+    failureAction: {
+      alignItems: 'center',
+      borderColor: t.hairline,
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      justifyContent: 'center',
+      marginTop: gap.md,
+      minHeight: 48,
+      paddingHorizontal: gap.lg,
     },
-
-    // The authored read is a ruled editorial group rather than another statistic card. Labels keep
-    // fact, pattern, interpretation and action visibly distinct while the body remains warm and
-    // readable in both themes.
-    readBlock: {
-      borderBottomColor: t.hairline,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderTopColor: t.hairline,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      marginTop: gap.lg,
-      paddingVertical: gap.xs,
-    },
-    readEyebrow: {
+    failureActionText: { color: t.ink, fontSize: 16, fontWeight: '600' },
+    readBlock: { marginTop: gap.xl },
+    sectionLabel: {
       color: t.muted,
-      fontSize: 10.5,
+      fontSize: 13,
       fontWeight: '600',
-      letterSpacing: 1.5,
-      marginBottom: gap.xxs,
-      paddingVertical: gap.xs,
+      letterSpacing: 1.2,
+      lineHeight: 18,
       textTransform: 'uppercase',
     },
     readLine: {
-      gap: gap.xxs,
-      paddingVertical: gap.sm,
-    },
-    readLineRule: {
       borderBottomColor: t.hairline,
       borderBottomWidth: StyleSheet.hairlineWidth,
+      paddingVertical: gap.md,
     },
-    readLabel: {
-      color: t.muted,
-      fontSize: 10.5,
-      fontWeight: '600',
-      letterSpacing: 1.2,
-      textTransform: 'uppercase',
-    },
-    readText: {
+    narrative: {
       color: t.ink,
       fontFamily: serif.displayItalic,
-      fontSize: 13,
-      lineHeight: 18,
+      fontSize: 18,
+      lineHeight: 27,
+      marginTop: gap.sm,
     },
-    readAction: {
-      paddingVertical: gap.sm,
-    },
-    readActionLabel: {
+    todayLink: { minHeight: 48, justifyContent: 'center', paddingVertical: gap.sm },
+    todayLinkText: {
       color: t.calmStrong,
       fontFamily: serif.displayItalic,
-      fontSize: 13,
-      lineHeight: 18,
+      fontSize: 16,
+      lineHeight: 24,
     },
-
-    // Empty-state block — mt-6.
-    emptyBlock: {
-      marginTop: gap.xl,
-    },
-
-    // 2×2 stat grid — gap-3, mt-5.
-    grid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: gap.md,
-      marginTop: gap.lg + gap.xs,
-    },
-    // bg-surface, hairline, 2xl radius, p-4. Each tile is just under half the row (the gap takes 12).
-    tile: {
+    metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: gap.md, marginTop: gap.xxl },
+    metricsLarge: { flexDirection: 'column' },
+    metricTile: {
       backgroundColor: t.surface,
       borderColor: t.hairline,
       borderRadius: radius.xxl,
       borderWidth: StyleSheet.hairlineWidth,
       flexBasis: '47%',
       flexGrow: 1,
+      minWidth: 0,
       padding: gap.lg,
     },
-    tileLabel: {
-      color: t.muted,
-      fontSize: 10.5,
-      letterSpacing: 10.5 * 0.12, // tracking-[0.12em]
-      textTransform: 'uppercase',
-    },
-    // Money — size 'lg', tabular. Default ink; tone overrides recolour.
-    tileValue: {
+    metricLabel: { color: t.muted, fontSize: 13, lineHeight: 18, textTransform: 'uppercase' },
+    metricValue: {
       color: t.ink,
-      fontSize: 24,
+      fontSize: 34,
       fontVariant: ['tabular-nums'],
       fontWeight: '700',
-      letterSpacing: -0.4,
-      marginTop: gap.xs,
-    },
-    tileValuePositive: { color: t.positive },
-    // COLOUR FIX (insights lane, diagnosis item 1 — TERRACOTTA OVERLOAD): this used to be `t.calm`,
-    // the same terracotta as the headline accent AND the chart line/dots AND the annual-charge
-    // figure — four unrelated things sharing one colour reads as arbitrary, not intentional. Every
-    // mode's `retro.secondary` Kpi ('accent' tone) is a plain data figure ("Average low balance"
-    // etc.), not the screen's one accent moment, so it gets `secondary` (a warm, slightly bolder
-    // ink than the tile default) — distinct from both the neutral tileValue ink and the reserved
-    // headline/CTA terracotta, and still fully on-palette.
-    tileValueAccent: { color: t.secondary },
-    // Spare-delta sub-line — tabular, mt-1, coloured by sign.
-    delta: {
-      fontSize: 10.5,
-      fontVariant: ['tabular-nums'],
-      marginTop: gap.xs,
-    },
-    deltaPositive: { color: t.positive },
-    deltaNegative: { color: t.repair },
-
-    // Chart card — surface, hairline, 2xl radius, p-5, mt-6, the ONLY element with the card shadow.
-    chartCard: {
-      backgroundColor: t.surface,
-      borderColor: t.hairline,
-      borderRadius: radius.xxl,
-      borderWidth: StyleSheet.hairlineWidth,
-      marginTop: gap.xl,
-      padding: gap.lg + gap.xs, // p-5 (20)
-      // shadow-card: warm near-black soft lift (web 0 12px 28px -16px ink/12). iOS + Android.
-      shadowColor: '#1A1815',
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.12,
-      shadowRadius: 14,
-      elevation: 3,
-    },
-    chartTitleRow: {
-      alignItems: 'flex-start',
-      flexDirection: 'column',
-      gap: gap.xs,
-      marginBottom: gap.md,
-    },
-    chartTitle: {
-      maxWidth: '100%',
-      flexShrink: 1,
-      color: t.muted,
-      fontSize: 11,
-      letterSpacing: 11 * 0.12, // tracking-[0.12em]
-      textTransform: 'uppercase',
-    },
-    chartAvg: {
-      color: t.muted,
-      fontSize: 10.5,
-      fontVariant: ['tabular-nums'],
-    },
-    // Month axis ticks — even columns under the chart, mt-1.
-    axisRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginTop: gap.xs,
-    },
-    axisTick: {
-      color: t.muted,
-      flex: 1,
-      fontSize: 10,
-      textAlign: 'center',
-    },
-    // Honest provenance caption for a chart window that contains a reconstructed (bulk-import
-    // synthesized) month — deliberately smaller/muteder than any other chart text so it reads as a
-    // footnote, never competing with the real figures. DATA_INTELLIGENCE.md phase ④.
-    reconstructedCaption: {
-      color: t.muted,
-      fontSize: 9.5,
-      fontStyle: 'italic',
-      marginTop: gap.xxs,
-      textAlign: 'right',
-    },
-    // Same honest-footnote language, for the stat grid (DATA_INTELLIGENCE.md phase ④'s AVERAGE
-    // POLLUTION fix) — left-aligned since it sits directly under the full-width grid, not a chart.
-    averagesCaption: {
-      color: t.muted,
-      fontSize: 9.5,
-      fontStyle: 'italic',
-      marginTop: gap.xs,
-    },
-
-    // Mode-tinted Melo note, directly under the chart — mt-4.
-    meloNoteBlock: {
-      marginTop: gap.lg,
-    },
-
-    // Weekly digest card — surface, hairline, 2xl radius, p-4, mt-5.
-    weeklyCard: {
-      backgroundColor: t.surface,
-      borderColor: t.hairline,
-      borderRadius: radius.xxl,
-      borderWidth: StyleSheet.hairlineWidth,
-      marginTop: gap.lg + gap.xs,
-      padding: gap.lg,
-    },
-    weeklyEyebrow: {
-      color: t.muted,
-      fontSize: 11,
-      letterSpacing: 11 * 0.14, // tracking-[0.14em]
-      textTransform: 'uppercase',
-    },
-    weeklyGrid: {
-      flexDirection: 'row',
-      gap: gap.md,
+      lineHeight: 38,
       marginTop: gap.sm,
     },
-    weeklyCol: {
-      flex: 1,
-    },
-    weeklyLabel: {
+    metricSupport: { color: t.muted, fontSize: 13, lineHeight: 18, marginTop: gap.xs },
+    positiveValue: { color: t.positive },
+    caveat: { color: t.muted, fontSize: 16, lineHeight: 24, marginTop: gap.xl },
+    chartBlock: { marginTop: gap.xxl },
+    chartSummary: { color: t.muted, fontSize: 16, lineHeight: 24, marginTop: gap.sm },
+    chartGuideRow: { alignItems: 'flex-end', marginTop: gap.xs, width: '100%' },
+    chartGuideLabel: {
       color: t.muted,
-      fontSize: 10.5,
-      letterSpacing: 10.5 * 0.12, // tracking-[0.12em]
-      textTransform: 'uppercase',
+      fontFamily: 'Inter Tight',
+      fontSize: 12,
+      textAlign: 'right',
     },
-    weeklyValue: {
-      color: t.ink,
-      fontFamily: serif.display,
-      fontSize: 18,
-      fontVariant: ['tabular-nums'],
-      fontWeight: '700',
-      marginTop: gap.xxs,
+    chartViewport: { marginTop: gap.md, position: 'relative', width: '100%' },
+    // The measured plot owns the full target height; SVG and focus targets use its same native
+    // coordinate space, so font scaling changes plot height without distorting glyphs.
+    chartCanvas: { position: 'relative', width: '100%' },
+    chartPointFocus: {
+      height: 44,
+      marginLeft: -22,
+      marginTop: -22,
+      position: 'absolute',
+      width: 44,
     },
-    streakCard: {
-      alignItems: 'center',
-      backgroundColor: t.calmSoft,
-      borderColor: t.hairline,
-      borderRadius: radius.xl,
-      borderWidth: StyleSheet.hairlineWidth,
+    axisRow: {
       flexDirection: 'row',
-      gap: gap.md,
-      marginTop: gap.md,
-      padding: gap.md,
+      gap: gap.xs,
+      justifyContent: 'space-between',
+      marginTop: gap.sm,
     },
-    streakMarker: {
-      backgroundColor: t.positive,
-      borderRadius: 4,
-      height: 8,
-      width: 8,
-    },
-    streakCopy: { flex: 1 },
-    streakEyebrow: {
+    axisLabel: { color: t.muted, flex: 1, fontSize: 12, lineHeight: 16, textAlign: 'center' },
+    chartSharedCaption: {
       color: t.muted,
-      fontSize: 10.5,
-      letterSpacing: 1.4,
-      textTransform: 'uppercase',
+      fontSize: 12,
+      lineHeight: 16,
+      marginTop: gap.xs,
+      textAlign: 'center',
     },
-    streakLine: {
-      color: t.ink,
+    historyBlock: { marginTop: gap.xxl },
+    approximateBlock: { marginTop: gap.xxl },
+    historyList: {
+      backgroundColor: t.surface,
+      borderColor: t.hairline,
+      borderRadius: radius.xxl,
+      borderWidth: StyleSheet.hairlineWidth,
+      marginTop: gap.md,
+      overflow: 'hidden',
+    },
+    historyRow: { paddingHorizontal: gap.lg, paddingVertical: gap.lg },
+    rowRule: { borderBottomColor: t.hairline, borderBottomWidth: StyleSheet.hairlineWidth },
+    historyDate: { color: t.ink, fontSize: 16, fontWeight: '600', lineHeight: 24 },
+    bodyText: { color: t.ink, fontSize: 16, lineHeight: 24, marginTop: gap.xs },
+    mutedText: { color: t.muted, fontSize: 13, lineHeight: 18, marginTop: gap.xs },
+    noteDate: {
+      color: t.muted,
       fontFamily: serif.displayItalic,
       fontSize: 13,
       lineHeight: 18,
-      marginTop: 3,
-    },
-    streakValue: { color: t.calm, fontStyle: 'normal' },
-    cancelSavingsBlock: { marginTop: gap.md },
-
-    // Annual radar card — NOT part of the frozen web source (DATA_INTELLIGENCE.md phase ⑥ item 5).
-    // Mirrors weeklyCard's surface/hairline/radius treatment so it reads as a sibling of the other
-    // non-frozen cards on this screen, not a bolted-on afterthought.
-    annualBlock: {
-      marginTop: gap.lg + gap.xs,
+      marginTop: gap.xs,
     },
     annualCard: {
       backgroundColor: t.surface,
       borderColor: t.hairline,
       borderRadius: radius.xxl,
       borderWidth: StyleSheet.hairlineWidth,
+      marginTop: gap.xxl,
       padding: gap.lg,
-    },
-    annualEyebrow: {
-      color: t.muted,
-      fontSize: 10.5,
-      letterSpacing: 10.5 * 0.12, // tracking-[0.12em]
-      textTransform: 'uppercase',
     },
     annualRow: {
       alignItems: 'baseline',
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginTop: gap.xs,
+      marginTop: gap.sm,
     },
-    annualMerchant: {
-      color: t.ink,
-      fontSize: 14,
-      fontWeight: '500',
-    },
-    // COLOUR FIX (insights lane, diagnosis item 1 — TERRACOTTA OVERLOAD): was `t.calm`, the same
-    // terracotta as the headline accent + the chart line/dots + the KPI accent figure — four
-    // different things claiming the one "this is the moment" colour. This is a detected recurring
-    // charge amount (a data figure, like the KPI above), so it gets the same `secondary` treatment:
-    // bolder than plain ink, still clearly not the screen's single accent word.
-    annualAmount: {
-      color: t.secondary,
-      fontFamily: serif.display,
-      fontSize: 18,
-      fontVariant: ['tabular-nums'],
-    },
-    annualCaption: {
-      color: t.muted,
-      fontSize: 11.5,
-      marginTop: gap.xxs,
-    },
-
-    // Tiny wins block — mt-5.
-    winsBlock: {
-      marginTop: gap.lg + gap.xs,
-    },
-    winsEyebrow: {
-      color: t.muted,
-      fontSize: 11,
-      letterSpacing: 11 * 0.14, // tracking-[0.14em]
-      marginBottom: gap.sm,
-      paddingHorizontal: gap.xs,
-      textTransform: 'uppercase',
-    },
-    winsCard: {
-      backgroundColor: t.surface,
-      borderColor: t.hairline,
-      borderRadius: radius.xxl,
-      borderWidth: StyleSheet.hairlineWidth,
-      overflow: 'hidden',
-    },
-    // Each win row — px-5 py-3.
-    winRow: {
-      paddingHorizontal: gap.lg + gap.xs,
-      paddingVertical: gap.md,
-    },
-    winMessage: {
-      color: t.ink,
-      fontSize: 13.5,
-    },
-    winDate: {
-      color: t.muted,
-      fontFamily: serif.displayItalic,
-      fontSize: 10.5,
-      marginTop: 2,
-    },
-
-    // Notes block — mt-5.
-    notesBlock: {
-      marginTop: gap.lg + gap.xs,
-    },
-    notesEyebrow: {
-      color: t.muted,
-      fontSize: 11,
-      letterSpacing: 11 * 0.16, // tracking-[0.16em]
-      marginBottom: gap.sm,
-      paddingHorizontal: gap.xs, // web px-1
-      textTransform: 'uppercase',
-    },
-    notesCard: {
-      backgroundColor: t.surface,
-      borderColor: t.hairline,
-      borderRadius: radius.xxl,
-      borderWidth: StyleSheet.hairlineWidth,
-      overflow: 'hidden',
-    },
-    // Each note row — px-5 py-4; a hairline divider between rows (web divide-y), none after the last.
-    noteRow: {
-      paddingHorizontal: gap.lg + gap.xs,
-      paddingVertical: gap.lg,
-    },
-    noteRowDivider: {
-      borderBottomColor: t.hairline,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    noteHead: {
-      alignItems: 'flex-start',
-      flexDirection: 'column',
-      gap: gap.xs,
-    },
-    noteLabel: {
-      color: t.ink,
-      fontSize: 14,
-      fontWeight: '500',
-    },
-    noteSpare: {
-      color: t.muted,
-      fontSize: 12,
-      fontVariant: ['tabular-nums'],
-    },
-    // Note body — Fraunces italic, muted, in literal quotes, mt-1.
-    noteBody: {
-      color: t.muted,
-      fontFamily: serif.displayItalic,
-      fontSize: 12.5,
-      marginTop: gap.xs,
-    },
-
-    // Paused-subs Melo line — mt-5.
-    meloBlock: {
-      marginTop: gap.lg + gap.xs,
-    },
-
-    // Footer CTA — mt-5 mb-8, full-width h-12 2xl-radius ink button with the paper-toned label.
-    ctaBlock: {
-      marginBottom: gap.xxl,
-      marginTop: gap.lg + gap.xs,
-    },
-    cta: {
+    annualMerchant: { color: t.ink, fontSize: 16, fontWeight: '600' },
+    tinyWins: { marginTop: gap.xxl },
+    meloBlock: { gap: gap.sm, marginTop: gap.xxl },
+    shareAction: {
       alignItems: 'center',
       backgroundColor: t.ink,
       borderRadius: radius.xxl,
-      height: 48,
       justifyContent: 'center',
+      marginTop: gap.xxl,
+      minHeight: 48,
     },
-    ctaLabel: {
-      color: t.inverse, // web --paper text on the ink button → the on-ink light label
-      fontSize: 13.5,
-      fontWeight: '500',
-    },
-
-    // The kit press feel (web `press` util — scale 0.97 / lowered opacity).
-    pressed: {
-      opacity: 0.6,
-      transform: [{ scale: 0.97 }],
-    },
+    shareActionText: { color: t.inverse, fontSize: 16, fontWeight: '600', lineHeight: 20 },
   });
 }
