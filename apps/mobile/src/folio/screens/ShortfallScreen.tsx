@@ -345,15 +345,17 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.md }]}>
-          <ScreenHeader
-            onBack={nav.back}
-            eyebrow="Shortfall"
-            spacerWidth={48}
-            backHitWidth={48}
-            backHitHeight={48}
-            eyebrowSize={11}
-            eyebrowTracking={1.54}
-          />
+          <View style={styles.headerBar}>
+            <ScreenHeader
+              onBack={nav.back}
+              eyebrow="Shortfall"
+              spacerWidth={48}
+              backHitWidth={48}
+              backHitHeight={48}
+              eyebrowSize={11}
+              eyebrowTracking={1.54}
+            />
+          </View>
           <MeloScrollView style={styles.flexFill} contentContainerStyle={{ flexGrow: 1 }}>
             <View
               style={{
@@ -441,15 +443,17 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
     return (
       <Animated.View style={[styles.root, enterStyle, { backgroundColor: t.canvas }]}>
         <View style={[styles.frame, { paddingTop: insets.top + gap.md }]}>
-          <ScreenHeader
-            onBack={nav.back}
-            eyebrow="A quiet moment"
-            spacerWidth={48}
-            backHitWidth={48}
-            backHitHeight={48}
-            eyebrowSize={11}
-            eyebrowTracking={1.54}
-          />
+          <View style={styles.headerBar}>
+            <ScreenHeader
+              onBack={nav.back}
+              eyebrow="A quiet moment"
+              spacerWidth={48}
+              backHitWidth={48}
+              backHitHeight={48}
+              eyebrowSize={11}
+              eyebrowTracking={1.54}
+            />
+          </View>
           <View style={styles.errorWrap}>
             <MeloLine mood="concern" text="Couldn't work the gap out just now." />
             <Pressable
@@ -482,15 +486,17 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
         showsVerticalScrollIndicator={false}
       >
         {/* Header — back · mode-tinted eyebrow (centred) · a balancing spacer. */}
-        <ScreenHeader
-          onBack={nav.back}
-          eyebrow={modeCopy.eyebrow}
-          spacerWidth={48}
-          backHitWidth={48}
-          backHitHeight={48}
-          eyebrowSize={11}
-          eyebrowTracking={1.54}
-        />
+        <View style={styles.headerBar}>
+          <ScreenHeader
+            onBack={nav.back}
+            eyebrow={modeCopy.eyebrow}
+            spacerWidth={48}
+            backHitWidth={48}
+            backHitHeight={48}
+            eyebrowSize={11}
+            eyebrowTracking={1.54}
+          />
+        </View>
 
         {/* Melo — mode-honest to the gap; briefly "cheer" on the relief close (web meloMood). */}
         <View style={styles.meloHead}>
@@ -728,6 +734,10 @@ function MoveCard({
 }
 
 const styles = StyleSheet.create({
+  headerBar: {
+    minHeight: 56,
+    justifyContent: 'center',
+  },
   root: {
     flex: 1,
   },
