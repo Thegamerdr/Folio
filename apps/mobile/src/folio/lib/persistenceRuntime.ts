@@ -11,6 +11,10 @@ export type PersistenceFailureStage =
   | 'workspace-manifest'
   | 'rollback-files';
 
+export type PersistenceStageTaggedError = Error & {
+  readonly persistenceStage?: PersistenceFailureStage;
+};
+
 export type PersistenceRuntimeState = Readonly<{
   status: PersistenceStatus;
   workspaceId: WorkspaceId | null;
@@ -85,6 +89,23 @@ export function setPersistenceFailureStage(stage: PersistenceFailureStage): void
 
 export function getPersistenceFailureStage(): PersistenceFailureStage {
   return failureStage;
+}
+
+/** Read the stage attached to one save attempt. Callers making rollback/retry decisions must use
+ * this attempt-local value rather than the process-global diagnostic snapshot. */
+export function persistenceFailureStageOf(reason: unknown): PersistenceFailureStage {
+  if (reason !== null && typeof reason === 'object' && 'persistenceStage' in reason) {
+    const stage = (reason as { persistenceStage?: unknown }).persistenceStage;
+    if (
+      stage === 'preparation' ||
+      stage === 'workspace-state' ||
+      stage === 'workspace-manifest' ||
+      stage === 'rollback-files'
+    ) {
+      return stage;
+    }
+  }
+  return 'none';
 }
 
 export function classifyPersistenceFailure(reason: unknown): PersistenceFailureKind {

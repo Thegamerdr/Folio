@@ -33,7 +33,7 @@ import {
 } from '@/folio/lib/bulkLanding';
 import { detectAccountName } from '@/folio/lib/detectAccountName';
 import { persistCurrentStateNow, quiescePersistenceWrites } from '@/folio/lib/persist';
-import { getPersistenceFailureStage } from '@/folio/lib/persistenceRuntime';
+import { persistenceFailureStageOf } from '@/folio/lib/persistenceRuntime';
 import type { CandidateKind, CandidateMoneyItem, ColumnIssue } from '@/folio/lib/importSheet';
 import {
   addAccount,
@@ -505,6 +505,18 @@ export function BulkStatementLanding({
     }
   }
 
+  function restoreBeforeCommit(blob: string, workspaceId: typeof activeWorkspaceId): boolean {
+    // A workspace switch invalidates the captured partition snapshot. Never hydrate it over the
+    // newly active workspace; leave the durable boundary to that workspace's own persistence loop.
+    if (String(getState().activeWorkspaceId) !== String(workspaceId)) return false;
+    try {
+      hydrateFromBlob(blob, workspaceId);
+      return String(getState().activeWorkspaceId) === String(workspaceId);
+    } catch {
+      return false;
+    }
+  }
+
   const toggle = useCallback(
     (id: string) =>
       setSelectedIds((current) => {
@@ -671,14 +683,19 @@ export function BulkStatementLanding({
           selectedCandidateIds: selected.map((candidate) => candidate.id),
           keptAsideIds: [...asideIds],
         });
-      } catch {
+      } catch (reason) {
         // `persistCurrentStateNow` has two materially different failure boundaries. Before the
         // native workspace-state commit, addStatementAsHistory's synchronous memory update must be
         // rolled back so Try again performs one fresh add with the same candidate IDs. Once SQL has
         // committed, a manifest/metadata failure must retain the receipt and show a retry without
         // re-running the ledger write. The runtime stage is value-free and never includes user data.
-        if (getPersistenceFailureStage() === 'preparation' || getPersistenceFailureStage() === 'workspace-state') {
-          hydrateFromBlob(beforeCommitBlob, activeWorkspaceId);
+        const stage = persistenceFailureStageOf(reason);
+        if (stage === 'preparation' || stage === 'workspace-state') {
+          if (!restoreBeforeCommit(beforeCommitBlob, activeWorkspaceId)) {
+            setReceiptPending(false);
+            setReceiptPersistenceError(true);
+            return;
+          }
           setSummary(null);
           setReceiptDelivery(null);
           setReceiptPersistenceError(false);
@@ -693,7 +710,11 @@ export function BulkStatementLanding({
       // addStatementAsHistory may have published part of its synchronous mutation before a later
       // detector/command boundary rejects. Restore the exact pre-attempt partition so the visible
       // "Nothing changed" branch is truthful and a retry cannot duplicate a landed row.
-      hydrateFromBlob(beforeCommitBlob, activeWorkspaceId);
+      if (!restoreBeforeCommit(beforeCommitBlob, activeWorkspaceId)) {
+        setReceiptPending(false);
+        setReceiptPersistenceError(true);
+        return;
+      }
       setSummary(null);
       setReceiptDelivery(null);
       setReceiptPending(false);
@@ -758,8 +779,9 @@ export function BulkStatementLanding({
       setReceiptPending(false);
       onAdded();
       nav.go('today');
-    } catch {
-      const precommit = getPersistenceFailureStage() === 'preparation' || getPersistenceFailureStage() === 'workspace-state';
+    } catch (reason) {
+      const stage = persistenceFailureStageOf(reason);
+      const precommit = stage === 'preparation' || stage === 'workspace-state';
       if (precommit) upsertStatementReviewSession(receiptSession);
       setReceiptPending(false);
       setReceiptAcknowledged(precommit ? false : false);
@@ -785,8 +807,9 @@ export function BulkStatementLanding({
       setReceiptDelivery(null);
       setSummary(null);
       setFilter('aside');
-    } catch {
-      const precommit = getPersistenceFailureStage() === 'preparation' || getPersistenceFailureStage() === 'workspace-state';
+    } catch (reason) {
+      const stage = persistenceFailureStageOf(reason);
+      const precommit = stage === 'preparation' || stage === 'workspace-state';
       if (precommit) upsertStatementReviewSession(receiptSession);
       setReceiptPending(false);
       setReceiptAcknowledged(false);
