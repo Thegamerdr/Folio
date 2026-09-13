@@ -892,16 +892,11 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
         />
       </View>
 
-      {typingContext ? (
-        <View style={{ flexShrink: 0, paddingVertical: gap.sm }}>
-          <Text style={{ color: t.ink, fontSize: 14, lineHeight: 20 }}>{typingContext}</Text>
-        </View>
-      ) : null}
       {/* Transcript */}
       <View
         style={[
           s.transcript,
-          ((showEmpty && keyboardVisible) || typingContext) && !showSettings
+          showEmpty && keyboardVisible && !showSettings
             ? { flex: 0 }
             : undefined,
         ]}
@@ -922,6 +917,11 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
             viewportHeight.current = e.nativeEvent.layout.height;
           }}
         >
+      {typingContext ? (
+        <View style={{ flexShrink: 0, paddingVertical: gap.sm }}>
+          <Text style={{ color: t.ink, fontSize: 14, lineHeight: 20 }}>{typingContext}</Text>
+        </View>
+      ) : null}
       {/* Settings panel */}
       {showSettings ? (
         <View style={s.settings}>
@@ -1923,13 +1923,18 @@ function makeStyles(t: Palette) {
     body: {
       // The web sheet is h-[640px] max-h-[78vh]; the kit Sheet already caps height (85% window) and
       // scrolls inside, so the body fills the available column rather than pinning a px height.
-      flexGrow: 1,
-      flexShrink: 1,
+      // Use a zero flex basis so the transcript is the part that yields when the measured
+      // keyboard viewport gets shorter. With an auto basis, the draft/header content can make the
+      // body shrink while its stacked composer keeps its natural position below the IME.
+      flex: 1,
       minHeight: 0,
     },
     composer: {
       alignItems: 'flex-end',
       flexDirection: 'row',
+      // The composer is a sibling of the transcript. Keep its controls in the measured body and
+      // let only the transcript yield to the keyboard rather than shrinking Voice/Send children.
+      flexShrink: 0,
       gap: gap.md,
       paddingTop: gap.sm,
     },
@@ -2284,8 +2289,7 @@ function makeStyles(t: Palette) {
     },
     transcript: {
       overflow: 'hidden',
-      flexGrow: 1,
-      flexShrink: 1,
+      flex: 1,
       minHeight: 0,
     },
     tune: {
