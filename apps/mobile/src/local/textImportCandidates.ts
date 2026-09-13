@@ -45,11 +45,18 @@ export function readTextImport(
   // then pass the validated fields through the same low-confidence line parser used by clipboard
   // text. This keeps the editor and clipboard routes equivalent without guessing a file's layout.
   if (source === 'paste') {
-    const positional = parseSheet(text, {
+    // Keep normalization on this parse copy only: the visible draft remains byte-for-byte as
+    // entered, while signed Unicode dash variants reach the same sheet parser as ASCII minus.
+    const positional = parseSheet(normalizeSignedAmountForSheet(text), {
       source,
       hasHeader: false,
       columnMapping: { date: 0, merchant: 1, amount: 2 },
     });
+    const positionalIssues = addUnparsedPasteRowIssues(
+      positional.issues,
+      positional.candidates,
+      text,
+    );
     const plainRows = positional.candidates
       .filter((candidate) => candidate.date !== undefined)
       .map((candidate) => `${candidate.date} ${candidate.merchant} ${candidate.amount.toFixed(2)}`)
@@ -59,7 +66,7 @@ export function readTextImport(
       if (positionalFallback.candidates.length > 0) {
         return {
           candidates: positionalFallback.candidates,
-          issues: positional.issues,
+          issues: positionalIssues,
           usedPlainTextFallback: true,
         };
       }
@@ -82,4 +89,45 @@ export function readTextImport(
     issues: parsed.issues,
     usedPlainTextFallback: false,
   };
+}
+
+/** Normalize only dash glyphs immediately before a numeric amount for parseSheet. */
+function normalizeSignedAmountForSheet(text: string): string {
+  return text.replace(/[−–—](?=\s*[0-9OoIlL])/gu, '-');
+}
+
+function addUnparsedPasteRowIssues(
+  issues: ColumnIssue[],
+  candidates: CandidateMoneyItem[],
+  text: string,
+): ColumnIssue[] {
+  const issueRows = new Set(
+    issues
+      .map((issue) => issue.row)
+      .filter((row): row is number => row !== undefined),
+  );
+  // parseSheet's deterministic candidate id carries its 1-based data row. This lets the
+  // headerless Paste adapter report a nonblank row that the sheet parser skipped as padding.
+  const candidateRows = new Set(
+    candidates
+      .map((candidate) => /^sheet-(\d+)-/u.exec(candidate.id)?.[1])
+      .filter((row): row is string => row !== undefined)
+      .map(Number),
+  );
+  const rows = text
+    .replace(/\r\n?/gu, '\n')
+    .split('\n')
+    .filter((line) => line.trim() !== '');
+  const augmented = [...issues];
+  rows.forEach((line, index) => {
+    const row = index + 1;
+    if (line.trim() !== '' && !candidateRows.has(row) && !issueRows.has(row)) {
+      augmented.push({
+        code: 'bad-amount',
+        message: `Row ${row} could not be read — we left it out rather than guess.`,
+        row,
+      });
+    }
+  });
+  return augmented;
 }

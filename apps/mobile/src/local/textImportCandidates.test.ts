@@ -79,6 +79,24 @@ describe('shared text import reader', () => {
     expect(result.candidates).toHaveLength(2);
     expect(result.candidates.every((candidate) => candidate.confidence === 'low')).toBe(true);
     expect(result.candidates.map((candidate) => candidate.amount)).toEqual([1840, -875]);
+    expect(result.issues.some((issue) => issue.code === 'bad-amount' && issue.row === 2)).toBe(true);
+  });
+
+  it('keeps Unicode-minus rows and row-specific issues in a mixed Paste table', () => {
+    const result = readTextImport(
+      [
+        '2026-06-24,ACME Payroll,+1840.00',
+        '2026-06-25,Landlord rent,−875.00',
+        'unfinished row',
+        '2026-06-26,Tesco Supermarket,-42.16',
+      ].join('\n'),
+      'paste',
+      'pasted transactions',
+    );
+
+    expect(result.candidates.map((candidate) => candidate.amount)).toEqual([1840, -875, -42.16]);
+    expect(result.candidates.every((candidate) => candidate.confidence === 'low')).toBe(true);
+    expect(result.issues.some((issue) => issue.code === 'bad-amount' && issue.row === 3)).toBe(true);
   });
 
   it('preserves the strict sheet path for headed input', () => {
