@@ -189,6 +189,67 @@ beforeEach(() => {
 });
 
 describe('InsightsScreen native branch and chart accessibility', () => {
+  it('remounts metric measurement when a fitted value changes to a longer token', async () => {
+    h.state = baseState([cycle({ spare: 1.23 })]);
+    const renderer = await renderScreen();
+    const tile = () =>
+      renderer.root.find((node) =>
+        String(node.props.accessibilityLabel ?? '').startsWith('LATEST PAYDAY CASH FORECAST'),
+      );
+    const valueText = () =>
+      tile().find((node) => typeof node.props.onTextLayout === 'function');
+
+    await act(async () => {
+      valueText().props.onTextLayout({ nativeEvent: { lines: [{ width: 120 }] } });
+      await Promise.resolve();
+    });
+    expect(tile().findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
+
+    h.state = baseState([cycle({ spare: 123456789.12 })]);
+    act(() => h.listeners.forEach((listener) => listener()));
+    expect(tile().findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
+
+    await act(async () => {
+      valueText().props.onTextLayout({ nativeEvent: { lines: [{ width: 420 }] } });
+      await Promise.resolve();
+    });
+    expect(tile().findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
+  });
+
+  it('invalidates fitted metric measurement when font scale changes', async () => {
+    h.fontScale = 1;
+    h.state = baseState([cycle({ spare: 1.23 })]);
+    const renderer = await renderScreen();
+    const tile = () =>
+      renderer.root.find((node) =>
+        String(node.props.accessibilityLabel ?? '').startsWith('LATEST PAYDAY CASH FORECAST'),
+      );
+    const valueText = () =>
+      tile().find((node) => typeof node.props.onTextLayout === 'function');
+
+    await act(async () => {
+      valueText().props.onTextLayout({ nativeEvent: { lines: [{ width: 120 }] } });
+      await Promise.resolve();
+    });
+    expect(tile().findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
+
+    h.fontScale = 2;
+    act(() => {
+      renderer.update(
+        React.createElement(InsightsScreen, {
+          nav: {
+            back: vi.fn(),
+            go: vi.fn(),
+            openSheet: vi.fn(),
+            openMelo: vi.fn(),
+            setPressure: vi.fn(),
+          },
+        }),
+      );
+    });
+    expect(tile().findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
+  });
+
   it('uses the canonical Personal workspace while excluding business and reconstructed records', async () => {
     h.state = baseState([
       cycle(),

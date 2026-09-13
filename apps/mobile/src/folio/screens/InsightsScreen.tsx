@@ -670,10 +670,11 @@ function StatTile({
       onAccessibilityAction={
         valueOverflows
           ? (event) => {
-              valuePanRef.current?.scrollTo({
-                x: event.nativeEvent.actionName === 'increment' ? Number.MAX_SAFE_INTEGER : 0,
-                animated: true,
-              });
+              if (event.nativeEvent.actionName === 'increment') {
+                valuePanRef.current?.scrollToEnd({ animated: true });
+              } else {
+                valuePanRef.current?.scrollTo({ x: 0, animated: true });
+              }
             }
           : undefined
       }
@@ -704,11 +705,18 @@ function MetricValue({
   onOverflowChange: (overflows: boolean) => void;
   scrollRef: { current: ScrollView | null };
 }) {
-  const [tokenWidth, setTokenWidth] = useState<number | undefined>();
+  const { fontScale } = useWindowDimensions();
+  const [measurement, setMeasurement] = useState<
+    { value: string; width: number; fontScale: number } | undefined
+  >();
   const onTextLayout = (event: TextLayoutEvent) => {
     const width = Math.ceil(Math.max(0, ...event.nativeEvent.lines.map((line) => line.width)));
     if (width > 0) {
-      setTokenWidth((previous) => (previous === width ? previous : width));
+      setMeasurement((previous) =>
+        previous?.value === value && previous.width === width && previous.fontScale === fontScale
+          ? previous
+          : { value, width, fontScale },
+      );
       onOverflowChange(width > METRIC_VALUE_VIEWPORT);
     }
   };
@@ -723,7 +731,9 @@ function MetricValue({
     </Text>
   );
 
-  if (tokenWidth !== undefined && tokenWidth <= METRIC_VALUE_VIEWPORT) {
+  const hasCurrentMeasurement =
+    measurement?.value === value && measurement.fontScale === fontScale;
+  if (hasCurrentMeasurement && measurement.width <= METRIC_VALUE_VIEWPORT) {
     return valueText;
   }
 
