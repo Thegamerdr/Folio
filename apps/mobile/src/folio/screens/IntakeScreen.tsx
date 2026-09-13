@@ -294,7 +294,8 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     () =>
       statementSessions.filter(
         (session) =>
-          (session.workspaceId === undefined || String(session.workspaceId) === String(activeWorkspaceId)) &&
+          (session.workspaceId === undefined ||
+            String(session.workspaceId) === String(activeWorkspaceId)) &&
           (session.candidates.length > 0 || session.receipt !== undefined),
       ),
     [activeWorkspaceId, statementSessions],
@@ -311,7 +312,11 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   }, [waiting]);
 
   useEffect(() => {
-    if (waitingAnnouncedRef.current || (waiting.length === 0 && waitingStatementSessions.length === 0)) return;
+    if (
+      waitingAnnouncedRef.current ||
+      (waiting.length === 0 && waitingStatementSessions.length === 0)
+    )
+      return;
     waitingAnnouncedRef.current = true;
     AccessibilityInfo.announceForAccessibility(
       "An earlier statement is still waiting for you. Open what's waiting, button.",
@@ -320,7 +325,12 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
 
   function openStatementReview(session: (typeof waitingStatementSessions)[number]) {
     const source = session.candidates[0]?.source ?? session.sourceKey?.split(':')[0] ?? 'pdf';
-    const screen: ScreenId = source === 'paste' || source === 'csv' || source === 'txt' ? 'paste-success' : source === 'photo' ? 'image-success' : 'pdf-success';
+    const screen: ScreenId =
+      source === 'paste' || source === 'csv' || source === 'txt'
+        ? 'paste-success'
+        : source === 'photo'
+          ? 'image-success'
+          : 'pdf-success';
     const sourceKey = session.sourceKey ?? statementReviewSourceKey(session.candidates);
     const label = session.sourceLabel ?? waitingSourceLabel(source);
     AccessibilityInfo.announceForAccessibility(
@@ -642,14 +652,20 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
     return (
       <View style={[styles.readerProgress, { backgroundColor: t.canvas, paddingTop: insets.top }]}>
         <View style={styles.progressHeader}>
-          <Text style={[styles.eyebrow, { color: t.muted }]}>{isPhoto ? 'PHOTO' : 'STATEMENT'}</Text>
+          <Text style={[styles.eyebrow, { color: t.muted }]}>
+            {isPhoto ? 'PHOTO' : 'STATEMENT'}
+          </Text>
         </View>
         <Text accessibilityRole="header" style={[styles.progressHeadline, { color: t.ink }]}>
           {isPhoto ? 'Reading your photo.' : 'Reading your statement.'}
         </Text>
-        <View style={[styles.progressEvidence, { backgroundColor: t.surface, borderColor: t.hairline }]}>
+        <View
+          style={[styles.progressEvidence, { backgroundColor: t.surface, borderColor: t.hairline }]}
+        >
           <Text style={[styles.progressName, { color: t.ink }]}>{readerName}</Text>
-          <Text style={[styles.progressBody, { color: t.muted }]}>Melo is looking for dates, names and amounts.</Text>
+          <Text style={[styles.progressBody, { color: t.muted }]}>
+            Melo is looking for dates, names and amounts.
+          </Text>
         </View>
         <View accessibilityLiveRegion="polite" style={styles.progressIndicator}>
           <ActivityIndicator
@@ -669,7 +685,11 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
             activeReaderAttempt.current = null;
             setReaderPhase('idle');
           }}
-          style={({ pressed }) => [styles.cancelReading, { borderColor: t.hairline }, pressed ? styles.pressed : undefined]}
+          style={({ pressed }) => [
+            styles.cancelReading,
+            { borderColor: t.hairline },
+            pressed ? styles.pressed : undefined,
+          ]}
         >
           <Text style={[styles.cancelReadingLabel, { color: t.muted }]}>Cancel reading</Text>
         </Pressable>
@@ -762,7 +782,10 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
             accessibilityLabel="Back"
             hitSlop={16}
             onPress={nav.back}
-            style={({ pressed: isPressed }) => [styles.backTarget, isPressed ? styles.pressed : undefined]}
+            style={({ pressed: isPressed }) => [
+              styles.backTarget,
+              isPressed ? styles.pressed : undefined,
+            ]}
           >
             <Text style={[styles.back, { color: t.muted }]}>←</Text>
           </Pressable>
@@ -802,9 +825,19 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         <View style={styles.options}>
           <Text style={[styles.sectionEyebrow, { color: t.muted }]}>Every way in</Text>
           <Text style={[styles.sectionTitle, { color: t.ink }]}>How do you want to add it?</Text>
-          <View style={styles.optionRows}>
+          <View
+            style={[
+              isBusiness ? styles.optionRowsBusiness : styles.optionRows,
+              !isBusiness ? { backgroundColor: t.surface, borderColor: t.hairline } : undefined,
+            ]}
+          >
             {INTAKE_OPTIONS.map((option) => (
-              <OptionRow key={option.title} option={option} onPress={() => onSelect(option)} />
+              <OptionRow
+                key={option.title}
+                option={option}
+                compact={!isBusiness}
+                onPress={() => onSelect(option)}
+              />
             ))}
           </View>
           <Text style={[styles.explainer, { color: t.muted }]}>
@@ -814,8 +847,15 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
         </View>
 
         {waitingStatementSessions.length > 0 ? (
-          <View style={[styles.waitingNotice, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}>
-            <Text accessibilityLiveRegion="polite" style={[styles.waitingNoticeBody, { color: t.ink }]}>An earlier statement is still waiting for you.</Text>
+          <View
+            style={[styles.waitingNotice, { backgroundColor: t.calmSoft, borderColor: t.hairline }]}
+          >
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[styles.waitingNoticeBody, { color: t.ink }]}
+            >
+              An earlier statement is still waiting for you.
+            </Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Open what's waiting"
@@ -824,7 +864,8 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
                 if (node !== null) AccessibilityInfo.setAccessibilityFocus(node);
                 const first = waitingStatementSessions[0];
                 if (first !== undefined) {
-                  const source = first.candidates[0]?.source ?? first.sourceKey?.split(':')[0] ?? 'pdf';
+                  const source =
+                    first.candidates[0]?.source ?? first.sourceKey?.split(':')[0] ?? 'pdf';
                   const label = first.sourceLabel ?? waitingSourceLabel(source);
                   AccessibilityInfo.announceForAccessibility(
                     `${label}. ${first.candidates.length} suggested. ${first.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`,
@@ -846,18 +887,26 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
               style={[styles.waitingList, { backgroundColor: t.surface, borderColor: t.hairline }]}
             >
               {waitingStatementSessions.map((session, index) => {
-                const source = session.candidates[0]?.source ?? session.sourceKey?.split(':')[0] ?? 'pdf';
+                const source =
+                  session.candidates[0]?.source ?? session.sourceKey?.split(':')[0] ?? 'pdf';
                 const count = session.candidates.length;
                 const label = session.sourceLabel ?? waitingSourceLabel(source);
                 return (
-                  <View key={`statement:${session.workspaceId ?? ''}:${session.sourceKey ?? index}`}>
-                    {index > 0 ? <View style={[styles.divider, { backgroundColor: t.hairline }]} /> : null}
+                  <View
+                    key={`statement:${session.workspaceId ?? ''}:${session.sourceKey ?? index}`}
+                  >
+                    {index > 0 ? (
+                      <View style={[styles.divider, { backgroundColor: t.hairline }]} />
+                    ) : null}
                     <Pressable
                       ref={index === 0 ? firstWaitingRef : undefined}
                       accessibilityRole="button"
                       accessibilityLabel={`${label}. ${count} suggested. ${session.receipt === undefined ? 'Not added yet.' : 'Result not seen yet.'}`}
                       onPress={() => openStatementReview(session)}
-                      style={({ pressed: isPressed }) => [styles.waitingRow, isPressed ? styles.pressed : undefined]}
+                      style={({ pressed: isPressed }) => [
+                        styles.waitingRow,
+                        isPressed ? styles.pressed : undefined,
+                      ]}
                     >
                       <View style={styles.waitingCopy}>
                         <Text style={[styles.waitingLabel, { color: t.ink }]}>{label}</Text>
@@ -937,10 +986,18 @@ export function IntakeScreen({ nav, state = 'populated' }: IntakeScreenProps) {
   );
 }
 
-// One dispatch row — an --inset icon tile, the title (with the optional "fastest" badge) over a
-// muted hint, and a right-pinned forward glyph. The whole row is the Pressable; its accessibility
+// One compact dispatch row — an inline decorative icon, the title (with the optional "fastest"
+// badge) over a muted hint, and a right-pinned forward glyph. The whole row is the Pressable; its accessibility
 // label is the title + hint so the decorative glyph is never load-bearing for a screen reader.
-function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => void }) {
+function OptionRow({
+  option,
+  compact,
+  onPress,
+}: {
+  option: IntakeOption;
+  compact: boolean;
+  onPress: () => void;
+}) {
   const t = useTheme();
   const accessibilityLabel = `${option.title}. ${option.hint}${option.fastest ? '. Fastest' : ''}${option.unavailable ? '. Not yet available' : ''}`;
   return (
@@ -951,13 +1008,13 @@ function OptionRow({ option, onPress }: { option: IntakeOption; onPress: () => v
       disabled={option.unavailable === true}
       onPress={onPress}
       style={({ pressed: isPressed }) => [
-        styles.row,
+        compact ? styles.row : styles.rowBusiness,
         { backgroundColor: t.surface, borderColor: t.hairline },
         option.unavailable ? styles.unavailable : undefined,
         isPressed ? styles.pressed : undefined,
       ]}
     >
-      <View style={[styles.iconTile, { backgroundColor: t.inset }]}>
+      <View style={compact ? styles.iconTile : styles.iconTileBusiness}>
         {option.icon === '▢' ? (
           <Svg width={24} height={24} viewBox="0 0 24 24" accessible={false}>
             <Path
@@ -1127,6 +1184,12 @@ const styles = StyleSheet.create({
     marginTop: gap.xs,
   },
   optionRows: {
+    marginTop: gap.md,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  optionRowsBusiness: {
     gap: gap.md,
     marginTop: gap.md,
   },
@@ -1213,28 +1276,43 @@ const styles = StyleSheet.create({
     marginTop: gap.sm,
     textAlign: 'center',
   },
-  // bg-surface · hairline border · rounded-xl (radius.md = 12) · px-4 py-4 (16) · row · gap-4 (16).
+  // Compact rows inside the shared rounded list surface, matching the authority's inline list.
   row: {
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    columnGap: gap.sm,
+    flexDirection: 'row',
+    paddingHorizontal: gap.lg,
+    minHeight: 56,
+    paddingVertical: gap.sm,
+  },
+  rowBusiness: {
     alignItems: 'center',
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     columnGap: gap.lg,
     flexDirection: 'row',
-    paddingHorizontal: gap.lg,
     minHeight: 72,
+    paddingHorizontal: gap.lg,
     paddingVertical: gap.lg,
   },
-  // w-11 h-11 (44px) · rounded-lg (radius.sm = 8) · centred · --inset bg.
+  // Small inline decorative icon; the row remains the single visual affordance.
   iconTile: {
+    alignItems: 'center',
+    height: 24,
+    justifyContent: 'center',
+    width: 24,
+  },
+  iconTileBusiness: {
     alignItems: 'center',
     borderRadius: radius.sm,
     height: 44,
     justifyContent: 'center',
     width: 44,
   },
-  // Unicode glyph at 20px (web text-[20px]).
+  // Unicode glyph at compact inline size.
   icon: {
-    fontSize: 20,
+    fontSize: 17,
   },
   rowBody: {
     flex: 1,
