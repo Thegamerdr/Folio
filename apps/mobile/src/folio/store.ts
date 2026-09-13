@@ -2466,7 +2466,12 @@ export function borrowFromPot(
     amount,
     source,
   };
-  const pots = state.pots.map((p) => (p.id === id ? { ...p, saved: p.saved - amount } : p));
+  // Keep the pounds-at-the-store-boundary value aligned to the canonical pence projection. A
+  // direct IEEE-754 subtraction (for example, 520 - 519.71) leaves a representational tail that
+  // the cent-normalized canonical read projects to 0.29, causing strict parity to reject the save
+  // during preparation. The requested draw and ledger amount remain unchanged.
+  const nextSaved = (Math.round(pot.saved * 100) - Math.round(amount * 100)) / 100;
+  const pots = state.pots.map((p) => (p.id === id ? { ...p, saved: nextSaved } : p));
   const potLedger = [entry, ...state.potLedger].slice(0, 500);
   setPartialWithTypedCommand(
     { pots, potLedger },

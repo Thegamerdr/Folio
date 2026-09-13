@@ -235,6 +235,7 @@ vi.mock('./notifyRuntimeState', () => ({
 import {
   addEvidenceDocument,
   addTransaction,
+  borrowFromPot,
   createEmptyWorkspacePartition,
   getPersistBlob,
   getState,
@@ -970,6 +971,30 @@ describe('SQLCipher workspace authority', () => {
       failureKind: 'unknown',
       consecutiveFailures: 1,
     });
+  });
+
+  it('persists a pence-normalized fractional pot borrow through preparation', async () => {
+    resetToEmpty({ onboardingDone: true });
+    const workspaceId = getState().activeWorkspaceId;
+    setPartial({
+      pots: [
+        {
+          id: 'pot-validation',
+          workspaceId,
+          name: 'Shortfall Pot Validation',
+          saved: 520,
+          goal: 520,
+          perWeek: 10,
+          accent: true,
+          cadence: { kind: 'after-payday' },
+        },
+      ],
+    });
+
+    expect(borrowFromPot('pot-validation', 519.71, 'shortfall-borrow')).toBe(true);
+    await expect(persistCurrentStateNow(workspaceId)).resolves.toBeUndefined();
+    expect(saveNativeWorkspaceStateGeneration).toHaveBeenCalledTimes(1);
+    expect(saveNativeWorkspaceManifestGeneration).toHaveBeenCalledTimes(1);
   });
 
   it('does not demote a verified SQLCipher commit when the rollback file cannot refresh', async () => {

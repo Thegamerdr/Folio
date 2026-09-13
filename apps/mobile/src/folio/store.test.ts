@@ -108,6 +108,7 @@ import {
   upsertIncomeSource,
 } from './store';
 import { createWorkspaceId } from '@folio/domain';
+import { createCanonicalAppStateProjectionFromPayload } from './lib/canonicalStateProjection';
 import type { CandidateMoneyItem } from './lib/importSheet';
 import { subscribeMeloReaction, type MeloReactionPayload } from './lib/melo/reactionBus';
 import {
@@ -443,6 +444,36 @@ describe('borrowFromPot', () => {
     expect(entry.potId).toBe('holiday');
     expect(entry.amount).toBe(50);
     expect(entry.source).toBe('shortfall-borrow');
+  });
+
+  it.each([
+    [519.71, 0.29],
+    [519.7, 0.3],
+    [519, 1],
+  ])('keeps a fractional draw pence-canonical (%s → %s)', (amount, expectedSaved) => {
+    resetToEmpty({ onboardingDone: true });
+    const workspaceId = getState().activeWorkspaceId;
+    setPartial({
+      pots: [
+        {
+          id: 'pot-validation',
+          workspaceId,
+          name: 'Shortfall Pot Validation',
+          saved: 520,
+          goal: 520,
+          perWeek: 10,
+          accent: true,
+          cadence: { kind: 'after-payday' },
+        },
+      ],
+    });
+
+    expect(borrowFromPot('pot-validation', amount)).toBe(true);
+    expect(getState().pots[0]?.saved).toBe(expectedSaved);
+    const workspace = getState().workspaces.find((candidate) => candidate.id === workspaceId)!;
+    expect(() =>
+      createCanonicalAppStateProjectionFromPayload(getPersistBlob(workspaceId), workspace),
+    ).not.toThrow();
   });
 
   it('is a no-op on a non-positive amount', () => {
