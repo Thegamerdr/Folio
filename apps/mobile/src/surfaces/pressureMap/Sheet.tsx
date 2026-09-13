@@ -455,7 +455,8 @@ export function Sheet({
       const terminalAlignmentRequested =
         imeOverflowPolicy === 'scrollBodyToFocusedTerminal' &&
         ((terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled) ||
-          terminalImeRestore.current) &&
+          terminalImeRestore.current ||
+          terminalImeIntent.current) &&
         !terminalImeReaderOverride.current;
       if (geometryLogging) {
         console.info(

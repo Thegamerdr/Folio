@@ -178,6 +178,55 @@ describe('Sheet mounted focus lifecycle', () => {
     act(() => tree.unmount());
   });
 
+  it('honors an explicit terminal intent after reader drag even when the live alignment ref is false', () => {
+    let bodyNode: any;
+    const terminalAlignmentEnabledRef = { current: false };
+    const terminalAlignmentIntentRef = { current: 0 };
+    const terminalTop = 1200;
+    const terminalHeight = 80;
+    const viewportHeight = 400;
+    const terminalRef = { current: { measureLayout: (_relative: any, cb: any) => cb(0, terminalTop, 390, terminalHeight) } as any };
+    const scrollTo = vi.fn();
+    let tree!: renderer.ReactTestRenderer;
+    const sheetProps = (terminalAlignmentIntentVersion = 0) => ({
+      visible: true,
+      onClose: vi.fn(),
+      scrollable: true,
+      imeOverflowPolicy: 'scrollBodyToFocusedTerminal' as const,
+      terminalAlignmentEnabledRef,
+      terminalAlignmentIntentRef,
+      terminalAlignmentIntentVersion,
+      terminalRef,
+      children: React.createElement(View, { style: { height: 80 } }),
+    });
+    act(() => {
+      tree = renderer.create(
+        React.createElement(Sheet, sheetProps()),
+        { createNodeMock: (element: any) => {
+          if (element.type === 'ScrollView') {
+            bodyNode = {
+              getNativeScrollRef: () => bodyNode,
+              measureInWindow: (cb: any) => cb(0, 0, 390, viewportHeight),
+              scrollTo,
+            };
+            return bodyNode;
+          }
+          if (element.type === 'View' || element.type === 'Animated.View') return { measure: vi.fn(), measureInWindow: vi.fn(), measureLayout: vi.fn() };
+          return {};
+        } },
+      );
+    });
+    const scroll = tree.root.findAll((node) => (node.type as any) === 'ScrollView')[0]!;
+    act(() => scroll.props.onLayout({ nativeEvent: { layout: { width: 390, height: viewportHeight } } }));
+    act(() => scroll.props.onContentSizeChange?.(390, 1600));
+    act(() => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 240 }, contentSize: { height: 1600 }, layoutMeasurement: { height: viewportHeight } } }));
+    act(() => scroll.props.onScrollBeginDrag?.());
+    terminalAlignmentIntentRef.current = 1;
+    act(() => tree.update(React.createElement(Sheet, sheetProps(1))));
+    expect(scrollTo).toHaveBeenCalledWith({ y: terminalTop + terminalHeight - viewportHeight, animated: false });
+    act(() => tree.unmount());
+  });
+
   it('does not force a focused reader to scroll while terminal alignment is disabled', () => {
     const focusedInput = { measureLayout: vi.fn() } as any;
     vi.mocked(TextInput.State.currentlyFocusedInput).mockReturnValue(focusedInput);
@@ -217,4 +266,3 @@ describe('Sheet mounted focus lifecycle', () => {
     act(() => tree.unmount());
   });
 });
-
