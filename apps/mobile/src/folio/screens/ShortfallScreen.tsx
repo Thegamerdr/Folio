@@ -398,7 +398,7 @@ export function ShortfallScreen({ nav, state }: ShortfallScreenProps) {
                 onPress={needsSetup ? () => nav.openSheet('onboarding') : nav.back}
                 style={{
                   alignSelf: 'stretch',
-                  minHeight: 54,
+                  minHeight: 56,
                   padding: gap.md,
                   borderRadius: radius.pill,
                   borderWidth: 1,
@@ -883,7 +883,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.md,
     justifyContent: 'center',
-    minHeight: 44,
+    minHeight: 56,
     paddingHorizontal: gap.sm,
     paddingVertical: gap.xs,
     width: '100%',
