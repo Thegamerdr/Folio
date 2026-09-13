@@ -29,10 +29,16 @@ export function MeloPerch({
   screen,
   nav,
   plan,
+  anchorOnly = false,
+  contextOnly = false,
 }: {
   screen: ScreenId;
   nav: Nav;
   plan: FinancialPlanResult | null;
+  /** Publish the canonical companion anchor without adding inline context copy. */
+  anchorOnly?: boolean;
+  /** Keep the inline context disclosure without publishing a second visible anchor. */
+  contextOnly?: boolean;
 }) {
   const t = useTheme();
   const state = useAppStore((current) => current);
@@ -78,7 +84,7 @@ export function MeloPerch({
         node: body.current,
         viewport: viewport?.() ?? null,
         exclusion: explanation.current,
-        visible: !quiet && !keyboard && !optionsOpen && !suppressed,
+        visible: !contextOnly && !quiet && !keyboard && !optionsOpen && !suppressed,
         mood,
         onPress: activate,
         onMove: move,
@@ -92,6 +98,7 @@ export function MeloPerch({
       quiet,
       keyboard,
       optionsOpen,
+      contextOnly,
       suppressed,
       mood,
       activate,
@@ -128,27 +135,46 @@ export function MeloPerch({
           publish();
         }}
         style={[
-          styles.contextBlock,
+          anchorOnly
+            ? quiet
+              ? styles.anchorOnlyHidden
+              : styles.anchorOnlyBlock
+            : styles.contextBlock,
           { flexDirection: preferred === 'left' ? 'row-reverse' : 'row' },
         ]}
       >
-        <View ref={explanation} collapsable={false} onLayout={publish} style={styles.explanation}>
-          <Text style={[styles.contextLine, { color: t.ink }]}>{context.sentence}</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={followContext}
-            style={styles.contextAction}
-          >
-            <Text style={[styles.contextLabel, { color: t.calm }]}>{context.label} →</Text>
-          </Pressable>
+        <View
+          ref={explanation}
+          collapsable={false}
+          onLayout={publish}
+          style={
+            anchorOnly
+              ? quiet
+                ? styles.anchorOnlyHidden
+                : styles.anchorOnlyExclusion
+              : styles.explanation
+          }
+        >
+          {!anchorOnly ? (
+            <>
+              <Text style={[styles.contextLine, { color: t.ink }]}>{context.sentence}</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={followContext}
+                style={styles.contextAction}
+              >
+                <Text style={[styles.contextLabel, { color: t.calm }]}>{context.label} →</Text>
+              </Pressable>
+            </>
+          ) : null}
         </View>
-        {!quiet ? (
+        {!quiet && !contextOnly ? (
           <View
             ref={body}
             collapsable={false}
             onLayout={publish}
             pointerEvents="none"
-            style={styles.anchor}
+            style={[styles.anchor, anchorOnly && styles.anchorOnlyAnchor]}
           />
         ) : null}
       </View>
@@ -196,8 +222,12 @@ export function MeloPerch({
 }
 const styles = StyleSheet.create({
   contextBlock: { marginVertical: 12, alignItems: 'center', gap: 8 },
+  anchorOnlyBlock: { width: '100%', height: 56, alignItems: 'center', gap: 8 },
+  anchorOnlyHidden: { width: '100%', height: 0, alignItems: 'center' },
+  anchorOnlyExclusion: { flex: 1, height: 56 },
   explanation: { flex: 1, minWidth: 0 },
   anchor: { width: 76, height: 76 },
+  anchorOnlyAnchor: { width: 56, height: 56 },
   contextLine: { fontSize: 14, lineHeight: 20 },
   contextAction: { minHeight: 44, justifyContent: 'center', paddingVertical: 8 },
   contextLabel: { fontSize: 14, lineHeight: 20, fontWeight: '600' },

@@ -636,6 +636,10 @@ export function TodayScreen({
           </Pressable>
         ) : null}
 
+        <View style={styles.heroMeloRow}>
+          <MeloPerch screen="today" nav={nav} plan={financialPlan} anchorOnly />
+        </View>
+
         {/* Hero */}
         <View style={styles.hero}>
           {recordedReviewCount >= 2 ? (
@@ -826,16 +830,11 @@ export function TodayScreen({
           </Pressable>
         ) : null}
 
-        {/* Melo enters the money story after the answer, never between chrome and
-            the decision. First-run primer and one-move are mutually exclusive. */}
+        {/* First-run primer and one-move are mutually exclusive. */}
         {financialPlan.safeToSpendMinor >= 0 && !meloPrimerSeen ? (
           <MeloPrimerCard onDone={() => setMeloPrimerSeen(true)} />
         ) : financialPlan.safeToSpendMinor >= 0 && oneMove ? (
           <OneMoveCard oneMove={oneMove} />
-        ) : financialPlan.safeToSpendMinor >= 0 ? (
-          <View style={{ marginHorizontal: 28 }}>
-            <MeloPerch screen="today" nav={nav} plan={financialPlan} />
-          </View>
         ) : null}
 
         {/* The path is the signature object: plain ground, one hairline chapter
@@ -947,12 +946,9 @@ export function TodayScreen({
           </Text>
         </View>
 
-        {/* Keep the companion beside the route explanation, after the path has established the
-            financial answer. The anchor primitive owns the concern copy and Recovery action for a
-            negative plan without adding a second large recovery card above the chart. */}
-        {financialPlan.safeToSpendMinor < 0 ? (
+        {financialPlan.safeToSpendMinor < 0 || (meloPrimerSeen && !oneMove) ? (
           <View style={{ marginHorizontal: 28 }}>
-            <MeloPerch screen="today" nav={nav} plan={financialPlan} />
+            <MeloPerch screen="today" nav={nav} plan={financialPlan} contextOnly />
           </View>
         ) : null}
 
@@ -1584,6 +1580,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: gap.sm,
   },
+  heroMeloRow: { marginHorizontal: 24 },
   heroStreakEyebrow: {
     fontSize: 10.5,
     letterSpacing: 1.4,
