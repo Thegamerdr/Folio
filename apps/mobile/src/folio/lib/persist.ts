@@ -87,6 +87,7 @@ import {
   type WorkspaceManifest,
 } from './workspacePartition';
 import { validateRestoreJson } from './restore';
+import type { RestoreReceiptStore, RestoreResult } from './restoreResult';
 import {
   createBusinessWorkspace,
   createPersonalWorkspaceRoot,
@@ -1049,6 +1050,80 @@ export async function persistCurrentStateNow(
     throw new PersistenceAttemptError(failureStage, reason);
   }
 }
+
+function checkedReceiptWorkspaceId(workspaceId: string): WorkspaceId {
+  return createWorkspaceId(String(workspaceId));
+}
+
+function receiptKey(workspaceId: WorkspaceId): string {
+  return String(workspaceId);
+}
+
+/**
+ * Durable restore-result handoff for MF10. Receipts live inside the encrypted workspace partition,
+ * so one workspace can never hydrate or acknowledge another workspace's result. `acknowledge`
+ * writes a receipt-free snapshot first and only hydrates that snapshot after the native commit has
+ * succeeded; a failed write therefore leaves the in-memory and durable receipt available to retry.
+ */
+export function createRestoreReceiptStore(): RestoreReceiptStore {
+  return {
+    load(workspaceId: string): RestoreResult | null {
+      const checked = checkedReceiptWorkspaceId(workspaceId);
+      const current = getState();
+      if (String(current.activeWorkspaceId) !== String(checked)) return null;
+      return current.restoreReceipts?.[receiptKey(checked)] ?? null;
+    },
+    async save(result: RestoreResult): Promise<void> {
+      const checked = checkedReceiptWorkspaceId(result.workspaceId);
+      await runWithQuiescedPersistence(async () => {
+        const current = getState();
+        if (String(current.activeWorkspaceId) !== String(checked)) {
+          throw new Error('Restore receipt workspace is no longer active.');
+        }
+        setPartial({
+          restoreReceipts: {
+            ...(current.restoreReceipts ?? {}),
+            [receiptKey(checked)]: result,
+          },
+        });
+        await persistCurrentStateNow(checked);
+      });
+    },
+    async acknowledge(workspaceId: string): Promise<void> {
+      const checked = checkedReceiptWorkspaceId(workspaceId);
+      await runWithQuiescedPersistence(async () => {
+        const current = getState();
+        if (String(current.activeWorkspaceId) !== String(checked)) {
+          throw new Error('Restore receipt workspace is no longer active.');
+        }
+        if (current.restoreReceipts?.[receiptKey(checked)] === undefined) return;
+        const before = getPersistBlob(checked);
+        const parsed = JSON.parse(before) as Record<string, unknown>;
+        const receipts =
+          parsed.restoreReceipts !== null &&
+          typeof parsed.restoreReceipts === 'object' &&
+          !Array.isArray(parsed.restoreReceipts)
+            ? { ...(parsed.restoreReceipts as Record<string, unknown>) }
+            : {};
+        delete receipts[receiptKey(checked)];
+        parsed.restoreReceipts = receipts;
+        const acknowledged = JSON.stringify(parsed);
+        await persistCurrentStateNow(checked, undefined, { plaintextOverride: acknowledged });
+
+        // If a user mutation arrived while the native write was in flight, preserve that newer
+        // state and its receipt instead of hydrating an old snapshot over it.
+        if (getPersistBlob(checked) !== before) {
+          await persistCurrentStateNow(checked);
+          return;
+        }
+        hydrateFromBlob(acknowledged, checked);
+      });
+    },
+  };
+}
+
+/** Shared local receipt boundary for restore screens and the cold-start hydrator. */
+export const restoreReceiptStore = createRestoreReceiptStore();
 
 /** Commit a verified remote projection before hydrating it into the live store. This is the
  * replay boundary: an edit captured after the caller's snapshot makes the operation fail closed,

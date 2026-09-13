@@ -258,12 +258,14 @@ import {
   recoverAndActivatePersistedBusinessWorkspace,
   reconcileEvidenceFilesystem,
   reconcileMissingEvidenceFiles,
+  restoreReceiptStore,
   renamePersistedBusinessWorkspace,
   restorePersistedBusinessWorkspace,
   restorePersistedWorkspacePayload,
   startPersisting,
   switchPersistedWorkspace,
 } from './persist';
+import type { RestoreResult } from './restoreResult';
 import { createCloudSyncLocalState } from './cloudSyncLocal';
 import { createShareableCloudSyncProjection } from './cloudSyncProjection';
 import { serializeCloudSyncLocalState } from './cloudSyncLocal';
@@ -291,6 +293,25 @@ const partitionBackupUri = `${DOC_DIR}${partitionNames.backup}`;
 const partitionParkedUri = `${DOC_DIR}${partitionNames.parked}`;
 const manifestUri = `${DOC_DIR}melo.workspace-manifest.v1.json`;
 const manifestTmpUri = `${DOC_DIR}melo.workspace-manifest.v1.tmp.json`;
+
+const restoreReceiptFixture: RestoreResult = {
+  workspaceId: String(PERSONAL_WORKSPACE_ID),
+  status: 'partial',
+  degraded: true,
+  attemptedTransactionCount: 2,
+  restoredTransactionCount: 1,
+  restoredAccountCount: 1,
+  restoredOriginalFileCount: 0,
+  missingOriginalFileCount: 1,
+  unlinkedRecordCount: 1,
+  unlinkedStatementRecordCount: 0,
+  restoredTransactionIds: ['txn-restored'],
+  missingTransactionIds: ['txn-missing'],
+  droppedTransactionCount: 0,
+  duplicateTransactionIdCount: 0,
+  changedTransactionIds: [],
+  missingOriginalTransactionIds: ['txn-restored'],
+};
 
 beforeEach(async () => {
   // A stopped controller still owns its already-started write. Finish it before replacing the
@@ -1862,5 +1883,71 @@ describe('workspace partition migration', () => {
     await switchPersistedWorkspace(business.id);
     expect(getState().nextYouNote).toBe('Retained while archived');
     expect(getState().workspaces[1]).toMatchObject({ name: 'Studio Ops', archivedAt: null });
+  });
+});
+
+describe('MF10 restore receipt durability', () => {
+  it('serializes concurrent receipt saves at the native persistence boundary', async () => {
+    resetToEmpty();
+    let releaseFirst!: () => void;
+    const firstWrite = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    saveNativeWorkspaceStateGeneration.mockImplementationOnce(async () => {
+      await firstWrite;
+      return { generation: 1 };
+    });
+    const secondReceipt = { ...restoreReceiptFixture, status: 'success' as const, degraded: false };
+    const first = restoreReceiptStore.save(restoreReceiptFixture);
+    await Promise.resolve();
+    const second = restoreReceiptStore.save(secondReceipt);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(saveNativeWorkspaceStateGeneration).toHaveBeenCalledTimes(1);
+
+    releaseFirst();
+    await first;
+    await second;
+    expect(saveNativeWorkspaceStateGeneration).toHaveBeenCalledTimes(2);
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(secondReceipt);
+  });
+
+  it('saves and hydrates one workspace receipt across a cold load', async () => {
+    resetToEmpty();
+    await restoreReceiptStore.save(restoreReceiptFixture);
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(restoreReceiptFixture);
+
+    resetToEmpty();
+    await loadPersisted(PERSONAL_WORKSPACE_ID);
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(restoreReceiptFixture);
+  });
+
+  it('keeps a receipt visible when acknowledgement persistence fails', async () => {
+    resetToEmpty();
+    await restoreReceiptStore.save(restoreReceiptFixture);
+    saveNativeWorkspaceStateGeneration.mockRejectedValueOnce(new Error('SQLITE_FULL'));
+
+    await expect(
+      restoreReceiptStore.acknowledge(String(PERSONAL_WORKSPACE_ID)),
+    ).rejects.toThrow(/SQLITE_FULL/i);
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(restoreReceiptFixture);
+  });
+
+  it('clears a receipt only after a successful durable acknowledgement', async () => {
+    resetToEmpty();
+    await restoreReceiptStore.save(restoreReceiptFixture);
+    await restoreReceiptStore.acknowledge(String(PERSONAL_WORKSPACE_ID));
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toBeNull();
+    expect(JSON.parse(getPersistBlob(PERSONAL_WORKSPACE_ID)).restoreReceipts).toEqual({});
+  });
+
+  it('does not expose a Personal receipt while another workspace is active', async () => {
+    resetToEmpty();
+    await restoreReceiptStore.save(restoreReceiptFixture);
+    const business = await createPersistedBusinessWorkspace('Receipt test');
+    await switchPersistedWorkspace(business.id);
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toBeNull();
+
+    await switchPersistedWorkspace(PERSONAL_WORKSPACE_ID);
+    expect(restoreReceiptStore.load(String(PERSONAL_WORKSPACE_ID))).toEqual(restoreReceiptFixture);
   });
 });

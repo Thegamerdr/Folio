@@ -80,6 +80,7 @@ export const appStateAuthorityManifest = {
   statementImports: 'canonical-transaction-intelligence-authority',
   statementReviewSession: 'exact-encrypted-authority',
   statementReviewSessions: 'exact-encrypted-authority',
+  restoreReceipts: 'exact-encrypted-authority',
   evidenceDocuments: 'canonical-transaction-intelligence-authority',
 
   calendarFocusDate: 'transient-not-persisted',

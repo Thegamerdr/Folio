@@ -52,6 +52,7 @@ import type { ObligationResolution } from '@folio/finance-engine';
 import { expandObligationOccurrences } from '@folio/finance-engine';
 import { preserveDebtMinimumSchedule } from './lib/obligationState';
 import type { CandidateMoneyItem, ColumnIssue } from './lib/importSheet';
+import type { RestoreResult } from './lib/restoreResult';
 import {
   applyMemoryToCandidates,
   MERCHANT_CATEGORY_CAP,
@@ -736,6 +737,8 @@ export type AppState = {
   /** Durable MF09 reviews, one entry per source/workspace. The singular field remains as a
    *  migration/read compatibility alias for older callers and persisted installs. */
   statementReviewSessions?: StatementReviewSession[];
+  /** Durable MF10 restore outcomes, partitioned by workspace and retained until explicit ack. */
+  restoreReceipts?: Record<string, RestoreResult>;
   /** ENGINES.md §6 "Ignored review items: suppressed in main flow, visible in
    *  Hidden list." A Review candidate the user tapped "Ignore" on is recorded
    *  here by signature (`merchant|amountCents|date`, matching the design
@@ -1751,6 +1754,12 @@ function load(): AppState {
             typeof migrated.statementReviewSession === 'object'
           ? [migrated.statementReviewSession as StatementReviewSession]
           : [],
+      restoreReceipts:
+        migrated.restoreReceipts !== null &&
+        typeof migrated.restoreReceipts === 'object' &&
+        !Array.isArray(migrated.restoreReceipts)
+          ? (migrated.restoreReceipts as Record<string, RestoreResult>)
+          : {},
       ignoredReviewSigs: migrated.ignoredReviewSigs ?? [],
       reviewQueue: Array.isArray(migrated.reviewQueue) ? migrated.reviewQueue : [],
       ...(migrated.bankImportInbox === undefined
@@ -7063,6 +7072,7 @@ export function createEmptyWorkspacePartition(
     readerClosingBalance: null,
     statementReviewSession: null,
     statementReviewSessions: [],
+    restoreReceipts: {},
     ignoredReviewSigs: [],
     reviewQueue: [],
     reviewQueueSpillover: [],
