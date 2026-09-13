@@ -415,6 +415,10 @@ export function Sheet({
   const maxHeight = viewport.maxHeight;
   const panelBottomOffset = viewport.bottom;
   const panelBottomPadding = viewport.keyboardOccludesBottom ? gap.md : restingPanelBottomPadding;
+  const effectivePanelBottomPadding =
+    imeOverflowPolicy === 'scrollBodyToFocusedTerminal' && viewport.keyboardOccludesBottom
+      ? 0
+      : panelBottomPadding;
   // translateY animates the panel up from below; scrimOpacity fades the ink ground in.
   // Both are refs so they survive re-renders and we can drive them imperatively.
   const translateY = useRef(new Animated.Value(height)).current;
@@ -426,6 +430,8 @@ export function Sheet({
   const scrollY = useRef(0);
   const focusFrame = useRef<number | null>(null);
   const focusMeasurement = useRef(0);
+  const lastKeyboardVisible = useRef(false);
+  const anchorOffset = useRef(0);
   const keepFocusedInputVisible = useCallback(() => {
     const generation = ++focusMeasurement.current;
     if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
@@ -446,7 +452,9 @@ export function Sheet({
           }),
         );
       }
-      if (!visible || !bodyScrollable || !focused || !body) return;
+      if (!visible || !bodyScrollable || !body) return;
+      if (imeOverflowPolicy === 'scrollBodyToFocusedTerminal' &&
+          !(terminalAlignmentEnabledRef?.current ?? terminalAlignmentEnabled)) return;
       const bodyNative = body.getNativeScrollRef();
       const content = contentRef.current;
       if (!bodyNative || !content) return;
@@ -534,6 +542,10 @@ export function Sheet({
     );
   }, [keepFocusedInputVisible]);
   useEffect(() => {
+    if (!keyboardMetrics && lastKeyboardVisible.current && bodyScrollable) {
+      bodyScrollRef.current?.scrollTo({ y: anchorOffset.current, animated: false });
+    }
+    lastKeyboardVisible.current = Boolean(keyboardMetrics);
     if (visible && keyboardMetrics) settleFocusedInput();
     return () => focusSettleTimers.current.forEach(clearTimeout);
   }, [visible, keyboardMetrics, settleFocusedInput]);
@@ -703,7 +715,7 @@ export function Sheet({
               importantForAccessibility="yes"
               style={[
                 s.panel,
-                { maxHeight, paddingBottom: panelBottomPadding },
+                { maxHeight, paddingBottom: effectivePanelBottomPadding },
                 !bodyScrollable && { height: maxHeight },
                 { transform: [{ translateY }] },
               ]}
@@ -738,6 +750,7 @@ export function Sheet({
                   // entire S9 typing area and collapse intrinsic form rows.
                   contentContainerStyle={[
                     layout.scrollContent,
+                    imeOverflowPolicy === 'scrollBodyToFocusedTerminal' ? { paddingBottom: 0 } : undefined,
                     contentMinHeight != null ? { minHeight: contentMinHeight } : undefined,
                   ]}
                   keyboardShouldPersistTaps="handled"
@@ -775,6 +788,7 @@ export function Sheet({
                   onScroll={(event) => {
                     onBodyScroll?.(event);
                     scrollY.current = event.nativeEvent.contentOffset.y;
+                    anchorOffset.current = scrollY.current;
                     if (geometryLogging) {
                       console.info(
                         'MeloSheetGeometry',
@@ -791,7 +805,13 @@ export function Sheet({
                   scrollEventThrottle={16}
                   showsVerticalScrollIndicator
                 >
-                  <View
+                  {directScrollContent && imeOverflowPolicy === 'resizeSiblings' ? (
+                    <>
+                      {bodyContentInset > 0 ? <View style={{ height: bodyContentInset, flexShrink: 0 }} /> : null}
+                      {children}
+                      {bodyContentInset > 0 ? <View style={{ height: bodyContentInset, flexShrink: 0 }} /> : null}
+                    </>
+                  ) : <View
                     ref={contentRef}
                     collapsable={false}
                     onFocus={settleFocusedInput}
@@ -816,7 +836,7 @@ export function Sheet({
                     {bodyContentInset > 0 ? (
                       <View style={{ height: bodyContentInset, flexShrink: 0 }} />
                     ) : null}
-                  </View>
+                  </View>}
                 </ScrollView>
               ) : (
                 <View style={layout.sheetContent}>{children}</View>
@@ -846,6 +866,7 @@ export function Sheet({
       maxHeight,
       panelBottomOffset,
       panelBottomPadding,
+      effectivePanelBottomPadding,
       s,
       scrimOpacity,
       translateY,

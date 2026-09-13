@@ -388,6 +388,7 @@ function MeloChat({
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const [draftHeight, setDraftHeight] = useState(0);
+  const draftActionRef = useRef(false);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
@@ -444,6 +445,7 @@ function MeloChat({
   const toneLabel = TONES.find((tn) => tn.id === savedTone)?.label ?? 'Calm';
   const starters = meloChatStarters(snapshot.workspaceKind ?? 'personal');
   function replaceDraft(text: string) {
+    draftActionRef.current = true;
     setInput(text);
     inputRef.current?.focus();
   }
@@ -862,7 +864,7 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
       viewportHeight.current = e.nativeEvent.layout.height;
     },
   };
-  terminalAlignmentRef.current = atBottom || hasDraft || isLoading || voice.phase !== 'idle';
+  terminalAlignmentRef.current = atBottom || draftActionRef.current || isLoading || voice.phase !== 'idle';
 
   const showEmpty = messages.length === 0 && !isLoading;
   // The opening money question remains readable while its first reply is being typed.
@@ -894,7 +896,10 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
       <TextInput
         ref={inputRef}
         value={input}
-        onChangeText={setInput}
+        onChangeText={(text) => {
+          draftActionRef.current = true;
+          setInput(text);
+        }}
         placeholder="Say anything to Melo…"
         placeholderTextColor={t.muted}
         editable={!isLoading && voice.phase === 'idle'}
@@ -1297,8 +1302,22 @@ function runAssistantAction(action: MeloLocalAiAction, intent: MeloLocalIntent) 
             </View>
           ) : null}
 
-          {/* Error — accent-coloured line. */}
+        {/* Error — accent-coloured line. */}
         </View>
+
+        {!atBottom ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Scroll to latest"
+            onPress={() => {
+              setAtBottom(true);
+              scrollToEnd(true);
+            }}
+            style={s.scrollLatest}
+          >
+            <Text style={s.scrollLatestLabel}>Scroll to latest</Text>
+          </Pressable>
+        ) : null}
 
       </View>
 
@@ -2039,6 +2058,8 @@ function makeStyles(t: Palette) {
       paddingVertical: gap.lg,
     },
     terminalSpacer: { height: gap.md, flexShrink: 0 },
+    scrollLatest: { alignItems: 'center', minHeight: 44, justifyContent: 'center' },
+    scrollLatestLabel: { color: t.calmStrong, fontSize: 13, fontWeight: '600' },
     sectionLabel: {
       color: t.muted,
       fontSize: 12,
