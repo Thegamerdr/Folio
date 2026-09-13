@@ -151,7 +151,6 @@ describe('Sheet mounted focus lifecycle', () => {
           onClose: vi.fn(),
           scrollable: true,
           imeOverflowPolicy: 'scrollBodyToFocusedTerminal',
-          terminalAlignmentEnabled: false,
           children: React.createElement(View, { style: { height: 80 } }),
         }),
         { createNodeMock: (element: any) => {
@@ -171,8 +170,9 @@ describe('Sheet mounted focus lifecycle', () => {
       );
     });
     const scroll = tree.root.findAll((node) => (node.type as any) === 'ScrollView')[0]!;
-    act(() => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 240 } } }));
     act(() => keyboardListeners.get('keyboardDidShow')?.({ endCoordinates: { height: 300 } }));
+    act(() => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 240 } } }));
+    act(() => scroll.props.onScrollBeginDrag?.());
     act(() => keyboardListeners.get('keyboardDidHide')?.());
     expect(scrollTo).toHaveBeenLastCalledWith({ y: 240, animated: false });
     act(() => tree.unmount());
@@ -213,7 +213,7 @@ describe('Sheet mounted focus lifecycle', () => {
     const scroll = tree.root.findAll((node) => (node.type as any) === 'ScrollView')[0]!;
     act(() => scroll.props.onLayout({ nativeEvent: { layout: { width: 390, height: 304 } } }));
     expect(scrollTo).not.toHaveBeenCalled();
-    vi.mocked(TextInput.State.currentlyFocusedInput).mockReturnValue(null);
+    vi.mocked(TextInput.State.currentlyFocusedInput).mockReturnValue(null as any);
     act(() => tree.unmount());
   });
 });
