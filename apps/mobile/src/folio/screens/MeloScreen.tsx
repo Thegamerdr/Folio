@@ -510,8 +510,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
         </View>
 
         {/* Plumage — word + segmented meter + one honest whisper. */}
-        {!melo.quietMode ? (
-          <View style={styles.section}>
+        <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.sectionTitle, { color: t.ink }]}>Plumage</Text>
               <Text style={[styles.sectionHint, { color: t.muted }]}>LIVE · MONEY HEALTH</Text>
@@ -550,8 +549,7 @@ export function MeloScreen({ nav, state = 'populated' }: MeloScreenProps) {
               ) : null}
             </View>
             <Text style={[styles.plumageCaption, { color: t.muted }]}>{health.caption}</Text>
-          </View>
-        ) : null}
+        </View>
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: t.ink }]}>What he’s reading</Text>
